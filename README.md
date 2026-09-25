@@ -1,4 +1,4 @@
-# Studio · MVP tin nóng
+# Motio · MVP tin nóng
 
 Web app làm video tiếng Pháp 9:16 từ tin hot Trung Quốc (NewsNow): tìm clip nguồn trên YouTube và
 Bilibili, bóc lời bằng Whisper, Claude viết lời bình tiếng Pháp và chọn đoạn, ElevenLabs đọc,
@@ -7,9 +7,9 @@ FFmpeg dựng (nền mờ, nhãn nguồn, phụ đề, công bố giọng AI).
 ## Chạy trên Mac
 
 ```bash
-cd ~/Works/studio
+cd ~/Works/motio
 uv sync                          # lần đầu
-uv run python -m studio serve        # mở http://127.0.0.1:8765
+uv run python -m motio serve        # mở http://127.0.0.1:8765
 ```
 
 1. Bấm **Cập nhật tin hot**: lấy bảng Douyin, Weibo, Baidu, Bilibili, Toutiao, The Paper; Claude dịch
@@ -17,7 +17,7 @@ uv run python -m studio serve        # mở http://127.0.0.1:8765
 2. Chọn tin, bấm **Làm video**. Trang dự án hiện tiến trình, nhật ký, video và nội dung bài đăng
    (tiêu đề, mô tả, nguồn, hashtag).
 
-Dòng lệnh: `uv run python -m studio refresh`, `... trends`, `... produce douyin:2644652`.
+Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`.
 
 ## Cấu hình (.env)
 
@@ -34,14 +34,14 @@ Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
 ## Cấu trúc
 
 ```
-studio/newsnow.py   lấy tin + dịch + chấm điểm
-studio/search.py    yt-dlp tìm / tải nguồn (giữ nền tảng, kênh, giấy phép)
-studio/asr.py       Whisper (mlx trên Mac, faster-whisper nơi khác)
-studio/llm.py       claude -p hoặc Claude API
-studio/tts.py       ElevenLabs có mốc thời gian (giọng macOS nếu chưa có key)
-studio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
-studio/pipeline.py  7 bước của một dự án
-studio/web.py       dashboard
+motio/newsnow.py   lấy tin + dịch + chấm điểm
+motio/search.py    yt-dlp tìm / tải nguồn (giữ nền tảng, kênh, giấy phép)
+motio/asr.py       Whisper (mlx trên Mac, faster-whisper nơi khác)
+motio/llm.py       claude -p hoặc Claude API
+motio/tts.py       ElevenLabs có mốc thời gian (giọng macOS nếu chưa có key)
+motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
+motio/pipeline.py  7 bước của một dự án
+motio/web.py       dashboard
 ```
 
 ## Quy tắc nội dung có sẵn

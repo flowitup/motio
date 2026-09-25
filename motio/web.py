@@ -1,4 +1,4 @@
-"""Web dashboard (FastAPI + Jinja). Chạy: uv run python -m studio serve"""
+"""Web dashboard (FastAPI + Jinja). Chạy: uv run python -m motio serve"""
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import config, db, newsnow, pipeline
 
-app = FastAPI(title="Studio")
+app = FastAPI(title="Motio")
 app.mount("/media", StaticFiles(directory=config.DATA), name="media")
 tpl = Jinja2Templates(directory=Path(__file__).parent / "templates")
 

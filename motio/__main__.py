@@ -1,4 +1,4 @@
-"""CLI: uv run python -m studio [refresh | trends | produce <trend_id> | serve]"""
+"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | serve]"""
 import json
 import sys
 
@@ -28,10 +28,10 @@ def main(argv: list[str]) -> None:
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
     elif cmd == "serve":
         import uvicorn
-        host = config.env("STUDIO_HOST", "127.0.0.1")
-        port = int(config.env("STUDIO_PORT", "8765"))
-        print(f"Studio: http://{host}:{port}")
-        uvicorn.run("studio.web:app", host=host, port=port, log_level="warning")
+        host = config.env("MOTIO_HOST", "127.0.0.1")
+        port = int(config.env("MOTIO_PORT", "8765"))
+        print(f"Motio: http://{host}:{port}")
+        uvicorn.run("motio.web:app", host=host, port=port, log_level="warning")
     else:
         sys.exit(__doc__)
 

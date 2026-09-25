@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA = Path(os.getenv("STUDIO_DATA") or ROOT / "data")
+DATA = Path(os.getenv("MOTIO_DATA") or ROOT / "data")
 PROJECTS = DATA / "projects"
 CACHE = DATA / "cache"
 for _d in (DATA, PROJECTS, CACHE):

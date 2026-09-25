@@ -8,7 +8,7 @@ import httpx
 
 from . import config, db, llm
 
-UA = {"User-Agent": "Mozilla/5.0 (Macintosh) studio/0.1"}
+UA = {"User-Agent": "Mozilla/5.0 (Macintosh) motio/0.1"}
 
 SOURCE_NAMES = {
     "douyin": "Douyin", "weibo": "Weibo", "baidu": "Baidu", "bilibili-hot-search": "Bilibili",

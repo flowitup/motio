@@ -6,7 +6,7 @@ import time
 
 from .config import DATA
 
-_DB = DATA / "studio.sqlite3"
+_DB = DATA / "motio.sqlite3"
 _lock = threading.Lock()
 
 SCHEMA = """

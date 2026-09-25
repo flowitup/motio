@@ -1,7 +1,7 @@
 """Đo token thật cho 3 loại lệnh gọi Claude của pipeline tin nóng (dùng dữ liệu dự án #1)."""
 import json, subprocess, tempfile, time
 from pathlib import Path
-from studio import config, db, newsnow, pipeline, search, asr
+from motio import config, db, newsnow, pipeline, search, asr
 
 def run(name, prompt, system, effort=None, model="sonnet"):
     cmd = [config.which("claude"), "-p", "--output-format", "json", "--model", model, "--system-prompt", system,

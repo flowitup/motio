@@ -1,7 +1,7 @@
 [project]
-name = "studio"
+name = "motio"
 version = "0.1.0"
-description = "Studio — web app làm video tiếng Pháp từ tin nóng và Pháp hoá kênh"
+description = "Motio — web app làm video tiếng Pháp từ tin nóng và Pháp hoá kênh"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
