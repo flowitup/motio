@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Studio{% endblock %}</title>
+<style>
+:root{--bg:#EDF0F3;--surface:#fff;--surface-2:#F5F7F9;--ink:#141B22;--ink-2:#44505C;--muted:#687583;--line:#D3DAE1;
+--accent:#D3372C;--accent-soft:#FBE7E4;--ok:#1E7F47;--ok-soft:#E1F3E8;--warn:#9A6A12;--warn-soft:#FBF0DA;--no:#B8322A;--no-soft:#FBE6E3;
+--mono:ui-monospace,"SF Mono",Menlo,monospace;--body:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1318;--surface:#151C23;--surface-2:#1A232C;--ink:#E7ECF1;--ink-2:#B4C0CC;--muted:#8896A4;--line:#2A3540;
+--accent:#FF5B4B;--accent-soft:#3A1D1B;--ok:#4CC282;--ok-soft:#15301F;--warn:#E3B04F;--warn-soft:#352914;--no:#FF7B70;--no-soft:#3A1D1B;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body)}
+a{color:inherit}
+header{display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--surface)}
+header .logo{font-weight:800;letter-spacing:.02em;text-transform:uppercase;text-decoration:none}
+header .logo em{font-style:normal;color:var(--accent)}
+header nav{margin-left:auto;display:flex;gap:16px;font-size:14px;color:var(--ink-2)}
+main{max-width:1200px;margin:0 auto;padding:24px}
+h1,h2{margin:0 0 12px;line-height:1.2}
+h2{font-size:18px}
+.muted{color:var(--muted)} .small{font-size:13px} .mono{font-family:var(--mono)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+border-radius:6px;padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.chip{font:12px var(--mono);padding:2px 8px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line);white-space:nowrap}
+.chip.done{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.chip.running,.chip.queued{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.chip.failed{background:var(--no-soft);color:var(--no);border-color:transparent}
+.score{font:700 15px var(--mono);min-width:44px;text-align:center;padding:4px 0;border-radius:6px;background:var(--surface-2)}
+.score.hi{background:var(--accent-soft);color:var(--accent)}
+.bar{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+pre{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px;max-height:340px;overflow:auto}
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<header>
+  <a class="logo" href="/"><em>Studio</em></a>
+  <span class="chip">MVP · tin nóng</span>
+  <nav><a href="/">Tin hot</a></nav>
+</header>
+<main>{% block main %}{% endblock %}</main>
+{% block script %}{% endblock %}
+</body>
+</html>

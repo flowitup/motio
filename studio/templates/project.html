@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ p.meta.title or p.title }} · Studio{% endblock %}
+{% block head %}
+<style>
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:1fr}}
+video{width:100%;aspect-ratio:9/16;background:#000;border-radius:8px;display:block}
+.ph{aspect-ratio:9/16;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);font-size:14px;text-align:center;padding:20px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+textarea{width:100%;min-height:210px;font:13.5px/1.5 var(--body);border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--ink);padding:10px}
+.src{font-size:13px;margin:4px 0}
+</style>
+{% endblock %}
+{% block main %}
+<p class="small"><a href="/">← Tin hot</a></p>
+<div class="layout">
+  <div>
+    <div id="player">
+      {% if p.status == 'done' %}<video src="/media/{{ p.meta.video }}" controls playsinline poster="/media/{{ p.meta.thumb }}"></video>
+      {% else %}<div class="ph" id="ph">Video sẽ hiện ở đây khi dựng xong.</div>{% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="margin-bottom:6px"><span class="chip {{ p.status }}" id="status">{{ p.status }}</span>
+      <span class="small muted">Dự án #{{ p.id }} · tin {{ trend.source if trend else '' }}</span></div>
+    <h1 style="font-size:22px" id="title">{{ p.meta.title or p.title }}</h1>
+    {% if trend %}<p class="small muted">{{ trend.title_zh }}</p>{% endif %}
+    <div class="row small" style="margin:14px 0 6px"><b id="step">{{ p.step or 'Đang chờ' }}</b><span class="muted" id="pct">{{ p.pct }}%</span></div>
+    <div class="bar"><i id="bar" style="width:{{ p.pct }}%"></i></div>
+    <div id="post" {% if p.status != 'done' %}hidden{% endif %} style="margin-top:18px">
+      <h2>Nội dung bài đăng</h2>
+      <textarea id="posttext" readonly>{{ (p.meta.title or '') ~ '\n\n' ~ (p.meta.description or '') }}</textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="copy" type="button">Copy nội dung</button>
+        {% if p.meta.video %}<a class="btn" href="/media/{{ p.meta.video }}" download>Tải MP4</a>{% endif %}
+      </div>
+    </div>
+    {% if p.meta.sources %}
+    <h2 style="margin-top:18px">Nguồn đã dùng</h2>
+    {% for s in p.meta.sources %}<div class="src">{{ s.platform }} · {{ s.uploader }} · <a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.title[:70] }}</a>{% if s.license %} · <span class="muted">{{ s.license }}</span>{% endif %}</div>{% endfor %}
+    {% endif %}
+    <h2 style="margin-top:18px">Nhật ký</h2>
+    <pre id="log">{{ p.log }}</pre>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+const pid = {{ p.id }};
+let status = "{{ p.status }}";
+async function poll() {
+  try {
+    const d = await (await fetch('/api/projects/' + pid)).json();
+    document.getElementById('status').textContent = d.status;
+    document.getElementById('status').className = 'chip ' + d.status;
+    document.getElementById('step').textContent = d.step || 'Đang chờ';
+    document.getElementById('pct').textContent = d.pct + '%';
+    document.getElementById('bar').style.width = d.pct + '%';
+    const log = document.getElementById('log');
+    if (log.textContent !== d.log) { log.textContent = d.log; log.scrollTop = log.scrollHeight; }
+    if (d.status !== status && (d.status === 'done' || d.status === 'failed')) { location.reload(); return; }
+    status = d.status;
+  } catch (e) {}
+  if (status === 'queued' || status === 'running') setTimeout(poll, 2000);
+}
+if (status === 'queued' || status === 'running') poll();
+const cp = document.getElementById('copy');
+if (cp) cp.addEventListener('click', async () => {
+  const t = document.getElementById('posttext');
+  try { await navigator.clipboard.writeText(t.value); cp.textContent = 'Đã copy'; }
+  catch (e) { t.select(); cp.textContent = 'Nhấn ⌘C'; }
+  setTimeout(() => cp.textContent = 'Copy nội dung', 1600);
+});
+</script>
+{% endblock %}

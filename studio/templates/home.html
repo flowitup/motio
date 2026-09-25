@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px}
+.trend{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 0;border-bottom:1px solid var(--line)}
+.trend:last-child{border-bottom:0}
+.trend h3{margin:0 0 2px;font-size:16px}
+.trend .zh{font-size:13px;color:var(--muted)}
+.trend .angle{font-size:13.5px;color:var(--ink-2);margin-top:4px}
+.proj{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;padding:10px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.proj:last-child{border-bottom:0}
+.proj img{width:48px;height:85px;object-fit:cover;border-radius:4px;background:var(--surface-2)}
+.proj .t{font-size:13.5px;font-weight:600;line-height:1.3}
+</style>
+{% endblock %}
+{% block main %}
+<div class="layout">
+  <section class="card">
+    <div class="top">
+      <h1 style="font-size:22px;margin:0">Tin hot Trung Quốc</h1>
+      <form method="post" action="/trends/refresh" style="margin-left:auto">
+        <button class="btn" id="refresh" {% if state.refreshing %}disabled{% endif %}>
+          {% if state.refreshing %}Đang cập nhật…{% else %}Cập nhật tin hot{% endif %}</button>
+      </form>
+    </div>
+    <p class="small muted" id="rstate">Nguồn: NewsNow ({{ ", ".join(["Douyin","Weibo","Baidu","Bilibili","Toutiao","The Paper"]) }}).
+      Lần cập nhật cuối: {{ state.last_refresh | age }}.
+      {% if state.last_result and state.last_result.error %}<b style="color:var(--no)">Lỗi: {{ state.last_result.error }}</b>{% endif %}</p>
+    {% if not trends %}
+      <p>Chưa có tin nào. Bấm <b>Cập nhật tin hot</b>: app lấy bảng tin, Claude dịch sang tiếng Pháp và chấm điểm (khoảng 1 phút).</p>
+    {% endif %}
+    {% for t in trends %}
+    <div class="trend">
+      <div class="score {% if t.score >= 70 %}hi{% endif %}" title="Điểm cho khán giả Pháp">{{ t.score }}</div>
+      <div>
+        <h3>{{ t.title_fr }}</h3>
+        <div class="zh">{{ source_name(t.source) }} #{{ t.rank }} · {{ t.title_zh }}
+          {% if t.url %} · <a href="{{ t.url }}" target="_blank" rel="noopener">mở</a>{% endif %}</div>
+        {% if t.angle %}<div class="angle">{{ t.angle }}</div>{% endif %}
+      </div>
+      <form method="post" action="/trends/{{ t.id }}/produce">
+        <button class="btn {% if t.status != 'used' %}primary{% endif %}">{% if t.status == 'used' %}Làm lại{% else %}Làm video{% endif %}</button>
+      </form>
+    </div>
+    {% endfor %}
+  </section>
+  <aside class="card">
+    <h2>Dự án gần đây</h2>
+    {% for p in projects %}
+    <a class="proj" href="/projects/{{ p.id }}">
+      {% if p.meta.thumb %}<img src="/media/{{ p.meta.thumb }}" alt="">{% else %}<img alt="">{% endif %}
+      <div>
+        <div class="t">{{ p.meta.title or p.title }}</div>
+        <div class="small muted" style="margin-top:4px"><span class="chip {{ p.status }}">{{ p.status }}</span> {{ p.step or '' }} · {{ p.pct }}%</div>
+      </div>
+    </a>
+    {% else %}
+    <p class="small muted">Chưa có dự án. Chọn một tin rồi bấm <b>Làm video</b>.</p>
+    {% endfor %}
+  </aside>
+</div>
+{% endblock %}
+{% block script %}
+{% if state.refreshing %}
+<script>
+setInterval(async () => {
+  try { const s = await (await fetch('/api/state')).json(); if (!s.refreshing) location.reload(); } catch (e) {}
+}, 3000);
+</script>
+{% endif %}
+{% endblock %}
