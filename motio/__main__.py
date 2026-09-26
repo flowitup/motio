@@ -1,4 +1,5 @@
-"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | rerender <id> | serve | engine ...]"""
+"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
+retry <id> [step] | serve | engine ...]"""
 import argparse
 import json
 import os
@@ -35,9 +36,22 @@ def main(argv: list[str]) -> None:
         print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "topic":  # topic "<chủ đề>" [link …]; chủ đề "" = chỉ dùng link
+        from . import pipeline, topic
+        try:
+            pid = topic.create(argv[1] if len(argv) > 1 else "", argv[2:])
+        except ValueError as e:
+            sys.exit(str(e))
+        print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
+        pipeline.produce(pid)
+        print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
     elif cmd == "rerender":
         from . import pipeline
         pipeline.rerender(int(argv[1]))
+        print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "retry":  # chạy tiếp từ bước lỗi, hoặc từ bước chỉ định (search … voice)
+        from . import pipeline
+        pipeline.resume(int(argv[1]), argv[2] if len(argv) > 2 else None)
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
     elif cmd == "serve":
         import uvicorn

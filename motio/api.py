@@ -19,11 +19,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, newsnow, pipeline, postiz, settings, tts
+from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, settings, topic, tts
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
+SCHED_TICK = 15.0  # giây giữa hai lần bộ hẹn giờ kiểm tra lịch cập nhật tin
+FIRST_DELAY = 60.0  # lần tự cập nhật đầu tiên: 1 phút sau khi engine khởi động
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
+
+
+class ProduceIn(BaseModel):
+    links: list[str] = []  # link video dán tay (Douyin, X, …), luôn được dùng
+    links_only: bool = False  # chỉ dùng các link này, không tự tìm
+
+
+class TopicIn(BaseModel):
+    topic: str = ""  # chủ đề tự do, mọi ngôn ngữ; bỏ trống = chỉ dùng link
+    links: list[str] = []
+    links_only: bool = False
+    duration: int = 80  # 70 | 80 | 90 giây
+    rights: str = "unknown"  # unknown | owned | licensed | cc
+
+
+class ProjectPatch(BaseModel):
+    rights: str | None = None
+
+
+class LinksIn(BaseModel):
+    links: list[str]
+
+
+class RetryIn(BaseModel):
+    start: str | None = None  # search | download | transcribe | script | voice; None = từ bước bị lỗi
 
 
 class PublishIn(BaseModel):
@@ -42,6 +69,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["log"] = p.get("log") or ""
         out["folder"] = str(config.PROJECTS / str(p["id"]))
         out["trend"] = db.get_trend(p["trend_id"]) if p.get("trend_id") else None
+        out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
     return out
 
 
@@ -51,13 +79,30 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
     state = {"refreshing": False, "last_refresh": None, "last_result": None}
     refresh_lock = threading.Lock()
+    started = time.time()
+    stop = threading.Event()
+
+    def next_refresh() -> float | None:
+        every = config.refresh_every_min()
+        if not every:
+            return None
+        return state["last_refresh"] + every * 60 if state["last_refresh"] else started + FIRST_DELAY
+
+    def scheduler() -> None:
+        """REFRESH_EVERY_MIN > 0: tự cập nhật tin theo lịch. Đọc lại cài đặt mỗi vòng nên đổi là có hiệu lực."""
+        while not stop.wait(SCHED_TICK):
+            due = next_refresh()
+            if due is not None and time.time() >= due and not state["refreshing"]:
+                _refresh()
 
     @asynccontextmanager
     async def lifespan(_app):
         stale = db.fail_stale()
         if stale:
             print(f"motio: đánh dấu lỗi các dự án dở dang {stale}", file=sys.stderr)
+        threading.Thread(target=scheduler, name="refresh-scheduler", daemon=True).start()
         yield
+        stop.set()
         jobs.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Motio engine", version=__version__, lifespan=lifespan)
@@ -120,7 +165,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.get("/api/state", dependencies=[Depends(auth)])
     def get_state():
-        return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20))}
+        return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20)),
+                "refresh_every_min": config.refresh_every_min(), "next_refresh": next_refresh()}
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
@@ -135,14 +181,26 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             threading.Thread(target=_refresh, daemon=True).start()
         return {"started": started}
 
+    def _links(raw: list[str]) -> list[str]:
+        try:
+            return search.clean_links(raw)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
     @app.post("/api/trends/{tid}/produce", status_code=202, dependencies=[Depends(auth)])
-    def produce(tid: str):
+    def produce(tid: str, body: ProduceIn | None = None):
         t = db.get_trend(tid)
         if not t:
             raise HTTPException(404, "Không có tin này")
+        links = _links(body.links) if body else []
+        if body and body.links_only and not links:
+            raise HTTPException(400, "Chọn “chỉ dùng link” thì cần ít nhất một link")
         if pipeline.quota_left() == 0:
             raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
+        if links:
+            db.update_project(pid, log=f"{len(links)} link nguồn dán tay",
+                              meta={"links": links, "links_only": bool(body.links_only)})
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -161,6 +219,27 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def project(pid: int):
         return _project_out(_get(pid), full=True)
 
+    @app.post("/api/projects", status_code=202, dependencies=[Depends(auth)])
+    def create_topic(body: TopicIn):
+        """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
+        try:
+            pid = topic.create(body.topic, body.links, body.links_only, body.duration, body.rights)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
+    @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
+    def patch_project(pid: int, body: ProjectPatch):
+        _get(pid)
+        if body.rights is not None:
+            if body.rights not in topic.RIGHTS:
+                raise HTTPException(400, f"Quyền nguồn không hợp lệ: {body.rights}")
+            db.update_project(pid, log=f"Quyền nguồn: {body.rights}", meta={"rights": body.rights})
+        return _project_out(_get(pid), full=True)
+
     @app.post("/api/projects/{pid}/rerender", status_code=202, dependencies=[Depends(auth)])
     def rerender(pid: int):
         p = _get(pid)
@@ -171,6 +250,39 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         db.update_project(pid, status="queued", step="Chờ dựng lại", pct=0, log="Xếp hàng dựng lại")
         jobs.submit(_run_job, pipeline.rerender, pid)
         return {"project_id": pid}
+
+    @app.post("/api/projects/{pid}/retry", status_code=202, dependencies=[Depends(auth)])
+    def retry(pid: int, body: RetryIn | None = None):
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, "Dự án đang chạy")
+        asked = body.start if body else None  # None = chạy tiếp từ bước bị lỗi, giữ kết quả đã có
+        start = asked or pipeline.resume_point(pid)
+        if start not in pipeline.STEPS:
+            raise HTTPException(400, f"Bước không hợp lệ: {start}")
+        if start not in pipeline.available_steps(pid):
+            raise HTTPException(409, f"Chưa đủ dữ liệu để chạy lại từ bước {pipeline.STEP_LABELS[start]}")
+        label = pipeline.STEP_LABELS[start]
+        db.update_project(pid, status="queued", step=f"Chờ chạy lại: {label}", pct=0,
+                          log=f"Xếp hàng chạy lại từ {label}")
+        jobs.submit(_run_job, lambda i: pipeline.resume(i, asked), pid)
+        return {"project_id": pid, "start": start}
+
+    @app.post("/api/projects/{pid}/links", status_code=202, dependencies=[Depends(auth)])
+    def add_links(pid: int, body: LinksIn):
+        """Thêm link nguồn rồi chạy lại từ bước tải video (hoặc tìm nguồn nếu dự án chưa tới đó)."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, "Dự án đang chạy")
+        links = _links(body.links)
+        if not links:
+            raise HTTPException(400, "Chưa có link nào")
+        start = pipeline.add_links(pid, links)
+        label = pipeline.STEP_LABELS[start]
+        db.update_project(pid, status="queued", step=f"Chờ chạy lại: {label}", pct=0,
+                          log=f"Xếp hàng chạy lại từ {label}")
+        jobs.submit(_run_job, lambda i: pipeline.resume(i, start), pid)
+        return {"project_id": pid, "start": start}
 
     @app.get("/api/projects/{pid}/events", dependencies=[Depends(auth_or_query)])
     async def events(pid: int, request: Request):

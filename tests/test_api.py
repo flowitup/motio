@@ -4,7 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, config, db, pipeline, settings
+from motio import api, config, db, newsnow, pipeline, settings
 
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
@@ -32,6 +32,7 @@ def client(monkeypatch):
 
     monkeypatch.setattr(pipeline, "produce", fake_produce)
     monkeypatch.setattr(pipeline, "rerender", fake_produce)
+    monkeypatch.setattr(pipeline, "resume", lambda pid, start=None: fake_produce(pid))
     with TestClient(api.create_app(TOKEN)) as c:
         yield c
 
@@ -101,6 +102,58 @@ def test_rerender(client):
     assert client.post("/api/projects/999/rerender", headers=H).status_code == 404
 
 
+def test_retry(client):
+    pid = db.create_project("douyin:1", "x")
+    db.update_project(pid, status="failed", log="LỖI")
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert p["retry"] == {"auto": "search", "steps": ["search"]}
+    assert client.post(f"/api/projects/{pid}/retry", headers=H, json={"start": "voice"}).status_code == 409
+    assert client.post(f"/api/projects/{pid}/retry", headers=H, json={"start": "nope"}).status_code == 400
+    r = client.post(f"/api/projects/{pid}/retry", headers=H)
+    assert r.status_code == 202 and r.json()["start"] == "search"
+    assert _wait_done(client, pid)["status"] == "done"
+    assert client.post("/api/projects/999/retry", headers=H).status_code == 404
+
+
+def test_produce_with_links(client):
+    r = client.post("/api/trends/douyin:1/produce", headers=H,
+                    json={"links": ["https://www.douyin.com/video/1", " https://x.com/a/status/2 "]})
+    assert r.status_code == 202
+    meta = client.get(f"/api/projects/{r.json()['project_id']}", headers=H).json()["meta"]
+    assert meta["links"] == ["https://www.douyin.com/video/1", "https://x.com/a/status/2"]
+    bad = client.post("/api/trends/douyin:1/produce", headers=H, json={"links": ["douyin.com/1"]})
+    assert bad.status_code == 400
+    empty = client.post("/api/trends/douyin:1/produce", headers=H, json={"links": [], "links_only": True})
+    assert empty.status_code == 400
+
+
+def test_create_topic_project_and_set_rights(client):
+    r = client.post("/api/projects", headers=H, json={"topic": "gấu trúc", "links": ["https://fb.watch/abc"],
+                                                      "duration": 90})
+    assert r.status_code == 202
+    pid = r.json()["project_id"]
+    p = _wait_done(client, pid)
+    assert p["mode"] == "topic" and p["trend"] is None and p["title"] == "gấu trúc"
+    assert p["meta"]["duration"] == 90 and p["meta"]["rights"] == "unknown" and not p["meta"]["links_only"]
+    r = client.patch(f"/api/projects/{pid}", headers=H, json={"rights": "licensed"})
+    assert r.status_code == 200 and r.json()["meta"]["rights"] == "licensed"
+    assert client.patch(f"/api/projects/{pid}", headers=H, json={"rights": "x"}).status_code == 400
+    assert client.post("/api/projects", headers=H, json={}).status_code == 400
+    assert client.post("/api/projects", headers=H, json={"topic": "x", "duration": 10}).status_code == 400
+    only = client.post("/api/projects", headers=H, json={"links": ["https://www.douyin.com/video/1"]}).json()
+    assert db.get_project(only["project_id"])["meta"]["links_only"] is True
+
+
+def test_add_links_queues_retry(client):
+    pid = db.create_project("douyin:1", "x")
+    db.update_project(pid, status="failed", meta={"chosen": [{"url": "https://yt/0"}]})
+    r = client.post(f"/api/projects/{pid}/links", headers=H, json={"links": ["https://x.com/a/status/2"]})
+    assert r.status_code == 202 and r.json()["start"] == "download"
+    p = _wait_done(client, pid)
+    assert [c["url"] for c in p["meta"]["chosen"]] == ["https://yt/0", "https://x.com/a/status/2"]
+    assert client.post(f"/api/projects/{pid}/links", headers=H, json={"links": []}).status_code == 400
+
+
 def test_media_blocks_traversal_and_settings(client):
     settings.update({"ELEVENLABS_API_KEY": "secret-key-1234"})
     assert client.get(f"/media/settings.json?token={TOKEN}").status_code == 404
@@ -159,3 +212,24 @@ def test_publish_needs_config_and_finished_video(client):
     pid = db.create_project("douyin:1", "x")
     assert client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1"]}).status_code == 409
     assert client.post("/api/projects/999/publish", headers=H, json={"channels": ["tt1"]}).status_code == 404
+
+
+def test_scheduled_refresh(monkeypatch):
+    calls = []
+    monkeypatch.setattr(newsnow, "refresh", lambda: calls.append(time.time()) or {"new": 0, "scored": 0, "errors": {}})
+    monkeypatch.setattr(api, "SCHED_TICK", 0.01)
+    monkeypatch.setattr(api, "FIRST_DELAY", 0.0)
+    with TestClient(api.create_app(TOKEN)) as c:
+        st = c.get("/api/state", headers=H).json()
+        assert st["refresh_every_min"] == 0 and st["next_refresh"] is None
+        time.sleep(0.1)
+        assert calls == []  # tắt theo mặc định
+        settings.update({"REFRESH_EVERY_MIN": 30})
+        end = time.time() + 3
+        while not calls and time.time() < end:
+            time.sleep(0.01)
+        assert len(calls) == 1
+        st = c.get("/api/state", headers=H).json()
+        assert st["refresh_every_min"] == 30 and st["next_refresh"] == pytest.approx(st["last_refresh"] + 1800)
+        time.sleep(0.1)
+        assert len(calls) == 1  # lần sau là 30 phút nữa

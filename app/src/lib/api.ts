@@ -15,7 +15,23 @@ export type Trend = {
   last_seen: number;
 };
 
+export type SourceInfo = {
+  url: string;
+  platform: string;
+  uploader: string;
+  title: string;
+  duration: number;
+};
+
+export type Rights = "unknown" | "owned" | "licensed" | "cc";
+
 export type ProjectMeta = {
+  topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
+  subject?: { title_fr: string; angle: string };
+  duration?: number;
+  rights?: Rights;
+  links?: string[];
+  sources?: SourceInfo[];
   video?: string;
   thumb?: string;
   title?: string;
@@ -48,7 +64,8 @@ export type ProjectStatus = "queued" | "running" | "done" | "failed";
 
 export type Project = {
   id: number;
-  trend_id: string;
+  trend_id: string | null;
+  mode: "news" | "topic";
   title: string;
   status: ProjectStatus;
   step: string | null;
@@ -58,7 +75,14 @@ export type Project = {
   updated_at: number;
 };
 
-export type ProjectDetail = Project & { log: string; folder: string; trend: Trend | null };
+export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice";
+
+export type ProjectDetail = Project & {
+  log: string;
+  folder: string;
+  trend: Trend | null;
+  retry: { auto: RetryStep; steps: RetryStep[] };
+};
 
 export type ProgressEvent = { status: ProjectStatus; step: string | null; pct: number; log_tail: string[] };
 
@@ -84,6 +108,8 @@ export type RefreshState = {
   last_refresh: number | null;
   last_result: { new?: number; scored?: number; errors?: Record<string, string>; error?: string } | null;
   busy: boolean;
+  refresh_every_min: number; // 0 = chỉ cập nhật bằng tay
+  next_refresh: number | null;
 };
 
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };
@@ -124,10 +150,21 @@ export function makeApi(url: string, token: string) {
     trends: (source?: string) =>
       call<Trend[]>("GET", `/api/trends?hours=24${source ? `&source=${encodeURIComponent(source)}` : ""}`),
     refresh: () => call<{ started: boolean }>("POST", "/api/trends/refresh"),
-    produce: (id: string) => call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`),
+    produce: (id: string, opts?: { links: string[]; links_only: boolean }) =>
+      call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`, opts),
+    /** Video giải thích từ chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…). */
+    createTopic: (body: { topic: string; links: string[]; links_only: boolean; duration: number; rights: Rights }) =>
+      call<{ project_id: number }>("POST", "/api/projects", body),
+    setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),
+    /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
+    addLinks: (id: number, links: string[]) =>
+      call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
+    /** Chạy lại từ `start`; bỏ trống = chạy tiếp từ bước bị lỗi, giữ kết quả đã có. */
+    retry: (id: number, start?: RetryStep) =>
+      call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/retry`, start ? { start } : {}),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>

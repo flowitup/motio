@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
+import { ExternalLink, Link2, Loader2, RefreshCw, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ExternalA } from "@/components/external-link";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useApi } from "@/lib/api";
 import { t } from "@/i18n";
 
@@ -19,6 +21,9 @@ export default function TrendsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [source, setSource] = useState<string>(ALL);
+  const [linksFor, setLinksFor] = useState<string | null>(null); // tin đang mở ô dán link
+  const [linksText, setLinksText] = useState("");
+  const [linksOnly, setLinksOnly] = useState(false);
 
   const all = useQuery({ queryKey: ["trends"], queryFn: () => api.trends() });
   const state = useQuery({
@@ -38,7 +43,8 @@ export default function TrendsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["state"] }),
   });
   const produce = useMutation({
-    mutationFn: (id: string) => api.produce(id),
+    mutationFn: ({ id, links }: { id: string; links?: string[] }) =>
+      api.produce(id, links?.length ? { links, links_only: linksOnly } : undefined),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["trends"] });
@@ -52,6 +58,15 @@ export default function TrendsPage() {
     return [...m.entries()];
   }, [all.data]);
   const trends = (all.data ?? []).filter((tr) => source === ALL || tr.source === source);
+  const pasted = linksText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const toggleLinks = (id: string) => {
+    setLinksFor(linksFor === id ? null : id);
+    setLinksText("");
+    setLinksOnly(false);
+  };
   const last = state.data?.last_result;
 
   return (
@@ -79,6 +94,13 @@ export default function TrendsPage() {
 
       <p className="text-sm text-muted-foreground">
         {t.trends.lastRefresh}: {t.age(state.data?.last_refresh)}
+        {!!state.data?.refresh_every_min && (
+          <>
+            {" · "}
+            {t.trends.autoRefresh(state.data.refresh_every_min)}
+            {state.data.next_refresh && ` (${t.trends.nextRefresh} ${t.clock(state.data.next_refresh)})`}
+          </>
+        )}
         {last?.new !== undefined && ` · ${t.trends.newScored(last.new)}`}
         {last?.error && <span className="text-destructive"> · {t.trends.refreshError}: {last.error}</span>}
         {last?.errors && Object.keys(last.errors).length > 0 && (
@@ -94,30 +116,66 @@ export default function TrendsPage() {
           Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
         {all.data && trends.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.trends.empty}</p>}
         {trends.map((tr) => (
-          <Card key={tr.id} className="flex-row items-start gap-4 p-4">
-            <ScoreBadge score={tr.score} />
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="font-medium leading-snug">{tr.title_fr}</div>
-              <div className="text-sm text-muted-foreground">{tr.title_zh}</div>
-              {tr.angle && <div className="text-sm">{tr.angle}</div>}
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
-                <Badge variant="outline">{tr.source_name}</Badge>
-                {tr.reason && <span>{tr.reason}</span>}
-                {tr.url && (
-                  <ExternalA href={tr.url} className="inline-flex items-center gap-1">
-                    <ExternalLink className="size-3" />
-                  </ExternalA>
-                )}
+          <Card key={tr.id} className="gap-3 p-4">
+            <div className="flex items-start gap-4">
+              <ScoreBadge score={tr.score} />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="font-medium leading-snug">{tr.title_fr}</div>
+                <div className="text-sm text-muted-foreground">{tr.title_zh}</div>
+                {tr.angle && <div className="text-sm">{tr.angle}</div>}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+                  <Badge variant="outline">{tr.source_name}</Badge>
+                  {tr.reason && <span>{tr.reason}</span>}
+                  {tr.url && (
+                    <ExternalA href={tr.url} className="inline-flex items-center gap-1">
+                      <ExternalLink className="size-3" />
+                    </ExternalA>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title={t.trends.links}
+                  aria-label={t.trends.links}
+                  aria-expanded={linksFor === tr.id}
+                  onClick={() => toggleLinks(tr.id)}
+                >
+                  <Link2 />
+                </Button>
+                <Button
+                  variant={tr.status === "used" ? "outline" : "default"}
+                  onClick={() => produce.mutate({ id: tr.id })}
+                  disabled={produce.isPending}
+                >
+                  {produce.isPending && produce.variables?.id === tr.id ? <Loader2 className="animate-spin" /> : <Video />}
+                  {tr.status === "used" ? t.trends.used : t.trends.produce}
+                </Button>
               </div>
             </div>
-            <Button
-              variant={tr.status === "used" ? "outline" : "default"}
-              onClick={() => produce.mutate(tr.id)}
-              disabled={produce.isPending}
-            >
-              {produce.isPending && produce.variables === tr.id ? <Loader2 className="animate-spin" /> : <Video />}
-              {tr.status === "used" ? t.trends.used : t.trends.produce}
-            </Button>
+            {linksFor === tr.id && (
+              <div className="grid gap-2 border-t pt-3">
+                <Textarea
+                  autoFocus
+                  value={linksText}
+                  onChange={(e) => setLinksText(e.target.value)}
+                  placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
+                  className="min-h-20 font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">{t.trends.linksHint}</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="mr-auto flex items-center gap-2 text-sm">
+                    <Switch checked={linksOnly} onCheckedChange={setLinksOnly} />
+                    {t.trends.linksOnly}
+                  </label>
+                  <Button onClick={() => produce.mutate({ id: tr.id, links: pasted })} disabled={!pasted.length || produce.isPending}>
+                    <Video />
+                    {t.trends.produceWithLinks}
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         ))}
       </div>

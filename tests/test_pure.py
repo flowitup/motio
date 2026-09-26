@@ -1,22 +1,7 @@
 import pytest
 
 from motio import llm, newsnow
-from motio.render import Piece, build_timeline, caption_chunks, split_by_captions
-
-
-def test_caption_chunks_short_and_long():
-    assert caption_chunks("  Bonjour   la France ") == ["Bonjour la France"]
-    text = "La Chine a lancé une nouvelle fusée hier soir, et les images ont fait le tour des réseaux sociaux"
-    chunks = caption_chunks(text, max_chars=58)
-    assert len(chunks) == 2
-    assert all(len(c) <= 58 for c in chunks)
-    assert " ".join(chunks) == text
-    assert chunks[0].endswith(",")  # ngắt ưu tiên sau dấu phẩy
-
-
-def test_caption_chunks_without_spaces():
-    assert caption_chunks("x" * 120, max_chars=50) == ["x" * 50, "x" * 50, "x" * 20]
-
+from motio.render import CUT_PAD, build_timeline, snap_end, snap_start
 
 SOURCES = [{"duration": 120}, {"duration": 60}]
 
@@ -48,19 +33,26 @@ def test_build_timeline_ignores_invalid_src():
     assert all(p.src in (0, 1) for p in pieces)
 
 
-def test_split_by_captions():
-    pieces = [Piece(src=0, src_start=10.0, dur=4.0, t0=0.0)]
-    events = [(0.0, 1.5, "un"), (1.5, 3.0, "deux"), (3.0, 4.0, "trois")]
-    out = split_by_captions(pieces, events)
-    assert [p.caption for p in out] == ["un", "deux", "trois"]
-    assert [p.t0 for p in out] == [0.0, 1.5, 3.0]
-    assert [p.src_start for p in out] == [10.0, 11.5, 13.0]
-    assert sum(p.dur for p in out) == pytest.approx(4.0)
+def test_snap_start_and_end_to_cuts():
+    assert snap_start(10.0, 15.0, [10.5]) == pytest.approx(10.5 + CUT_PAD)  # cú cắt ngay sau điểm vào
+    assert snap_start(10.0, 15.0, [11.5]) == 10.0  # xa hơn 0.8 s: giữ nguyên
+    assert snap_start(10.0, 11.0, [10.5]) == 10.0  # còn lại quá ngắn sau cú cắt
+    assert snap_end(10.0, 4.0, [13.6]) == pytest.approx(3.6 - CUT_PAD)  # cú cắt ngay trước điểm ra
+    assert snap_end(10.0, 4.0, [12.0]) == 4.0
+    assert snap_end(10.0, 1.2, [10.5]) == 1.2  # không cắt mảnh xuống dưới 1 s
 
 
-def test_split_ignores_cuts_near_edges():
-    out = split_by_captions([Piece(0, 0.0, 4.0, 0.0)], [(0.0, 0.1, "a"), (0.1, 4.0, "b")])
-    assert len(out) == 1 and out[0].caption == "b"
+def test_build_timeline_follows_scene_cuts():
+    sources = [{"duration": 120, "cuts": [20.4, 23.7, 40.0]}, {"duration": 60, "cuts": []}]
+    lines = [{"text": "a", "start": 0.0, "end": 6.0, "clips": [{"src": 0, "start": 20, "end": 24.3}]},
+             {"text": "b", "start": 6.0, "end": 12.0, "clips": []}]
+    pieces = build_timeline(lines, sources, 12.0)
+    first = pieces[0]
+    assert first.src == 0 and first.src_start == pytest.approx(20.4 + CUT_PAD)  # vào từ cú cắt 20.4
+    assert first.src_start + first.dur == pytest.approx(23.7 - CUT_PAD)  # dừng trước cú cắt 23.7
+    assert pieces[-1].t0 + pieces[-1].dur == pytest.approx(12.0)
+    for a, b in zip(pieces, pieces[1:], strict=False):
+        assert b.t0 == pytest.approx(a.t0 + a.dur)
 
 
 @pytest.mark.parametrize("text,expected", [

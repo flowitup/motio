@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { Choice, Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useApi, type Api, type Settings } from "@/lib/api";
 import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
@@ -14,43 +13,6 @@ import { useUpdater } from "@/lib/updater";
 import { t } from "@/i18n";
 
 type Draft = Record<string, string | boolean>;
-
-function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="grid gap-1.5">
-      <Label>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function Choice({
-  value,
-  onChange,
-  options,
-  className,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: [string, string][];
-  className?: string;
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => v != null && onChange(v)}>
-      <SelectTrigger className={className ?? "w-full"}>
-        <SelectValue>{(v: string) => options.find(([k]) => k === v)?.[1] ?? v}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {options.map(([k, label]) => (
-          <SelectItem key={k} value={k}>
-            {label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 function EngineCard() {
   const { info, getConfig, setConfig, restart } = useEngine();
@@ -376,6 +338,33 @@ function SettingsForm({ api }: { api: Api }) {
           </Field>
           <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
             {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}
+          </Field>
+          <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN")}>
+            <Input
+              type="number"
+              min={0}
+              className="w-32"
+              value={val("REFRESH_EVERY_MIN") || "0"}
+              onChange={(e) => set("REFRESH_EVERY_MIN", e.target.value)}
+            />
+          </Field>
+          <Field label={t.settings.newsnowUrl} hint={src("NEWSNOW_URL") ?? t.settings.newsnowHint}>
+            {text("NEWSNOW_URL", "https://newsnow.busiyi.world")}
+          </Field>
+          <Field label={t.settings.cookies} hint={t.settings.cookiesHint}>
+            <Choice
+              value={val("YTDLP_COOKIES_FROM_BROWSER") || "none"}
+              onChange={(v) => set("YTDLP_COOKIES_FROM_BROWSER", v === "none" ? "" : v)}
+              options={[
+                ["none", t.settings.cookiesNone],
+                ["chrome", "Chrome"],
+                ["safari", "Safari"],
+                ["firefox", "Firefox"],
+                ["edge", "Edge"],
+                ["brave", "Brave"],
+              ]}
+              className="w-48"
+            />
           </Field>
         </CardContent>
       </Card>

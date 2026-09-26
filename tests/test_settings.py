@@ -48,6 +48,17 @@ def test_update_rejects_unknown_and_bad_values():
     assert config.max_videos_per_day() == 3
 
 
+def test_refresh_interval_and_newsnow_url(monkeypatch):
+    assert config.refresh_every_min() == 0
+    assert config.newsnow_url() == config.DEFAULT_NEWSNOW
+    monkeypatch.setenv("NEWSNOW_URL", "http://newsnow:4444/")
+    assert config.newsnow_url() == "http://newsnow:4444"
+    settings.update({"REFRESH_EVERY_MIN": "30"})
+    assert config.refresh_every_min() == 30
+    with pytest.raises(ValueError):
+        settings.update({"REFRESH_EVERY_MIN": "-5"})
+
+
 def test_put_ffmpeg_on_path(monkeypatch, tmp_path):
     exe = tmp_path / "ffmpeg"
     exe.write_text("")

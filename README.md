@@ -19,7 +19,13 @@ uv run python -m motio serve        # open http://127.0.0.1:8765
 2. Pick a topic and click **Làm video** (make video). The project page shows progress, the log, the video and the post
    text (title, description, sources, hashtags).
 
-Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`, `... rerender <project>`.
+Beyond hot news: in the app, **Dự án → Tạo video** (Projects → make video) takes any topic, in any language, and/or
+video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
+Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
+
+Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
+`... topic "giant pandas" [link …]`, `... rerender <project>`, `... retry <project> [step]` (continue from the failed
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice`).
 
 ## Desktop app (Tauri)
 
@@ -91,8 +97,10 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to let the app pick a French voice from the account |
 | `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
-| `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`) on the server |
+| `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
+| `REFRESH_EVERY_MIN` | The engine refreshes hot topics every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
+| `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Binary paths if they are not on PATH |
@@ -103,12 +111,15 @@ Data (SQLite, source videos, projects) lives in `data/`.
 
 ```
 motio/newsnow.py   fetch hot topics + translate + score
-motio/search.py    yt-dlp search / download of sources (keeps platform, channel, license)
+motio/search.py    yt-dlp search (YouTube, Bilibili) / download of sources, pasted links included (keeps platform, channel, license)
 motio/asr.py       Whisper (mlx on the Mac, faster-whisper elsewhere)
 motio/llm.py       claude -p or the Claude API
 motio/tts.py       ElevenLabs with timestamps (macOS voice when there is no key)
 motio/render.py    9:16 render: Pillow draws the text, FFmpeg composes
-motio/pipeline.py  the steps of one project
+motio/captions.py  French karaoke captions (≤ 42 characters per line), exports captions.srt / captions.ass
+motio/scenes.py    scene cuts with FFmpeg's scene filter
+motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
+motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)

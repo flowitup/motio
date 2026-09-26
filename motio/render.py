@@ -1,21 +1,30 @@
 """Dựng video 9:16 bằng FFmpeg + lớp chữ vẽ bằng Pillow.
 
-FFmpeg của Homebrew không có libass / drawtext, nên tiêu đề, phụ đề, nhãn nguồn được vẽ thành
-PNG trong suốt 1080×1920 rồi overlay. Cách này chạy được với mọi bản FFmpeg.
+FFmpeg của Homebrew không có libass / drawtext, nên chữ được vẽ thành PNG trong suốt rồi overlay.
+Cách này chạy được với mọi bản FFmpeg.
+- Mỗi mảnh clip: nền mờ + clip + lớp tiêu đề và nhãn (tĩnh), mã hoá riêng rồi nối lại.
+- Phụ đề karaoke: chuỗi PNG có thời lượng (concat demuxer), overlay một lần ở bước trộn cuối.
 """
 import json
 import subprocess
-import textwrap
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import config
+from . import captions, config, scenes
 from .asr import has_audio
 
 W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
+NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
+TAIL = 0.6  # giây hình sau câu cuối
+CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn / nhãn AI
+CAP_SIZE, CAP_LINE = 60, 78
+CAP_H = captions.MAX_LINES * CAP_LINE + 40
+CAP_MAX_W = W - 120
+SPOKEN = (255, 214, 10)  # từ đã đọc (karaoke)
 
 FONT_BOLD = config.font_candidates("bold")
 FONT_CJK = config.font_candidates("cjk")
@@ -29,7 +38,7 @@ def _font(cands: list[str], size: int) -> ImageFont.FreeTypeFont:
 
 
 def _wrap(draw, text: str, font, max_w: int) -> list[str]:
-    words, lines, cur = text.split(), [], ""
+    words, lines, cur = [w for w in text.split(" ") if w], [], ""  # chỉ ngắt ở dấu cách thường, giữ NBSP
     for w in words:
         test = f"{cur} {w}".strip()
         if draw.textlength(test, font=font) <= max_w or not cur:
@@ -42,7 +51,8 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
     return lines
 
 
-def overlay_png(path: Path, *, title: str, caption: str, credit: str, badge: str = "ACTU CHINE") -> Path:
+def overlay_png(path: Path, *, title: str, credit: str, badge: str = "ACTU CHINE") -> Path:
+    """Lớp tĩnh 1080×1920: băng tiêu đề, nhãn nguồn (tuỳ chọn) và nhãn giọng AI."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     # Băng tiêu đề phía trên
@@ -66,34 +76,48 @@ def overlay_png(path: Path, *, title: str, caption: str, credit: str, badge: str
         x0 = x if anchor == "la" else x - tw - 24
         d.rounded_rectangle((x0, cy, x0 + tw + 24, cy + 46), radius=10, fill=(0, 0, 0, 150))
         d.text((x0 + 12, cy + 6), text, font=f_cr, fill=(235, 235, 235))
-    # Phụ đề
-    if caption:
-        f_cap = _font(FONT_BOLD, 64)
-        cl = _wrap(d, caption, f_cap, W - 120)[:3]
-        top = VIDEO_BOTTOM + 110
-        for i, ln in enumerate(cl):
-            tw = d.textlength(ln, font=f_cap)
-            d.text(((W - tw) / 2, top + i * 82), ln, font=f_cap, fill="white",
-                   stroke_width=6, stroke_fill=(0, 0, 0))
     img.save(path)
     return path
 
 
-def caption_chunks(text: str, max_chars: int = 58) -> list[str]:
-    """Chia câu dài thành các đoạn phụ đề gần bằng nhau, ưu tiên ngắt ở dấu câu gần giữa câu."""
-    text = " ".join(text.split())
-    if len(text) <= max_chars:
-        return [text]
-    mid = len(text) / 2
-    spaces = [i for i, ch in enumerate(text) if ch == " "]
-    if not spaces:
-        return textwrap.wrap(text, max_chars)
+def caption_fits() -> Callable[[str], bool]:
+    """Một dòng phụ đề vừa khi ≤ 42 ký tự và lọt chiều ngang khung với font phụ đề."""
+    f = _font(FONT_BOLD, CAP_SIZE)
+    d = ImageDraw.Draw(Image.new("L", (1, 1)))
+    return lambda text: len(text) <= captions.MAX_CHARS and d.textlength(text, font=f) <= CAP_MAX_W
 
-    def cost(i: int) -> float:  # gần giữa câu, ưu tiên sau dấu phẩy / chấm phẩy / hai chấm
-        return abs(i - mid) - (12 if text[i - 1] in ",;:" else 0)
 
-    cut = min(spaces, key=cost)
-    return caption_chunks(text[:cut], max_chars) + caption_chunks(text[cut + 1:], max_chars)
+def caption_png(path: Path, cue: captions.Cue | None, lit: int) -> Path:
+    """Dải phụ đề W×CAP_H: `lit` từ đầu đã đọc (vàng), phần còn lại trắng. cue None = dải trống."""
+    img = Image.new("RGBA", (W, CAP_H), (0, 0, 0, 0))
+    if cue:
+        d = ImageDraw.Draw(img)
+        f = _font(FONT_BOLD, CAP_SIZE)
+        space = d.textlength(" ", font=f)
+        n = 0
+        for i, ln in enumerate(cue.lines):
+            x = (W - d.textlength(" ".join(w.text for w in ln), font=f)) / 2
+            for w in ln:
+                d.text((x, 12 + i * CAP_LINE), w.text, font=f, fill=SPOKEN if n < lit else "white",
+                       stroke_width=6, stroke_fill=(0, 0, 0))
+                x += d.textlength(w.text, font=f) + space
+                n += 1
+    img.save(path)
+    return path
+
+
+def write_caption_track(cues: list[captions.Cue], work: Path) -> Path:
+    """Vẽ mọi khung karaoke và ghi danh sách concat (mỗi PNG kèm thời lượng)."""
+    frames = captions.karaoke_frames(cues)
+    blank = caption_png(work / "cap_blank.png", None, 0)
+    rows = ["ffconcat version 1.0"]
+    for i, (a, b, cue, lit) in enumerate(frames):
+        f = caption_png(work / f"cap_{i:04d}.png", cue, lit) if cue else blank
+        rows += [f"file '{f.name}'", f"duration {b - a:.3f}"]
+    rows.append(f"file '{blank.name}'")  # concat bỏ qua thời lượng của file cuối
+    lst = work / "captions.ffconcat"
+    lst.write_text("\n".join(rows) + "\n")
+    return lst
 
 
 @dataclass
@@ -102,14 +126,34 @@ class Piece:
     src_start: float
     dur: float
     t0: float
-    caption: str = ""
+
+
+CUT_EDGE = 0.8  # cú cắt cách mép mảnh ít hơn chừng này thì dời mép về cú cắt
+CUT_PAD = 0.02  # lệch khỏi cú cắt một chút để không dính khung của cảnh bên kia
+
+
+def snap_start(a: float, b: float, cuts: list[float], edge: float = CUT_EDGE, min_len: float = 1.5) -> float:
+    """Có cú cắt ngay sau điểm vào (≤ edge) thì vào từ cú cắt, để không lộ vài khung của cảnh trước."""
+    for c in cuts:
+        if a < c <= a + edge and b - c >= min_len:
+            return c + CUT_PAD
+    return a
+
+
+def snap_end(a: float, d: float, cuts: list[float], edge: float = CUT_EDGE, min_len: float = 1.0) -> float:
+    """Có cú cắt ngay trước điểm ra (≤ edge) thì dừng ở cú cắt, để không lộ vài khung của cảnh sau."""
+    for c in reversed(cuts):
+        if a + d - edge <= c < a + d and c - a >= min_len:
+            return c - CUT_PAD - a
+    return d
 
 
 def build_timeline(lines: list[dict], sources: list[dict], total: float, min_piece: float = 0.8) -> list[Piece]:
     """lines: [{text, start, end, clips:[{src,start,end}]}] → các mảnh video phủ kín [0, total].
 
     Dùng clip LLM chọn cho từng dòng; thiếu thì lấy đoạn kế tiếp trong các nguồn (xoay vòng),
-    mỗi nguồn có con trỏ riêng nên không lặp lại cùng một đoạn.
+    mỗi nguồn có con trỏ riêng nên không lặp lại cùng một đoạn. Có mốc cắt cảnh (source["cuts"])
+    thì mép mảnh bám theo cú cắt và đoạn lấp bắt đầu ở đầu một cảnh.
     """
     def usable(s: int) -> tuple[float, float]:
         """Bỏ intro và end card: 6 giây đầu / 10 giây cuối với nguồn dài, ít hơn với nguồn ngắn."""
@@ -118,6 +162,7 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
             return 6.0, sd - 10.0
         return (3.0, sd - 4.0) if sd > 20 else (0.0, sd - 0.05)
 
+    cuts = {i: s.get("cuts") or [] for i, s in enumerate(sources)}
     cursor = {i: max(usable(i)[0], (s["duration"] or 30) * 0.15) for i, s in enumerate(sources)}
     rr = 0
 
@@ -127,6 +172,7 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
         rr += 1
         lo, hi = usable(s)
         a = cursor[s] if cursor[s] + 3 < hi else lo
+        a = next((c + CUT_PAD for c in cuts[s] if a <= c <= a + 2.0 and c + 3 < hi), a)  # vào ở đầu một cảnh
         b = min(a + 5.0, hi)
         cursor[s] = b
         return s, a, b
@@ -151,25 +197,17 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
         t = t_start
         while need - (t - t_start) > 0.05:
             s, a, b = queue.pop(0) if queue else filler()
+            a = snap_start(a, b, cuts[s])
             left = need - (t - t_start)
             d = min(b - a, left)
             if left - d < min_piece:  # tránh mảnh quá ngắn ở cuối dòng
                 d = left
+            ds = snap_end(a, d, cuts[s])
+            if ds < d and left - ds >= min_piece:  # phần còn thiếu đủ dài cho một mảnh khác
+                d = ds
             pieces.append(Piece(s, a, d, t))
             t += d
     return pieces
-
-
-def split_by_captions(pieces: list[Piece], events: list[tuple[float, float, str]]) -> list[Piece]:
-    out = []
-    for p in pieces:
-        cuts = sorted({round(e[0], 3) for e in events if p.t0 + 0.25 < e[0] < p.t0 + p.dur - 0.25})
-        bounds = [p.t0, *cuts, p.t0 + p.dur]
-        for a, b in zip(bounds, bounds[1:], strict=False):
-            mid = (a + b) / 2
-            cap = next((e[2] for e in events if e[0] <= mid < e[1]), "")
-            out.append(Piece(p.src, p.src_start + (a - p.t0), b - a, a, cap))
-    return out
 
 
 def _run(cmd: list[str]) -> None:
@@ -198,38 +236,37 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path) -> None:
           "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", str(out)])
 
 
-def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None) -> dict:
-    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize."""
+def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
+           min_total: float = 0.0) -> dict:
+    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
     for s in sources:
         s["has_audio"] = has_audio(Path(s["path"]))
+        s["cuts"] = scenes.detect(Path(s["path"]))  # đã có cache nếu pipeline chạy bước cắt cảnh
     lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"], strict=False)]
-    total = narration["duration"] + 0.6
-    events = []
-    for i, ln in enumerate(lines):
-        a = 0.0 if i == 0 else ln["start"]
-        b = total if i == len(lines) - 1 else lines[i + 1]["start"]
-        chunks = caption_chunks(ln["text"])
-        n = sum(len(c) for c in chunks) or 1
-        t = a
-        for c in chunks:
-            d = (b - a) * len(c) / n
-            events.append((t, t + d, c))
-            t += d
-    pieces = split_by_captions(build_timeline(lines, sources, total), events)
-    overlays: dict[tuple, Path] = {}
+    total = max(narration["duration"] + TAIL, min_total)  # thiếu thì kéo dài phần cuối bằng hình nguồn
+
+    # Phụ đề karaoke theo mốc từng từ của giọng đọc
+    words = captions.word_times([ln["text"] for ln in plan["lines"]], narration["lines"], narration.get("alignment"))
+    spoken = narration["duration"] + TAIL  # câu cuối không ở lại suốt phần đuôi kéo dài
+    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(), shift=NARRATION_DELAY)
+    (out_dir / "captions.srt").write_text(captions.to_srt(cues), encoding="utf-8")
+    (out_dir / "captions.ass").write_text(captions.to_ass(cues), encoding="utf-8")
+    cap_list = write_caption_track(cues, work)
+
+    pieces = build_timeline(lines, sources, total)
+    title = captions.fr_typography(plan["title_fr"])
+    overlays: dict[str, Path] = {}
     files = []
     for j, p in enumerate(pieces):
         src = sources[p.src]
         credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.flag("CREDIT_ON_VIDEO") else ""
-        key = (p.caption, credit)
-        if key not in overlays:
-            overlays[key] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=plan["title_fr"],
-                                        caption=p.caption, credit=credit)
+        if credit not in overlays:
+            overlays[credit] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=title, credit=credit)
         f = work / f"p_{j:03d}.mp4"
-        render_piece(p, src, overlays[key], f)
+        render_piece(p, src, overlays[credit], f)
         files.append(f)
         if progress:
             progress(j + 1, len(pieces))
@@ -238,13 +275,16 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     bg = out_dir / "bg.mp4"
     _run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(bg)])
     final = out_dir / "final.mp4"
-    _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"], "-filter_complex",
-          "[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay=150|150[nar];"
+    _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"],
+          "-f", "concat", "-safe", "0", "-i", str(cap_list), "-filter_complex",
+          f"[2:v]format=rgba[cap];[0:v][cap]overlay=0:{CAP_TOP}:eof_action=pass,format=yuv420p[v];"
+          f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(NARRATION_DELAY * 1000)}|"
+          f"{int(NARRATION_DELAY * 1000)}[nar];"
           "[0:a][nar]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
-          "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
-          str(final)])
+          "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
+          "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final)])
     thumb = out_dir / "thumb.jpg"
     _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])
     (out_dir / "timeline.json").write_text(json.dumps([p.__dict__ for p in pieces], ensure_ascii=False, indent=1))
-    return {"video": str(final), "thumb": str(thumb), "duration": total, "pieces": len(pieces)}
+    return {"video": str(final), "thumb": str(thumb), "duration": total, "pieces": len(pieces), "captions": len(cues)}

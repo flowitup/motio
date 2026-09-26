@@ -1,15 +1,101 @@
-import { useQuery } from "@tanstack/react-query";
-import { Film } from "lucide-react";
-import { Link } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Film, Loader2, Plus, Video, X } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { Choice, Field } from "@/components/form";
 import { StatusChip } from "@/components/status-chip";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useApi } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useApi, type Api, type Rights } from "@/lib/api";
 import { t } from "@/i18n";
+
+const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
+
+/** Video giải thích từ một chủ đề bất kỳ và / hoặc link video, không cần tin hot. */
+function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [topic, setTopic] = useState("");
+  const [text, setText] = useState("");
+  const [linksOnly, setLinksOnly] = useState(false);
+  const [duration, setDuration] = useState("80");
+  const [rights, setRights] = useState<Rights>("unknown");
+  const links = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const create = useMutation({
+    mutationFn: () =>
+      api.createTopic({ topic: topic.trim(), links, links_only: linksOnly, duration: Number(duration), rights }),
+    onSuccess: ({ project_id }) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      navigate(`/projects/${project_id}`);
+    },
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.projects.create}</CardTitle>
+        <CardAction>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t.projects.cancel}>
+            <X />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <Field label={t.projects.topic} hint={t.projects.topicHint}>
+          <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.projects.topicPlaceholder} />
+        </Field>
+        <Field label={t.projects.links} hint={t.projects.linksHint}>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
+            className="min-h-20 font-mono text-xs"
+          />
+        </Field>
+        {topic.trim() && links.length > 0 && (
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={linksOnly} onCheckedChange={setLinksOnly} />
+            {t.projects.linksOnly}
+          </label>
+        )}
+        <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
+          <Field label={t.projects.duration} hint={t.projects.durationHint}>
+            <Choice
+              value={duration}
+              onChange={setDuration}
+              options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
+            />
+          </Field>
+          <Field label={t.projects.rights} hint={t.projects.rightsHint}>
+            <Choice
+              value={rights}
+              onChange={(v) => setRights(v as Rights)}
+              options={RIGHTS.map((r) => [r, t.projects.rightsOptions[r]])}
+            />
+          </Field>
+        </div>
+        <div className="flex items-center justify-end gap-3">
+          {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
+          <Button onClick={() => create.mutate()} disabled={(!topic.trim() && !links.length) || create.isPending}>
+            {create.isPending ? <Loader2 className="animate-spin" /> : <Video />}
+            {t.projects.make}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ProjectsPage() {
   const api = useApi()!;
+  const [creating, setCreating] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["projects"],
     queryFn: () => api.projects(),
@@ -18,7 +104,16 @@ export default function ProjectsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t.projects.title}</h1>
+      <header className="flex items-center gap-3">
+        <h1 className="mr-auto text-2xl font-semibold tracking-tight">{t.projects.title}</h1>
+        {!creating && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus />
+            {t.projects.create}
+          </Button>
+        )}
+      </header>
+      {creating && <CreateCard api={api} onClose={() => setCreating(false)} />}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       {data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.projects.empty}</p>}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
