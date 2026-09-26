@@ -57,3 +57,13 @@ def test_refresh_interval_and_newsnow_url(monkeypatch):
     assert config.refresh_every_min() == 30
     with pytest.raises(ValueError):
         settings.update({"REFRESH_EVERY_MIN": "-5"})
+
+
+def test_put_ffmpeg_on_path(monkeypatch, tmp_path):
+    exe = tmp_path / "ffmpeg"
+    exe.write_text("")
+    monkeypatch.setenv("MOTIO_FFMPEG", str(exe))
+    monkeypatch.setenv("PATH", "/usr/bin")
+    config.put_ffmpeg_on_path()
+    config.put_ffmpeg_on_path()
+    assert config.os.environ["PATH"].split(config.os.pathsep) == [str(tmp_path), "/usr/bin"]

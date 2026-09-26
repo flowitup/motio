@@ -9,10 +9,23 @@ from dotenv import load_dotenv
 
 from . import settings
 
-ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+FROZEN = getattr(sys, "frozen", False)  # engine đóng gói bằng PyInstaller
+ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent.parent
 
-DATA = Path(os.getenv("MOTIO_DATA") or ROOT / "data")
+
+def _user_data_dir() -> Path:
+    """Bản đóng gói không ghi được vào thư mục app: dữ liệu nằm trong thư mục người dùng."""
+    home = Path.home()
+    if platform.system() == "Darwin":
+        return home / "Library/Application Support/Motio"
+    if platform.system() == "Windows":
+        return Path(os.getenv("APPDATA") or home / "AppData/Roaming") / "Motio"
+    return Path(os.getenv("XDG_DATA_HOME") or home / ".local/share") / "motio"
+
+
+DATA = Path(os.getenv("MOTIO_DATA") or (_user_data_dir() if FROZEN else ROOT / "data"))
+load_dotenv(ROOT / ".env")
+load_dotenv(DATA / ".env")  # bản đóng gói: .env đặt cạnh dữ liệu (không bắt buộc, nên dùng Cài đặt)
 PROJECTS = DATA / "projects"
 CACHE = DATA / "cache"
 for _d in (DATA, PROJECTS, CACHE):
@@ -35,8 +48,7 @@ def flag(key: str, default: bool = False) -> bool:
 # ---------- tìm binary ----------
 def _bundled_bin() -> Path:
     """Thư mục bin/ cạnh engine (bản đóng gói) hoặc ở gốc repo (dev)."""
-    base = Path(sys.executable).parent if getattr(sys, "frozen", False) else ROOT
-    return base / "bin"
+    return ROOT / "bin"
 
 
 def _search_dirs() -> list[Path]:
@@ -88,6 +100,14 @@ def ffmpeg() -> str:
 
 def ffprobe() -> str:
     return which("ffprobe")
+
+
+def put_ffmpeg_on_path() -> None:
+    """Thư viện gọi `ffmpeg` theo tên (mlx_whisper): thêm thư mục của ffmpeg đã tìm được vào PATH."""
+    d = str(Path(ffmpeg()).parent)
+    parts = os.environ.get("PATH", "").split(os.pathsep)
+    if d not in parts:
+        os.environ["PATH"] = os.pathsep.join([d, *parts])
 
 
 # ---------- font ----------

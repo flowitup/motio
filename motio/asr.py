@@ -59,6 +59,7 @@ def transcribe(src: Path) -> dict:
         wav = _wav(src)
         if config.IS_APPLE_SILICON:
             import mlx_whisper
+            config.put_ffmpeg_on_path()
             r = mlx_whisper.transcribe(str(wav), path_or_hf_repo=model_name(),
                                        condition_on_previous_text=False)
             segs = [{"start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"].strip()}

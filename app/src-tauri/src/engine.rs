@@ -141,6 +141,30 @@ fn find_uv() -> Option<PathBuf> {
     cands.into_iter().find(|p| p.is_file())
 }
 
+/// Dev: `uv run python -m motio` from the repo root. Release: the frozen engine shipped in resources.
+fn engine_command(app: &AppHandle) -> Result<Command, String> {
+    if let Some(p) = std::env::var_os("MOTIO_ENGINE") {
+        return Ok(Command::new(p));
+    }
+    if cfg!(debug_assertions) {
+        let uv = find_uv().ok_or("Không tìm thấy uv. Cài uv hoặc đặt MOTIO_UV.")?;
+        let mut cmd = Command::new(uv);
+        cmd.args(["run", "python", "-m", "motio"]).current_dir(repo_root());
+        return Ok(cmd);
+    }
+    let exe = if cfg!(windows) { "motio-engine.exe" } else { "motio-engine" };
+    let path = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("motio-engine")
+        .join(exe);
+    if !path.is_file() {
+        return Err(format!("Thiếu engine đóng gói: {}", path.display()));
+    }
+    Ok(Command::new(path))
+}
+
 fn failed(base: &EngineInfo, msg: impl Into<String>) -> EngineInfo {
     EngineInfo { status: Status::Error, error: Some(msg.into()), ..base.clone() }
 }
@@ -157,13 +181,14 @@ fn spawn_local(app: &AppHandle, engine: &Engine) {
     };
     engine.set(app, starting.clone());
 
-    let Some(uv) = find_uv() else {
-        engine.set(app, failed(&starting, "Không tìm thấy uv. Cài uv hoặc đặt MOTIO_UV."));
-        return;
+    let mut cmd = match engine_command(app) {
+        Ok(c) => c,
+        Err(e) => {
+            engine.set(app, failed(&starting, e));
+            return;
+        }
     };
-    let mut cmd = Command::new(uv);
-    cmd.args(["run", "python", "-m", "motio", "engine", "--port", "0", "--token", &token, "--exit-with-stdin"])
-        .current_dir(repo_root())
+    cmd.args(["engine", "--port", "0", "--token", &token, "--exit-with-stdin"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
