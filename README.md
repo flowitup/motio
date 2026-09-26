@@ -29,6 +29,18 @@ pnpm tauri dev        # mở app; engine tự chạy bằng uv từ gốc repo
 Cần Rust (`rustup`). App tự tìm `uv` trong PATH, `~/.local/bin`, Homebrew; đặt `MOTIO_UV` nếu ở chỗ khác.
 Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + token), khi đó app không tự chạy engine.
 
+## Đóng gói (.dmg / .msi)
+
+```bash
+uv run --group build python tools/build_engine.py   # engine PyInstaller + ffmpeg tĩnh → app/src-tauri/resources/
+cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) hoặc .msi (Windows)
+```
+
+CI (`.github/workflows/build.yml`) build cả hai hệ điều hành cho mỗi PR và gắn file cài vào release khi đẩy tag `v*`.
+Bản đóng gói lưu dữ liệu ở `~/Library/Application Support/Motio` (macOS) hoặc `%APPDATA%\Motio` (Windows).
+Chưa ký số: macOS chuột phải → Open lần đầu; Windows SmartScreen → "More info" → "Run anyway".
+`claude -p` vẫn cần Claude Code cài sẵn trên máy; không có thì chọn "Anthropic API" trong Cài đặt.
+
 ## Engine API (cho app desktop)
 
 ```bash
