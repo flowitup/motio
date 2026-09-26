@@ -24,6 +24,24 @@ export type ProjectMeta = {
   tts?: string;
   voice?: string;
   elapsed?: number;
+  postiz?: PublishRecord[];
+};
+
+export type PublishMode = "draft" | "schedule" | "now";
+export type PostizChannel = {
+  id: string;
+  name: string;
+  provider: string;
+  picture: string | null;
+  profile: string | null;
+  disabled: boolean;
+};
+export type PublishRecord = {
+  at: number;
+  mode: PublishMode;
+  date: string;
+  channels: { id: string; name: string; provider: string }[];
+  posts: { postId: string; integration: string }[];
 };
 
 export type ProjectStatus = "queued" | "running" | "done" | "failed";
@@ -56,6 +74,7 @@ export type Health = {
   ffmpeg: string | null;
   ffprobe: string | null;
   claude_cli: string | null;
+  postiz: boolean;
   quota_left: number | null;
   data_dir: string;
 };
@@ -110,6 +129,9 @@ export function makeApi(url: string, token: string) {
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
     voices: () => call<Voice[]>("GET", "/api/voices"),
+    postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
+    publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>
+      call<Omit<PublishRecord, "at">>("POST", `/api/projects/${id}/publish`, body),
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
