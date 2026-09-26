@@ -130,6 +130,7 @@ function HealthCard({ api }: { api: Api }) {
     ["ASR", `${h.providers.asr.engine} · ${h.providers.asr.model}`],
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
     ["claude CLI", h.claude_cli ?? <span className="text-muted-foreground">{t.settings.notFound}</span>],
+    ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
     [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
   ];
@@ -267,6 +268,20 @@ function SettingsForm({ api }: { api: Api }) {
           </Field>
           <Field label={t.settings.whisper} hint={src("WHISPER_MODEL")}>
             {text("WHISPER_MODEL")}
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.settings.postiz}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label={t.settings.postizUrl} hint={src("POSTIZ_URL") ?? t.settings.postizHint}>
+            {text("POSTIZ_URL", "https://postiz.example.com/api")}
+          </Field>
+          <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
+            {secret("POSTIZ_API_KEY")}
           </Field>
         </CardContent>
       </Card>

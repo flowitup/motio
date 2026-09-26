@@ -37,6 +37,22 @@ const vi = {
     noVideo: "Chưa có video",
     status: { queued: "Chờ", running: "Đang làm", done: "Xong", failed: "Lỗi" } as Record<string, string>,
   },
+  publish: {
+    title: "Đăng bài (Postiz)",
+    notConfigured: "Chưa kết nối Postiz. Vào Cài đặt → Đăng bài để nhập URL và API key.",
+    noChannels: "Postiz chưa có kênh nào. Mở Postiz và thêm kênh (TikTok, YouTube…).",
+    channels: "Kênh",
+    modes: { draft: "Nháp", schedule: "Lên lịch", now: "Đăng ngay" } as Record<string, string>,
+    modeHint: {
+      draft: "Tạo bài nháp trong Postiz, bạn duyệt rồi đăng từ Postiz.",
+      schedule: "Postiz tự đăng vào thời điểm đã chọn.",
+      now: "Đăng ngay lên các kênh đã chọn.",
+    } as Record<string, string>,
+    when: "Thời điểm đăng",
+    send: "Gửi sang Postiz",
+    sent: "Đã gửi",
+    history: "Đã gửi sang Postiz",
+  },
   settings: {
     title: "Cài đặt",
     save: "Lưu",
@@ -70,6 +86,9 @@ const vi = {
     unlimited: "không giới hạn",
     fromEnv: ".env",
     fromSettings: "đã lưu",
+    postiz: "Đăng bài (Postiz)",
+    postizUrl: "URL API Postiz",
+    postizHint: "Vd. https://postiz.example.com/api. Engine chạy trên server đã được cấu hình sẵn.",
   },
   notify: {
     done: (t: string) => `Video xong: ${t}`,

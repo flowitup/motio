@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+.venv
+.env
+.env.*
+data
+app
+deploy
+docs
+tests
+tools
+**/__pycache__
+**/*.pyc

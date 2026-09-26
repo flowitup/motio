@@ -13,15 +13,23 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
 
-from . import __version__, asr, config, db, newsnow, pipeline, settings, tts
+from . import __version__, asr, config, db, newsnow, pipeline, postiz, settings, tts
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
+
+
+class PublishIn(BaseModel):
+    channels: list[str]
+    mode: str = "draft"  # draft | schedule | now
+    date: str | None = None  # ISO 8601 có múi giờ, bắt buộc khi mode=schedule
 
 
 def _log_tail(log: str, n: int = 30) -> list[str]:
@@ -105,6 +113,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             "ffmpeg": config.find("ffmpeg"),
             "ffprobe": config.find("ffprobe"),
             "claude_cli": claude,
+            "postiz": postiz.configured(),
             "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),
         }
@@ -187,6 +196,41 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # ---------- đăng bài qua Postiz ----------
+    def _need_postiz() -> None:
+        if not postiz.configured():
+            raise HTTPException(409, "Chưa cấu hình Postiz (POSTIZ_URL, POSTIZ_API_KEY)")
+
+    @app.get("/api/postiz/channels", dependencies=[Depends(auth)])
+    def postiz_channels():
+        _need_postiz()
+        try:
+            return postiz.channels()
+        except (postiz.PostizError, httpx.HTTPError) as e:
+            raise HTTPException(502, f"Postiz lỗi: {str(e)[:300]}") from e
+
+    @app.post("/api/projects/{pid}/publish", dependencies=[Depends(auth)])
+    def publish(pid: int, body: PublishIn):
+        p = _get(pid)
+        meta = p["meta"]
+        video = config.DATA / meta["video"] if meta.get("video") else None
+        if p["status"] != "done" or not video or not video.is_file():
+            raise HTTPException(409, "Dự án chưa có video hoàn chỉnh")
+        _need_postiz()
+        title = meta.get("title") or p["title"]
+        text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
+        try:
+            res = postiz.publish(video, text, title, meta.get("hashtags") or [], body.channels, body.mode, body.date)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except (postiz.PostizError, httpx.HTTPError) as e:
+            raise HTTPException(502, f"Postiz lỗi: {str(e)[:300]}") from e
+        entry = {"at": time.time(), **{k: res[k] for k in ("mode", "date", "channels", "posts")}}
+        names = ", ".join(c["name"] for c in res["channels"])
+        db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
+                          meta={"postiz": [*meta.get("postiz", []), entry]})
+        return res
 
     # ---------- giọng, cài đặt ----------
     @app.get("/api/voices", dependencies=[Depends(auth)])

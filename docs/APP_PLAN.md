@@ -83,7 +83,15 @@ produce a video, follow progress and play the result.
 Scheduler (refresh every 60 min, optional auto-produce above a score, daily cap), Google Drive delivery (rclone),
 Slack app in Socket Mode with buttons [Làm video] [Duyệt] [Làm lại], `--headless` mode for the always-on Windows PC.
 
+## Server + Postiz (added 26/09/2026)
+
+Engine in Docker on a Hetzner server next to a self-hosted Postiz, behind Caddy (`deploy/`, `docs/DEPLOY.md`).
+The desktop app uses it as a remote engine. Posting goes through Postiz's Public API only: a finished project can be
+sent as a draft, scheduled or posted now (`POST /api/projects/{id}/publish`). Postiz owns OAuth, calendars and the
+platform APIs.
+
 ## Out of scope for now
 
-Auto-posting to TikTok / Reels / YouTube / X · channel-scan "Pháp hoá" mode · AI clips (fal H3 Max) and
-Qwen images (Modal) inside the pipeline.
+Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
+Postiz (belongs with the M4 scheduler) · channel-scan "Pháp hoá" mode · AI clips (fal H3 Max) and Qwen images
+(Modal) inside the pipeline.

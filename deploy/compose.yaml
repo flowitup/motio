@@ -1,0 +1,261 @@
+# Motio on one server: engine API + Postiz (auto-posting) behind Caddy (automatic HTTPS).
+#
+#   https://$MOTIO_DOMAIN   → engine (desktop app: Cài đặt → "Engine từ xa", token = MOTIO_TOKEN)
+#   https://$POSTIZ_DOMAIN  → Postiz web UI + API (/api)
+#
+# Lives in /opt/motio on the server next to .env (copied from env.example). The deploy workflow
+# (.github/workflows/deploy.yml) overwrites this file, Caddyfile and temporal/ on every deploy; keep
+# server-only settings in .env and postiz.env. Runbook: docs/DEPLOY.md.
+#
+# Postiz part follows github.com/gitroomhq/postiz-docker-compose (Postiz + Postgres + Redis + Temporal).
+name: motio
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      MOTIO_DOMAIN: ${MOTIO_DOMAIN:?set MOTIO_DOMAIN in .env}
+      POSTIZ_DOMAIN: ${POSTIZ_DOMAIN:?set POSTIZ_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    logging: *logging
+
+  # ---------- Motio engine ----------
+  engine:
+    image: ${MOTIO_IMAGE:-ghcr.io/flowitup/motio-engine:latest}
+    restart: unless-stopped
+    environment:
+      MOTIO_TOKEN: ${MOTIO_TOKEN:?set MOTIO_TOKEN in .env}
+      # Không có Claude Code CLI trên server: mặc định dùng Claude API (ANTHROPIC_API_KEY).
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-}
+      WHISPER_MODEL: ${WHISPER_MODEL:-}
+      NEWSNOW_URL: ${NEWSNOW_URL:-}
+      NEWS_SOURCES: ${NEWS_SOURCES:-}
+      MAX_VIDEOS_PER_DAY: ${MAX_VIDEOS_PER_DAY:-}
+      CREDIT_ON_VIDEO: ${CREDIT_ON_VIDEO:-}
+      CREDIT_IN_POST: ${CREDIT_IN_POST:-}
+      # Engine gọi Postiz qua mạng nội bộ, không đi vòng ra Internet.
+      POSTIZ_URL: ${POSTIZ_INTERNAL_URL:-http://postiz:5000/api}
+      POSTIZ_API_KEY: ${POSTIZ_API_KEY:-}
+    volumes:
+      - motio-data:/data
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8765/api/health', headers={'Authorization': 'Bearer ' + os.environ['MOTIO_TOKEN']}), timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *logging
+
+  # ---------- Postiz ----------
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:${POSTIZ_VERSION:-v2.24.0}
+    restart: unless-stopped
+    env_file:
+      # Extra Postiz settings (LinkedIn, Pinterest, SMTP, R2…), server-only, optional.
+      - path: postiz.env
+        required: false
+    environment:
+      MAIN_URL: https://${POSTIZ_DOMAIN}
+      FRONTEND_URL: https://${POSTIZ_DOMAIN}
+      NEXT_PUBLIC_BACKEND_URL: https://${POSTIZ_DOMAIN}/api
+      BACKEND_INTERNAL_URL: http://localhost:3000
+      JWT_SECRET: ${POSTIZ_JWT_SECRET:?set POSTIZ_JWT_SECRET in .env}
+      DATABASE_URL: postgresql://postiz:${POSTIZ_DB_PASSWORD:?set POSTIZ_DB_PASSWORD in .env}@postiz-postgres:5432/postiz
+      REDIS_URL: redis://postiz-redis:6379
+      TEMPORAL_ADDRESS: temporal:7233
+      IS_GENERAL: "true"
+      # true = chỉ cho đăng ký tài khoản đầu tiên (của bạn), sau đó khoá trang đăng ký.
+      DISABLE_REGISTRATION: ${POSTIZ_DISABLE_REGISTRATION:-true}
+      DISALLOW_PLUS: "true"
+      RUN_CRON: "true"
+      API_LIMIT: ${POSTIZ_API_LIMIT:-90}
+      STORAGE_PROVIDER: local
+      UPLOAD_DIRECTORY: /uploads
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: /uploads
+      NX_ADD_PLUGINS: "false"
+      # Mạng xã hội: mỗi nền tảng cần app developer riêng của bạn (xem docs/DEPLOY.md).
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+      TIKTOK_CLIENT_ID: ${TIKTOK_CLIENT_ID:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID:-}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:-}
+      THREADS_APP_ID: ${THREADS_APP_ID:-}
+      THREADS_APP_SECRET: ${THREADS_APP_SECRET:-}
+      X_API_KEY: ${X_API_KEY:-}
+      X_API_SECRET: ${X_API_SECRET:-}
+    volumes:
+      - postiz-config:/config
+      - postiz-uploads:/uploads
+    networks: [edge, postiz-db, temporal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "const r=require('http').get('http://localhost:5000/',res=>process.exit(res.statusCode<500?0:1));r.on('error',()=>process.exit(1));r.setTimeout(4000,()=>{r.destroy();process.exit(1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    logging: *logging
+
+  postiz-postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postiz
+      POSTGRES_PASSWORD: ${POSTIZ_DB_PASSWORD}
+      POSTGRES_DB: postiz
+    volumes:
+      - postiz-postgres:/var/lib/postgresql/data
+    networks: [postiz-db]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postiz -d postiz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  postiz-redis:
+    image: redis:7.2
+    restart: unless-stopped
+    volumes:
+      - postiz-redis:/data
+    networks: [postiz-db]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  # ---------- Temporal (Postiz ≥ v2.12 cần) ----------
+  temporal-elasticsearch:
+    image: elasticsearch:7.17.27
+    restart: unless-stopped
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=true
+      - cluster.routing.allocation.disk.watermark.low=512mb
+      - cluster.routing.allocation.disk.watermark.high=256mb
+      - cluster.routing.allocation.disk.watermark.flood_stage=128mb
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.security.enabled=false
+    volumes:
+      - temporal-elasticsearch:/usr/share/elasticsearch/data
+    networks: [temporal]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS \"http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s\" || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    logging: *logging
+
+  temporal-postgresql:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:?set TEMPORAL_DB_PASSWORD in .env}
+    volumes:
+      - temporal-postgres:/var/lib/postgresql/data
+    networks: [temporal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  temporal:
+    image: temporalio/auto-setup:1.28.1
+    restart: unless-stopped
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD}
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=true
+      - ES_SEEDS=temporal-elasticsearch
+      - ES_VERSION=v7
+      - TEMPORAL_NAMESPACE=default
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig:ro
+    networks: [temporal]
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+      temporal-elasticsearch:
+        condition: service_healthy
+    logging: *logging
+
+  # Chỉ bật khi cần xem workflow: docker compose --profile ops up -d temporal-ui
+  # rồi mở qua SSH tunnel: ssh -L 8080:127.0.0.1:8080 deploy@server → http://localhost:8080
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    profiles: [ops]
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [temporal, edge]  # edge: mạng internal không publish được cổng
+    depends_on:
+      temporal:
+        condition: service_healthy
+    logging: *logging
+
+networks:
+  edge: {}
+  postiz-db:
+    internal: true
+  temporal:
+    internal: true
+
+volumes:
+  caddy-data:
+  caddy-config:
+  motio-data:
+  postiz-config:
+  postiz-uploads:
+  postiz-postgres:
+  postiz-redis:
+  temporal-elasticsearch:
+  temporal-postgres:
