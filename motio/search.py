@@ -59,7 +59,7 @@ def download(url: str, out_dir: Path, max_height: int = 720) -> dict:
             "merge_output_format": "mp4",
             "outtmpl": str(out_dir / "%(extractor_key)s_%(id)s.%(ext)s"),
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,
-            "ffmpeg_location": config.FFMPEG}
+            "ffmpeg_location": config.ffmpeg()}
     with YoutubeDL(opts) as y:
         info = y.extract_info(url, download=True)
         path = Path(y.prepare_filename(info)).with_suffix(".mp4")

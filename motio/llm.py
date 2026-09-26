@@ -56,7 +56,7 @@ def _anthropic(prompt: str, system: str, model: str, max_tokens: int) -> str:
     import anthropic
     # Trên API cần model ID đầy đủ; "sonnet" chỉ là tên tắt của Claude Code.
     model_id = config.env("ANTHROPIC_MODEL", "claude-sonnet-5") if model in ("sonnet", "opus", "haiku") else model
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=config.env("ANTHROPIC_API_KEY") or None)
     msg = client.messages.create(model=model_id, max_tokens=max_tokens, system=system,
                                  messages=[{"role": "user", "content": prompt}])
     return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")

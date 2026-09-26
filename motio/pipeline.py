@@ -48,6 +48,28 @@ Réponds avec :
   "hashtags": ["#Chine", "..."]}}"""
 
 
+class QuotaExceeded(RuntimeError):
+    pass
+
+
+def _today_start() -> float:
+    t = time.localtime()
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def quota_left(exclude: int | None = None) -> int | None:
+    """Số video còn được làm hôm nay theo MAX_VIDEOS_PER_DAY; None = không giới hạn."""
+    cap = config.max_videos_per_day()
+    if not cap:
+        return None
+    return max(cap - db.count_projects_since(_today_start(), exclude), 0)
+
+
+def check_quota(exclude: int | None = None) -> None:
+    if quota_left(exclude) == 0:
+        raise QuotaExceeded(f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
+
+
 class Step:
     def __init__(self, pid: int):
         self.pid = pid
@@ -85,6 +107,7 @@ def produce(pid: int, duration_sec: int = 60, max_sources: int = 4) -> None:
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
     try:
+        check_quota(exclude=pid)
         # 1. Tìm nguồn
         kw = trend.get("keywords") or {}
         if not kw.get("zh"):
@@ -162,7 +185,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
     (out / "sources.txt").write_text(credits + "\n")  # luôn lưu nội bộ, không đăng
     desc = plan.get("description", "").strip()
-    if config.CREDIT_IN_POST:
+    if config.flag("CREDIT_IN_POST"):
         desc += f"\n\nSources :\n{credits}"
     desc += f"\n\nVoix off générée par IA.\n{' '.join(plan.get('hashtags', [])[:6])}"
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n")

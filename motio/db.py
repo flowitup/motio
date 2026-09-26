@@ -80,12 +80,14 @@ def touch_trend(tid: str, rank: int) -> None:
         c.execute("UPDATE trend SET last_seen=?, rank=? WHERE id=?", (time.time(), rank, tid))
 
 
-def list_trends(hours: float = 24, limit: int = 60) -> list[dict]:
+def list_trends(hours: float = 24, limit: int = 60, source: str | None = None) -> list[dict]:
     since = time.time() - hours * 3600
+    sql, args = "SELECT * FROM trend WHERE last_seen >= ? AND title_fr IS NOT NULL", [since]
+    if source:
+        sql += " AND source = ?"
+        args.append(source)
     with conn() as c:
-        rows = c.execute(
-            "SELECT * FROM trend WHERE last_seen >= ? AND title_fr IS NOT NULL "
-            "ORDER BY score DESC, last_seen DESC LIMIT ?", (since, limit)).fetchall()
+        rows = c.execute(sql + " ORDER BY score DESC, last_seen DESC LIMIT ?", (*args, limit)).fetchall()
     return [_row(r) for r in rows]
 
 
@@ -126,3 +128,19 @@ def list_projects(limit: int = 20) -> list[dict]:
     with conn() as c:
         rows = c.execute("SELECT * FROM project ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [_row(r) for r in rows]
+
+
+def count_projects_since(ts: float, exclude: int | None = None) -> int:
+    """Số dự án tạo từ `ts`, không tính dự án lỗi."""
+    with conn() as c:
+        return c.execute("SELECT COUNT(*) FROM project WHERE created_at >= ? AND status != 'failed' AND id != ?",
+                         (ts, exclude or -1)).fetchone()[0]
+
+
+def fail_stale() -> list[int]:
+    """Khi engine khởi động: dự án đang queued/running từ lần chạy trước sẽ không bao giờ xong."""
+    with conn() as c:
+        ids = [r[0] for r in c.execute("SELECT id FROM project WHERE status IN ('queued', 'running')")]
+    for pid in ids:
+        update_project(pid, status="failed", log="LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.")
+    return ids

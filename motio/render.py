@@ -17,12 +17,8 @@ from .asr import has_audio
 W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
 
-FONT_BOLD = [config.env("FONT_BOLD"), "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-             "/Library/Fonts/Arial Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"]
-FONT_CJK = [config.env("FONT_CJK"), "/System/Library/Fonts/STHeiti Medium.ttc",
-            "/System/Library/Fonts/Hiragino Sans GB.ttc", "/System/Library/Fonts/PingFang.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"]
+FONT_BOLD = config.font_candidates("bold")
+FONT_CJK = config.font_candidates("cjk")
 
 
 def _font(cands: list[str], size: int) -> ImageFont.FreeTypeFont:
@@ -197,7 +193,7 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path) -> None:
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v1];[v1][1:v]overlay=0:0:shortest=1,fps={FPS},format=yuv420p,"
           f"setsar=1,tpad=stop_mode=clone:stop_duration=3[v];"
           f"{a_map}volume=0.10,aresample=48000,aformat=channel_layouts=stereo,apad[aud]")
-    _run([config.FFMPEG, "-y", "-v", "error", *inputs, "-filter_complex", fc, "-map", "[v]", "-map", "[aud]",
+    _run([config.ffmpeg(), "-y", "-v", "error", *inputs, "-filter_complex", fc, "-map", "[v]", "-map", "[aud]",
           "-t", f"{p.dur:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
           "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", str(out)])
 
@@ -227,7 +223,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     files = []
     for j, p in enumerate(pieces):
         src = sources[p.src]
-        credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.CREDIT_ON_VIDEO else ""
+        credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.flag("CREDIT_ON_VIDEO") else ""
         key = (p.caption, credit)
         if key not in overlays:
             overlays[key] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=plan["title_fr"],
@@ -240,15 +236,15 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     lst = work / "list.txt"
     lst.write_text("".join(f"file '{f.name}'\n" for f in files))
     bg = out_dir / "bg.mp4"
-    _run([config.FFMPEG, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(bg)])
+    _run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(bg)])
     final = out_dir / "final.mp4"
-    _run([config.FFMPEG, "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"], "-filter_complex",
+    _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"], "-filter_complex",
           "[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay=150|150[nar];"
           "[0:a][nar]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
           "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
           str(final)])
     thumb = out_dir / "thumb.jpg"
-    _run([config.FFMPEG, "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
+    _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])
     (out_dir / "timeline.json").write_text(json.dumps([p.__dict__ for p in pieces], ensure_ascii=False, indent=1))
     return {"video": str(final), "thumb": str(thumb), "duration": total, "pieces": len(pieces)}
