@@ -9,7 +9,15 @@ import time
 from . import config, db
 
 
+def _utf8_console() -> None:
+    """Console / pipe trên Windows mặc định cp1252: in tiếng Việt sẽ lỗi UnicodeEncodeError."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str]) -> None:
+    _utf8_console()
     cmd = argv[0] if argv else "serve"
     if cmd == "refresh":
         from . import newsnow

@@ -55,7 +55,7 @@ def main(out_dir: str) -> None:
         _win(out)
     else:
         raise SystemExit(f"Chưa hỗ trợ đóng gói ffmpeg cho {system} {machine}")
-    print(f"ffmpeg, ffprobe → {out}")
+    print(f"ffmpeg, ffprobe -> {out}")
 
 
 if __name__ == "__main__":
