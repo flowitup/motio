@@ -128,7 +128,7 @@ motio/web.py       legacy dashboard (to be removed)
 
 ## Built-in content rules
 
-An original French voice-over with context and analysis; source clips only illustrate it, 3–6 seconds each; the “Voix
-de synthèse (IA)” label stays on the video and the post says “Voix off générée par IA.” Every project writes
-`sources.txt` with all source links; the on-video “Source : platform / channel” label and the source list in the post
-are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off).
+An original French voice-over with context and analysis; source clips only illustrate it, 3–6 seconds each. The post
+says “Voix off générée par IA.” (there is no AI label on the video itself). Every project writes `sources.txt` with all
+source links; the on-video “Source : platform / channel” label and the source list in the post are optional
+(`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off).

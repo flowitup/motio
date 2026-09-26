@@ -20,7 +20,7 @@ W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
 NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
 TAIL = 0.6  # giây hình sau câu cuối
-CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn / nhãn AI
+CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn
 CAP_SIZE, CAP_LINE = 60, 78
 CAP_H = captions.MAX_LINES * CAP_LINE + 40
 CAP_MAX_W = W - 120
@@ -52,7 +52,7 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
 
 
 def overlay_png(path: Path, *, title: str, credit: str, badge: str = "ACTU CHINE") -> Path:
-    """Lớp tĩnh 1080×1920: băng tiêu đề, nhãn nguồn (tuỳ chọn) và nhãn giọng AI."""
+    """Lớp tĩnh 1080×1920: băng tiêu đề và nhãn nguồn (tuỳ chọn). Công bố giọng AI nằm trong bài đăng."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     # Băng tiêu đề phía trên
@@ -66,16 +66,12 @@ def overlay_png(path: Path, *, title: str, credit: str, badge: str = "ACTU CHINE
     d.text((88, y0 + 30), badge, font=f_badge, fill="white")
     for i, ln in enumerate(tl):
         d.text((70, y0 + 92 + i * 70), ln, font=f_title, fill="white")
-    # Nhãn nguồn + công bố giọng AI, ngay dưới clip
-    f_cr = _font(FONT_CJK if credit else FONT_BOLD, 30)  # chỉ cần font chữ Hán khi hiện tên kênh nguồn
-    cy = VIDEO_BOTTOM + 18
-    for text, x, anchor in ((credit, 40, "la"), ("Voix de synthèse (IA)", W - 40, "ra")):
-        if not text:
-            continue
-        tw = d.textlength(text, font=f_cr)
-        x0 = x if anchor == "la" else x - tw - 24
-        d.rounded_rectangle((x0, cy, x0 + tw + 24, cy + 46), radius=10, fill=(0, 0, 0, 150))
-        d.text((x0 + 12, cy + 6), text, font=f_cr, fill=(235, 235, 235))
+    # Nhãn nguồn (tuỳ chọn), ngay dưới clip. Chủ dự án bỏ nhãn "Voix de synthèse (IA)" trên video (26/09/2026).
+    if credit:
+        f_cr = _font(FONT_CJK, 30)
+        cy, tw = VIDEO_BOTTOM + 18, d.textlength(credit, font=f_cr)
+        d.rounded_rectangle((40, cy, 40 + tw + 24, cy + 46), radius=10, fill=(0, 0, 0, 150))
+        d.text((52, cy + 6), credit, font=f_cr, fill=(235, 235, 235))
     img.save(path)
     return path
 

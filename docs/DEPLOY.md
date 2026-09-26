@@ -100,7 +100,8 @@ Lưu ý khi app developer chưa được duyệt:
 - **TikTok**: app chưa qua audit chỉ đăng được ở chế độ riêng tư. Motio gửi `PUBLIC_TO_EVERYONE`, nên trước khi
   có audit hãy gửi **Nháp** rồi đổi quyền trong Postiz. Nộp audit sớm.
 - **YouTube**: project Google Cloud chưa qua audit thì video tải lên bị để private.
-- Motio luôn giữ dòng "Voix off générée par IA." trong bài và bật nhãn AI của TikTok (`video_made_with_ai`).
+- Motio luôn giữ dòng "Voix off générée par IA." trong bài và bật nhãn AI của TikTok (`video_made_with_ai`). Video
+  không còn nhãn AI trên hình, nên khi đăng Facebook hãy bật nhãn "AI info" của Meta (Motio chưa bật nhãn này qua Postiz).
 
 ## 7. App desktop
 
