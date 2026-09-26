@@ -19,6 +19,7 @@ as authoritative for scope and milestones.
   - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
+  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("Video mới")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
@@ -37,6 +38,8 @@ uv run python -m motio trends               # list scored topics
 uv run python -m motio produce <trend_id>   # full pipeline for one topic
 uv run python -m motio rerender <project>   # voice + render again from script.json
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
+uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
+uv run python -m motio check                # check every followed source · `clips` lists the new videos
 uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice
 uv run python -m motio serve                # legacy dashboard on :8765
 # after M1:

@@ -28,6 +28,9 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
    - `POST /api/projects` `{topic?, links?, links_only, duration, rights}` — explainer on any topic or from video
      links, no trend needed · `PATCH /api/projects/{id}` `{rights}` (added 26/09, see "Beyond hot news")
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
+  - `GET/POST /api/watches` · `PATCH/DELETE /api/watches/{id}` · `POST /api/watches/check` (async) ·
+    `GET /api/clips?status=new|used|hidden&watch_id=` · `PATCH /api/clips/{id}` `{status}` ·
+    `POST /api/clips/{id}/produce` `{duration, links_only?}` (added 26/09, see "Beyond hot news")
    - `GET  /api/voices` — ElevenLabs voices (id, name, labels) when a key is set
    - `GET/PUT /api/settings` — see 4.
    - `GET  /media/{path}` — files under `data/`
@@ -137,8 +140,16 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   skipped. Length 70 / 80 / 90 s (`meta.duration`). Every project carries a rights flag
   (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
   news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
-- **B · Watchlist** (next, own brainstorm): YouTube channels/playlists, Bilibili user spaces and saved searches feed a
-  "Video mới" list via the scheduler. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
+- **B · Watchlist** (built, `motio/watch.py`): a "Video mới" page follows YouTube channels (videos + Shorts tabs) and
+  playlists, Bilibili user spaces / series / favourites, and saved searches (YouTube newest first, Bilibili). yt-dlp
+  lists them flat (no upload date, so "new" = not seen before); a new source shows its latest 10 videos per list,
+  later checks only unseen ones. Checks run on the `REFRESH_EVERY_MIN` scheduler, when a source is added, or with
+  "Kiểm tra ngay"; one low-effort Claude call per 20 new videos gives a French title and a score. "Làm video" makes a
+  topic project from the video's link (title as the topic). A source's rights flag carries over when only that video
+  is used (the default for owned / licensed / cc sources); adding search footage makes the project `unknown`.
+  Bilibili lists give links only, so Motio reads each new video's page for its title; the space API often needs
+  `YTDLP_COOKIES_FROM_BROWSER`. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
+  The same PR fixes YouTube downloads: yt-dlp needs a JavaScript runtime (Deno, bundled) and `yt-dlp-ejs`.
 - **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz
   only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused content on every platform.
 
