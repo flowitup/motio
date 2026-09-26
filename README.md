@@ -19,6 +19,16 @@ uv run python -m motio serve        # mở http://127.0.0.1:8765
 
 Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`.
 
+## App desktop (Tauri)
+
+```bash
+cd app && pnpm install
+pnpm tauri dev        # mở app; engine tự chạy bằng uv từ gốc repo
+```
+
+Cần Rust (`rustup`). App tự tìm `uv` trong PATH, `~/.local/bin`, Homebrew; đặt `MOTIO_UV` nếu ở chỗ khác.
+Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + token), khi đó app không tự chạy engine.
+
 ## Engine API (cho app desktop)
 
 ```bash
