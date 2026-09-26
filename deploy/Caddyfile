@@ -1,0 +1,11 @@
+# Caddy lấy chứng chỉ Let's Encrypt tự động cho cả hai tên miền (DNS phải trỏ về server trước).
+
+{$MOTIO_DOMAIN} {
+	# Engine API + /media + SSE (Caddy tự flush text/event-stream). Xác thực bằng token của engine.
+	reverse_proxy engine:8765
+}
+
+{$POSTIZ_DOMAIN} {
+	# Cổng 5000 của container Postiz đã gộp frontend + backend (/api) + /uploads.
+	reverse_proxy postiz:5000
+}

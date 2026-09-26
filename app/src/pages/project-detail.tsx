@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Copy, FolderOpen, Loader2, RotateCcw } from "lucide-r
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ExternalA } from "@/components/external-link";
+import { PublishCard } from "@/components/publish-card";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,6 +121,10 @@ export default function ProjectDetailPage() {
                 <Textarea readOnly value={post} className="min-h-40 text-sm" />
               </CardContent>
             </Card>
+          )}
+
+          {status === "done" && p.meta.video && (
+            <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} onSent={() => refetch()} />
           )}
 
           <Card>

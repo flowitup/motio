@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router";
 import App from "./App";
 import { EngineProvider } from "./lib/engine";
+import { UpdaterProvider } from "./lib/updater";
 import "./index.css";
 
 // Theo chế độ sáng / tối của hệ điều hành.
@@ -20,9 +21,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <EngineProvider>
-        <HashRouter>
-          <App />
-        </HashRouter>
+        <UpdaterProvider>
+          <HashRouter>
+            <App />
+          </HashRouter>
+        </UpdaterProvider>
       </EngineProvider>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, RotateCcw } from "lucide-react";
+import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { ExternalA } from "@/components/external-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useApi, type Api, type Settings } from "@/lib/api";
-import { inTauri, useEngine, type EngineConfig } from "@/lib/engine";
+import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
+import { useUpdater } from "@/lib/updater";
 import { t } from "@/i18n";
 
 type Draft = Record<string, string | boolean>;
@@ -118,6 +121,110 @@ function EngineCard() {
   );
 }
 
+function UpdateCard() {
+  const u = useUpdater();
+  const [token, setToken] = useState("");
+  const [saving, setSaving] = useState(false);
+  if (!inTauri) return null;
+
+  const saveToken = async (value: string) => {
+    setSaving(true);
+    try {
+      await u.setToken(value);
+      setToken("");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const busy = u.checking || u.progress != null;
+  const r = u.result;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.update.title}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm">
+            {t.update.current} <span className="font-medium">{u.current}</span>
+          </span>
+          <Button variant="outline" onClick={u.check} disabled={busy}>
+            {u.checking ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {t.update.check}
+          </Button>
+          {r && !r.version && !u.checking && <span className="text-sm text-muted-foreground">{t.update.upToDate}</span>}
+        </div>
+
+        {r?.version && (
+          <div className="grid gap-3 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{t.update.available(r.version)}</span>
+              {r.url && (
+                <Button variant="link" size="sm" onClick={() => openExternal(r.url!)}>
+                  {t.update.releasePage}
+                </Button>
+              )}
+            </div>
+            {r.notes && (
+              <pre className="max-h-48 overflow-y-auto font-sans text-xs whitespace-pre-wrap text-muted-foreground">
+                {r.notes}
+              </pre>
+            )}
+            {u.progress != null ? (
+              <div className="grid gap-1.5">
+                <span className="text-sm text-muted-foreground">
+                  {t.update.downloading} {u.progress > 0 && `${u.progress}%`}
+                </span>
+                <Progress value={u.progress} />
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={u.install} disabled={busy}>
+                  <Download />
+                  {t.update.install}
+                </Button>
+                <span className="text-xs text-muted-foreground">{t.update.restartHint}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {u.error && <p className="text-sm text-destructive">{u.error}</p>}
+
+        <Field
+          label={t.update.token}
+          hint={
+            <>
+              {t.update.tokenHint}{" "}
+              <ExternalA href="https://github.com/settings/personal-access-tokens/new" className="underline">
+                {t.update.createToken}
+              </ExternalA>
+            </>
+          }
+        >
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              value={token}
+              placeholder={u.hasToken ? t.update.tokenSaved : "github_pat_…"}
+              onChange={(e) => setToken(e.target.value)}
+            />
+            <Button variant="outline" onClick={() => saveToken(token)} disabled={!token.trim() || saving}>
+              {t.settings.save}
+            </Button>
+            {u.hasToken && (
+              <Button variant="ghost" onClick={() => saveToken("")} disabled={saving}>
+                {t.update.clearToken}
+              </Button>
+            )}
+          </div>
+        </Field>
+      </CardContent>
+    </Card>
+  );
+}
+
 function HealthCard({ api }: { api: Api }) {
   const { data: h, error } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), refetchInterval: 30_000 });
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
@@ -130,6 +237,7 @@ function HealthCard({ api }: { api: Api }) {
     ["ASR", `${h.providers.asr.engine} · ${h.providers.asr.model}`],
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
     ["claude CLI", h.claude_cli ?? <span className="text-muted-foreground">{t.settings.notFound}</span>],
+    ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
     [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
   ];
@@ -273,6 +381,20 @@ function SettingsForm({ api }: { api: Api }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t.settings.postiz}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label={t.settings.postizUrl} hint={src("POSTIZ_URL") ?? t.settings.postizHint}>
+            {text("POSTIZ_URL", "https://postiz.example.com/api")}
+          </Field>
+          <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
+            {secret("POSTIZ_API_KEY")}
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t.settings.content}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -316,6 +438,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-5 p-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
       <EngineCard />
+      <UpdateCard />
       {api && (
         <>
           <HealthCard api={api} />

@@ -17,9 +17,11 @@ as authoritative for scope and milestones.
   - `search.py` yt-dlp search/download · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `rerender`)
+  - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
+- `deploy/` + `Dockerfile` — Hetzner server stack (engine + Postiz + Caddy), runbook `docs/DEPLOY.md`.
 - `tools/` — dev scripts. `docs/` — plans and notes.
 - `data/` — runtime data (SQLite, downloaded sources, rendered projects). Never commit.
 - `.env` — secrets. Never read, print, or commit it.
@@ -37,7 +39,12 @@ uv run python -m motio serve                # legacy dashboard on :8765
 uv run python -m motio engine --port 0 --token <t>
 # after M2:
 cd app && pnpm install && pnpm tauri dev
+# release: bump version in app/src-tauri/tauri.conf.json, then
+git tag vX.Y.Z && git push origin vX.Y.Z   # CI builds .dmg/.msi into a draft GitHub Release
 ```
+
+CI (`.github/workflows/ci.yml`) runs ruff + pytest (Ubuntu, Windows), `pnpm build` and `cargo clippy -D warnings`
+on every PR; keep them green.
 
 ## Conventions
 

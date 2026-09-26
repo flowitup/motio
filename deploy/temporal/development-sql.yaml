@@ -1,0 +1,8 @@
+# Temporal dynamic config, copied from github.com/gitroomhq/postiz-docker-compose (dynamicconfig/).
+# Keep it in sync with that repo when bumping POSTIZ_VERSION.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true # Dev setup only. Please don't turn this on in production.
+    constraints: {}

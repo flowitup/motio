@@ -29,17 +29,33 @@ pnpm tauri dev        # mở app; engine tự chạy bằng uv từ gốc repo
 Cần Rust (`rustup`). App tự tìm `uv` trong PATH, `~/.local/bin`, Homebrew; đặt `MOTIO_UV` nếu ở chỗ khác.
 Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + token), khi đó app không tự chạy engine.
 
-## Đóng gói (.dmg / .msi)
+## Đóng gói, CI và phát hành
 
 ```bash
 uv run --group build python tools/build_engine.py   # engine PyInstaller + ffmpeg tĩnh → app/src-tauri/resources/
 cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) hoặc .msi (Windows)
 ```
 
-CI (`.github/workflows/build.yml`) build cả hai hệ điều hành cho mỗi PR và gắn file cài vào release khi đẩy tag `v*`.
-Bản đóng gói lưu dữ liệu ở `~/Library/Application Support/Motio` (macOS) hoặc `%APPDATA%\Motio` (Windows).
-Chưa ký số: macOS chuột phải → Open lần đầu; Windows SmartScreen → "More info" → "Run anyway".
-`claude -p` vẫn cần Claude Code cài sẵn trên máy; không có thì chọn "Anthropic API" trong Cài đặt.
+`tauri build` / `tauri dev` cần thư mục `app/src-tauri/resources/motio-engine/` (có thể rỗng khi chỉ chạy dev:
+bản debug vẫn chạy engine bằng `uv` từ repo). Bản đóng gói lưu dữ liệu ở `~/Library/Application Support/Motio`
+(macOS) hoặc `%APPDATA%\Motio` (Windows). `claude -p` vẫn cần Claude Code cài sẵn trên máy; không có thì chọn
+"Anthropic API" trong Cài đặt.
+
+- **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `master`): engine chạy `ruff check` + `pytest`
+  trên Ubuntu và Windows; app chạy `pnpm build` (tsc + vite) và `cargo clippy`.
+- **Phát hành** (`.github/workflows/release.yml`): tăng `version` trong `app/src-tauri/tauri.conf.json`, rồi
+  `git tag v0.3.0 && git push origin v0.3.0`. CI đóng gói engine rồi dựng `.dmg` (macOS Apple Silicon) và
+  `.msi` / `.exe` (Windows), tạo một GitHub Release nháp để bạn xem rồi bấm Publish.
+- Bộ cài chưa ký số: macOS mở lần đầu bằng System Settings → Privacy & Security → "Open Anyway"; Windows bấm
+  "More info" → "Run anyway". Bộ cài đã kèm engine; muốn dùng engine trên máy khác thì vào Cài đặt → "Engine từ xa".
+- **Tự cập nhật** (Cài đặt → "Cập nhật ứng dụng"): app hỏi GitHub Releases khi mở và khi bấm "Kiểm tra cập nhật",
+  tải bản mới, kiểm chữ ký rồi tự khởi động lại. Chỉ bản đã Publish mới được nhận. Repo riêng tư nên mỗi máy cần
+  một GitHub token chỉ đọc (fine-grained, repo `flowitup/motio`, Contents: Read-only), nhập ngay trong thẻ đó.
+- Khóa ký bản cập nhật, làm một lần: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, rồi
+  `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` và
+  `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Khóa công khai (`~/.tauri/motio-updater.key.pub`) nằm ở
+  `plugins.updater.pubkey` trong `app/src-tauri/tauri.conf.json`. Thiếu secret thì tag phát hành bị lỗi; mất khóa
+  riêng thì các bản đã cài không tự cập nhật được nữa (phải cài lại bằng tay).
 
 ## Engine API (cho app desktop)
 
@@ -49,6 +65,12 @@ uv run python -m motio engine --port 0 --token <t>   # in {"event":"ready","port
 
 Mọi `/api/*` cần `Authorization: Bearer <t>`; `/media/*` và `/api/projects/{id}/events` (SSE) nhận thêm
 `?token=`. `--host 0.0.0.0` (chạy từ xa) bắt buộc có `--token`. `--exit-with-stdin` tự thoát khi app cha đóng.
+
+## Chạy trên server (Hetzner + Postiz)
+
+`deploy/` chứa Docker Compose cho engine + [Postiz](https://postiz.com) (đăng bài tự động) sau Caddy (HTTPS);
+workflow "Deploy (Hetzner)" build ảnh và cập nhật server. Các bước: [docs/DEPLOY.md](docs/DEPLOY.md).
+Trên server engine đọc token từ `MOTIO_TOKEN` và mặc định `LLM_PROVIDER=anthropic`.
 
 ## Cấu hình (.env)
 
@@ -62,6 +84,7 @@ Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `
 | `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
 | `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
+| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz để đăng bài: gốc API (`https://postiz.<domain>/api`) + Public API key |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Đường dẫn binary nếu không nằm trong PATH |
 
 Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
@@ -78,6 +101,7 @@ motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
 motio/pipeline.py  7 bước của một dự án
 motio/settings.py  data/settings.json đè lên .env
 motio/api.py       engine API JSON cho app desktop
+motio/postiz.py    gửi video sang Postiz (nháp / lên lịch / đăng ngay)
 motio/web.py       dashboard cũ (bỏ sau M2)
 ```
 

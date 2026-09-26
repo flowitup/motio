@@ -83,7 +83,23 @@ produce a video, follow progress and play the result.
 Scheduler (refresh every 60 min, optional auto-produce above a score, daily cap), Google Drive delivery (rclone),
 Slack app in Socket Mode with buttons [Làm video] [Duyệt] [Làm lại], `--headless` mode for the always-on Windows PC.
 
+## Server + Postiz (added 26/09/2026)
+
+Engine in Docker on a Hetzner server next to a self-hosted Postiz, behind Caddy (`deploy/`, `docs/DEPLOY.md`).
+The desktop app uses it as a remote engine. Posting goes through Postiz's Public API only: a finished project can be
+sent as a draft, scheduled or posted now (`POST /api/projects/{id}/publish`). Postiz owns OAuth, calendars and the
+platform APIs.
+
+## In-app updates (added 26/09/2026)
+
+The desktop app updates itself from GitHub Releases with Tauri's updater plugin: it checks the latest published
+release on launch and from Cài đặt → "Cập nhật ứng dụng", then downloads, verifies the signature and restarts. The repo
+is private, so each install keeps a read-only GitHub token (fine-grained, Contents: Read) in its config dir; nothing is
+compiled into the app. `release.yml` signs the update bundles (`TAURI_SIGNING_PRIVATE_KEY` secret) and attaches
+`latest.json`, whose bundle URLs are GitHub API asset URLs.
+
 ## Out of scope for now
 
-Auto-posting to TikTok / Reels / YouTube / X · channel-scan "Pháp hoá" mode · AI clips (fal H3 Max) and
-Qwen images (Modal) inside the pipeline.
+Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
+Postiz (belongs with the M4 scheduler) · channel-scan "Pháp hoá" mode · AI clips (fal H3 Max) and Qwen images
+(Modal) inside the pipeline.

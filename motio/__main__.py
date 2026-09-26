@@ -1,6 +1,7 @@
 """CLI: uv run python -m motio [refresh | trends | produce <trend_id> | rerender <id> | serve | engine ...]"""
 import argparse
 import json
+import os
 import socket
 import sys
 import threading
@@ -58,7 +59,8 @@ def engine(argv: list[str]) -> None:
     ap = argparse.ArgumentParser(prog="motio engine")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=0, help="0 = tự chọn cổng trống")
-    ap.add_argument("--token", default="", help="bắt buộc khi --host không phải loopback")
+    ap.add_argument("--token", default=os.getenv("MOTIO_TOKEN", ""),
+                    help="bắt buộc khi --host không phải loopback; mặc định lấy từ MOTIO_TOKEN (server, Docker)")
     ap.add_argument("--headless", action="store_true", help="chạy nền 24/7 (máy Windows)")
     ap.add_argument("--exit-with-stdin", action="store_true",
                     help="thoát khi stdin đóng (app cha chết) — dùng khi app desktop khởi chạy engine")

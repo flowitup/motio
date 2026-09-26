@@ -1,4 +1,5 @@
 mod engine;
+mod updater;
 
 use tauri::{Manager, RunEvent};
 use tauri_plugin_opener::OpenerExt;
@@ -14,7 +15,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(engine::Engine::new())
+        .manage(updater::Pending::default())
         .setup(|app| {
             engine::start(app.handle());
             Ok(())
@@ -24,6 +27,10 @@ pub fn run() {
             engine::engine_config,
             engine::set_engine_config,
             engine::restart_engine,
+            updater::updater_status,
+            updater::set_update_token,
+            updater::check_update,
+            updater::install_update,
             open_folder
         ])
         .build(tauri::generate_context!())
