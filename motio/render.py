@@ -169,7 +169,7 @@ def split_by_captions(pieces: list[Piece], events: list[tuple[float, float, str]
     for p in pieces:
         cuts = sorted({round(e[0], 3) for e in events if p.t0 + 0.25 < e[0] < p.t0 + p.dur - 0.25})
         bounds = [p.t0, *cuts, p.t0 + p.dur]
-        for a, b in zip(bounds, bounds[1:]):
+        for a, b in zip(bounds, bounds[1:], strict=False):
             mid = (a + b) / 2
             cap = next((e[2] for e in events if e[0] <= mid < e[1]), "")
             out.append(Piece(p.src, p.src_start + (a - p.t0), b - a, a, cap))
@@ -209,7 +209,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     work.mkdir(exist_ok=True)
     for s in sources:
         s["has_audio"] = has_audio(Path(s["path"]))
-    lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"])]
+    lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"], strict=False)]
     total = narration["duration"] + 0.6
     events = []
     for i, ln in enumerate(lines):

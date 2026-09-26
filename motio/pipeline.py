@@ -58,7 +58,7 @@ class Step:
 
 def _fmt_sources(sources: list[dict], transcripts: list[dict], max_chars: int = 3500) -> str:
     blocks = []
-    for i, (s, t) in enumerate(zip(sources, transcripts)):
+    for i, (s, t) in enumerate(zip(sources, transcripts, strict=False)):
         head = f"[{i}] {s['platform']} · {s['uploader']} · {int(s['duration'] or 0)} s · « {s['title'][:90]} »"
         segs = t.get("segments") or []
         if not segs:
