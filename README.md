@@ -44,7 +44,7 @@ bản debug vẫn chạy engine bằng `uv` từ repo). Bản đóng gói lưu d
 - **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `master`): engine chạy `ruff check` + `pytest`
   trên Ubuntu và Windows; app chạy `pnpm build` (tsc + vite) và `cargo clippy`.
 - **Phát hành** (`.github/workflows/release.yml`): tăng `version` trong `app/src-tauri/tauri.conf.json`, rồi
-  `git tag v0.3.0 && git push origin v0.3.0`. CI đóng gói engine rồi dựng `.dmg` (macOS Apple Silicon) và
+  `git tag v0.3.1 && git push origin v0.3.1`. CI đóng gói engine rồi dựng `.dmg` (macOS Apple Silicon) và
   `.msi` / `.exe` (Windows), tạo một GitHub Release nháp để bạn xem rồi bấm Publish.
 - Bộ cài chưa ký số: macOS mở lần đầu bằng System Settings → Privacy & Security → "Open Anyway"; Windows bấm
   "More info" → "Run anyway". Bộ cài đã kèm engine; muốn dùng engine trên máy khác thì vào Cài đặt → "Engine từ xa".
