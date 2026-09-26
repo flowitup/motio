@@ -29,6 +29,16 @@ pnpm tauri dev        # mở app; engine tự chạy bằng uv từ gốc repo
 Cần Rust (`rustup`). App tự tìm `uv` trong PATH, `~/.local/bin`, Homebrew; đặt `MOTIO_UV` nếu ở chỗ khác.
 Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + token), khi đó app không tự chạy engine.
 
+## CI và phát hành
+
+- **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `master`): engine chạy `ruff check` + `pytest`
+  trên Ubuntu và Windows; app chạy `pnpm build` (tsc + vite) và `cargo clippy`.
+- **Phát hành** (`.github/workflows/release.yml`): tăng `version` trong `app/src-tauri/tauri.conf.json`, rồi
+  `git tag v0.2.0 && git push origin v0.2.0`. CI dựng `.dmg` (macOS Apple Silicon) và `.msi` / `.exe`
+  (Windows), tạo một GitHub Release nháp để bạn xem rồi bấm Publish.
+- Bộ cài chưa ký số: macOS mở lần đầu bằng System Settings → Privacy & Security → "Open Anyway"; Windows bấm
+  "More info" → "Run anyway". Bộ cài chưa kèm engine Python: trong app vào Cài đặt → "Engine từ xa" (URL + token).
+
 ## Engine API (cho app desktop)
 
 ```bash
