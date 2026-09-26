@@ -1,6 +1,10 @@
-"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | serve]"""
+"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | rerender <id> | serve | engine ...]"""
+import argparse
 import json
+import socket
 import sys
+import threading
+import time
 
 from . import config, db
 
@@ -32,8 +36,68 @@ def main(argv: list[str]) -> None:
         port = int(config.env("MOTIO_PORT", "8765"))
         print(f"Motio: http://{host}:{port}")
         uvicorn.run("motio.web:app", host=host, port=port, log_level="warning")
+    elif cmd == "engine":
+        engine(argv[1:])
     else:
         sys.exit(__doc__)
+
+
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+
+
+def engine(argv: list[str]) -> None:
+    """Chạy engine API. In đúng một dòng JSON {"event":"ready",...} ra stdout khi đã nhận kết nối."""
+    ap = argparse.ArgumentParser(prog="motio engine")
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=0, help="0 = tự chọn cổng trống")
+    ap.add_argument("--token", default="", help="bắt buộc khi --host không phải loopback")
+    ap.add_argument("--headless", action="store_true", help="chạy nền 24/7 (máy Windows)")
+    ap.add_argument("--exit-with-stdin", action="store_true",
+                    help="thoát khi stdin đóng (app cha chết) — dùng khi app desktop khởi chạy engine")
+    a = ap.parse_args(argv)
+    if a.host not in LOOPBACK and not a.token:
+        sys.exit("--host không phải loopback thì bắt buộc có --token")
+
+    import secrets
+
+    import uvicorn
+
+    from . import __version__, api
+    token = a.token or secrets.token_urlsafe(24)
+    family = socket.AF_INET6 if ":" in a.host else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((a.host, a.port))
+    port = sock.getsockname()[1]
+
+    server = uvicorn.Server(uvicorn.Config(api.create_app(token, headless=a.headless), log_level="warning",
+                                           access_log=False))
+    ready = {"event": "ready", "port": port, "version": __version__}
+    if not a.token:
+        ready["token"] = token  # tự sinh: người gọi cần biết để dùng
+
+    def announce():
+        while not server.started:
+            if server.should_exit:
+                return
+            time.sleep(0.02)
+        out = sys.stdout
+        sys.stdout = sys.stderr  # sau dòng ready, mọi print lạc đều sang stderr
+        out.write(json.dumps(ready) + "\n")
+        out.flush()
+
+    def watch_stdin():
+        try:
+            while sys.stdin.buffer.read(4096):
+                pass
+        except (OSError, ValueError):
+            pass
+        server.should_exit = True
+
+    threading.Thread(target=announce, daemon=True).start()
+    if a.exit_with_stdin:
+        threading.Thread(target=watch_stdin, daemon=True).start()
+    server.run(sockets=[sock])
 
 
 if __name__ == "__main__":

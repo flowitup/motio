@@ -57,7 +57,7 @@ Sujets :
 
 def refresh(sources: list[str] | None = None, per_source: int = 15) -> dict:
     """Lấy bảng hot, chỉ gửi LLM những tin chưa có trong DB. Trả về số liệu."""
-    sources = sources or config.NEWS_SOURCES
+    sources = sources or config.news_sources()
     known = db.known_trend_ids()
     fresh, errors = [], {}
     for s in sources:

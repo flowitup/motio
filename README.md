@@ -19,7 +19,18 @@ uv run python -m motio serve        # mở http://127.0.0.1:8765
 
 Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`.
 
+## Engine API (cho app desktop)
+
+```bash
+uv run python -m motio engine --port 0 --token <t>   # in {"event":"ready","port":N,...} rồi phục vụ
+```
+
+Mọi `/api/*` cần `Authorization: Bearer <t>`; `/media/*` và `/api/projects/{id}/events` (SSE) nhận thêm
+`?token=`. `--host 0.0.0.0` (chạy từ xa) bắt buộc có `--token`. `--exit-with-stdin` tự thoát khi app cha đóng.
+
 ## Cấu hình (.env)
+
+Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `.env` và có hiệu lực ngay.
 
 | Biến | Ý nghĩa |
 |---|---|
@@ -28,6 +39,8 @@ Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyi
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Giọng Pháp; bỏ trống voice để app tự chọn giọng tiếng Pháp trong tài khoản |
 | `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
+| `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Đường dẫn binary nếu không nằm trong PATH |
 
 Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
 
@@ -41,7 +54,9 @@ motio/llm.py       claude -p hoặc Claude API
 motio/tts.py       ElevenLabs có mốc thời gian (giọng macOS nếu chưa có key)
 motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
 motio/pipeline.py  7 bước của một dự án
-motio/web.py       dashboard
+motio/settings.py  data/settings.json đè lên .env
+motio/api.py       engine API JSON cho app desktop
+motio/web.py       dashboard cũ (bỏ sau M2)
 ```
 
 ## Quy tắc nội dung có sẵn

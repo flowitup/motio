@@ -1,7 +1,6 @@
 """Giọng đọc tiếng Pháp. ElevenLabs (có mốc thời gian) nếu có key, không thì giọng macOS để thử."""
 import base64
 import json
-import platform
 import subprocess
 from pathlib import Path
 
@@ -12,8 +11,18 @@ from . import config
 EL = "https://api.elevenlabs.io/v1"
 
 
+class TTSUnavailable(RuntimeError):
+    """Không có nhà cung cấp giọng đọc nào dùng được trên máy này — UI hiện thông báo này cho người dùng."""
+
+
+def provider() -> str | None:
+    if config.env("ELEVENLABS_API_KEY"):
+        return "elevenlabs"
+    return "macos_say" if config.IS_MAC else None
+
+
 def probe_duration(path: Path) -> float:
-    r = subprocess.run([config.FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+    r = subprocess.run([config.ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                         str(path)], capture_output=True, text=True, check=True)
     return float(r.stdout.strip() or 0)
 
@@ -21,11 +30,13 @@ def probe_duration(path: Path) -> float:
 def synthesize(lines: list[str], out_dir: Path) -> dict:
     """Đọc cả kịch bản một lượt. Trả {audio, duration, lines: [{start, end}], provider, voice}."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    if config.env("ELEVENLABS_API_KEY"):
+    p = provider()
+    if p == "elevenlabs":
         return _elevenlabs(lines, out_dir)
-    if platform.system() == "Darwin":
+    if p == "macos_say":
         return _macos_say(lines, out_dir)
-    raise RuntimeError("Chưa có ELEVENLABS_API_KEY trong .env")
+    raise TTSUnavailable("Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY "
+                         "(giọng macOS chỉ có trên Mac).")
 
 
 # ---------- ElevenLabs ----------
@@ -33,13 +44,17 @@ def _headers() -> dict:
     return {"xi-api-key": config.env("ELEVENLABS_API_KEY")}
 
 
+def list_voices() -> list[dict]:
+    r = httpx.get(f"{EL}/voices", headers=_headers(), timeout=30)
+    r.raise_for_status()
+    return r.json().get("voices", [])
+
+
 def pick_voice() -> tuple[str, str]:
     vid = config.env("ELEVENLABS_VOICE_ID")
     if vid:
         return vid, vid
-    r = httpx.get(f"{EL}/voices", headers=_headers(), timeout=30)
-    r.raise_for_status()
-    voices = r.json().get("voices", [])
+    voices = list_voices()
 
     def is_fr(v):
         labels = {k: str(val).lower() for k, val in (v.get("labels") or {}).items()}
@@ -104,11 +119,11 @@ def _macos_say(lines: list[str], out_dir: Path) -> dict:
         t += d + gap
     lst = out_dir / "say_list.txt"
     silence = out_dir / "gap.wav"
-    subprocess.run([config.FFMPEG, "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
                     "-t", str(gap), str(silence)], check=True)
     lst.write_text("".join(f"file '{p.name}'\nfile '{silence.name}'\n" for p in parts))
     audio = out_dir / "narration.wav"
-    subprocess.run([config.FFMPEG, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
                     "-ar", "44100", "-ac", "1", str(audio)], check=True, cwd=out_dir)
     return {"audio": str(audio), "duration": probe_duration(audio), "lines": spans, "provider": "macos_say",
             "voice": voice, "model": "say"}
