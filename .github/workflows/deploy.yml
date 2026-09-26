@@ -1,0 +1,113 @@
+name: Deploy (Hetzner)
+
+# Build the engine image, push it to GHCR, then update the stack (engine + Postiz + Caddy) on the
+# Hetzner server over SSH. Setup and secrets: docs/DEPLOY.md.
+# Runs by hand (Actions → "Deploy (Hetzner)" → Run workflow), or on every push to master once the
+# repository variable AUTO_DEPLOY is set to "true".
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "motio/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Dockerfile"
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-hetzner
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/motio-engine
+  APP_DIR: /opt/motio
+
+jobs:
+  image:
+    name: Build engine image
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tags.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags
+        id: tags
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          ref="$IMAGE:sha-$GITHUB_SHA"
+          tags="$ref"
+          if [ "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then tags="$tags,$IMAGE:latest"; fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Hetzner CX/CPX = amd64; set the repository variable MOTIO_PLATFORM=linux/arm64 for CAX servers.
+          platforms: ${{ vars.MOTIO_PLATFORM || 'linux/amd64' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to server
+    needs: image
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      HOST: ${{ secrets.HETZNER_HOST }}
+      DEPLOY_USER: ${{ secrets.HETZNER_USER || 'deploy' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        run: |
+          for v in HOST SSH_KEY KNOWN_HOSTS; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v (see docs/DEPLOY.md)"; exit 1; fi
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host motio\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  StrictHostKeyChecking yes\n' \
+            "$HOST" "$DEPLOY_USER" > ~/.ssh/config
+      - name: Check server
+        run: |
+          ssh motio "test -f $APP_DIR/.env" \
+            || { echo "::error::$APP_DIR/.env is missing on the server (copy deploy/env.example, see docs/DEPLOY.md)"; exit 1; }
+      - name: Upload stack files
+        run: tar -C deploy -czf - compose.yaml Caddyfile temporal | ssh motio "tar -C $APP_DIR -xzf -"
+      - name: Pull images and restart
+        env:
+          IMAGE_REF: ${{ needs.image.outputs.image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh motio "docker login ghcr.io -u $GITHUB_ACTOR --password-stdin"
+          ssh motio bash -s -- "$APP_DIR" "$IMAGE_REF" <<'EOF'
+          set -euo pipefail
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          cd "$1"
+          # Pin the engine image to this commit so later `docker compose up` keeps the same build.
+          sed -i '/^MOTIO_IMAGE=/d' .env
+          echo "MOTIO_IMAGE=$2" >> .env
+          docker compose pull --quiet
+          docker compose up -d --remove-orphans --wait --wait-timeout 600
+          docker image prune -f
+          docker compose ps
+          EOF
