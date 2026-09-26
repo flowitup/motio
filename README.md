@@ -39,8 +39,8 @@ Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + toke
 - Bộ cài chưa ký số: macOS mở lần đầu bằng System Settings → Privacy & Security → "Open Anyway"; Windows bấm
   "More info" → "Run anyway". Bộ cài chưa kèm engine Python: trong app vào Cài đặt → "Engine từ xa" (URL + token).
 - **Tự cập nhật** (Cài đặt → "Cập nhật ứng dụng"): app hỏi GitHub Releases khi mở và khi bấm "Kiểm tra cập nhật",
-  tải bản mới, kiểm chữ ký rồi tự khởi động lại. Chỉ bản đã Publish mới được nhận. Repo riêng tư nên mỗi máy cần
-  một GitHub token chỉ đọc (fine-grained, repo `flowitup/motio`, Contents: Read-only), nhập ngay trong thẻ đó.
+  tải bản mới, kiểm chữ ký rồi tự khởi động lại. Chỉ bản đã Publish mới được nhận. Repo công khai nên không cần
+  GitHub token: app đọc `releases/latest/download/latest.json`.
 - Khóa ký bản cập nhật, làm một lần: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, rồi
   `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` và
   `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Khóa công khai (`~/.tauri/motio-updater.key.pub`) nằm ở

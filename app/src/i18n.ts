@@ -100,12 +100,6 @@ const vi = {
     downloading: "Đang tải bản cập nhật…",
     restartHint: "Motio sẽ tự khởi động lại. Video đang làm trên engine trong máy sẽ bị dừng.",
     releasePage: "Xem trên GitHub",
-    token: "GitHub token",
-    tokenSaved: "Đã lưu token. Nhập token mới để thay.",
-    tokenHint:
-      "Repo flowitup/motio là riêng tư nên cần token chỉ đọc: fine-grained token cho repo này, quyền Contents: Read-only. Token chỉ lưu trên máy này.",
-    createToken: "Tạo token trên GitHub",
-    clearToken: "Xóa token",
   },
   notify: {
     done: (t: string) => `Video xong: ${t}`,
