@@ -76,3 +76,23 @@ def test_safe_id():
     assert hashed.startswith("baidu:") and len(hashed) == len("baidu:") + 12
     assert hashed == newsnow.safe_id("baidu", "https://www.baidu.com/s?wd=热搜")
     assert newsnow.safe_id("weibo", 12345) == "weibo:12345"
+
+
+def test_js_runtimes_prefers_deno_then_node(monkeypatch):
+    from motio import config
+    found = {"node": "/usr/bin/node", "deno": "/opt/deno"}
+    monkeypatch.setattr(config, "find", lambda name: found.get(name))
+    assert config.js_runtimes() == {"deno": {"path": "/opt/deno"}}
+    del found["deno"]
+    assert config.js_runtimes() == {"node": {"path": "/usr/bin/node"}}
+    found.clear()
+    assert config.js_runtimes() == {}
+
+
+def test_ytdlp_base_passes_js_runtime(monkeypatch):
+    from motio import config, search
+    monkeypatch.setattr(config, "js_runtimes", lambda: {"deno": {"path": "/opt/deno"}})
+    assert search._base()["js_runtimes"] == {"deno": {"path": "/opt/deno"}}
+    monkeypatch.setattr(config, "js_runtimes", lambda: {})
+    assert "js_runtimes" not in search._base()
+    assert search._base() is not search._BASE

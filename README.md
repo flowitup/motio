@@ -11,6 +11,7 @@ videos are in French.
 ```bash
 cd ~/Works/motio
 uv sync                             # first time only
+brew install deno                   # yt-dlp needs a JavaScript runtime to download YouTube videos
 uv run python -m motio serve        # open http://127.0.0.1:8765
 ```
 
@@ -41,7 +42,7 @@ token); the app then doesn't start its own engine.
 ## Packaging, CI and releases
 
 ```bash
-uv run --group build python tools/build_engine.py   # PyInstaller engine + static ffmpeg → app/src-tauri/resources/
+uv run --group build python tools/build_engine.py   # PyInstaller engine + ffmpeg, deno → app/src-tauri/resources/
 cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) or .msi (Windows)
 ```
 
@@ -103,7 +104,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
-| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Binary paths if they are not on PATH |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.
 

@@ -97,6 +97,7 @@ export type Health = {
   };
   ffmpeg: string | null;
   ffprobe: string | null;
+  js_runtime: string | null;
   claude_cli: string | null;
   postiz: boolean;
   quota_left: number | null;

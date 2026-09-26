@@ -157,6 +157,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             },
             "ffmpeg": config.find("ffmpeg"),
             "ffprobe": config.find("ffprobe"),
+            "js_runtime": next(iter(config.js_runtimes().values()), {}).get("path"),
             "claude_cli": claude,
             "postiz": postiz.configured(),
             "quota_left": pipeline.quota_left(),

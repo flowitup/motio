@@ -20,7 +20,7 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
 1. **`motio/api.py`** — JSON-only FastAPI app replacing the Jinja dashboard (keep `web.py` until M2 ships).
    Auth: random token, `Authorization: Bearer <token>`; `?token=` accepted only for `/media` and SSE.
    CORS for `tauri://localhost`, `http://tauri.localhost`, `http://localhost:1420`.
-   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg found, claude CLI found
+   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg, JS runtime (deno) and claude CLI found
    - `GET  /api/trends?hours=24&source=` · `POST /api/trends/refresh` (async) · `GET /api/state`
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`

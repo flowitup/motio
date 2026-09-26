@@ -128,6 +128,8 @@ const vi = {
     version: "Phiên bản",
     platform: "Hệ điều hành",
     notFound: "không tìm thấy",
+    jsRuntime: "JavaScript (YouTube)",
+    jsRuntimeMissing: "không tìm thấy: cài Deno (brew install deno) để tải YouTube",
     none: "không có",
     quotaLeft: "Còn lại hôm nay",
     unlimited: "không giới hạn",

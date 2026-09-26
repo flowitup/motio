@@ -15,7 +15,7 @@ Engine tự cập nhật tin mỗi `REFRESH_EVERY_MIN` phút (mặc định 30 t
 
 | File | Vai trò |
 |---|---|
-| `Dockerfile` | ảnh engine: Python 3.12, ffmpeg, font DejaVu + Noto CJK, faster-whisper |
+| `Dockerfile` | ảnh engine: Python 3.12, ffmpeg, deno (yt-dlp cần để tải YouTube), font DejaVu + Noto CJK, faster-whisper |
 | `deploy/compose.yaml` | toàn bộ stack (Caddy, engine, NewsNow, Postiz và các dịch vụ đi kèm) |
 | `deploy/Caddyfile` | 2 tên miền → engine / Postiz, chứng chỉ Let's Encrypt tự động |
 | `deploy/env.example` | mẫu `/opt/motio/.env` trên server (bí mật, tên miền, key) |

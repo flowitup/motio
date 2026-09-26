@@ -98,6 +98,18 @@ def ffmpeg() -> str:
     return which("ffmpeg")
 
 
+JS_RUNTIMES = ("deno", "node", "bun")  # yt-dlp cần một runtime JavaScript (+ gói yt-dlp-ejs) để tải YouTube
+
+
+def js_runtimes() -> dict:
+    """Runtime JavaScript đầu tiên tìm được, theo dạng tham số `js_runtimes` của yt-dlp; {} nếu máy không có."""
+    for name in JS_RUNTIMES:
+        path = find(name)
+        if path:
+            return {name: {"path": path}}
+    return {}
+
+
 def ffprobe() -> str:
     return which("ffprobe")
 
