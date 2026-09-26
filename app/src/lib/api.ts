@@ -58,7 +58,14 @@ export type Project = {
   updated_at: number;
 };
 
-export type ProjectDetail = Project & { log: string; folder: string; trend: Trend | null };
+export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice";
+
+export type ProjectDetail = Project & {
+  log: string;
+  folder: string;
+  trend: Trend | null;
+  retry: { auto: RetryStep; steps: RetryStep[] };
+};
 
 export type ProgressEvent = { status: ProjectStatus; step: string | null; pct: number; log_tail: string[] };
 
@@ -128,6 +135,9 @@ export function makeApi(url: string, token: string) {
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
+    /** Chạy lại từ `start`; bỏ trống = chạy tiếp từ bước bị lỗi, giữ kết quả đã có. */
+    retry: (id: number, start?: RetryStep) =>
+      call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/retry`, start ? { start } : {}),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>

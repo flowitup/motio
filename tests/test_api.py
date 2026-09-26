@@ -32,6 +32,7 @@ def client(monkeypatch):
 
     monkeypatch.setattr(pipeline, "produce", fake_produce)
     monkeypatch.setattr(pipeline, "rerender", fake_produce)
+    monkeypatch.setattr(pipeline, "resume", lambda pid, start=None: fake_produce(pid))
     with TestClient(api.create_app(TOKEN)) as c:
         yield c
 
@@ -99,6 +100,19 @@ def test_rerender(client):
     assert client.post(f"/api/projects/{pid}/rerender", headers=H).status_code == 202
     assert _wait_done(client, pid)["status"] == "done"
     assert client.post("/api/projects/999/rerender", headers=H).status_code == 404
+
+
+def test_retry(client):
+    pid = db.create_project("douyin:1", "x")
+    db.update_project(pid, status="failed", log="LỖI")
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert p["retry"] == {"auto": "search", "steps": ["search"]}
+    assert client.post(f"/api/projects/{pid}/retry", headers=H, json={"start": "voice"}).status_code == 409
+    assert client.post(f"/api/projects/{pid}/retry", headers=H, json={"start": "nope"}).status_code == 400
+    r = client.post(f"/api/projects/{pid}/retry", headers=H)
+    assert r.status_code == 202 and r.json()["start"] == "search"
+    assert _wait_done(client, pid)["status"] == "done"
+    assert client.post("/api/projects/999/retry", headers=H).status_code == 404
 
 
 def test_media_blocks_traversal_and_settings(client):

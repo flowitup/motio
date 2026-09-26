@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, FolderOpen, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Copy, FolderOpen, Loader2, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ExternalA } from "@/components/external-link";
@@ -8,9 +8,10 @@ import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi } from "@/lib/api";
+import { useApi, type RetryStep } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
 
@@ -20,6 +21,7 @@ export default function ProjectDetailPage() {
   const id = Number(useParams().id);
   const qc = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [from, setFrom] = useState<RetryStep | null>(null); // null = bước hệ thống đề xuất
   const logRef = useRef<HTMLPreElement>(null);
 
   const { data: p, error, refetch } = useQuery({ queryKey: ["project", id], queryFn: () => api.project(id) });
@@ -29,9 +31,13 @@ export default function ProjectDetailPage() {
     qc.invalidateQueries({ queryKey: ["projects"] });
   });
 
-  const rerender = useMutation({
-    mutationFn: () => api.rerender(id),
-    onSuccess: () => refetch(),
+  // Không chọn bước: chạy tiếp từ bước lỗi (giữ bản bóc lời đã xong); chọn bước: làm lại từ bước đó.
+  const retry = useMutation({
+    mutationFn: (start: RetryStep | null) => api.retry(id, start ?? undefined),
+    onSuccess: () => {
+      setFrom(null);
+      refetch();
+    },
   });
 
   const status = ev?.status ?? p?.status;
@@ -67,10 +73,28 @@ export default function ProjectDetailPage() {
             {status && <StatusChip status={status} />}#{p.id} · {t.age(p.updated_at)}
           </div>
         </div>
-        <Button variant="outline" onClick={() => rerender.mutate()} disabled={active || rerender.isPending}>
-          {rerender.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-          {t.projects.rerender}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={from ?? p.retry.auto} onValueChange={(v) => v != null && setFrom(v as RetryStep)}>
+            <SelectTrigger className="w-44" aria-label={t.projects.rerunFrom} disabled={active}>
+              <SelectValue>{(v: string) => t.projects.steps[v] ?? v}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {p.retry.steps.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t.projects.steps[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant={status === "failed" ? "default" : "outline"}
+            onClick={() => retry.mutate(from)}
+            disabled={active || retry.isPending}
+          >
+            {retry.isPending ? <Loader2 className="animate-spin" /> : status === "failed" && !from ? <Play /> : <RotateCcw />}
+            {status === "failed" && !from ? t.projects.resume : t.projects.rerun}
+          </Button>
+        </div>
         {inTauri && info.mode === "local" && (
           <Button variant="outline" onClick={() => openFolder(p.folder)}>
             <FolderOpen />
@@ -78,7 +102,7 @@ export default function ProjectDetailPage() {
           </Button>
         )}
       </header>
-      {rerender.error && <p className="text-sm text-destructive">{rerender.error.message}</p>}
+      {retry.error && <p className="text-sm text-destructive">{retry.error.message}</p>}
 
       {active && (
         <div className="space-y-2">

@@ -26,6 +26,10 @@ FINAL = ("done", "failed")
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
 
 
+class RetryIn(BaseModel):
+    start: str | None = None  # search | download | transcribe | script | voice; None = từ bước bị lỗi
+
+
 class PublishIn(BaseModel):
     channels: list[str]
     mode: str = "draft"  # draft | schedule | now
@@ -42,6 +46,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["log"] = p.get("log") or ""
         out["folder"] = str(config.PROJECTS / str(p["id"]))
         out["trend"] = db.get_trend(p["trend_id"]) if p.get("trend_id") else None
+        out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
     return out
 
 
@@ -171,6 +176,23 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         db.update_project(pid, status="queued", step="Chờ dựng lại", pct=0, log="Xếp hàng dựng lại")
         jobs.submit(_run_job, pipeline.rerender, pid)
         return {"project_id": pid}
+
+    @app.post("/api/projects/{pid}/retry", status_code=202, dependencies=[Depends(auth)])
+    def retry(pid: int, body: RetryIn | None = None):
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, "Dự án đang chạy")
+        asked = body.start if body else None  # None = chạy tiếp từ bước bị lỗi, giữ kết quả đã có
+        start = asked or pipeline.resume_point(pid)
+        if start not in pipeline.STEPS:
+            raise HTTPException(400, f"Bước không hợp lệ: {start}")
+        if start not in pipeline.available_steps(pid):
+            raise HTTPException(409, f"Chưa đủ dữ liệu để chạy lại từ bước {pipeline.STEP_LABELS[start]}")
+        label = pipeline.STEP_LABELS[start]
+        db.update_project(pid, status="queued", step=f"Chờ chạy lại: {label}", pct=0,
+                          log=f"Xếp hàng chạy lại từ {label}")
+        jobs.submit(_run_job, lambda i: pipeline.resume(i, asked), pid)
+        return {"project_id": pid, "start": start}
 
     @app.get("/api/projects/{pid}/events", dependencies=[Depends(auth_or_query)])
     async def events(pid: int, request: Request):

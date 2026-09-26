@@ -99,74 +99,183 @@ def _fmt_sources(sources: list[dict], transcripts: list[dict], max_chars: int = 
     return "\n\n".join(blocks)
 
 
-def produce(pid: int, duration_sec: int = 60, max_sources: int = 4) -> None:
+# Các bước chạy lại được, theo thứ tự. Mỗi bước chỉ cần dữ liệu các bước trước đã lưu trong meta / thư mục dự án.
+STEPS = ("search", "download", "transcribe", "script", "voice")
+STEP_LABELS = {"search": "Tìm nguồn", "download": "Tải video", "transcribe": "Bóc lời", "script": "Kịch bản",
+               "voice": "Giọng đọc"}
+STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64}
+
+
+def _step_search(trend: dict, step, max_sources: int) -> list[dict]:
+    kw = trend.get("keywords") or {}
+    if not kw.get("zh"):
+        kw["zh"] = [trend["title_zh"]]
+    step("Tìm nguồn", 5, f"Từ khoá: {json.dumps(kw, ensure_ascii=False)}")
+    cands = search.candidates(kw)
+    if not cands:
+        raise RuntimeError("Không tìm thấy video nào cho tin này")
+    lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
+                      f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
+    pick = llm.ask_json(PICK_PROMPT.format(title_zh=trend["title_zh"], title_fr=trend["title_fr"],
+                                           angle=trend.get("angle") or "", cands=lines, n=max_sources),
+                        PICK_SYSTEM)
+    chosen = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
+    chosen = chosen[:max_sources] or cands[:2]
+    step("Tìm nguồn", 12, f"{len(cands)} ứng viên, chọn {len(chosen)}: {pick.get('why', '')}",
+         candidates=len(cands), chosen=chosen)
+    return chosen
+
+
+def _step_download(chosen: list[dict], step) -> list[dict]:
+    sources = []
+    for i, c in enumerate(chosen):
+        step("Tải video", 12 + int(20 * i / len(chosen)), f"Tải {c['url']}")
+        try:
+            sources.append(search.download(c["url"], config.CACHE / "sources"))
+        except Exception as e:
+            step("Tải video", 12 + int(20 * i / len(chosen)), f"Bỏ qua (lỗi tải): {str(e)[:160]}")
+    if not sources:
+        raise RuntimeError("Không tải được video nguồn nào")
+    step("Tải video", 32, f"Đã tải {len(sources)} nguồn",
+         sources=[{k: s[k] for k in ("path", "url", "id", "platform", "uploader", "uploader_url", "title",
+                                     "duration", "license", "upload_date")} for s in sources])
+    return sources
+
+
+def _step_transcribe(sources: list[dict], step) -> list[dict]:
+    transcripts = []
+    for i, s in enumerate(sources):
+        step("Bóc lời", 32 + int(20 * i / len(sources)), f"Whisper: {Path(s['path']).name}")
+        transcripts.append(asr.transcribe(Path(s["path"])))
+    step("Bóc lời", 52, "Xong bóc lời: " + ", ".join(
+        f"{t.get('language') or '-'}:{len(t['segments'])} đoạn" for t in transcripts))
+    return transcripts
+
+
+def _step_script(trend: dict, sources: list[dict], transcripts: list[dict], out: Path, step,
+                 duration_sec: int) -> dict:
+    step("Kịch bản", 55, "Claude viết lời bình tiếng Pháp")
+    words = int(duration_sec * 2.5)
+    plan = llm.ask_json(SCRIPT_PROMPT.format(
+        source=trend["source"], date=time.strftime("%d/%m/%Y"), title_zh=trend["title_zh"],
+        title_fr=trend["title_fr"], angle=trend.get("angle") or "", sources=_fmt_sources(sources, transcripts),
+        n_min=7, n_max=11, w_min=words - 20, w_max=words + 10, sec=duration_sec), SCRIPT_SYSTEM)
+    plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
+    if len(plan["lines"]) < 3:
+        raise RuntimeError("Kịch bản quá ngắn")
+    plan.setdefault("title_fr", trend["title_fr"])
+    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+    step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
+         title=plan["title_fr"])
+    return plan
+
+
+def _load_sources(pid: int) -> list[dict]:
+    """Nguồn đã tải (meta.sources); file bị dời thì tìm lại trong cache theo id video."""
+    sources = []
+    for s in db.get_project(pid)["meta"].get("sources") or []:
+        path = s.get("path")
+        if not path or not Path(path).exists():
+            vid = s.get("id") or s["url"].rsplit("=", 1)[-1]
+            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4"))
+            if not hits:
+                raise FileNotFoundError(f"Mất file nguồn {s['url']}")
+            path = str(hits[0])
+        sources.append({**s, "path": path})
+    return sources
+
+
+def _transcript_cached(src: dict) -> bool:
+    return Path(src["path"]).with_suffix(".transcript.json").exists()
+
+
+def available_steps(pid: int) -> list[str]:
+    """Các bước có thể chạy lại từ đó, theo dữ liệu dự án đã lưu."""
+    meta = db.get_project(pid)["meta"]
+    steps = ["search"]
+    if meta.get("chosen"):
+        steps.append("download")
+    if meta.get("sources"):
+        steps += ["transcribe", "script"]
+        if (config.PROJECTS / str(pid) / "script.json").exists():
+            steps.append("voice")
+    return steps
+
+
+def resume_point(pid: int) -> str:
+    """Bước sớm nhất còn thiếu kết quả: chỗ một dự án lỗi nên chạy tiếp."""
+    steps = available_steps(pid)
+    last = steps[-1]
+    if last in ("script", "voice"):
+        try:
+            sources = _load_sources(pid)
+        except FileNotFoundError:  # file nguồn đã bị xoá khỏi cache: tải lại
+            return "download" if "download" in steps else "search"
+        if last == "script" and not all(_transcript_cached(s) for s in sources):
+            return "transcribe"
+    return last
+
+
+def _invalidate(pid: int, start: str, redo: bool) -> None:
+    """Chạy lại từ `start`: bỏ kết quả của bước đó và các bước sau để không trộn với lần chạy cũ.
+
+    redo=False (chạy tiếp sau lỗi) giữ bản bóc lời đã xong; redo=True bóc lời lại tất cả.
+    """
+    out = config.PROJECTS / str(pid)
+    drop = {"search": ("chosen", "candidates", "sources"), "download": ("sources",)}.get(start, ())
+    if drop:
+        db.update_project(pid, meta=dict.fromkeys(drop))
+    if start == "transcribe" and redo:
+        for s in _load_sources(pid):
+            Path(s["path"]).with_suffix(".transcript.json").unlink(missing_ok=True)
+    if start != "voice":
+        (out / "script.json").unlink(missing_ok=True)
+
+
+def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str = "search") -> None:
+    """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video."""
+    if start not in STEPS:
+        raise ValueError(f"Bước không hợp lệ: {start}")
     step = Step(pid)
     proj = db.get_project(pid)
     trend = db.get_trend(proj["trend_id"])
     out = config.PROJECTS / str(pid)
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
+    at = STEPS.index(start)
     try:
-        check_quota(exclude=pid)
-        # 1. Tìm nguồn
-        kw = trend.get("keywords") or {}
-        if not kw.get("zh"):
-            kw["zh"] = [trend["title_zh"]]
-        step("Tìm nguồn", 5, f"Từ khoá: {json.dumps(kw, ensure_ascii=False)}")
-        cands = search.candidates(kw)
-        if not cands:
-            raise RuntimeError("Không tìm thấy video nào cho tin này")
-        lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
-                          f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
-        pick = llm.ask_json(PICK_PROMPT.format(title_zh=trend["title_zh"], title_fr=trend["title_fr"],
-                                               angle=trend.get("angle") or "", cands=lines, n=max_sources),
-                            PICK_SYSTEM)
-        chosen = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
-        chosen = chosen[:max_sources] or cands[:2]
-        step("Tìm nguồn", 12, f"{len(cands)} ứng viên, chọn {len(chosen)}: {pick.get('why', '')}",
-             candidates=len(cands))
-
-        # 2. Tải video
-        sources = []
-        for i, c in enumerate(chosen):
-            step("Tải video", 12 + int(20 * i / len(chosen)), f"Tải {c['url']}")
-            try:
-                sources.append(search.download(c["url"], config.CACHE / "sources"))
-            except Exception as e:
-                step("Tải video", 12 + int(20 * i / len(chosen)), f"Bỏ qua (lỗi tải): {str(e)[:160]}")
-        if not sources:
-            raise RuntimeError("Không tải được video nguồn nào")
-        step("Tải video", 32, f"Đã tải {len(sources)} nguồn",
-             sources=[{k: s[k] for k in ("path", "url", "id", "platform", "uploader", "uploader_url", "title",
-                                         "duration", "license", "upload_date")} for s in sources])
-
-        # 3. Bóc lời
-        transcripts = []
-        for i, s in enumerate(sources):
-            step("Bóc lời", 32 + int(20 * i / len(sources)), f"Whisper: {Path(s['path']).name}")
-            transcripts.append(asr.transcribe(Path(s["path"])))
-        step("Bóc lời", 52, "Xong bóc lời: " + ", ".join(
-            f"{t.get('language') or '-'}:{len(t['segments'])} đoạn" for t in transcripts))
-
-        # 4. Kịch bản
-        step("Kịch bản", 55, "Claude viết lời bình tiếng Pháp")
-        words = int(duration_sec * 2.5)
-        plan = llm.ask_json(SCRIPT_PROMPT.format(
-            source=trend["source"], date=time.strftime("%d/%m/%Y"), title_zh=trend["title_zh"],
-            title_fr=trend["title_fr"], angle=trend.get("angle") or "", sources=_fmt_sources(sources, transcripts),
-            n_min=7, n_max=11, w_min=words - 20, w_max=words + 10, sec=duration_sec), SCRIPT_SYSTEM)
-        plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
-        if len(plan["lines"]) < 3:
-            raise RuntimeError("Kịch bản quá ngắn")
-        plan.setdefault("title_fr", trend["title_fr"])
-        (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
-        step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
-             title=plan["title_fr"])
-
+        if at == 0:  # chạy lại từ bước sau không làm thêm video mới trong ngày
+            check_quota(exclude=pid)
+        else:
+            step(STEP_LABELS[start], STEP_PCT[start], f"Chạy lại từ bước {STEP_LABELS[start]}")
+        if at <= 1:
+            chosen = _step_search(trend, step, max_sources) if at == 0 else db.get_project(pid)["meta"]["chosen"]
+            sources = _step_download(chosen, step)
+        else:
+            sources = _load_sources(pid)
+        if at <= 3:
+            transcripts = _step_transcribe(sources, step)
+            plan = _step_script(trend, sources, transcripts, out, step, duration_sec)
+        else:
+            plan = json.loads((out / "script.json").read_text())
         _voice_render_post(pid, plan, sources, out, step, t_begin)
     except Exception as e:
         db.update_project(pid, status="failed", log=f"LỖI: {e}\n{traceback.format_exc()[-1200:]}")
         raise
+
+
+def resume(pid: int, start: str | None = None) -> None:
+    """Chạy lại dự án từ `start`, hoặc từ bước bị lỗi nếu không nói rõ."""
+    redo = start is not None
+    try:
+        start = start or resume_point(pid)
+        if start not in available_steps(pid):
+            raise ValueError(f"Chưa đủ dữ liệu để chạy lại từ bước {STEP_LABELS.get(start, start)}")
+        _invalidate(pid, start, redo)
+    except Exception as e:
+        db.update_project(pid, status="failed", log=f"LỖI: {e}")
+        raise
+    produce(pid, start=start)
 
 
 def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float) -> None:
@@ -200,21 +309,4 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
 def rerender(pid: int) -> None:
     """Đọc lại giọng + dựng lại từ script.json đã có (vd. sau khi thêm key ElevenLabs hoặc sửa kịch bản)."""
-    step = Step(pid)
-    out = config.PROJECTS / str(pid)
-    plan = json.loads((out / "script.json").read_text())
-    sources = []
-    for s in db.get_project(pid)["meta"].get("sources", []):
-        path = s.get("path")
-        if not path or not Path(path).exists():
-            vid = s.get("id") or s["url"].rsplit("=", 1)[-1]
-            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4"))
-            if not hits:
-                raise FileNotFoundError(f"Mất file nguồn {s['url']}")
-            path = str(hits[0])
-        sources.append({**s, "path": path})
-    try:
-        _voice_render_post(pid, plan, sources, out, step, time.time())
-    except Exception as e:
-        db.update_project(pid, status="failed", log=f"LỖI: {e}\n{traceback.format_exc()[-1200:]}")
-        raise
+    produce(pid, start="voice")

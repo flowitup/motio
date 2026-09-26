@@ -24,6 +24,7 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
    - `GET  /api/trends?hours=24&source=` · `POST /api/trends/refresh` (async) · `GET /api/state`
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`
+   - `POST /api/projects/{id}/retry` `{start?}` — continue from the failed step, or redo from a given step (added 26/09)
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
    - `GET  /api/voices` — ElevenLabs voices (id, name, labels) when a key is set
    - `GET/PUT /api/settings` — see 4.
