@@ -62,4 +62,7 @@ jobs:
           workspaces: app/src-tauri
       - name: Clippy
         working-directory: app/src-tauri
-        run: cargo clippy --locked --all-targets -- -D warnings
+        # tauri-build needs the bundled-engine folder to exist; the release workflow fills it, CI leaves it empty.
+        run: |
+          mkdir -p resources/motio-engine
+          cargo clippy --locked --all-targets -- -D warnings
