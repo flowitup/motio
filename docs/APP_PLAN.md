@@ -134,7 +134,8 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   ZH/EN/FR keywords (`motio/topic.py`), YouTube + Bilibili search fills the slots the links leave, and the script is
   an original French explainer (subject-neutral prompts; news projects keep theirs). With links only, search is
   skipped. Length 30 / 60 / 90 s (`meta.duration`). Every project carries a rights flag
-  (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page.
+  (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
+  news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
 - **B · Watchlist** (next, own brainstorm): YouTube channels/playlists, Bilibili user spaces and saved searches feed a
   "Video mới" list via the scheduler. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
 - **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz

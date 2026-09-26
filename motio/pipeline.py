@@ -18,9 +18,9 @@ Choisis jusqu'à {n} vidéos qui montrent le plus probablement des IMAGES de cet
 les compilations anciennes, les podcasts face caméra, les vidéos d'une autre actualité.
 Réponds : {{"pick": [idx, ...], "why": "une phrase"}}"""
 
-SCRIPT_SYSTEM = """Tu es journaliste vidéo pour une chaîne francophone qui explique l'actualité chinoise
-au public français (TikTok, Reels, Shorts). Style : clair, posé, factuel, phrases courtes, pas de
-sensationnalisme. Tu réponds uniquement en JSON."""
+SCRIPT_SYSTEM = """Tu es journaliste vidéo pour une chaîne francophone qui explique au public français ce qui fait
+le buzz en Chine, actualité comme sujets plus légers (TikTok, Reels, Shorts). Style : clair, posé, factuel,
+phrases courtes, pas de sensationnalisme. Tu réponds uniquement en JSON."""
 
 SCRIPT_PROMPT = """Sujet tendance en Chine ({source}, {date}) : {title_zh}
 Titre français proposé : {title_fr}

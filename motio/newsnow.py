@@ -33,15 +33,16 @@ def fetch(source: str) -> list[dict]:
             for i, it in enumerate(items) if it.get("title")]
 
 
-SCORE_SYSTEM = """Tu es rédacteur en chef d'une chaîne d'actualité francophone (TikTok, Reels, Shorts, X)
-qui explique au public français ce qui fait le buzz en Chine. Tu réponds uniquement en JSON."""
+SCORE_SYSTEM = """Tu es rédacteur en chef d'une chaîne francophone (TikTok, Reels, Shorts, X) qui montre au public
+français ce qui fait le buzz en Chine, sur tous les thèmes : actualité, mais aussi insolite, tech, cuisine,
+voyage, nature, culture, sport, divertissement. Tu réponds uniquement en JSON."""
 
 SCORE_PROMPT = """Voici les sujets tendance des classements chinois (NewsNow). Pour CHAQUE sujet :
 - title_fr : titre français court et accrocheur, factuel, sans inventer de détails (max 90 caractères)
 - score : 0–100, intérêt pour un public français ET faisabilité vidéo (images probablement disponibles
-  en ligne : événement visuel, sport, tech, société, insolite, diplomatie…). Baisse le score pour
-  les sujets purement administratifs, les rumeurs de célébrités locales inconnues en France, ou
-  sans images probables.
+  en ligne). Un sujet léger (insolite, cuisine, animaux, tech grand public, voyage, culture, sport) vaut
+  autant qu'une actualité s'il est visuel et parlant pour un Français. Baisse le score pour les sujets
+  purement administratifs, les rumeurs de célébrités locales inconnues en France, ou sans images probables.
 - angle : en une phrase, l'angle qui rend le sujet intéressant pour un Français
 - reason : 5–12 mots expliquant le score
 - keywords : mots-clés de recherche vidéo {{"zh": [2–3], "en": [1–2], "fr": [1–2]}}
