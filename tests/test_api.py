@@ -127,6 +127,23 @@ def test_produce_with_links(client):
     assert empty.status_code == 400
 
 
+def test_create_topic_project_and_set_rights(client):
+    r = client.post("/api/projects", headers=H, json={"topic": "gấu trúc", "links": ["https://fb.watch/abc"],
+                                                      "duration": 90})
+    assert r.status_code == 202
+    pid = r.json()["project_id"]
+    p = _wait_done(client, pid)
+    assert p["mode"] == "topic" and p["trend"] is None and p["title"] == "gấu trúc"
+    assert p["meta"]["duration"] == 90 and p["meta"]["rights"] == "unknown" and not p["meta"]["links_only"]
+    r = client.patch(f"/api/projects/{pid}", headers=H, json={"rights": "licensed"})
+    assert r.status_code == 200 and r.json()["meta"]["rights"] == "licensed"
+    assert client.patch(f"/api/projects/{pid}", headers=H, json={"rights": "x"}).status_code == 400
+    assert client.post("/api/projects", headers=H, json={}).status_code == 400
+    assert client.post("/api/projects", headers=H, json={"topic": "x", "duration": 10}).status_code == 400
+    only = client.post("/api/projects", headers=H, json={"links": ["https://www.douyin.com/video/1"]}).json()
+    assert db.get_project(only["project_id"])["meta"]["links_only"] is True
+
+
 def test_add_links_queues_retry(client):
     pid = db.create_project("douyin:1", "x")
     db.update_project(pid, status="failed", meta={"chosen": [{"url": "https://yt/0"}]})

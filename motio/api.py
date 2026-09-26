@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, settings, tts
+from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, settings, topic, tts
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
@@ -31,6 +31,18 @@ PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "m
 class ProduceIn(BaseModel):
     links: list[str] = []  # link video dán tay (Douyin, X, …), luôn được dùng
     links_only: bool = False  # chỉ dùng các link này, không tự tìm
+
+
+class TopicIn(BaseModel):
+    topic: str = ""  # chủ đề tự do, mọi ngôn ngữ; bỏ trống = chỉ dùng link
+    links: list[str] = []
+    links_only: bool = False
+    duration: int = 60  # 30 | 60 | 90
+    rights: str = "unknown"  # unknown | owned | licensed | cc
+
+
+class ProjectPatch(BaseModel):
+    rights: str | None = None
 
 
 class LinksIn(BaseModel):
@@ -205,6 +217,27 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.get("/api/projects/{pid}", dependencies=[Depends(auth)])
     def project(pid: int):
+        return _project_out(_get(pid), full=True)
+
+    @app.post("/api/projects", status_code=202, dependencies=[Depends(auth)])
+    def create_topic(body: TopicIn):
+        """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
+        try:
+            pid = topic.create(body.topic, body.links, body.links_only, body.duration, body.rights)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
+    @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
+    def patch_project(pid: int, body: ProjectPatch):
+        _get(pid)
+        if body.rights is not None:
+            if body.rights not in topic.RIGHTS:
+                raise HTTPException(400, f"Quyền nguồn không hợp lệ: {body.rights}")
+            db.update_project(pid, log=f"Quyền nguồn: {body.rights}", meta={"rights": body.rights})
         return _project_out(_get(pid), full=True)
 
     @app.post("/api/projects/{pid}/rerender", status_code=202, dependencies=[Depends(auth)])

@@ -23,7 +23,13 @@ export type SourceInfo = {
   duration: number;
 };
 
+export type Rights = "unknown" | "owned" | "licensed" | "cc";
+
 export type ProjectMeta = {
+  topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
+  subject?: { title_fr: string; angle: string };
+  duration?: number;
+  rights?: Rights;
   links?: string[];
   sources?: SourceInfo[];
   video?: string;
@@ -58,7 +64,8 @@ export type ProjectStatus = "queued" | "running" | "done" | "failed";
 
 export type Project = {
   id: number;
-  trend_id: string;
+  trend_id: string | null;
+  mode: "news" | "topic";
   title: string;
   status: ProjectStatus;
   step: string | null;
@@ -145,6 +152,10 @@ export function makeApi(url: string, token: string) {
     refresh: () => call<{ started: boolean }>("POST", "/api/trends/refresh"),
     produce: (id: string, opts?: { links: string[]; links_only: boolean }) =>
       call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`, opts),
+    /** Video giải thích từ chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…). */
+    createTopic: (body: { topic: string; links: string[]; links_only: boolean; duration: number; rights: Rights }) =>
+      call<{ project_id: number }>("POST", "/api/projects", body),
+    setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
     addLinks: (id: number, links: string[]) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),

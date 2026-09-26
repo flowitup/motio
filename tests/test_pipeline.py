@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from motio import asr, config, db, llm, pipeline, render, scenes, search, tts
+from motio import asr, config, db, llm, pipeline, render, scenes, search, topic, tts
 
 
 @pytest.fixture
@@ -42,6 +42,9 @@ def fake(monkeypatch, tmp_path):
         return res
 
     def ask_json(prompt, system, **kw):
+        if "Sujet proposé" in prompt:
+            boom("subject")
+            return {"title_fr": "Le panda", "angle": "Star de Chengdu", "keywords": {"zh": ["熊猫"], "en": ["panda"]}}
         if "Choisis" in prompt:
             return {"pick": [0, 1], "why": "ok"}
         boom("script")
@@ -206,3 +209,61 @@ def test_clean_links():
         search.clean_links(["douyin.com/video/1"])
     with pytest.raises(ValueError):
         search.clean_links([f"https://a.com/{i}" for i in range(11)])
+
+
+@pytest.fixture
+def prompts(fake, monkeypatch):
+    """(prompt, system) của mọi lần gọi Claude."""
+    got, inner = [], llm.ask_json
+
+    def spy(prompt, system, **kw):
+        got.append((prompt, system))
+        return inner(prompt, system, **kw)
+
+    monkeypatch.setattr(llm, "ask_json", spy)
+    return got
+
+
+def test_topic_searches_and_writes_an_explainer(fake, prompts):
+    calls, _ = fake
+    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90, rights="cc")
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and p["mode"] == "topic" and p["trend_id"] is None
+    assert calls == ["subject", "search", "download+cookies", "download", "download", "transcribe", "transcribe",
+                     "transcribe", "script", "voice", "render"]
+    assert p["meta"]["subject"]["title_fr"] == "Le panda" and p["meta"]["rights"] == "cc"
+    systems = [sys for _, sys in prompts]
+    assert systems == [topic.SUBJECT_SYSTEM, topic.PICK_SYSTEM, topic.SCRIPT_SYSTEM]
+    script = prompts[-1][0]
+    assert "Sujet : gấu trúc / Le panda" in script and "de 11 à 16 lignes" in script and "≈ 90 secondes" in script
+
+
+def test_topic_from_links_only(fake, prompts):
+    calls, _ = fake
+    pid = topic.create("", ["https://www.bilibili.com/video/BV1", "https://www.douyin.com/video/2"], duration=30)
+    assert db.get_project(pid)["title"] == "Video từ www.bilibili.com (+1)"
+    pipeline.produce(pid)
+    assert calls == ["download+cookies", "download+cookies", "transcribe", "transcribe", "script", "voice", "render"]
+    assert f"Sujet : {topic.NO_TOPIC}" in prompts[-1][0] and "de 4 à 5 lignes" in prompts[-1][0]
+
+
+def test_topic_retry_keeps_the_subject(fake):
+    calls, fail = fake
+    pid = topic.create("gấu trúc")
+    fail.add("script")
+    with pytest.raises(RuntimeError):
+        pipeline.produce(pid)
+    calls.clear()
+    pipeline.resume(pid)
+    assert calls == ["script", "voice", "render"]
+    calls.clear()
+    pipeline.resume(pid, "search")  # tìm lại nguồn nhưng không diễn giải lại chủ đề
+    assert calls[0] == "search"
+
+
+@pytest.mark.parametrize("kw", [{}, {"topic": " "}, {"topic": "x", "duration": 45}, {"topic": "x", "rights": "mine"},
+                                {"links": ["douyin.com/1"]}])
+def test_topic_create_rejects_bad_input(kw):
+    with pytest.raises(ValueError):
+        topic.create(**kw)

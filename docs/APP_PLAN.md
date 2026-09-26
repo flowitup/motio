@@ -25,6 +25,8 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`
    - `POST /api/projects/{id}/retry` `{start?}` — continue from the failed step, or redo from a given step (added 26/09)
+   - `POST /api/projects` `{topic?, links?, links_only, duration, rights}` — explainer on any topic or from video
+     links, no trend needed · `PATCH /api/projects/{id}` `{rights}` (added 26/09, see "Beyond hot news")
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
    - `GET  /api/voices` — ElevenLabs voices (id, name, labels) when a key is set
    - `GET/PUT /api/settings` — see 4.
@@ -122,8 +124,24 @@ The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
   read at call time; `deploy/compose.yaml` runs NewsNow (`ghcr.io/ourongxing/newsnow`) next to the engine.
   Auto-produce above a score stays with the rest of M4.
 
+## Beyond hot news: any topic, any video (added 26/09/2026)
+
+The owner wants Motio to remake other people's Douyin, Bilibili, Facebook and YouTube videos on any subject, not
+only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** channel watchlist → **C** French dub.
+
+- **A · Topic mode** (built): "Tạo video" on the Projects page, `POST /api/projects`, CLI `topic "<chủ đề>" [link …]`.
+  A free topic in any language and/or 1–10 video links. Claude turns the topic into a French title, an angle and
+  ZH/EN/FR keywords (`motio/topic.py`), YouTube + Bilibili search fills the slots the links leave, and the script is
+  an original French explainer (subject-neutral prompts; news projects keep theirs). With links only, search is
+  skipped. Length 30 / 60 / 90 s (`meta.duration`). Every project carries a rights flag
+  (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page.
+- **B · Watchlist** (next, own brainstorm): YouTube channels/playlists, Bilibili user spaces and saved searches feed a
+  "Video mới" list via the scheduler. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
+- **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz
+  only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused content on every platform.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
-Postiz (belongs with the M4 scheduler) · channel-scan "Pháp hoá" mode · AI clips (fal H3 Max) and Qwen images
+Postiz (belongs with the M4 scheduler) · AI clips (fal H3 Max) and Qwen images
 (Modal) inside the pipeline.

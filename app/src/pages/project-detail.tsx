@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Copy, FolderOpen, Link2, Loader2, Play, RotateCcw } f
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ExternalA } from "@/components/external-link";
+import { Choice, Field } from "@/components/form";
 import { PublishCard } from "@/components/publish-card";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi, type Api, type ProjectDetail, type RetryStep } from "@/lib/api";
+import { useApi, type Api, type ProjectDetail, type RetryStep, type Rights } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
 
@@ -28,6 +29,7 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
       onQueued();
     },
   });
+  const rights = useMutation({ mutationFn: (r: Rights) => api.setRights(p.id, r), onSuccess: onQueued });
   const pinned = new Set(p.meta.links ?? []);
   const sources = p.meta.sources ?? [];
   return (
@@ -64,6 +66,15 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
           </Button>
         </div>
         {add.error && <p className="text-destructive">{add.error.message}</p>}
+        <Field label={t.projects.rights} hint={t.projects.rightsHint}>
+          <Choice
+            value={p.meta.rights ?? "unknown"}
+            onChange={(v) => rights.mutate(v as Rights)}
+            options={(["unknown", "owned", "licensed", "cc"] as const).map((r) => [r, t.projects.rightsOptions[r]])}
+            className="w-full sm:w-56"
+          />
+        </Field>
+        {rights.error && <p className="text-destructive">{rights.error.message}</p>}
       </CardContent>
     </Card>
   );
@@ -124,7 +135,8 @@ export default function ProjectDetailPage() {
         <div className="mr-auto min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">{p.meta.title || p.title}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {status && <StatusChip status={status} />}#{p.id} · {t.age(p.updated_at)}
+            {status && <StatusChip status={status} />}#{p.id} · {t.projects.modes[p.mode] ?? p.mode} ·{" "}
+            {t.age(p.updated_at)}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -220,6 +232,18 @@ export default function ProjectDetailPage() {
           </Card>
 
           <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />
+
+          {p.mode === "topic" && (p.meta.topic || p.meta.subject) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.projects.topic}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {p.meta.topic && <div>{p.meta.topic}</div>}
+                {p.meta.subject?.angle && <div className="text-muted-foreground">{p.meta.subject.angle}</div>}
+              </CardContent>
+            </Card>
+          )}
 
           {p.trend && (
             <Card>

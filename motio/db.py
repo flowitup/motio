@@ -97,7 +97,7 @@ def get_trend(tid: str) -> dict | None:
 
 
 # ---------- project ----------
-def create_project(trend_id: str, title: str, mode: str = "news") -> int:
+def create_project(trend_id: str | None, title: str, mode: str = "news") -> int:
     now = time.time()
     with _lock, conn() as c:
         cur = c.execute("INSERT INTO project (trend_id, mode, title, created_at, updated_at) VALUES (?,?,?,?,?)",

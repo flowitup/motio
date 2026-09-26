@@ -1,10 +1,10 @@
-"""Pipeline "Tin nóng": một tin NewsNow → một video 9:16 tiếng Pháp."""
+"""Pipeline: một tin NewsNow (mode news) hoặc một chủ đề / link video (mode topic) → một video 9:16 tiếng Pháp."""
 import json
 import time
 import traceback
 from pathlib import Path
 
-from . import asr, config, db, llm, render, scenes, search, tts
+from . import asr, config, db, llm, render, scenes, search, topic, tts
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
 PICK_PROMPT = """Sujet : {title_zh} / {title_fr}
@@ -106,31 +106,52 @@ STEP_LABELS = {"search": "Tìm nguồn", "download": "Tải video", "transcribe"
 STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64}
 
 
-def _step_search(trend: dict, meta: dict, step, max_sources: int) -> list[dict]:
+def _subject(proj: dict) -> dict:
+    """Đề tài của dự án cho các prompt: tin hot (news) hoặc chủ đề tự do (topic, đã được Claude diễn giải)."""
+    if proj.get("mode") == topic.MODE:
+        meta = proj["meta"]
+        return {"mode": topic.MODE, "topic": meta.get("topic") or "", **(meta.get("subject") or {})}
+    return {"mode": "news", **db.get_trend(proj["trend_id"])}
+
+
+def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
     """Link dán tay (meta.links) luôn được dùng; tự tìm trên YouTube / Bilibili lấp chỗ còn lại."""
+    pid, meta = proj["id"], proj["meta"]
+    subj = _subject(proj)
+    is_topic = subj["mode"] == topic.MODE
+    if is_topic and subj["topic"] and not subj.get("keywords"):
+        step("Tìm nguồn", 3, f"Claude diễn giải chủ đề: {subj['topic']}")
+        subj.update(topic.expand(subj["topic"]))
+        db.update_project(pid, log=f"Chủ đề: {subj['title_fr']} · {subj['angle']}",
+                          meta={"subject": {k: subj[k] for k in ("title_fr", "angle", "keywords")}})
     pinned = [search.link_candidate(u) for u in meta.get("links") or []]
     room = max_sources - len(pinned)
     if pinned:
         step("Tìm nguồn", 5, f"{len(pinned)} link dán tay")
-    if meta.get("links_only") or room <= 0:
+    if meta.get("links_only") or room <= 0 or (is_topic and not subj["topic"]):
         if not pinned:
             raise RuntimeError("Chưa có link nguồn nào")
         step("Tìm nguồn", 12, f"Chỉ dùng {len(pinned)} link dán tay", chosen=pinned)
         return pinned
-    kw = trend.get("keywords") or {}
-    if not kw.get("zh"):
-        kw["zh"] = [trend["title_zh"]]
+    kw = subj.get("keywords") or {}
+    if not kw.get("zh") and not is_topic:
+        kw["zh"] = [subj["title_zh"]]
     step("Tìm nguồn", 5, f"Từ khoá: {json.dumps(kw, ensure_ascii=False)}")
     cands = [c for c in search.candidates(kw) if c["url"] not in {p["url"] for p in pinned}]
     if not cands and not pinned:
-        raise RuntimeError("Không tìm thấy video nào cho tin này")
+        raise RuntimeError("Không tìm thấy video nào cho " + ("chủ đề này" if is_topic else "tin này"))
     picked, why = [], "không có kết quả tự tìm"
     if cands:
         lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
                           f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
-        pick = llm.ask_json(PICK_PROMPT.format(title_zh=trend["title_zh"], title_fr=trend["title_fr"],
-                                               angle=trend.get("angle") or "", cands=lines, n=room),
-                            PICK_SYSTEM)
+        if is_topic:
+            prompt = topic.PICK_PROMPT.format(title=f"{subj['topic']} / {subj['title_fr']}", angle=subj["angle"],
+                                              cands=lines, n=room)
+            pick = llm.ask_json(prompt, topic.PICK_SYSTEM)
+        else:
+            pick = llm.ask_json(PICK_PROMPT.format(title_zh=subj["title_zh"], title_fr=subj["title_fr"],
+                                                   angle=subj.get("angle") or "", cands=lines, n=room),
+                                PICK_SYSTEM)
         picked = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
         picked = picked[:room] or ([] if pinned else cands[:2])
         why = pick.get("why", "")
@@ -168,18 +189,26 @@ def _step_transcribe(sources: list[dict], step) -> list[dict]:
     return transcripts
 
 
-def _step_script(trend: dict, sources: list[dict], transcripts: list[dict], out: Path, step,
+def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: Path, step,
                  duration_sec: int) -> dict:
     step("Kịch bản", 55, "Claude viết lời bình tiếng Pháp")
+    subj = _subject(proj)
     words = int(duration_sec * 2.5)
-    plan = llm.ask_json(SCRIPT_PROMPT.format(
-        source=trend["source"], date=time.strftime("%d/%m/%Y"), title_zh=trend["title_zh"],
-        title_fr=trend["title_fr"], angle=trend.get("angle") or "", sources=_fmt_sources(sources, transcripts),
-        n_min=7, n_max=11, w_min=words - 20, w_max=words + 10, sec=duration_sec), SCRIPT_SYSTEM)
+    n_min, n_max = topic.lines_for(duration_sec)
+    size = {"n_min": n_min, "n_max": n_max, "w_min": words - 20, "w_max": words + 10, "sec": duration_sec,
+            "sources": _fmt_sources(sources, transcripts)}
+    if subj["mode"] == topic.MODE:
+        title = " / ".join(x for x in (subj["topic"], subj.get("title_fr")) if x) or topic.NO_TOPIC
+        plan = llm.ask_json(topic.SCRIPT_PROMPT.format(title=title, angle=subj.get("angle") or "", **size),
+                            topic.SCRIPT_SYSTEM)
+    else:
+        plan = llm.ask_json(SCRIPT_PROMPT.format(
+            source=subj["source"], date=time.strftime("%d/%m/%Y"), title_zh=subj["title_zh"],
+            title_fr=subj["title_fr"], angle=subj.get("angle") or "", **size), SCRIPT_SYSTEM)
     plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
     if len(plan["lines"]) < 3:
         raise RuntimeError("Kịch bản quá ngắn")
-    plan.setdefault("title_fr", trend["title_fr"])
+    plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
     (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
     step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
          title=plan["title_fr"])
@@ -249,12 +278,11 @@ def _invalidate(pid: int, start: str, redo: bool) -> None:
 
 
 def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str = "search") -> None:
-    """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video."""
+    """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video. meta.duration (nếu có) thắng duration_sec."""
     if start not in STEPS:
         raise ValueError(f"Bước không hợp lệ: {start}")
     step = Step(pid)
-    proj = db.get_project(pid)
-    trend = db.get_trend(proj["trend_id"])
+    duration_sec = db.get_project(pid)["meta"].get("duration") or duration_sec
     out = config.PROJECTS / str(pid)
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
@@ -265,14 +293,14 @@ def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str =
         else:
             step(STEP_LABELS[start], STEP_PCT[start], f"Chạy lại từ bước {STEP_LABELS[start]}")
         if at <= 1:
-            meta = db.get_project(pid)["meta"]
-            chosen = _step_search(trend, meta, step, max_sources) if at == 0 else meta["chosen"]
+            proj = db.get_project(pid)
+            chosen = _step_search(proj, step, max_sources) if at == 0 else proj["meta"]["chosen"]
             sources = _step_download(chosen, step)
         else:
             sources = _load_sources(pid)
         if at <= 3:
             transcripts = _step_transcribe(sources, step)
-            plan = _step_script(trend, sources, transcripts, out, step, duration_sec)
+            plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
         else:
             plan = json.loads((out / "script.json").read_text())
         _voice_render_post(pid, plan, sources, out, step, t_begin)

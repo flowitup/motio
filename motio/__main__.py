@@ -1,5 +1,5 @@
-"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | rerender <id> | retry <id> [step] | serve |
-engine ...]"""
+"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
+retry <id> [step] | serve | engine ...]"""
 import argparse
 import json
 import os
@@ -33,6 +33,15 @@ def main(argv: list[str]) -> None:
         if not t:
             sys.exit(f"Không có tin {argv[1]}")
         pid = db.create_project(t["id"], t["title_fr"] or t["title_zh"])
+        print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
+        pipeline.produce(pid)
+        print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "topic":  # topic "<chủ đề>" [link …]; chủ đề "" = chỉ dùng link
+        from . import pipeline, topic
+        try:
+            pid = topic.create(argv[1] if len(argv) > 1 else "", argv[2:])
+        except ValueError as e:
+            sys.exit(str(e))
         print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))

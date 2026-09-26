@@ -17,7 +17,11 @@ uv run python -m motio serve        # mở http://127.0.0.1:8765
 2. Chọn tin, bấm **Làm video**. Trang dự án hiện tiến trình, nhật ký, video và nội dung bài đăng
    (tiêu đề, mô tả, nguồn, hashtag).
 
-Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`.
+Ngoài tin hot: trong app, **Dự án → Tạo video** nhận một chủ đề bất kỳ (mọi ngôn ngữ) và / hoặc link video
+(Douyin, Bilibili, Facebook, YouTube…) rồi làm video giải thích tiếng Pháp 30 / 60 / 90 giây.
+
+Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
+`... topic "gấu trúc" [link …]`.
 
 ## App desktop (Tauri)
 
@@ -103,6 +107,7 @@ motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
 motio/captions.py  phụ đề karaoke tiếng Pháp (≤ 42 ký tự/dòng), xuất captions.srt / captions.ass
 motio/scenes.py    mốc cắt cảnh bằng bộ lọc scene của FFmpeg
 motio/pipeline.py  các bước của một dự án, chạy tiếp được từ bước lỗi
+motio/topic.py     chế độ chủ đề: video giải thích từ chủ đề tự do hoặc link video, cờ quyền nguồn
 motio/settings.py  data/settings.json đè lên .env
 motio/api.py       engine API JSON cho app desktop
 motio/postiz.py    gửi video sang Postiz (nháp / lên lịch / đăng ngay)
