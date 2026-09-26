@@ -1,7 +1,7 @@
 import pytest
 
 from motio import llm, newsnow
-from motio.render import build_timeline
+from motio.render import CUT_PAD, build_timeline, snap_end, snap_start
 
 SOURCES = [{"duration": 120}, {"duration": 60}]
 
@@ -31,6 +31,28 @@ def test_build_timeline_ignores_invalid_src():
     pieces = build_timeline(lines, SOURCES, 5.0)
     assert sum(p.dur for p in pieces) == pytest.approx(5.0)
     assert all(p.src in (0, 1) for p in pieces)
+
+
+def test_snap_start_and_end_to_cuts():
+    assert snap_start(10.0, 15.0, [10.5]) == pytest.approx(10.5 + CUT_PAD)  # cú cắt ngay sau điểm vào
+    assert snap_start(10.0, 15.0, [11.5]) == 10.0  # xa hơn 0.8 s: giữ nguyên
+    assert snap_start(10.0, 11.0, [10.5]) == 10.0  # còn lại quá ngắn sau cú cắt
+    assert snap_end(10.0, 4.0, [13.6]) == pytest.approx(3.6 - CUT_PAD)  # cú cắt ngay trước điểm ra
+    assert snap_end(10.0, 4.0, [12.0]) == 4.0
+    assert snap_end(10.0, 1.2, [10.5]) == 1.2  # không cắt mảnh xuống dưới 1 s
+
+
+def test_build_timeline_follows_scene_cuts():
+    sources = [{"duration": 120, "cuts": [20.4, 23.7, 40.0]}, {"duration": 60, "cuts": []}]
+    lines = [{"text": "a", "start": 0.0, "end": 6.0, "clips": [{"src": 0, "start": 20, "end": 24.3}]},
+             {"text": "b", "start": 6.0, "end": 12.0, "clips": []}]
+    pieces = build_timeline(lines, sources, 12.0)
+    first = pieces[0]
+    assert first.src == 0 and first.src_start == pytest.approx(20.4 + CUT_PAD)  # vào từ cú cắt 20.4
+    assert first.src_start + first.dur == pytest.approx(23.7 - CUT_PAD)  # dừng trước cú cắt 23.7
+    assert pieces[-1].t0 + pieces[-1].dur == pytest.approx(12.0)
+    for a, b in zip(pieces, pieces[1:], strict=False):
+        assert b.t0 == pytest.approx(a.t0 + a.dur)
 
 
 @pytest.mark.parametrize("text,expected", [

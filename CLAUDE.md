@@ -17,6 +17,7 @@ as authoritative for scope and milestones.
   - `search.py` yt-dlp search/download · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
+  - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI

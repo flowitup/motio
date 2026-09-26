@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import captions, config
+from . import captions, config, scenes
 from .asr import has_audio
 
 W, H, FPS = config.W, config.H, config.FPS
@@ -127,11 +127,32 @@ class Piece:
     t0: float
 
 
+CUT_EDGE = 0.8  # cú cắt cách mép mảnh ít hơn chừng này thì dời mép về cú cắt
+CUT_PAD = 0.02  # lệch khỏi cú cắt một chút để không dính khung của cảnh bên kia
+
+
+def snap_start(a: float, b: float, cuts: list[float], edge: float = CUT_EDGE, min_len: float = 1.5) -> float:
+    """Có cú cắt ngay sau điểm vào (≤ edge) thì vào từ cú cắt, để không lộ vài khung của cảnh trước."""
+    for c in cuts:
+        if a < c <= a + edge and b - c >= min_len:
+            return c + CUT_PAD
+    return a
+
+
+def snap_end(a: float, d: float, cuts: list[float], edge: float = CUT_EDGE, min_len: float = 1.0) -> float:
+    """Có cú cắt ngay trước điểm ra (≤ edge) thì dừng ở cú cắt, để không lộ vài khung của cảnh sau."""
+    for c in reversed(cuts):
+        if a + d - edge <= c < a + d and c - a >= min_len:
+            return c - CUT_PAD - a
+    return d
+
+
 def build_timeline(lines: list[dict], sources: list[dict], total: float, min_piece: float = 0.8) -> list[Piece]:
     """lines: [{text, start, end, clips:[{src,start,end}]}] → các mảnh video phủ kín [0, total].
 
     Dùng clip LLM chọn cho từng dòng; thiếu thì lấy đoạn kế tiếp trong các nguồn (xoay vòng),
-    mỗi nguồn có con trỏ riêng nên không lặp lại cùng một đoạn.
+    mỗi nguồn có con trỏ riêng nên không lặp lại cùng một đoạn. Có mốc cắt cảnh (source["cuts"])
+    thì mép mảnh bám theo cú cắt và đoạn lấp bắt đầu ở đầu một cảnh.
     """
     def usable(s: int) -> tuple[float, float]:
         """Bỏ intro và end card: 6 giây đầu / 10 giây cuối với nguồn dài, ít hơn với nguồn ngắn."""
@@ -140,6 +161,7 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
             return 6.0, sd - 10.0
         return (3.0, sd - 4.0) if sd > 20 else (0.0, sd - 0.05)
 
+    cuts = {i: s.get("cuts") or [] for i, s in enumerate(sources)}
     cursor = {i: max(usable(i)[0], (s["duration"] or 30) * 0.15) for i, s in enumerate(sources)}
     rr = 0
 
@@ -149,6 +171,7 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
         rr += 1
         lo, hi = usable(s)
         a = cursor[s] if cursor[s] + 3 < hi else lo
+        a = next((c + CUT_PAD for c in cuts[s] if a <= c <= a + 2.0 and c + 3 < hi), a)  # vào ở đầu một cảnh
         b = min(a + 5.0, hi)
         cursor[s] = b
         return s, a, b
@@ -173,10 +196,14 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
         t = t_start
         while need - (t - t_start) > 0.05:
             s, a, b = queue.pop(0) if queue else filler()
+            a = snap_start(a, b, cuts[s])
             left = need - (t - t_start)
             d = min(b - a, left)
             if left - d < min_piece:  # tránh mảnh quá ngắn ở cuối dòng
                 d = left
+            ds = snap_end(a, d, cuts[s])
+            if ds < d and left - ds >= min_piece:  # phần còn thiếu đủ dài cho một mảnh khác
+                d = ds
             pieces.append(Piece(s, a, d, t))
             t += d
     return pieces
@@ -215,6 +242,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     work.mkdir(exist_ok=True)
     for s in sources:
         s["has_audio"] = has_audio(Path(s["path"]))
+        s["cuts"] = scenes.detect(Path(s["path"]))  # đã có cache nếu pipeline chạy bước cắt cảnh
     lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"], strict=False)]
     total = narration["duration"] + 0.6
 

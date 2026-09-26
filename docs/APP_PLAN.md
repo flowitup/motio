@@ -109,6 +109,9 @@ The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
   also fit the frame, French typography (non-breaking space before `: ; ! ?`, « » quotes, ’). Still drawn with Pillow;
   the caption layer is one timed PNG stream overlaid in the final pass. Each project also gets `captions.srt` and
   `captions.ass` (karaoke `\kf` tags).
+- **Scene cuts**: FFmpeg's scene filter (`motio/scenes.py`, cached next to each source) instead of PySceneDetect, so
+  no OpenCV. Clip pieces start on a cut just after their in-point, stop before a cut just ahead of their out-point,
+  and filler clips start at the head of a shot.
 
 ## Out of scope for now
 

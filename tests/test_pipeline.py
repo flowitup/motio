@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from motio import asr, config, db, llm, pipeline, render, search, tts
+from motio import asr, config, db, llm, pipeline, render, scenes, search, tts
 
 
 @pytest.fixture
@@ -64,6 +64,7 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(llm, "ask_json", ask_json)
     monkeypatch.setattr(tts, "synthesize", synthesize)
     monkeypatch.setattr(render, "render", fake_render)
+    monkeypatch.setattr(scenes, "detect", lambda path: [10.0, 20.0])
     db.upsert_trend({"id": "douyin:p", "source": "douyin", "ext_id": "p", "url": "https://x", "title_zh": "中文",
                      "title_fr": "Titre", "angle": "a", "reason": "r", "keywords": {"zh": ["中文"]}, "score": 70,
                      "rank": 1})

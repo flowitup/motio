@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import asr, config, db, llm, render, search, tts
+from . import asr, config, db, llm, render, scenes, search, tts
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
 PICK_PROMPT = """Sujet : {title_zh} / {title_fr}
@@ -143,12 +143,14 @@ def _step_download(chosen: list[dict], step) -> list[dict]:
 
 
 def _step_transcribe(sources: list[dict], step) -> list[dict]:
-    transcripts = []
+    transcripts, n_cuts = [], []
     for i, s in enumerate(sources):
-        step("Bóc lời", 32 + int(20 * i / len(sources)), f"Whisper: {Path(s['path']).name}")
+        step("Bóc lời", 32 + int(20 * i / len(sources)), f"Whisper + cắt cảnh: {Path(s['path']).name}")
         transcripts.append(asr.transcribe(Path(s["path"])))
-    step("Bóc lời", 52, "Xong bóc lời: " + ", ".join(
-        f"{t.get('language') or '-'}:{len(t['segments'])} đoạn" for t in transcripts))
+        n_cuts.append(len(scenes.detect(Path(s["path"]))))
+    done = [f"{t.get('language') or '-'}:{len(t['segments'])} đoạn, {n} cảnh"
+            for t, n in zip(transcripts, n_cuts, strict=False)]
+    step("Bóc lời", 52, "Xong bóc lời: " + " · ".join(done))
     return transcripts
 
 
