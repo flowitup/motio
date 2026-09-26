@@ -37,7 +37,12 @@ uv run python -m motio serve                # legacy dashboard on :8765
 uv run python -m motio engine --port 0 --token <t>
 # after M2:
 cd app && pnpm install && pnpm tauri dev
+# release: bump version in app/src-tauri/tauri.conf.json, then
+git tag vX.Y.Z && git push origin vX.Y.Z   # CI builds .dmg/.msi into a draft GitHub Release
 ```
+
+CI (`.github/workflows/ci.yml`) runs ruff + pytest (Ubuntu, Windows), `pnpm build` and `cargo clippy -D warnings`
+on every PR; keep them green.
 
 ## Conventions
 
