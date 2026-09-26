@@ -60,7 +60,9 @@ on every PR; keep them green.
   subprocess env so `claude -p` never bills the API account by accident — keep that.
 - Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
   `sources.txt` in the project folder.
-- Keep the on-video "Voix de synthèse (IA)" label (AI Act art. 50 disclosure).
+- AI disclosure (AI Act art. 50): every post keeps "Voix off générée par IA." and the platforms' AI flags (TikTok
+  `video_made_with_ai`). The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
+  unless they ask.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Never add features that remove logos/watermarks from third-party footage or evade duplicate /
