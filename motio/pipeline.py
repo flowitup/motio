@@ -160,9 +160,11 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
     # 7. Mô tả bài đăng
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
-    desc = (f"{plan.get('description', '').strip()}\n\nSources :\n{credits}\n\n"
-            f"Voix off générée par IA ; images : extraits des sources citées.\n"
-            f"{' '.join(plan.get('hashtags', [])[:6])}")
+    (out / "sources.txt").write_text(credits + "\n")  # luôn lưu nội bộ, không đăng
+    desc = plan.get("description", "").strip()
+    if config.CREDIT_IN_POST:
+        desc += f"\n\nSources :\n{credits}"
+    desc += f"\n\nVoix off générée par IA.\n{' '.join(plan.get('hashtags', [])[:6])}"
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n")
     db.update_project(pid, status="done", step="Xong", pct=100,
                       log=f"Xong trong {time.time() - t_begin:.0f} s · {res['pieces']} đoạn · "

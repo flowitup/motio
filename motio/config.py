@@ -40,5 +40,10 @@ NEWS_SOURCES = [s.strip() for s in env(
 
 WHISPER_MODEL = env("WHISPER_MODEL", "mlx-community/whisper-large-v3-turbo")
 
+# Ghi nguồn: mặc định tắt trên video và trong mô tả bài đăng.
+# Danh sách nguồn vẫn luôn được lưu nội bộ (data/projects/<id>/sources.txt).
+CREDIT_ON_VIDEO = env("CREDIT_ON_VIDEO", "false").lower() in ("1", "true", "yes")
+CREDIT_IN_POST = env("CREDIT_IN_POST", "false").lower() in ("1", "true", "yes")
+
 # Khung video đầu ra
 W, H, FPS = 1080, 1920, 30

@@ -61,7 +61,7 @@ def overlay_png(path: Path, *, title: str, caption: str, credit: str, badge: str
     for i, ln in enumerate(tl):
         d.text((70, y0 + 92 + i * 70), ln, font=f_title, fill="white")
     # Nhãn nguồn + công bố giọng AI, ngay dưới clip
-    f_cr = _font(FONT_CJK, 30)
+    f_cr = _font(FONT_CJK if credit else FONT_BOLD, 30)  # chỉ cần font chữ Hán khi hiện tên kênh nguồn
     cy = VIDEO_BOTTOM + 18
     for text, x, anchor in ((credit, 40, "la"), ("Voix de synthèse (IA)", W - 40, "ra")):
         if not text:
@@ -227,7 +227,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     files = []
     for j, p in enumerate(pieces):
         src = sources[p.src]
-        credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /")
+        credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.CREDIT_ON_VIDEO else ""
         key = (p.caption, credit)
         if key not in overlays:
             overlays[key] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=plan["title_fr"],
