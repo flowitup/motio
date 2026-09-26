@@ -130,6 +130,18 @@ def list_projects(limit: int = 20) -> list[dict]:
     return [_row(r) for r in rows]
 
 
+def delete_project(pid: int) -> bool:
+    """Xoá dự án không còn chạy. Tin hot của nó quay về 'new' khi không còn dự án nào khác dùng.
+    Trả False nếu không xoá (không có, hoặc đang chờ / đang chạy)."""
+    with _lock, conn() as c:
+        r = c.execute("SELECT trend_id FROM project WHERE id=?", (pid,)).fetchone()
+        gone = c.execute("DELETE FROM project WHERE id=? AND status NOT IN ('queued', 'running')", (pid,)).rowcount
+        tid = r["trend_id"] if r else None
+        if gone and tid and not c.execute("SELECT 1 FROM project WHERE trend_id=?", (tid,)).fetchone():
+            c.execute("UPDATE trend SET status='new' WHERE id=? AND status='used'", (tid,))
+        return bool(gone)
+
+
 def count_projects_since(ts: float, exclude: int | None = None) -> int:
     """Số dự án tạo từ `ts`, không tính dự án lỗi."""
     with conn() as c:

@@ -1,4 +1,10 @@
 // Mọi chuỗi giao diện nằm ở đây để sau này thêm FR / EN.
+const seconds = (sec: number) => {
+  const s = Math.round(sec);
+  const m = Math.floor(s / 60);
+  return m ? `${m} phút ${s % 60 ? `${s % 60} giây` : ""}`.trim() : `${s} giây`;
+};
+
 const vi = {
   appName: "Motio",
   nav: { trends: "Tin hot", projects: "Dự án", settings: "Cài đặt" },
@@ -76,7 +82,41 @@ const vi = {
     addLinksHint: "Mỗi dòng một link (Douyin, X, …). Motio tải thêm rồi làm lại từ bước tải video.",
     addAndRerun: "Thêm và làm lại",
     noVideo: "Chưa có video",
+    delete: "Xoá",
+    deleteTitle: (id: number) => `Xoá dự án #${id}?`,
+    deleteBody:
+      "Xoá video, giọng đọc, phụ đề và bài đăng của dự án này. Không hoàn tác được. Video nguồn đã tải vẫn giữ cho dự án khác; bài đã gửi sang Postiz vẫn còn trong Postiz.",
+    deleteConfirm: "Xoá dự án",
+    deleteCancel: "Huỷ",
+    deleteBusy: "Dự án đang chạy, chờ xong rồi mới xoá được.",
+    redoReplacesScript: "Làm lại từ bước này sẽ viết kịch bản mới, thay kịch bản hiện tại (cả phần bạn đã sửa).",
     status: { queued: "Chờ", running: "Đang làm", done: "Xong", failed: "Lỗi" } as Record<string, string>,
+  },
+  script: {
+    title: "Kịch bản",
+    hint: "Sửa tiêu đề và lời bình rồi bấm “Lưu và dựng lại”: Motio đọc lại giọng và dựng video từ kịch bản này. Mô tả và hashtag lưu là dùng ngay.",
+    videoTitle: "Tiêu đề trên video",
+    lines: "Lời bình",
+    clips: (n: number) => (n ? `${n} đoạn hình` : "hình tự chọn"),
+    moveUp: "Đưa lên",
+    moveDown: "Đưa xuống",
+    insertBelow: "Chèn dòng bên dưới",
+    removeLine: "Xoá dòng",
+    addLine: "Thêm dòng",
+    description: "Mô tả bài đăng",
+    hashtags: "Hashtag",
+    hashtagsHint: "Cách nhau bằng dấu cách. Bài đăng dùng 6 hashtag đầu.",
+    words: (n: number) => `${n} từ`,
+    estimate: (sec: number) => `video ≈ ${seconds(sec)}`,
+    outOfRange: (min: number, max: number) =>
+      `Ngoài khoảng ${seconds(min)} – ${seconds(max)}: khi dựng lại, Motio sẽ tự chỉnh độ dài kịch bản cho vừa, có thể đổi phần bạn đã sửa.`,
+    minLines: (n: number) => `Cần ít nhất ${n} dòng lời bình.`,
+    stale: "Video chưa theo kịch bản đã sửa.",
+    reset: "Hoàn tác",
+    save: "Lưu",
+    saved: "Đã lưu",
+    saveAndRender: "Lưu và dựng lại",
+    render: "Dựng lại",
   },
   publish: {
     title: "Đăng bài (Postiz)",
