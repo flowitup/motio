@@ -99,6 +99,17 @@ is private, so each install keeps a read-only GitHub token (fine-grained, Conten
 compiled into the app. `release.yml` signs the update bundles (`TAURI_SIGNING_PRIVATE_KEY` secret) and attaches
 `latest.json`, whose bundle URLs are GitHub API asset URLs.
 
+## Blueprint GĐ0 additions (added 26/09/2026)
+
+The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
+
+- **Retry a failed step**: `produce` runs as steps (search → download → transcribe → script → voice + render), each
+  saving what the next needs, so a failed project continues where it broke (`POST /api/projects/{id}/retry`).
+- **French karaoke captions**: word timings from the ElevenLabs alignment, cues of ≤ 2 lines of ≤ 42 characters that
+  also fit the frame, French typography (non-breaking space before `: ; ! ?`, « » quotes, ’). Still drawn with Pillow;
+  the caption layer is one timed PNG stream overlaid in the final pass. Each project also gets `captions.srt` and
+  `captions.ass` (karaoke `\kf` tags).
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to

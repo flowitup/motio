@@ -28,7 +28,10 @@ def probe_duration(path: Path) -> float:
 
 
 def synthesize(lines: list[str], out_dir: Path) -> dict:
-    """Đọc cả kịch bản một lượt. Trả {audio, duration, lines: [{start, end}], provider, voice}."""
+    """Đọc cả kịch bản một lượt. Trả {audio, duration, lines: [{start, end}], provider, voice, alignment}.
+
+    alignment: mốc từng ký tự của ElevenLabs cho cả đoạn (các dòng nối bằng một dấu cách), None nếu không có.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     p = provider()
     if p == "elevenlabs":
@@ -102,7 +105,7 @@ def _elevenlabs(lines: list[str], out_dir: Path) -> dict:
     bounds = [t_at(o) for o in offsets] + [total]
     spans = [{"start": round(bounds[i], 3), "end": round(bounds[i + 1], 3)} for i in range(len(lines))]
     return {"audio": str(audio), "duration": total, "lines": spans, "provider": "elevenlabs",
-            "voice": voice_name, "model": model}
+            "voice": voice_name, "model": model, "alignment": al or None}
 
 
 # ---------- macOS say (chỉ để thử) ----------
@@ -126,4 +129,4 @@ def _macos_say(lines: list[str], out_dir: Path) -> dict:
     subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
                     "-ar", "44100", "-ac", "1", str(audio)], check=True, cwd=out_dir)
     return {"audio": str(audio), "duration": probe_duration(audio), "lines": spans, "provider": "macos_say",
-            "voice": voice, "model": "say"}
+            "voice": voice, "model": "say", "alignment": None}

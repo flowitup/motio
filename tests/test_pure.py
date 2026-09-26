@@ -1,22 +1,7 @@
 import pytest
 
 from motio import llm, newsnow
-from motio.render import Piece, build_timeline, caption_chunks, split_by_captions
-
-
-def test_caption_chunks_short_and_long():
-    assert caption_chunks("  Bonjour   la France ") == ["Bonjour la France"]
-    text = "La Chine a lancé une nouvelle fusée hier soir, et les images ont fait le tour des réseaux sociaux"
-    chunks = caption_chunks(text, max_chars=58)
-    assert len(chunks) == 2
-    assert all(len(c) <= 58 for c in chunks)
-    assert " ".join(chunks) == text
-    assert chunks[0].endswith(",")  # ngắt ưu tiên sau dấu phẩy
-
-
-def test_caption_chunks_without_spaces():
-    assert caption_chunks("x" * 120, max_chars=50) == ["x" * 50, "x" * 50, "x" * 20]
-
+from motio.render import build_timeline
 
 SOURCES = [{"duration": 120}, {"duration": 60}]
 
@@ -46,21 +31,6 @@ def test_build_timeline_ignores_invalid_src():
     pieces = build_timeline(lines, SOURCES, 5.0)
     assert sum(p.dur for p in pieces) == pytest.approx(5.0)
     assert all(p.src in (0, 1) for p in pieces)
-
-
-def test_split_by_captions():
-    pieces = [Piece(src=0, src_start=10.0, dur=4.0, t0=0.0)]
-    events = [(0.0, 1.5, "un"), (1.5, 3.0, "deux"), (3.0, 4.0, "trois")]
-    out = split_by_captions(pieces, events)
-    assert [p.caption for p in out] == ["un", "deux", "trois"]
-    assert [p.t0 for p in out] == [0.0, 1.5, 3.0]
-    assert [p.src_start for p in out] == [10.0, 11.5, 13.0]
-    assert sum(p.dur for p in out) == pytest.approx(4.0)
-
-
-def test_split_ignores_cuts_near_edges():
-    out = split_by_captions([Piece(0, 0.0, 4.0, 0.0)], [(0.0, 0.1, "a"), (0.1, 4.0, "b")])
-    assert len(out) == 1 and out[0].caption == "b"
 
 
 @pytest.mark.parametrize("text,expected", [
