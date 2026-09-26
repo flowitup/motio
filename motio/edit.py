@@ -50,6 +50,14 @@ def _read(pid: int) -> dict:
     return plan
 
 
+def _write(pid: int, plan: dict) -> None:
+    f = _dir(pid) / "script.json"
+    try:
+        f.write_text(json.dumps(plan, ensure_ascii=False, indent=1))  # cùng mã hoá mặc định với pipeline
+    except UnicodeEncodeError:  # Windows (cp1252) + emoji…: JSON thuần ASCII đọc được với mọi mã hoá
+        f.write_text(json.dumps(plan, ensure_ascii=True, indent=1))
+
+
 def _words(lines: list[dict]) -> int:
     return sum(len(ln["text"].split()) for ln in lines)
 
@@ -182,7 +190,7 @@ def save_script(pid: int, raw: dict) -> dict:
         meta["speech_rate"] = round(rate, 3)
     if on_video:
         meta["edited_at"] = time.time()
-    (_dir(pid) / "script.json").write_text(json.dumps({**old, **new}, ensure_ascii=False, indent=1))
+    _write(pid, {**old, **new})
     if p["status"] == "done":
         meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid))
         meta["hashtags"] = new["hashtags"]

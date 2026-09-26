@@ -437,14 +437,15 @@ def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
 
 
 def write_post(plan: dict, sources: list[dict], out: Path) -> str:
-    """Ghi sources.txt (luôn, nội bộ) và post.txt. Trả phần mô tả bài đăng (kèm nhãn giọng AI và hashtag)."""
+    """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
+    (kèm nhãn giọng AI và hashtag)."""
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
-    (out / "sources.txt").write_text(credits + "\n")  # luôn lưu nội bộ, không đăng
+    (out / "sources.txt").write_text(credits + "\n", encoding="utf-8")  # luôn lưu nội bộ, không đăng
     desc = plan.get("description", "").strip()
     if config.flag("CREDIT_IN_POST"):
         desc += f"\n\nSources :\n{credits}"
     desc += f"\n\nVoix off générée par IA.\n{' '.join(plan.get('hashtags', [])[:6])}"
-    (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n")
+    (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n", encoding="utf-8")
     return desc
 
 

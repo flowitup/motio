@@ -7,7 +7,7 @@ import pytest
 
 from motio import config, db, edit, pipeline, tts
 
-SOURCES = [{"platform": "YouTube", "uploader": "chaine", "url": "https://yt/1", "path": "/x.mp4"}]
+SOURCES = [{"platform": "Bilibili", "uploader": "熊猫频道", "url": "https://b23/1", "path": "/x.mp4"}]
 
 
 def _plan(n=4, words=10) -> dict:
@@ -72,8 +72,9 @@ def test_edit_lines_marks_video_stale_and_updates_post():
     p = db.get_project(pid)
     assert p["meta"]["hashtags"] == ["#Nouveau"] and p["meta"]["description"].endswith("#Nouveau")
     assert "Voix off générée par IA." in p["meta"]["description"]
-    post = (config.PROJECTS / str(pid) / "post.txt").read_text()
-    assert post.startswith("Titre\n\nDesc.") and "#Nouveau" in post
+    post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")
+    assert post.startswith("Titre\n\nDesc.") and "générée par IA" in post and "#Nouveau" in post
+    assert "熊猫频道" in (config.PROJECTS / str(pid) / "sources.txt").read_text(encoding="utf-8")
     assert "Sửa kịch bản: lời bình (5 dòng" in p["log"] and "hashtag" in p["log"] and "cần dựng lại" in p["log"]
 
 

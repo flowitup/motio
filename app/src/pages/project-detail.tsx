@@ -214,7 +214,8 @@ export default function ProjectDetailPage() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_1fr]">
         <div className="overflow-hidden rounded-xl bg-black">
-          {p.meta.video && status === "done" ? (
+          {/* Đang hỏi xoá: bỏ trình phát để engine không còn giữ final.mp4 (Windows không xoá được file đang mở). */}
+          {p.meta.video && status === "done" && !deleting ? (
             <video
               key={p.updated_at}
               src={api.mediaUrl(p.meta.video, p.updated_at)}
