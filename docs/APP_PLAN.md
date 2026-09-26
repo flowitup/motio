@@ -112,6 +112,11 @@ The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
 - **Scene cuts**: FFmpeg's scene filter (`motio/scenes.py`, cached next to each source) instead of PySceneDetect, so
   no OpenCV. Clip pieces start on a cut just after their in-point, stop before a cut just ahead of their out-point,
   and filler clips start at the head of a shot.
+- **Douyin and X sources**: yt-dlp has no search for either (X also needs a login), so videos can be pasted as links
+  (any site yt-dlp downloads) when producing (`links`, `links_only` on `POST /api/trends/{id}/produce`) or added to a
+  project (`POST /api/projects/{id}/links`, then it re-runs from the download step). Pasted links always go in;
+  YouTube/Bilibili search fills the remaining slots. `YTDLP_COOKIES_FROM_BROWSER` lets yt-dlp use a local browser
+  session for those links.
 
 ## Out of scope for now
 

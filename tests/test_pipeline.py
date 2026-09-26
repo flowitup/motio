@@ -24,8 +24,8 @@ def fake(monkeypatch, tmp_path):
         return [{"site": "youtube", "url": f"https://yt/{i}", "id": f"v{i}", "title": f"t{i}", "uploader": "u",
                  "duration": 60, "views": 1, "query": "q"} for i in range(3)]
 
-    def download(url, out_dir):
-        boom("download")
+    def download(url, out_dir, cookies=False):
+        boom("download" + ("+cookies" if cookies else ""))
         vid = url.rsplit("/", 1)[-1]
         f = tmp_path / f"Youtube_{vid}.mp4"
         f.write_bytes(b"x")
@@ -165,3 +165,44 @@ def test_missing_source_file_falls_back_to_download(fake):
     calls.clear()
     pipeline.resume(pid)
     assert calls[:2] == ["download", "download"] and db.get_project(pid)["status"] == "done"
+
+
+def test_pasted_links_are_always_used_and_fill_up_with_search(fake):
+    calls, _ = fake
+    pid = _new()
+    db.update_project(pid, meta={"links": ["https://www.douyin.com/video/7"]})
+    pipeline.produce(pid)
+    chosen = db.get_project(pid)["meta"]["chosen"]
+    assert [c["url"] for c in chosen] == ["https://www.douyin.com/video/7", "https://yt/0", "https://yt/1"]
+    assert calls[:4] == ["search", "download+cookies", "download", "download"]
+
+
+def test_links_only_skips_search(fake):
+    calls, _ = fake
+    pid = _new()
+    db.update_project(pid, meta={"links": ["https://x.com/a/status/1"], "links_only": True})
+    pipeline.produce(pid)
+    assert calls[:2] == ["download+cookies", "transcribe"]
+    assert [s["url"] for s in db.get_project(pid)["meta"]["sources"]] == ["https://x.com/a/status/1"]
+
+
+def test_add_links_then_retry_from_download(fake):
+    calls, _ = fake
+    pid = _new()
+    pipeline.produce(pid)
+    assert pipeline.add_links(pid, ["https://www.douyin.com/video/9"]) == "download"
+    calls.clear()
+    pipeline.resume(pid, "download")
+    assert calls[:3] == ["download", "download", "download+cookies"] and "search" not in calls
+    assert len(db.get_project(pid)["meta"]["sources"]) == 3
+    fresh = _new()
+    assert pipeline.add_links(fresh, ["https://x.com/a/status/2"]) == "search"
+
+
+def test_clean_links():
+    assert search.clean_links([" https://a.com/x ", "", "https://a.com/x", "http://b.fr/y"]) == [
+        "https://a.com/x", "http://b.fr/y"]
+    with pytest.raises(ValueError):
+        search.clean_links(["douyin.com/video/1"])
+    with pytest.raises(ValueError):
+        search.clean_links([f"https://a.com/{i}" for i in range(11)])

@@ -115,6 +115,28 @@ def test_retry(client):
     assert client.post("/api/projects/999/retry", headers=H).status_code == 404
 
 
+def test_produce_with_links(client):
+    r = client.post("/api/trends/douyin:1/produce", headers=H,
+                    json={"links": ["https://www.douyin.com/video/1", " https://x.com/a/status/2 "]})
+    assert r.status_code == 202
+    meta = client.get(f"/api/projects/{r.json()['project_id']}", headers=H).json()["meta"]
+    assert meta["links"] == ["https://www.douyin.com/video/1", "https://x.com/a/status/2"]
+    bad = client.post("/api/trends/douyin:1/produce", headers=H, json={"links": ["douyin.com/1"]})
+    assert bad.status_code == 400
+    empty = client.post("/api/trends/douyin:1/produce", headers=H, json={"links": [], "links_only": True})
+    assert empty.status_code == 400
+
+
+def test_add_links_queues_retry(client):
+    pid = db.create_project("douyin:1", "x")
+    db.update_project(pid, status="failed", meta={"chosen": [{"url": "https://yt/0"}]})
+    r = client.post(f"/api/projects/{pid}/links", headers=H, json={"links": ["https://x.com/a/status/2"]})
+    assert r.status_code == 202 and r.json()["start"] == "download"
+    p = _wait_done(client, pid)
+    assert [c["url"] for c in p["meta"]["chosen"]] == ["https://yt/0", "https://x.com/a/status/2"]
+    assert client.post(f"/api/projects/{pid}/links", headers=H, json={"links": []}).status_code == 400
+
+
 def test_media_blocks_traversal_and_settings(client):
     settings.update({"ELEVENLABS_API_KEY": "secret-key-1234"})
     assert client.get(f"/media/settings.json?token={TOKEN}").status_code == 404

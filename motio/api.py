@@ -19,11 +19,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, newsnow, pipeline, postiz, settings, tts
+from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, settings, tts
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
+
+
+class ProduceIn(BaseModel):
+    links: list[str] = []  # link video dán tay (Douyin, X, …), luôn được dùng
+    links_only: bool = False  # chỉ dùng các link này, không tự tìm
+
+
+class LinksIn(BaseModel):
+    links: list[str]
 
 
 class RetryIn(BaseModel):
@@ -140,14 +149,26 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             threading.Thread(target=_refresh, daemon=True).start()
         return {"started": started}
 
+    def _links(raw: list[str]) -> list[str]:
+        try:
+            return search.clean_links(raw)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
     @app.post("/api/trends/{tid}/produce", status_code=202, dependencies=[Depends(auth)])
-    def produce(tid: str):
+    def produce(tid: str, body: ProduceIn | None = None):
         t = db.get_trend(tid)
         if not t:
             raise HTTPException(404, "Không có tin này")
+        links = _links(body.links) if body else []
+        if body and body.links_only and not links:
+            raise HTTPException(400, "Chọn “chỉ dùng link” thì cần ít nhất một link")
         if pipeline.quota_left() == 0:
             raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
+        if links:
+            db.update_project(pid, log=f"{len(links)} link nguồn dán tay",
+                              meta={"links": links, "links_only": bool(body.links_only)})
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -192,6 +213,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         db.update_project(pid, status="queued", step=f"Chờ chạy lại: {label}", pct=0,
                           log=f"Xếp hàng chạy lại từ {label}")
         jobs.submit(_run_job, lambda i: pipeline.resume(i, asked), pid)
+        return {"project_id": pid, "start": start}
+
+    @app.post("/api/projects/{pid}/links", status_code=202, dependencies=[Depends(auth)])
+    def add_links(pid: int, body: LinksIn):
+        """Thêm link nguồn rồi chạy lại từ bước tải video (hoặc tìm nguồn nếu dự án chưa tới đó)."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, "Dự án đang chạy")
+        links = _links(body.links)
+        if not links:
+            raise HTTPException(400, "Chưa có link nào")
+        start = pipeline.add_links(pid, links)
+        label = pipeline.STEP_LABELS[start]
+        db.update_project(pid, status="queued", step=f"Chờ chạy lại: {label}", pct=0,
+                          log=f"Xếp hàng chạy lại từ {label}")
+        jobs.submit(_run_job, lambda i: pipeline.resume(i, start), pid)
         return {"project_id": pid, "start": start}
 
     @app.get("/api/projects/{pid}/events", dependencies=[Depends(auth_or_query)])

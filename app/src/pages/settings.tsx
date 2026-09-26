@@ -418,6 +418,21 @@ function SettingsForm({ api }: { api: Api }) {
           <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
             {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}
           </Field>
+          <Field label={t.settings.cookies} hint={t.settings.cookiesHint}>
+            <Choice
+              value={val("YTDLP_COOKIES_FROM_BROWSER") || "none"}
+              onChange={(v) => set("YTDLP_COOKIES_FROM_BROWSER", v === "none" ? "" : v)}
+              options={[
+                ["none", t.settings.cookiesNone],
+                ["chrome", "Chrome"],
+                ["safari", "Safari"],
+                ["firefox", "Firefox"],
+                ["edge", "Edge"],
+                ["brave", "Brave"],
+              ]}
+              className="w-48"
+            />
+          </Field>
         </CardContent>
       </Card>
 

@@ -106,23 +106,37 @@ STEP_LABELS = {"search": "Tìm nguồn", "download": "Tải video", "transcribe"
 STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64}
 
 
-def _step_search(trend: dict, step, max_sources: int) -> list[dict]:
+def _step_search(trend: dict, meta: dict, step, max_sources: int) -> list[dict]:
+    """Link dán tay (meta.links) luôn được dùng; tự tìm trên YouTube / Bilibili lấp chỗ còn lại."""
+    pinned = [search.link_candidate(u) for u in meta.get("links") or []]
+    room = max_sources - len(pinned)
+    if pinned:
+        step("Tìm nguồn", 5, f"{len(pinned)} link dán tay")
+    if meta.get("links_only") or room <= 0:
+        if not pinned:
+            raise RuntimeError("Chưa có link nguồn nào")
+        step("Tìm nguồn", 12, f"Chỉ dùng {len(pinned)} link dán tay", chosen=pinned)
+        return pinned
     kw = trend.get("keywords") or {}
     if not kw.get("zh"):
         kw["zh"] = [trend["title_zh"]]
     step("Tìm nguồn", 5, f"Từ khoá: {json.dumps(kw, ensure_ascii=False)}")
-    cands = search.candidates(kw)
-    if not cands:
+    cands = [c for c in search.candidates(kw) if c["url"] not in {p["url"] for p in pinned}]
+    if not cands and not pinned:
         raise RuntimeError("Không tìm thấy video nào cho tin này")
-    lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
-                      f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
-    pick = llm.ask_json(PICK_PROMPT.format(title_zh=trend["title_zh"], title_fr=trend["title_fr"],
-                                           angle=trend.get("angle") or "", cands=lines, n=max_sources),
-                        PICK_SYSTEM)
-    chosen = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
-    chosen = chosen[:max_sources] or cands[:2]
-    step("Tìm nguồn", 12, f"{len(cands)} ứng viên, chọn {len(chosen)}: {pick.get('why', '')}",
-         candidates=len(cands), chosen=chosen)
+    picked, why = [], "không có kết quả tự tìm"
+    if cands:
+        lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
+                          f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
+        pick = llm.ask_json(PICK_PROMPT.format(title_zh=trend["title_zh"], title_fr=trend["title_fr"],
+                                               angle=trend.get("angle") or "", cands=lines, n=room),
+                            PICK_SYSTEM)
+        picked = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
+        picked = picked[:room] or ([] if pinned else cands[:2])
+        why = pick.get("why", "")
+    chosen = pinned + picked
+    step("Tìm nguồn", 12, f"{len(cands)} ứng viên, chọn {len(picked)}"
+         + (f" + {len(pinned)} link dán tay" if pinned else "") + f": {why}", candidates=len(cands), chosen=chosen)
     return chosen
 
 
@@ -131,7 +145,7 @@ def _step_download(chosen: list[dict], step) -> list[dict]:
     for i, c in enumerate(chosen):
         step("Tải video", 12 + int(20 * i / len(chosen)), f"Tải {c['url']}")
         try:
-            sources.append(search.download(c["url"], config.CACHE / "sources"))
+            sources.append(search.download(c["url"], config.CACHE / "sources", cookies=bool(c.get("pinned"))))
         except Exception as e:
             step("Tải video", 12 + int(20 * i / len(chosen)), f"Bỏ qua (lỗi tải): {str(e)[:160]}")
     if not sources:
@@ -251,7 +265,8 @@ def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str =
         else:
             step(STEP_LABELS[start], STEP_PCT[start], f"Chạy lại từ bước {STEP_LABELS[start]}")
         if at <= 1:
-            chosen = _step_search(trend, step, max_sources) if at == 0 else db.get_project(pid)["meta"]["chosen"]
+            meta = db.get_project(pid)["meta"]
+            chosen = _step_search(trend, meta, step, max_sources) if at == 0 else meta["chosen"]
             sources = _step_download(chosen, step)
         else:
             sources = _load_sources(pid)
@@ -264,6 +279,19 @@ def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str =
     except Exception as e:
         db.update_project(pid, status="failed", log=f"LỖI: {e}\n{traceback.format_exc()[-1200:]}")
         raise
+
+
+def add_links(pid: int, links: list[str]) -> str:
+    """Thêm link nguồn vào dự án. Trả bước nên chạy lại: tải video (đã có danh sách chọn) hoặc tìm nguồn."""
+    meta = db.get_project(pid)["meta"]
+    links = [u for u in links if u not in (meta.get("links") or [])]
+    chosen = meta.get("chosen")
+    update = {"links": [*(meta.get("links") or []), *links]}
+    if chosen:
+        known = {c["url"] for c in chosen}
+        update["chosen"] = [*chosen, *(search.link_candidate(u) for u in links if u not in known)]
+    db.update_project(pid, log=f"Thêm {len(links)} link nguồn", meta=update)
+    return "download" if chosen else "search"
 
 
 def resume(pid: int, start: str | None = None) -> None:

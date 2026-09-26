@@ -74,6 +74,7 @@ Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `
 | `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
 | `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
+| `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: tải link dán tay (Douyin, X…) bằng phiên đăng nhập của trình duyệt đó |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz để đăng bài: gốc API (`https://postiz.<domain>/api`) + Public API key |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Đường dẫn binary nếu không nằm trong PATH |
 
@@ -83,12 +84,14 @@ Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
 
 ```
 motio/newsnow.py   lấy tin + dịch + chấm điểm
-motio/search.py    yt-dlp tìm / tải nguồn (giữ nền tảng, kênh, giấy phép)
+motio/search.py    yt-dlp tìm (YouTube, Bilibili) / tải nguồn, kể cả link dán tay (giữ nền tảng, kênh, giấy phép)
 motio/asr.py       Whisper (mlx trên Mac, faster-whisper nơi khác)
 motio/llm.py       claude -p hoặc Claude API
 motio/tts.py       ElevenLabs có mốc thời gian (giọng macOS nếu chưa có key)
 motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
-motio/pipeline.py  7 bước của một dự án
+motio/captions.py  phụ đề karaoke tiếng Pháp (≤ 42 ký tự/dòng), xuất captions.srt / captions.ass
+motio/scenes.py    mốc cắt cảnh bằng bộ lọc scene của FFmpeg
+motio/pipeline.py  các bước của một dự án, chạy tiếp được từ bước lỗi
 motio/settings.py  data/settings.json đè lên .env
 motio/api.py       engine API JSON cho app desktop
 motio/postiz.py    gửi video sang Postiz (nháp / lên lịch / đăng ngay)

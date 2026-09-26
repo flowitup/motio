@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, FolderOpen, Loader2, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Copy, FolderOpen, Link2, Loader2, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ExternalA } from "@/components/external-link";
@@ -11,9 +11,63 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi, type RetryStep } from "@/lib/api";
+import { useApi, type Api, type ProjectDetail, type RetryStep } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
+
+function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail; active: boolean; onQueued: () => void }) {
+  const [text, setText] = useState("");
+  const links = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const add = useMutation({
+    mutationFn: () => api.addLinks(p.id, links),
+    onSuccess: () => {
+      setText("");
+      onQueued();
+    },
+  });
+  const pinned = new Set(p.meta.links ?? []);
+  const sources = p.meta.sources ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.projects.sources}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm">
+        {sources.length > 0 && (
+          <ul className="grid gap-1.5">
+            {sources.map((s) => (
+              <li key={s.url} className="min-w-0">
+                <ExternalA href={s.url} className="break-all">
+                  {s.platform} · {s.uploader || s.url}
+                </ExternalA>
+                {pinned.has(s.url) && <span className="text-xs text-muted-foreground"> · {t.projects.pasted}</span>}
+                {s.title && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
+          className="min-h-16 font-mono text-xs"
+          aria-label={t.projects.addLinks}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="mr-auto text-xs text-muted-foreground">{t.projects.addLinksHint}</p>
+          <Button size="sm" variant="outline" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
+            {add.isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
+            {t.projects.addAndRerun}
+          </Button>
+        </div>
+        {add.error && <p className="text-destructive">{add.error.message}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ProjectDetailPage() {
   const api = useApi()!;
@@ -164,6 +218,8 @@ export default function ProjectDetailPage() {
               </pre>
             </CardContent>
           </Card>
+
+          <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />
 
           {p.trend && (
             <Card>

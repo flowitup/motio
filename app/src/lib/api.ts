@@ -15,7 +15,17 @@ export type Trend = {
   last_seen: number;
 };
 
+export type SourceInfo = {
+  url: string;
+  platform: string;
+  uploader: string;
+  title: string;
+  duration: number;
+};
+
 export type ProjectMeta = {
+  links?: string[];
+  sources?: SourceInfo[];
   video?: string;
   thumb?: string;
   title?: string;
@@ -131,7 +141,11 @@ export function makeApi(url: string, token: string) {
     trends: (source?: string) =>
       call<Trend[]>("GET", `/api/trends?hours=24${source ? `&source=${encodeURIComponent(source)}` : ""}`),
     refresh: () => call<{ started: boolean }>("POST", "/api/trends/refresh"),
-    produce: (id: string) => call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`),
+    produce: (id: string, opts?: { links: string[]; links_only: boolean }) =>
+      call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`, opts),
+    /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
+    addLinks: (id: number, links: string[]) =>
+      call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
