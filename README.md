@@ -31,7 +31,7 @@ Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + toke
 
 ## CI và phát hành
 
-- **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `main`): engine chạy `ruff check` + `pytest`
+- **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `master`): engine chạy `ruff check` + `pytest`
   trên Ubuntu và Windows; app chạy `pnpm build` (tsc + vite) và `cargo clippy`.
 - **Phát hành** (`.github/workflows/release.yml`): tăng `version` trong `app/src-tauri/tauri.conf.json`, rồi
   `git tag v0.2.0 && git push origin v0.2.0`. CI dựng `.dmg` (macOS Apple Silicon) và `.msi` / `.exe`
