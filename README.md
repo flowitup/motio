@@ -48,6 +48,12 @@ uv run python -m motio engine --port 0 --token <t>   # in {"event":"ready","port
 Mọi `/api/*` cần `Authorization: Bearer <t>`; `/media/*` và `/api/projects/{id}/events` (SSE) nhận thêm
 `?token=`. `--host 0.0.0.0` (chạy từ xa) bắt buộc có `--token`. `--exit-with-stdin` tự thoát khi app cha đóng.
 
+## Chạy trên server (Hetzner + Postiz)
+
+`deploy/` chứa Docker Compose cho engine + [Postiz](https://postiz.com) (đăng bài tự động) sau Caddy (HTTPS);
+workflow "Deploy (Hetzner)" build ảnh và cập nhật server. Các bước: [docs/DEPLOY.md](docs/DEPLOY.md).
+Trên server engine đọc token từ `MOTIO_TOKEN` và mặc định `LLM_PROVIDER=anthropic`.
+
 ## Cấu hình (.env)
 
 Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `.env` và có hiệu lực ngay.
@@ -60,6 +66,7 @@ Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `
 | `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
 | `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
+| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz để đăng bài: gốc API (`https://postiz.<domain>/api`) + Public API key |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Đường dẫn binary nếu không nằm trong PATH |
 
 Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
@@ -76,6 +83,7 @@ motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
 motio/pipeline.py  7 bước của một dự án
 motio/settings.py  data/settings.json đè lên .env
 motio/api.py       engine API JSON cho app desktop
+motio/postiz.py    gửi video sang Postiz (nháp / lên lịch / đăng ngay)
 motio/web.py       dashboard cũ (bỏ sau M2)
 ```
 

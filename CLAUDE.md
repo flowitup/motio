@@ -17,9 +17,11 @@ as authoritative for scope and milestones.
   - `search.py` yt-dlp search/download · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `rerender`)
+  - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
+- `deploy/` + `Dockerfile` — Hetzner server stack (engine + Postiz + Caddy), runbook `docs/DEPLOY.md`.
 - `tools/` — dev scripts. `docs/` — plans and notes.
 - `data/` — runtime data (SQLite, downloaded sources, rendered projects). Never commit.
 - `.env` — secrets. Never read, print, or commit it.
