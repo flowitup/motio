@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)", "Bash(uv add:*)", "Bash(uv run:*)", "Bash(uv lock:*)",
+      "Bash(pnpm:*)", "Bash(npx:*)", "Bash(npm run:*)", "Bash(cargo:*)", "Bash(rustc --version)",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)", "Bash(git commit:*)",
+      "Bash(git switch:*)", "Bash(git checkout:*)", "Bash(git branch:*)", "Bash(git stash:*)",
+      "Bash(ls:*)", "Bash(mkdir:*)", "Bash(ffprobe:*)", "Bash(ffmpeg:*)",
+      "Bash(curl -s http://127.0.0.1:*)", "Bash(curl -sS http://127.0.0.1:*)"
+    ],
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Bash(cat .env*)",
+      "Bash(git push --force:*)", "Bash(rm -rf:*)"
+    ]
+  }
+}
