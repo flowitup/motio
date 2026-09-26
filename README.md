@@ -1,111 +1,122 @@
-# Motio · MVP tin nóng
+# Motio · hot-news MVP
 
-Web app làm video tiếng Pháp 9:16 từ tin hot Trung Quốc (NewsNow): tìm clip nguồn trên YouTube và
-Bilibili, bóc lời bằng Whisper, Claude viết lời bình tiếng Pháp và chọn đoạn, ElevenLabs đọc,
-FFmpeg dựng (nền mờ, nhãn nguồn, phụ đề, công bố giọng AI).
+Motio turns trending Chinese news (NewsNow hot lists) into French 9:16 videos. A Python engine does the work and a
+desktop app (macOS, Windows) drives it: it finds source clips on YouTube and Bilibili, transcribes them with Whisper,
+has Claude write a French voice-over script and pick the clip segments, voices it with ElevenLabs, and renders it with
+FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in Vietnamese; the
+videos are in French.
 
-## Chạy trên Mac
+## Run on a Mac (legacy web dashboard)
 
 ```bash
 cd ~/Works/motio
-uv sync                          # lần đầu
-uv run python -m motio serve        # mở http://127.0.0.1:8765
+uv sync                             # first time only
+uv run python -m motio serve        # open http://127.0.0.1:8765
 ```
 
-1. Bấm **Cập nhật tin hot**: lấy bảng Douyin, Weibo, Baidu, Bilibili, Toutiao, The Paper; Claude dịch
-   tiêu đề sang Pháp và chấm điểm cho khán giả Pháp.
-2. Chọn tin, bấm **Làm video**. Trang dự án hiện tiến trình, nhật ký, video và nội dung bài đăng
-   (tiêu đề, mô tả, nguồn, hashtag).
+1. Click **Cập nhật tin hot** (refresh hot topics): fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
+   lists; Claude translates the titles into French and scores them for a French audience.
+2. Pick a topic and click **Làm video** (make video). The project page shows progress, the log, the video and the post
+   text (title, description, sources, hashtags).
 
-Dòng lệnh: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`.
+Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`, `... rerender <project>`.
 
-## App desktop (Tauri)
+## Desktop app (Tauri)
 
 ```bash
 cd app && pnpm install
-pnpm tauri dev        # mở app; engine tự chạy bằng uv từ gốc repo
+pnpm tauri dev        # opens the app; it starts the engine with uv from the repo root
 ```
 
-Cần Rust (`rustup`). App tự tìm `uv` trong PATH, `~/.local/bin`, Homebrew; đặt `MOTIO_UV` nếu ở chỗ khác.
-Cài đặt → "Engine từ xa" để dùng engine trên máy khác (URL + token), khi đó app không tự chạy engine.
+Needs Rust (`rustup`). The app looks for `uv` on PATH, in `~/.local/bin`, `~/.cargo/bin` and Homebrew; set `MOTIO_UV`
+if it lives elsewhere. Settings (Cài đặt) → "Engine từ xa" (remote engine) uses an engine on another machine (URL +
+token); the app then doesn't start its own engine.
 
-## Đóng gói, CI và phát hành
+## Packaging, CI and releases
 
 ```bash
-uv run --group build python tools/build_engine.py   # engine PyInstaller + ffmpeg tĩnh → app/src-tauri/resources/
-cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) hoặc .msi (Windows)
+uv run --group build python tools/build_engine.py   # PyInstaller engine + static ffmpeg → app/src-tauri/resources/
+cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) or .msi (Windows)
 ```
 
-`tauri build` / `tauri dev` cần thư mục `app/src-tauri/resources/motio-engine/` (có thể rỗng khi chỉ chạy dev:
-bản debug vẫn chạy engine bằng `uv` từ repo). Bản đóng gói lưu dữ liệu ở `~/Library/Application Support/Motio`
-(macOS) hoặc `%APPDATA%\Motio` (Windows). `claude -p` vẫn cần Claude Code cài sẵn trên máy; không có thì chọn
-"Anthropic API" trong Cài đặt.
+`tauri build` / `tauri dev` need the folder `app/src-tauri/resources/motio-engine/` (it can stay empty for dev: the
+debug build still runs the engine with `uv` from the repo). Packaged builds keep their data in
+`~/Library/Application Support/Motio` (macOS) or `%APPDATA%\Motio` (Windows). `claude -p` still needs Claude Code
+installed on the machine; without it, pick "Anthropic API" in Settings.
 
-- **CI** (`.github/workflows/ci.yml`, mỗi PR và mỗi lần push lên `master`): engine chạy `ruff check` + `pytest`
-  trên Ubuntu và Windows; app chạy `pnpm build` (tsc + vite) và `cargo clippy`.
-- **Phát hành** (`.github/workflows/release.yml`): tăng `version` trong `app/src-tauri/tauri.conf.json`, rồi
-  `git tag v0.3.1 && git push origin v0.3.1`. CI đóng gói engine rồi dựng `.dmg` (macOS Apple Silicon) và
-  `.msi` / `.exe` (Windows), tạo một GitHub Release nháp để bạn xem rồi bấm Publish.
-- Bộ cài chưa ký số: macOS mở lần đầu bằng System Settings → Privacy & Security → "Open Anyway"; Windows bấm
-  "More info" → "Run anyway". Bộ cài đã kèm engine; muốn dùng engine trên máy khác thì vào Cài đặt → "Engine từ xa".
-- **Tự cập nhật** (Cài đặt → "Cập nhật ứng dụng"): app hỏi GitHub Releases khi mở và khi bấm "Kiểm tra cập nhật",
-  tải bản mới, kiểm chữ ký rồi tự khởi động lại. Chỉ bản đã Publish mới được nhận. Repo riêng tư nên mỗi máy cần
-  một GitHub token chỉ đọc (fine-grained, repo `flowitup/motio`, Contents: Read-only), nhập ngay trong thẻ đó.
-- Khóa ký bản cập nhật, làm một lần: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, rồi
-  `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` và
-  `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Khóa công khai (`~/.tauri/motio-updater.key.pub`) nằm ở
-  `plugins.updater.pubkey` trong `app/src-tauri/tauri.conf.json`. Thiếu secret thì tag phát hành bị lỗi; mất khóa
-  riêng thì các bản đã cài không tự cập nhật được nữa (phải cài lại bằng tay).
+- **CI** (`.github/workflows/ci.yml`, on every PR and every push to `master`): the engine runs `ruff check` + `pytest`
+  on Ubuntu and Windows; the app runs `pnpm build` (tsc + vite) and `cargo clippy`.
+- **Releases** (`.github/workflows/release.yml`): bump `version` in `app/src-tauri/tauri.conf.json` and
+  `app/package.json`, then `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match that version). CI freezes the
+  engine, builds the `.dmg` (macOS Apple Silicon) and the `.msi` / `.exe` (Windows), and creates a draft GitHub Release
+  for you to check and Publish.
+- The installers are not code-signed: on macOS, open the app the first time via System Settings → Privacy & Security →
+  "Open Anyway"; on Windows, click "More info" → "Run anyway". The installers bundle the engine; to use an engine on
+  another machine, go to Settings → "Engine từ xa".
+- **Auto-update** (Settings → "Cập nhật ứng dụng"): the app checks GitHub Releases on launch and when you click
+  "Kiểm tra cập nhật" (check for updates), downloads the new version, verifies its signature and restarts itself. Only
+  published releases are offered. The repo is public, so the GitHub token field in that card can stay empty.
+- Update signing key, one time: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, then
+  `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` and
+  `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key (`~/.tauri/motio-updater.key.pub`) goes in
+  `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`. Without the secret a release tag fails; if the private
+  key is lost, installed apps can no longer update themselves (they have to be reinstalled by hand).
 
-## Engine API (cho app desktop)
+## Engine API (for the desktop app)
 
 ```bash
-uv run python -m motio engine --port 0 --token <t>   # in {"event":"ready","port":N,...} rồi phục vụ
+uv run python -m motio engine --port 0 --token <t>   # prints {"event":"ready","port":N,...} then serves
 ```
 
-Mọi `/api/*` cần `Authorization: Bearer <t>`; `/media/*` và `/api/projects/{id}/events` (SSE) nhận thêm
-`?token=`. `--host 0.0.0.0` (chạy từ xa) bắt buộc có `--token`. `--exit-with-stdin` tự thoát khi app cha đóng.
+Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and `/api/projects/{id}/events` (SSE) also accept
+`?token=`. `--host 0.0.0.0` (remote use) requires `--token`. `--exit-with-stdin` exits when the parent app closes.
 
-## Chạy trên server (Hetzner + Postiz)
+## Running on a server (Hetzner + Postiz)
 
-`deploy/` chứa Docker Compose cho engine + [Postiz](https://postiz.com) (đăng bài tự động) sau Caddy (HTTPS);
-workflow "Deploy (Hetzner)" build ảnh và cập nhật server. Các bước: [docs/DEPLOY.md](docs/DEPLOY.md).
-Trên server engine đọc token từ `MOTIO_TOKEN` và mặc định `LLM_PROVIDER=anthropic`.
+`deploy/` holds the Docker Compose stack for the engine + [Postiz](https://postiz.com) (automatic posting) behind
+Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the server. Steps:
+[docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
+defaults to `LLM_PROVIDER=anthropic`.
 
-## Cấu hình (.env)
+## Configuration (.env)
 
-Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `.env` và có hiệu lực ngay.
+Settings changed in the app are saved to `data/settings.json`, override `.env` and take effect immediately.
 
-| Biến | Ý nghĩa |
+| Variable | Meaning |
 |---|---|
-| `LLM_PROVIDER` | `claude_cli` (Claude Code trên Mac, dùng gói Claude của bạn) hoặc `anthropic` (API key, cho server) |
-| `LLM_MODEL` | `sonnet` / `opus` với claude_cli; model ID đầy đủ qua `ANTHROPIC_MODEL` với anthropic |
-| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Giọng Pháp; bỏ trống voice để app tự chọn giọng tiếng Pháp trong tài khoản |
-| `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
-| `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
-| `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
-| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz để đăng bài: gốc API (`https://postiz.<domain>/api`) + Public API key |
-| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Đường dẫn binary nếu không nằm trong PATH |
+| `LLM_PROVIDER` | `claude_cli` (Claude Code on the Mac, uses your Claude plan) or `anthropic` (API key, for the server) |
+| `LLM_MODEL` | `sonnet` / `opus` with claude_cli; full model ID via `ANTHROPIC_MODEL` with anthropic |
+| `ANTHROPIC_API_KEY` | API key for the `anthropic` provider (never passed to `claude -p`) |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to let the app pick a French voice from the account |
+| `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
+| `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
+| `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`) on the server |
+| `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
+| `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
+| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Binary paths if they are not on PATH |
 
-Dữ liệu (SQLite, video nguồn, dự án) nằm trong `data/`.
+Data (SQLite, source videos, projects) lives in `data/`.
 
-## Cấu trúc
+## Layout
 
 ```
-motio/newsnow.py   lấy tin + dịch + chấm điểm
-motio/search.py    yt-dlp tìm / tải nguồn (giữ nền tảng, kênh, giấy phép)
-motio/asr.py       Whisper (mlx trên Mac, faster-whisper nơi khác)
-motio/llm.py       claude -p hoặc Claude API
-motio/tts.py       ElevenLabs có mốc thời gian (giọng macOS nếu chưa có key)
-motio/render.py    dựng 9:16: Pillow vẽ chữ, FFmpeg ghép
-motio/pipeline.py  7 bước của một dự án
-motio/settings.py  data/settings.json đè lên .env
-motio/api.py       engine API JSON cho app desktop
-motio/postiz.py    gửi video sang Postiz (nháp / lên lịch / đăng ngay)
-motio/web.py       dashboard cũ (bỏ sau M2)
+motio/newsnow.py   fetch hot topics + translate + score
+motio/search.py    yt-dlp search / download of sources (keeps platform, channel, license)
+motio/asr.py       Whisper (mlx on the Mac, faster-whisper elsewhere)
+motio/llm.py       claude -p or the Claude API
+motio/tts.py       ElevenLabs with timestamps (macOS voice when there is no key)
+motio/render.py    9:16 render: Pillow draws the text, FFmpeg composes
+motio/pipeline.py  the steps of one project
+motio/settings.py  data/settings.json over .env
+motio/api.py       JSON engine API for the desktop app
+motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
+motio/web.py       legacy dashboard (to be removed)
 ```
 
-## Quy tắc nội dung có sẵn
+## Built-in content rules
 
-Lời bình tiếng Pháp riêng có bối cảnh và phân tích; mỗi đoạn nguồn 3–6 giây có nhãn
-“Source : nền tảng · kênh”; mô tả bài ghi đủ link nguồn; nhãn “Voix de synthèse (IA)” trên video.
+An original French voice-over with context and analysis; source clips only illustrate it, 3–6 seconds each; the “Voix
+de synthèse (IA)” label stays on the video and the post says “Voix off générée par IA.” Every project writes
+`sources.txt` with all source links; the on-video “Source : platform / channel” label and the source list in the post
+are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off).
