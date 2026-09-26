@@ -55,7 +55,8 @@ installed on the machine; without it, pick "Anthropic API" in Settings.
   another machine, go to Settings → "Engine từ xa".
 - **Auto-update** (Settings → "Cập nhật ứng dụng"): the app checks GitHub Releases on launch and when you click
   "Kiểm tra cập nhật" (check for updates), downloads the new version, verifies its signature and restarts itself. Only
-  published releases are offered. The repo is public, so the GitHub token field in that card can stay empty.
+  published releases are offered. The repo is public, so no GitHub token is needed: the app reads
+  `releases/latest/download/latest.json`.
 - Update signing key, one time: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, then
   `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` and
   `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key (`~/.tauri/motio-updater.key.pub`) goes in

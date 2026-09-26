@@ -2190,8 +2190,6 @@ dependencies = [
 name = "motio"
 version = "0.3.1"
 dependencies = [
- "reqwest",
- "rustls",
  "serde",
  "serde_json",
  "tauri",

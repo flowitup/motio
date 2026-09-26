@@ -4,7 +4,8 @@ name: Release
 # Installers are unsigned and ship the engine frozen by tools/build_engine.py (PyInstaller + static ffmpeg).
 # Pull requests that change this file or the engine packaging tools build the installers without releasing.
 # In-app updates: with the TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) secrets, the build also signs update bundles and the
-# release gets latest.json; the app picks the update up once the draft is published (app/src-tauri/src/updater.rs).
+# release gets latest.json; the app reads releases/latest/download/latest.json, so it sees the update once the draft is
+# published (app/src-tauri/src/updater.rs).
 on:
   push:
     tags: ["v*"]
@@ -147,7 +148,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/releases/${{ steps.draft.outputs.id }}/assets?per_page=100" > assets.json
-          python3 tools/updater_manifest.py --version "$GITHUB_REF_NAME" --assets assets.json --sigs sigs > latest.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/${{ steps.draft.outputs.id }}" > release.json
+          python3 tools/updater_manifest.py --version "$GITHUB_REF_NAME" --release release.json --sigs sigs \
+            --repo "$GITHUB_REPOSITORY" > latest.json
           cat latest.json
           gh release upload "$GITHUB_REF_NAME" latest.json --repo "$GITHUB_REPOSITORY" --clobber
