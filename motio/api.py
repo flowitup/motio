@@ -23,6 +23,8 @@ from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, s
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
+SCHED_TICK = 15.0  # giây giữa hai lần bộ hẹn giờ kiểm tra lịch cập nhật tin
+FIRST_DELAY = 60.0  # lần tự cập nhật đầu tiên: 1 phút sau khi engine khởi động
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
 
 
@@ -65,13 +67,30 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
     state = {"refreshing": False, "last_refresh": None, "last_result": None}
     refresh_lock = threading.Lock()
+    started = time.time()
+    stop = threading.Event()
+
+    def next_refresh() -> float | None:
+        every = config.refresh_every_min()
+        if not every:
+            return None
+        return state["last_refresh"] + every * 60 if state["last_refresh"] else started + FIRST_DELAY
+
+    def scheduler() -> None:
+        """REFRESH_EVERY_MIN > 0: tự cập nhật tin theo lịch. Đọc lại cài đặt mỗi vòng nên đổi là có hiệu lực."""
+        while not stop.wait(SCHED_TICK):
+            due = next_refresh()
+            if due is not None and time.time() >= due and not state["refreshing"]:
+                _refresh()
 
     @asynccontextmanager
     async def lifespan(_app):
         stale = db.fail_stale()
         if stale:
             print(f"motio: đánh dấu lỗi các dự án dở dang {stale}", file=sys.stderr)
+        threading.Thread(target=scheduler, name="refresh-scheduler", daemon=True).start()
         yield
+        stop.set()
         jobs.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Motio engine", version=__version__, lifespan=lifespan)
@@ -134,7 +153,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.get("/api/state", dependencies=[Depends(auth)])
     def get_state():
-        return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20))}
+        return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20)),
+                "refresh_every_min": config.refresh_every_min(), "next_refresh": next_refresh()}
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])

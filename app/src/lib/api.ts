@@ -101,6 +101,8 @@ export type RefreshState = {
   last_refresh: number | null;
   last_result: { new?: number; scored?: number; errors?: Record<string, string>; error?: string } | null;
   busy: boolean;
+  refresh_every_min: number; // 0 = chỉ cập nhật bằng tay
+  next_refresh: number | null;
 };
 
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };

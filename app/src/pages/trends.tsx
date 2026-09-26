@@ -94,6 +94,13 @@ export default function TrendsPage() {
 
       <p className="text-sm text-muted-foreground">
         {t.trends.lastRefresh}: {t.age(state.data?.last_refresh)}
+        {!!state.data?.refresh_every_min && (
+          <>
+            {" · "}
+            {t.trends.autoRefresh(state.data.refresh_every_min)}
+            {state.data.next_refresh && ` (${t.trends.nextRefresh} ${t.clock(state.data.next_refresh)})`}
+          </>
+        )}
         {last?.new !== undefined && ` · ${t.trends.newScored(last.new)}`}
         {last?.error && <span className="text-destructive"> · {t.trends.refreshError}: {last.error}</span>}
         {last?.errors && Object.keys(last.errors).length > 0 && (

@@ -117,6 +117,10 @@ The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
   project (`POST /api/projects/{id}/links`, then it re-runs from the download step). Pasted links always go in;
   YouTube/Bilibili search fills the remaining slots. `YTDLP_COOKIES_FROM_BROWSER` lets yt-dlp use a local browser
   session for those links.
+- **Scheduled refresh + self-hosted NewsNow**: the engine refreshes hot topics every `REFRESH_EVERY_MIN` minutes
+  (0 = off, the desktop default; 30 on the server) and `/api/state` reports the next run. `NEWSNOW_URL` is a setting
+  read at call time; `deploy/compose.yaml` runs NewsNow (`ghcr.io/ourongxing/newsnow`) next to the engine.
+  Auto-produce above a score stays with the rest of M4.
 
 ## Out of scope for now
 

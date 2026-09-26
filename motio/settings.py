@@ -8,7 +8,8 @@ import threading
 from pathlib import Path
 
 KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
-        "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWS_SOURCES", "CREDIT_ON_VIDEO", "CREDIT_IN_POST",
+        "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "NEWS_SOURCES", "REFRESH_EVERY_MIN", "CREDIT_ON_VIDEO",
+        "CREDIT_IN_POST",
         "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER")
 SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY")
 MASK = "••••"
@@ -82,12 +83,13 @@ def update(changes: dict) -> dict[str, dict]:
     unknown = [k for k in changes if k not in KEYS]
     if unknown:
         raise KeyError(f"Khoá không hợp lệ: {', '.join(unknown)}")
-    if "MAX_VIDEOS_PER_DAY" in changes and changes["MAX_VIDEOS_PER_DAY"] not in (None, ""):
-        try:
-            if int(changes["MAX_VIDEOS_PER_DAY"]) < 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            raise ValueError("MAX_VIDEOS_PER_DAY phải là số nguyên ≥ 0") from None
+    for k in ("MAX_VIDEOS_PER_DAY", "REFRESH_EVERY_MIN"):
+        if k in changes and changes[k] not in (None, ""):
+            try:
+                if int(changes[k]) < 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                raise ValueError(f"{k} phải là số nguyên ≥ 0") from None
     data = load()
     for k, v in changes.items():
         v = _normalize(v)

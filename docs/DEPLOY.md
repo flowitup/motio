@@ -7,12 +7,16 @@ TikTok, YouTube, Instagram, Facebook, X…), cùng sau Caddy lo HTTPS. Mọi th�
 App desktop ──https + token──▶ Caddy ─┬─ motio.<domain>   → engine (FastAPI, Whisper CPU, FFmpeg)
 Trình duyệt ─────────https───────────▶ └─ postiz.<domain>  → Postiz ─ Postgres, Redis, Temporal (+ Postgres, Elasticsearch)
 engine ── http://postiz:5000/api (mạng nội bộ Docker) ──▶ Postiz Public API ──▶ các mạng xã hội
+engine ── http://newsnow:4444 (mạng nội bộ) ──▶ NewsNow tự host ──▶ bảng tin hot Douyin, Weibo, Baidu…
 ```
+
+Engine tự cập nhật tin mỗi `REFRESH_EVERY_MIN` phút (mặc định 30 trên server, 0 = tắt) từ NewsNow tự host
+(dịch vụ `newsnow`, ảnh `ghcr.io/ourongxing/newsnow`, không mở ra Internet).
 
 | File | Vai trò |
 |---|---|
 | `Dockerfile` | ảnh engine: Python 3.12, ffmpeg, font DejaVu + Noto CJK, faster-whisper |
-| `deploy/compose.yaml` | toàn bộ stack (Caddy, engine, Postiz và các dịch vụ đi kèm) |
+| `deploy/compose.yaml` | toàn bộ stack (Caddy, engine, NewsNow, Postiz và các dịch vụ đi kèm) |
 | `deploy/Caddyfile` | 2 tên miền → engine / Postiz, chứng chỉ Let's Encrypt tự động |
 | `deploy/env.example` | mẫu `/opt/motio/.env` trên server (bí mật, tên miền, key) |
 | `deploy/bootstrap.sh` | cài server mới một lần: Docker, user `deploy`, swap, tường lửa |
@@ -113,7 +117,7 @@ API tương ứng: `GET /api/postiz/channels`, `POST /api/projects/{id}/publish`
 ssh deploy@<ip>
 cd /opt/motio
 docker compose ps
-docker compose logs -f engine            # hoặc postiz, caddy, temporal
+docker compose logs -f engine            # hoặc newsnow, postiz, caddy, temporal
 docker compose up -d                     # áp dụng thay đổi trong .env
 docker compose --profile ops up -d temporal-ui
 #   rồi trên máy bạn: ssh -L 8080:127.0.0.1:8080 deploy@<ip> → http://localhost:8080

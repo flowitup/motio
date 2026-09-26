@@ -2,6 +2,7 @@
 #
 #   https://$MOTIO_DOMAIN   → engine (desktop app: Cài đặt → "Engine từ xa", token = MOTIO_TOKEN)
 #   https://$POSTIZ_DOMAIN  → Postiz web UI + API (/api)
+#   newsnow (nội bộ)        → bảng tin hot cho engine (NEWSNOW_URL=http://newsnow:4444)
 #
 # Lives in /opt/motio on the server next to .env (copied from env.example). The deploy workflow
 # (.github/workflows/deploy.yml) overwrites this file, Caddyfile and temporal/ on every deploy; keep
@@ -49,8 +50,10 @@ services:
       ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
       ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-}
       WHISPER_MODEL: ${WHISPER_MODEL:-}
-      NEWSNOW_URL: ${NEWSNOW_URL:-}
+      # NewsNow tự host trong cùng stack (dịch vụ newsnow bên dưới); tự cập nhật tin mỗi 30 phút.
+      NEWSNOW_URL: ${NEWSNOW_URL:-http://newsnow:4444}
       NEWS_SOURCES: ${NEWS_SOURCES:-}
+      REFRESH_EVERY_MIN: ${REFRESH_EVERY_MIN:-30}
       MAX_VIDEOS_PER_DAY: ${MAX_VIDEOS_PER_DAY:-}
       CREDIT_ON_VIDEO: ${CREDIT_ON_VIDEO:-}
       CREDIT_IN_POST: ${CREDIT_IN_POST:-}
@@ -66,6 +69,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    logging: *logging
+
+  # ---------- NewsNow (bảng tin hot Trung Quốc, tự host) ----------
+  # github.com/ourongxing/newsnow (MIT). Chỉ engine gọi tới qua mạng nội bộ, không mở ra Internet.
+  newsnow:
+    image: ${NEWSNOW_IMAGE:-ghcr.io/ourongxing/newsnow:latest}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: "4444"
+      NODE_ENV: production
+      INIT_TABLE: "true"
+      ENABLE_CACHE: "true"
+    volumes:
+      - newsnow-data:/usr/app/.data
+    networks: [edge]  # cần ra Internet để đọc các bảng tin
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4444/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     logging: *logging
 
   # ---------- Postiz ----------
@@ -250,6 +275,7 @@ networks:
     internal: true
 
 volumes:
+  newsnow-data:
   caddy-data:
   caddy-config:
   motio-data:

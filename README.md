@@ -72,7 +72,8 @@ Cài đặt đổi trong app được lưu ở `data/settings.json`, đè lên `
 | `LLM_MODEL` | `sonnet` / `opus` với claude_cli; model ID đầy đủ qua `ANTHROPIC_MODEL` với anthropic |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Giọng Pháp; bỏ trống voice để app tự chọn giọng tiếng Pháp trong tài khoản |
 | `WHISPER_MODEL` | Mặc định `mlx-community/whisper-large-v3-turbo` |
-| `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`) khi lên server |
+| `NEWSNOW_URL`, `NEWS_SOURCES` | Bản NewsNow tự host (`http://newsnow:4444`, có sẵn trong stack server); trống = bản công khai |
+| `REFRESH_EVERY_MIN` | Engine tự cập nhật tin mỗi N phút (0 = chỉ bấm tay; server mặc định 30) |
 | `MAX_VIDEOS_PER_DAY` | Giới hạn số video mỗi ngày (0 = không giới hạn) |
 | `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: tải link dán tay (Douyin, X…) bằng phiên đăng nhập của trình duyệt đó |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz để đăng bài: gốc API (`https://postiz.<domain>/api`) + Public API key |

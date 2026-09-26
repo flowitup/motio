@@ -25,7 +25,7 @@ def safe_id(source: str, ext: str) -> str:
 
 
 def fetch(source: str) -> list[dict]:
-    r = httpx.get(f"{config.NEWSNOW_URL}/api/s", params={"id": source}, headers=UA, timeout=25)
+    r = httpx.get(f"{config.newsnow_url()}/api/s", params={"id": source}, headers=UA, timeout=25)
     r.raise_for_status()
     items = r.json().get("items") or []
     return [{"id": safe_id(source, it["id"]), "source": source, "ext_id": str(it["id"]),

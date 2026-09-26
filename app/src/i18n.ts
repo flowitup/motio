@@ -22,6 +22,8 @@ const vi = {
     lastRefresh: "Cập nhật lần cuối",
     refreshError: "Lỗi cập nhật",
     newScored: (n: number) => `${n} tin mới`,
+    autoRefresh: (min: number) => `Tự cập nhật mỗi ${min} phút`,
+    nextRefresh: "lần tới",
     links: "Link nguồn",
     linksHint: "Mỗi dòng một link video (Douyin, X, Weibo, TikTok…). Link luôn được dùng; tự tìm lấp phần còn lại.",
     linksOnly: "Chỉ dùng các link này",
@@ -95,6 +97,9 @@ const vi = {
     creditInPost: "Ghi nguồn trong bài đăng",
     maxPerDay: "Số video tối đa mỗi ngày (0 = không giới hạn)",
     newsSources: "Nguồn tin (phân cách bằng dấu phẩy)",
+    refreshEvery: "Tự cập nhật tin mỗi (phút, 0 = tắt)",
+    newsnowUrl: "NewsNow",
+    newsnowHint: "Bỏ trống = bản công khai newsnow.busiyi.world. Engine trên server dùng bản tự host.",
     cookies: "Cookie trình duyệt cho link dán tay",
     cookiesNone: "Không dùng",
     cookiesHint: "Douyin và X hay đòi đăng nhập: Motio dùng phiên của trình duyệt này khi tải link bạn dán (engine trên máy).",
@@ -133,6 +138,7 @@ const vi = {
     failed: (t: string) => `Dự án lỗi: ${t}`,
   },
   common: { error: "Lỗi", loading: "Đang tải…" },
+  clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   age: (ts?: number | null) => {
     if (!ts) return "—";
     const m = Math.floor((Date.now() / 1000 - ts) / 60);
