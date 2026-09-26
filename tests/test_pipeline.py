@@ -255,7 +255,8 @@ def test_topic_searches_and_writes_an_explainer(fake, prompts):
     systems = [sys for _, sys in prompts]
     assert systems == [topic.SUBJECT_SYSTEM, topic.PICK_SYSTEM, topic.SCRIPT_SYSTEM]
     script = prompts[-1][0]
-    assert "Sujet : gấu trúc / Le panda" in script and "de 11 à 16 lignes" in script and "≈ 90 secondes" in script
+    # lựa chọn 1 phút 30 nhắm 85 s cho chừa chỗ dưới trần 90 s
+    assert "Sujet : gấu trúc / Le panda" in script and "de 10 à 15 lignes" in script and "≈ 85 secondes" in script
 
 
 def test_topic_from_links_only(fake, prompts):
@@ -336,4 +337,52 @@ def test_too_short_script_is_lengthened_before_voice(fake, monkeypatch):
 
 
 def test_old_lengths_are_raised():
-    assert [pipeline.target_seconds(d) for d in (None, 30, 60, 75, 120)] == [80, 70, 70, 75, 90]
+    assert [pipeline.target_seconds(d) for d in (None, 30, 60, 75, 90, 120)] == [80, 70, 70, 75, 85, 85]
+
+
+def _long_script(monkeypatch, lines: list[dict], extra_fit_words: int = 0) -> None:
+    """Claude viết kịch bản `lines`; khi chỉnh độ dài thì viết dư `extra_fit_words` từ so với số từ được hỏi."""
+    real = llm.ask_json
+
+    def ask_json(prompt, system, **kw):
+        out = real(prompt, system, **kw)
+        if system == pipeline.SCRIPT_SYSTEM:
+            out["lines"] = lines
+        elif prompt.startswith("Voici un script"):
+            want = int(re.search(r"environ (\d+) mots", prompt)[1]) + extra_fit_words
+            q, r = divmod(want, 4)
+            out["lines"] = _lines(3, q) + _lines(1, q + r)
+        return out
+
+    monkeypatch.setattr(llm, "ask_json", ask_json)
+
+
+def test_90_second_option_leaves_room_for_a_long_rewrite(fake, monkeypatch):
+    calls, _ = fake
+    _long_script(monkeypatch, _lines(6, 45), extra_fit_words=10)  # 270 từ ≈ 108 s; Claude viết dư 10 từ
+    pid = _new()
+    pipeline.produce(pid, duration_sec=90)
+    # nhắm 85 s: 270 × (85 - 0.6) / 108 = 211 từ, dư 10 → 221 từ → 89 s (nhắm 90 s thì ra 94 s)
+    assert calls[-4:] == ["voice", "fit", "voice", "render"]
+    assert calls.rendered[-1]["words"] == 221 and calls.rendered[-1]["total"] == pytest.approx(89.0)
+
+
+def test_video_still_over_90_seconds_is_trimmed(fake, monkeypatch):
+    calls, _ = fake
+    lines = [{"text": f"{tag} " + " ".join(["mot"] * 19), "clips": []} for tag in ["debut", *"abcdefghij", "fin"]]
+    _long_script(monkeypatch, lines)  # 12 câu × 20 từ = 240 từ → 96.6 s
+    monkeypatch.setattr(pipeline, "_fit", lambda plan, want: plan)  # Claude không rút ngắn được
+    pid = _new()
+    pipeline.produce(pid)
+    assert calls[-3:] == ["voice", "voice", "render"]
+    assert calls.rendered[-1]["total"] == pytest.approx(88.6)  # bỏ 1 câu (8 s)
+    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    tags = [ln["text"].split()[0] for ln in saved["lines"]]
+    assert tags == ["debut", *"abcdefghi", "fin"]  # giữ câu mở đầu và câu kết, bỏ câu gần cuối
+    assert "bỏ 1 câu gần cuối" in db.get_project(pid)["log"]
+
+
+def test_trim_keeps_three_lines_and_estimates_without_timings():
+    plan = {"title_fr": "T", "lines": _lines(5, 60)}  # 300 từ
+    cut, n = pipeline._trim(plan, {"duration": 200.0, "lines": []})  # 40 s mỗi câu
+    assert n == 2 and len(cut["lines"]) == 3 and len(plan["lines"]) == 5
