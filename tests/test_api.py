@@ -135,3 +135,27 @@ def test_cors_preflight(client):
     r = client.options("/api/health", headers={"Origin": "tauri://localhost", "Access-Control-Request-Method": "GET",
                                                "Access-Control-Request-Headers": "authorization"})
     assert r.headers.get("access-control-allow-origin") == "tauri://localhost"
+
+
+def test_publish_to_postiz(client, fake_postiz):
+    assert client.get("/api/health", headers=H).json()["postiz"] is True
+    chans = client.get("/api/postiz/channels", headers=H).json()
+    assert [(c["id"], c["provider"]) for c in chans] == [("tt1", "tiktok"), ("yt1", "youtube")]
+
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    r = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1"], "mode": "draft"})
+    assert r.status_code == 200 and r.json()["posts"] == [{"postId": "p0", "integration": "tt1"}]
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert [e["mode"] for e in p["meta"]["postiz"]] == ["draft"] and "Postiz (draft): Motio TikTok" in p["log"]
+    assert p["meta"]["video"] == f"projects/{pid}/final.mp4"  # meta cũ giữ nguyên
+
+    bad = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1"], "mode": "schedule"})
+    assert bad.status_code == 400
+
+
+def test_publish_needs_config_and_finished_video(client):
+    assert client.get("/api/postiz/channels", headers=H).status_code == 409
+    pid = db.create_project("douyin:1", "x")
+    assert client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1"]}).status_code == 409
+    assert client.post("/api/projects/999/publish", headers=H, json={"channels": ["tt1"]}).status_code == 404
