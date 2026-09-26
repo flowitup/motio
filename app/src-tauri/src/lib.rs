@@ -19,6 +19,7 @@ pub fn run() {
         .manage(engine::Engine::new())
         .manage(updater::Pending::default())
         .setup(|app| {
+            updater::forget_token(app.handle());
             engine::start(app.handle());
             Ok(())
         })
@@ -28,7 +29,6 @@ pub fn run() {
             engine::set_engine_config,
             engine::restart_engine,
             updater::updater_status,
-            updater::set_update_token,
             updater::check_update,
             updater::install_update,
             open_folder

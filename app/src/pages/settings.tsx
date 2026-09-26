@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,19 +84,8 @@ function EngineCard() {
 
 function UpdateCard() {
   const u = useUpdater();
-  const [token, setToken] = useState("");
-  const [saving, setSaving] = useState(false);
   if (!inTauri) return null;
 
-  const saveToken = async (value: string) => {
-    setSaving(true);
-    try {
-      await u.setToken(value);
-      setToken("");
-    } finally {
-      setSaving(false);
-    }
-  };
   const busy = u.checking || u.progress != null;
   const r = u.result;
 
@@ -153,35 +141,6 @@ function UpdateCard() {
         )}
 
         {u.error && <p className="text-sm text-destructive">{u.error}</p>}
-
-        <Field
-          label={t.update.token}
-          hint={
-            <>
-              {t.update.tokenHint}{" "}
-              <ExternalA href="https://github.com/settings/personal-access-tokens/new" className="underline">
-                {t.update.createToken}
-              </ExternalA>
-            </>
-          }
-        >
-          <div className="flex gap-2">
-            <Input
-              type="password"
-              value={token}
-              placeholder={u.hasToken ? t.update.tokenSaved : "github_pat_…"}
-              onChange={(e) => setToken(e.target.value)}
-            />
-            <Button variant="outline" onClick={() => saveToken(token)} disabled={!token.trim() || saving}>
-              {t.settings.save}
-            </Button>
-            {u.hasToken && (
-              <Button variant="ghost" onClick={() => saveToken("")} disabled={saving}>
-                {t.update.clearToken}
-              </Button>
-            )}
-          </div>
-        </Field>
       </CardContent>
     </Card>
   );

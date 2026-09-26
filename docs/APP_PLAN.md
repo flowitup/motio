@@ -96,10 +96,11 @@ platform APIs.
 ## In-app updates (added 26/09/2026)
 
 The desktop app updates itself from GitHub Releases with Tauri's updater plugin: it checks the latest published
-release on launch and from Cài đặt → "Cập nhật ứng dụng", then downloads, verifies the signature and restarts. The repo
-is private, so each install keeps a read-only GitHub token (fine-grained, Contents: Read) in its config dir; nothing is
-compiled into the app. `release.yml` signs the update bundles (`TAURI_SIGNING_PRIVATE_KEY` secret) and attaches
-`latest.json`, whose bundle URLs are GitHub API asset URLs.
+release on launch and from Cài đặt → "Cập nhật ứng dụng", then downloads, verifies the signature and restarts.
+`release.yml` signs the update bundles (`TAURI_SIGNING_PRIVATE_KEY` secret) and attaches `latest.json`; the app reads it
+from `releases/latest/download/latest.json` and downloads the bundles from the tag's public download links. 0.3.0 needed
+a read-only GitHub token while the repo was private; since 0.3.1 (repo public) there is no token, and the app deletes the
+old `updater.json` on launch.
 
 ## Blueprint GĐ0 additions (added 26/09/2026)
 
