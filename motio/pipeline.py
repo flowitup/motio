@@ -48,10 +48,13 @@ Réponds avec :
   "hashtags": ["#Chine", "..."]}}"""
 
 
-# Độ dài video: chủ dự án muốn mọi video dài ít nhất 1 phút 2 giây; Facebook Reels qua API nhận tối đa 90 giây.
+# Độ dài video: chủ dự án muốn mọi video dài ít nhất 1 phút 2 giây (TikTok Creator Rewards chỉ trả tiền cho video
+# dài hơn 1 phút); Facebook Reels qua API nhận tối đa 90 giây, đây là trần cứng.
 MIN_SECONDS = 62
 MAX_SECONDS = 90
 DEFAULT_SECONDS = 80
+TOP_MARGIN = 5  # nhắm thấp hơn MAX_SECONDS: Claude viết dư ~10 từ (~4 s) vẫn không quá 90 s
+TRIM_MARGIN = 1.0  # bỏ câu cho dư 1 s, vì đọc lại không dài đúng bằng tổng các câu cũ
 WORDS_PER_SEC = 2.5  # ước lượng để đặt số từ cho kịch bản; sau khi có giọng đọc thì đo tốc độ thật
 
 FIT_SYSTEM = "Tu ajustes la longueur d'un script de voix off en français. Tu réponds uniquement en JSON."
@@ -69,12 +72,32 @@ FIT_SHORTER = "Raccourcis-le : coupe ce qui est le moins important."
 
 
 def target_seconds(duration_sec: int | None) -> int:
-    """Độ dài nhắm tới, luôn trong [MIN_SECONDS + 8, MAX_SECONDS] (dự án cũ 30 / 60 s được kéo lên)."""
-    return min(max(int(duration_sec or DEFAULT_SECONDS), MIN_SECONDS + 8), MAX_SECONDS)
+    """Độ dài nhắm tới, luôn trong [MIN_SECONDS + 8, MAX_SECONDS - TOP_MARGIN]: dự án cũ 30 / 60 s được kéo lên,
+    lựa chọn 1 phút 30 nhắm 85 s cho chừa chỗ."""
+    return min(max(int(duration_sec or DEFAULT_SECONDS), MIN_SECONDS + 8), MAX_SECONDS - TOP_MARGIN)
 
 
 def _words(plan: dict) -> int:
     return sum(len(ln["text"].split()) for ln in plan["lines"])
+
+
+def _save_script(out: Path, plan: dict) -> None:
+    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+
+
+def _trim(plan: dict, nar: dict) -> tuple[dict, int]:
+    """Bỏ câu gần cuối (giữ câu mở đầu và câu kết, còn ít nhất 3 câu) theo thời lượng từng câu đã đo, tới khi
+    giọng + đuôi ≤ MAX_SECONDS. Trả (plan mới, số câu đã bỏ)."""
+    lines = list(plan["lines"])
+    spans = [s["end"] - s["start"] for s in nar.get("lines") or []]
+    if len(spans) != len(lines):  # thiếu mốc thời gian từng câu: chia theo số từ
+        total_words = max(_words(plan), 1)
+        spans = [nar["duration"] * len(ln["text"].split()) / total_words for ln in lines]
+    total, budget = nar["duration"], MAX_SECONDS - render.TAIL - TRIM_MARGIN
+    while total > budget and len(lines) > 3:
+        total -= spans.pop(-2)
+        del lines[-2]
+    return {**plan, "lines": lines}, len(plan["lines"]) - len(lines)
 
 
 def _fit(plan: dict, want: int) -> dict:
@@ -253,7 +276,7 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
         step("Kịch bản", 58, f"Kịch bản {_words(plan)} từ, quá ngắn cho video ≥ {MIN_SECONDS} s: viết dài thêm")
         plan = _fit(plan, words)
     plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
-    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+    _save_script(out, plan)
     step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
          title=plan["title_fr"])
     return plan
@@ -382,22 +405,35 @@ def resume(pid: int, start: str | None = None) -> None:
 
 def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
     """Đọc kịch bản. Video (giọng + đuôi) ngoài [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần,
-    theo tốc độ đọc đo được, rồi đọc lại. Trả (plan, narration)."""
+    theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá MAX_SECONDS thì bỏ câu gần cuối và đọc lại. Trả (plan, narration)."""
     step("Giọng đọc", 64, "Tạo giọng đọc tiếng Pháp")
     nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
     length = nar["duration"] + render.TAIL
     step("Giọng đọc", 67, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
-    if MIN_SECONDS <= length <= MAX_SECONDS or nar["duration"] <= 0:
+    if nar["duration"] <= 0:
         return plan, nar
-    want = round(_words(plan) * (duration_sec - render.TAIL) / nar["duration"])
-    step("Giọng đọc", 67, f"Video {length:.0f} s, cần {MIN_SECONDS}–{MAX_SECONDS} s: chỉnh kịch bản còn ~{want} từ")
-    fitted = _fit(plan, want)
-    if fitted is plan:
-        return plan, nar
-    (out / "script.json").write_text(json.dumps(fitted, ensure_ascii=False, indent=1))
-    nar = tts.synthesize([ln["text"] for ln in fitted["lines"]], out / "audio")
-    step("Giọng đọc", 70, f"Đọc lại: {nar['duration']:.1f} s", title=fitted["title_fr"])
-    return fitted, nar
+    if not MIN_SECONDS <= length <= MAX_SECONDS:
+        want = round(_words(plan) * (duration_sec - render.TAIL) / nar["duration"])
+        step("Giọng đọc", 67, f"Video {length:.0f} s, cần {MIN_SECONDS}–{MAX_SECONDS} s: chỉnh kịch bản còn ~{want} từ")
+        fitted = _fit(plan, want)
+        if fitted is not plan:
+            plan = fitted
+            _save_script(out, plan)
+            nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
+            step("Giọng đọc", 68, f"Đọc lại: {nar['duration']:.1f} s", title=plan["title_fr"])
+    for _ in range(2):  # trần cứng: Facebook Reels (API) không nhận video quá 90 s
+        length = nar["duration"] + render.TAIL
+        if length <= MAX_SECONDS:
+            break
+        cut, n = _trim(plan, nar)
+        if not n:
+            break
+        step("Giọng đọc", 69, f"Video {length:.0f} s, tối đa {MAX_SECONDS} s: bỏ {n} câu gần cuối rồi đọc lại")
+        plan = cut
+        _save_script(out, plan)
+        nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
+        step("Giọng đọc", 69, f"Đọc lại: {nar['duration']:.1f} s")
+    return plan, nar
 
 
 def write_post(plan: dict, sources: list[dict], out: Path) -> str:
@@ -420,7 +456,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     if length < MIN_SECONDS:
         step("Giọng đọc", 70, f"Giọng đọc {length:.1f} s: kéo dài phần cuối bằng hình nguồn tới {MIN_SECONDS} s")
     elif length > MAX_SECONDS:
-        step("Giọng đọc", 70, f"Video {length:.0f} s: Facebook Reels (API) chỉ nhận tối đa {MAX_SECONDS} s")
+        step("Giọng đọc", 70, f"Video {length:.0f} s vẫn quá {MAX_SECONDS} s: Facebook Reels (API) sẽ không nhận")
 
     # 6. Dựng
     def prog(done, total):
