@@ -90,6 +90,14 @@ The desktop app uses it as a remote engine. Posting goes through Postiz's Public
 sent as a draft, scheduled or posted now (`POST /api/projects/{id}/publish`). Postiz owns OAuth, calendars and the
 platform APIs.
 
+## In-app updates (added 26/09/2026)
+
+The desktop app updates itself from GitHub Releases with Tauri's updater plugin: it checks the latest published
+release on launch and from Cài đặt → "Cập nhật ứng dụng", then downloads, verifies the signature and restarts. The repo
+is private, so each install keeps a read-only GitHub token (fine-grained, Contents: Read) in its config dir; nothing is
+compiled into the app. `release.yml` signs the update bundles (`TAURI_SIGNING_PRIVATE_KEY` secret) and attaches
+`latest.json`, whose bundle URLs are GitHub API asset URLs.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to

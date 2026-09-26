@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderKanban, Flame, Loader2, Settings as SettingsIcon, TriangleAlert } from "lucide-react";
+import { Download, FolderKanban, Flame, Loader2, Settings as SettingsIcon, TriangleAlert } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { useEngine } from "@/lib/engine";
+import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import ProjectDetailPage from "@/pages/project-detail";
@@ -27,6 +28,21 @@ function EngineBadge() {
       <span className={cn("size-2 rounded-full", color)} />
       <span className="truncate">{label}</span>
     </div>
+  );
+}
+
+/** Có bản mới trên GitHub: nhắc ở thanh bên, bấm để vào Cài đặt. */
+function UpdateNotice() {
+  const { result } = useUpdater();
+  if (!result?.version) return null;
+  return (
+    <NavLink
+      to="/settings"
+      className="mx-2 mb-3 flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-emerald-500/20"
+    >
+      <Download className="size-4 shrink-0" />
+      <span className="truncate">{t.update.available(result.version)}</span>
+    </NavLink>
   );
 }
 
@@ -89,6 +105,7 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
+        <UpdateNotice />
         <EngineBadge />
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">
