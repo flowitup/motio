@@ -1,8 +1,8 @@
 name: Release
 
 # Tag vX.Y.Z (same version as app/src-tauri/tauri.conf.json) → macOS .dmg + Windows .msi/.exe → draft GitHub Release.
-# Installers are unsigned and do not bundle the Python engine: point the app at a running engine in
-# Cài đặt → "Engine từ xa". Pull requests that change this file build the installers without releasing.
+# Installers are unsigned and ship the engine frozen by tools/build_engine.py (PyInstaller + static ffmpeg).
+# Pull requests that change this file or the engine packaging tools build the installers without releasing.
 # In-app updates: with the TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) secrets, the build also signs update bundles and the
 # release gets latest.json; the app reads releases/latest/download/latest.json, so it sees the update once the draft is
 # published (app/src-tauri/src/updater.rs).
@@ -10,7 +10,11 @@ on:
   push:
     tags: ["v*"]
   pull_request:
-    paths: [".github/workflows/release.yml"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "tools/build_engine.py"
+      - "tools/engine_entry.py"
+      - "tools/fetch_ffmpeg.py"
   workflow_dispatch:
 
 concurrency:
@@ -59,6 +63,16 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match version $version in app/src-tauri/tauri.conf.json"
             exit 1
           fi
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Freeze the engine into app/src-tauri/resources
+        working-directory: .
+        run: |
+          uv sync --locked --group build
+          uv run --group build python tools/build_engine.py
 
       - uses: pnpm/action-setup@v4
         with:
