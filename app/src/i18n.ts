@@ -40,7 +40,8 @@ const vi = {
     linksHint: "Mỗi dòng một link: Douyin, Bilibili, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó.",
     linksOnly: "Chỉ dùng các link này",
     duration: "Độ dài",
-    durations: { "30": "30 giây", "60": "1 phút", "90": "1 phút 30" } as Record<string, string>,
+    durations: { "70": "1 phút 10", "80": "1 phút 20", "90": "1 phút 30" } as Record<string, string>,
+    durationHint: "Mọi video dài ít nhất 1 phút 2 giây và tối đa 1 phút 30 (giới hạn Facebook Reels).",
     rights: "Quyền dùng video nguồn",
     rightsHint: "Ghi lại quyền của bạn với video nguồn. Sau này, video lồng tiếng chỉ gửi Postiz được khi nguồn là của bạn, có giấy phép hoặc CC.",
     rightsOptions: {

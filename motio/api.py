@@ -37,7 +37,7 @@ class TopicIn(BaseModel):
     topic: str = ""  # chủ đề tự do, mọi ngôn ngữ; bỏ trống = chỉ dùng link
     links: list[str] = []
     links_only: bool = False
-    duration: int = 60  # 30 | 60 | 90
+    duration: int = 80  # 70 | 80 | 90 giây
     rights: str = "unknown"  # unknown | owned | licensed | cc
 
 

@@ -61,6 +61,8 @@ on every PR; keep them green.
 - Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
   `sources.txt` in the project folder.
 - Keep the on-video "Voix de synthèse (IA)" label (AI Act art. 50 disclosure).
+- Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
+  `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Never add features that remove logos/watermarks from third-party footage or evade duplicate /
   Content ID detection.
 - Before committing: `uv run ruff check motio` (add ruff as a dev dependency if missing),

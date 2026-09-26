@@ -48,6 +48,47 @@ Réponds avec :
   "hashtags": ["#Chine", "..."]}}"""
 
 
+# Độ dài video: chủ dự án muốn mọi video dài ít nhất 1 phút 2 giây; Facebook Reels qua API nhận tối đa 90 giây.
+MIN_SECONDS = 62
+MAX_SECONDS = 90
+DEFAULT_SECONDS = 80
+WORDS_PER_SEC = 2.5  # ước lượng để đặt số từ cho kịch bản; sau khi có giọng đọc thì đo tốc độ thật
+
+FIT_SYSTEM = "Tu ajustes la longueur d'un script de voix off en français. Tu réponds uniquement en JSON."
+FIT_PROMPT = """Voici un script de voix off (JSON) de {now} mots. Il doit faire environ {want} mots au total
+({lo}–{hi}) pour que la vidéo dure entre {min_s} et {max_s} secondes.
+{how}
+Garde le même style, la même accroche, la même structure JSON (title_fr, lines avec leurs clips, description,
+hashtags) et des lignes de 20 mots maximum. N'invente aucun fait précis (chiffre, nom, date) absent du script.
+
+Script :
+{plan}"""
+FIT_LONGER = ("Allonge-le : ajoute du contexte, une explication ou une analyse, ou une ligne de plus avec ses "
+              "clips (d'autres plages des mêmes vidéos, sans répéter un passage).")
+FIT_SHORTER = "Raccourcis-le : coupe ce qui est le moins important."
+
+
+def target_seconds(duration_sec: int | None) -> int:
+    """Độ dài nhắm tới, luôn trong [MIN_SECONDS + 8, MAX_SECONDS] (dự án cũ 30 / 60 s được kéo lên)."""
+    return min(max(int(duration_sec or DEFAULT_SECONDS), MIN_SECONDS + 8), MAX_SECONDS)
+
+
+def _words(plan: dict) -> int:
+    return sum(len(ln["text"].split()) for ln in plan["lines"])
+
+
+def _fit(plan: dict, want: int) -> dict:
+    """Claude viết lại kịch bản cho đủ khoảng `want` từ; lỗi hay trả về ít dòng quá thì giữ bản cũ."""
+    now = _words(plan)
+    new = llm.ask_json(FIT_PROMPT.format(
+        now=now, want=want, lo=want - 5, hi=want + 10, min_s=MIN_SECONDS, max_s=MAX_SECONDS,
+        how=FIT_LONGER if want > now else FIT_SHORTER, plan=json.dumps(plan, ensure_ascii=False)), FIT_SYSTEM)
+    lines = [ln for ln in (new.get("lines") if isinstance(new, dict) else None) or [] if (ln.get("text") or "").strip()]
+    if len(lines) < 3:
+        return plan
+    return {**plan, **{k: new[k] for k in ("title_fr", "description", "hashtags") if new.get(k)}, "lines": lines}
+
+
 class QuotaExceeded(RuntimeError):
     pass
 
@@ -193,9 +234,9 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
                  duration_sec: int) -> dict:
     step("Kịch bản", 55, "Claude viết lời bình tiếng Pháp")
     subj = _subject(proj)
-    words = int(duration_sec * 2.5)
+    words = int(duration_sec * WORDS_PER_SEC)
     n_min, n_max = topic.lines_for(duration_sec)
-    size = {"n_min": n_min, "n_max": n_max, "w_min": words - 20, "w_max": words + 10, "sec": duration_sec,
+    size = {"n_min": n_min, "n_max": n_max, "w_min": words - 15, "w_max": words + 10, "sec": duration_sec,
             "sources": _fmt_sources(sources, transcripts)}
     if subj["mode"] == topic.MODE:
         title = " / ".join(x for x in (subj["topic"], subj.get("title_fr")) if x) or topic.NO_TOPIC
@@ -208,6 +249,9 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
     plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
     if len(plan["lines"]) < 3:
         raise RuntimeError("Kịch bản quá ngắn")
+    if _words(plan) < (MIN_SECONDS - render.TAIL) * WORDS_PER_SEC:  # chắc chắn dưới 62 s: viết dài ra trước khi đọc
+        step("Kịch bản", 58, f"Kịch bản {_words(plan)} từ, quá ngắn cho video ≥ {MIN_SECONDS} s: viết dài thêm")
+        plan = _fit(plan, words)
     plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
     (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
     step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
@@ -277,12 +321,12 @@ def _invalidate(pid: int, start: str, redo: bool) -> None:
         (out / "script.json").unlink(missing_ok=True)
 
 
-def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str = "search") -> None:
+def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4, start: str = "search") -> None:
     """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video. meta.duration (nếu có) thắng duration_sec."""
     if start not in STEPS:
         raise ValueError(f"Bước không hợp lệ: {start}")
     step = Step(pid)
-    duration_sec = db.get_project(pid)["meta"].get("duration") or duration_sec
+    duration_sec = target_seconds(db.get_project(pid)["meta"].get("duration") or duration_sec)
     out = config.PROJECTS / str(pid)
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
@@ -303,7 +347,7 @@ def produce(pid: int, duration_sec: int = 60, max_sources: int = 4, start: str =
             plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
         else:
             plan = json.loads((out / "script.json").read_text())
-        _voice_render_post(pid, plan, sources, out, step, t_begin)
+        _voice_render_post(pid, plan, sources, out, step, t_begin, duration_sec)
     except Exception as e:
         db.update_project(pid, status="failed", log=f"LỖI: {e}\n{traceback.format_exc()[-1200:]}")
         raise
@@ -336,17 +380,41 @@ def resume(pid: int, start: str | None = None) -> None:
     produce(pid, start=start)
 
 
-def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float) -> None:
-    # 5. Giọng đọc
+def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
+    """Đọc kịch bản. Video (giọng + đuôi) ngoài [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần,
+    theo tốc độ đọc đo được, rồi đọc lại. Trả (plan, narration)."""
     step("Giọng đọc", 64, "Tạo giọng đọc tiếng Pháp")
     nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
-    step("Giọng đọc", 70, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
+    length = nar["duration"] + render.TAIL
+    step("Giọng đọc", 67, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
+    if MIN_SECONDS <= length <= MAX_SECONDS or nar["duration"] <= 0:
+        return plan, nar
+    want = round(_words(plan) * (duration_sec - render.TAIL) / nar["duration"])
+    step("Giọng đọc", 67, f"Video {length:.0f} s, cần {MIN_SECONDS}–{MAX_SECONDS} s: chỉnh kịch bản còn ~{want} từ")
+    fitted = _fit(plan, want)
+    if fitted is plan:
+        return plan, nar
+    (out / "script.json").write_text(json.dumps(fitted, ensure_ascii=False, indent=1))
+    nar = tts.synthesize([ln["text"] for ln in fitted["lines"]], out / "audio")
+    step("Giọng đọc", 70, f"Đọc lại: {nar['duration']:.1f} s", title=fitted["title_fr"])
+    return fitted, nar
+
+
+def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float,
+                       duration_sec: int = DEFAULT_SECONDS) -> None:
+    # 5. Giọng đọc (đủ độ dài)
+    plan, nar = _voice(plan, out, step, duration_sec)
+    length = nar["duration"] + render.TAIL
+    if length < MIN_SECONDS:
+        step("Giọng đọc", 70, f"Giọng đọc {length:.1f} s: kéo dài phần cuối bằng hình nguồn tới {MIN_SECONDS} s")
+    elif length > MAX_SECONDS:
+        step("Giọng đọc", 70, f"Video {length:.0f} s: Facebook Reels (API) chỉ nhận tối đa {MAX_SECONDS} s")
 
     # 6. Dựng
     def prog(done, total):
         step("Dựng", 70 + int(26 * done / total), None)
 
-    res = render.render(plan, sources, nar, out, progress=prog)
+    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS)
 
     # 7. Mô tả bài đăng
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)

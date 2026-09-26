@@ -20,7 +20,8 @@ uv run python -m motio serve        # open http://127.0.0.1:8765
    text (title, description, sources, hashtags).
 
 Beyond hot news: in the app, **Dự án → Tạo video** (Projects → make video) takes any topic, in any language, and/or
-video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 30 / 60 / 90-second French explainer.
+video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
+Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... rerender <project>`, `... retry <project> [step]` (continue from the failed

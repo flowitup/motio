@@ -19,6 +19,7 @@ from .asr import has_audio
 W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
 NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
+TAIL = 0.6  # giây hình sau câu cuối
 CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn / nhãn AI
 CAP_SIZE, CAP_LINE = 60, 78
 CAP_H = captions.MAX_LINES * CAP_LINE + 40
@@ -235,8 +236,9 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path) -> None:
           "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", str(out)])
 
 
-def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None) -> dict:
-    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize."""
+def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
+           min_total: float = 0.0) -> dict:
+    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
@@ -244,11 +246,12 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
         s["has_audio"] = has_audio(Path(s["path"]))
         s["cuts"] = scenes.detect(Path(s["path"]))  # đã có cache nếu pipeline chạy bước cắt cảnh
     lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"], strict=False)]
-    total = narration["duration"] + 0.6
+    total = max(narration["duration"] + TAIL, min_total)  # thiếu thì kéo dài phần cuối bằng hình nguồn
 
     # Phụ đề karaoke theo mốc từng từ của giọng đọc
     words = captions.word_times([ln["text"] for ln in plan["lines"]], narration["lines"], narration.get("alignment"))
-    cues = captions.build_cues(words, total, fits=caption_fits(), shift=NARRATION_DELAY)
+    spoken = narration["duration"] + TAIL  # câu cuối không ở lại suốt phần đuôi kéo dài
+    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(), shift=NARRATION_DELAY)
     (out_dir / "captions.srt").write_text(captions.to_srt(cues), encoding="utf-8")
     (out_dir / "captions.ass").write_text(captions.to_ass(cues), encoding="utf-8")
     cap_list = write_caption_track(cues, work)

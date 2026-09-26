@@ -23,7 +23,7 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
   const [topic, setTopic] = useState("");
   const [text, setText] = useState("");
   const [linksOnly, setLinksOnly] = useState(false);
-  const [duration, setDuration] = useState("60");
+  const [duration, setDuration] = useState("80");
   const [rights, setRights] = useState<Rights>("unknown");
   const links = text
     .split("\n")
@@ -66,11 +66,11 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
           </label>
         )}
         <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
-          <Field label={t.projects.duration}>
+          <Field label={t.projects.duration} hint={t.projects.durationHint}>
             <Choice
               value={duration}
               onChange={setDuration}
-              options={["30", "60", "90"].map((d) => [d, t.projects.durations[d]])}
+              options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
             />
           </Field>
           <Field label={t.projects.rights} hint={t.projects.rightsHint}>

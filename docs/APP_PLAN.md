@@ -133,13 +133,26 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   A free topic in any language and/or 1–10 video links. Claude turns the topic into a French title, an angle and
   ZH/EN/FR keywords (`motio/topic.py`), YouTube + Bilibili search fills the slots the links leave, and the script is
   an original French explainer (subject-neutral prompts; news projects keep theirs). With links only, search is
-  skipped. Length 30 / 60 / 90 s (`meta.duration`). Every project carries a rights flag
+  skipped. Length 70 / 80 / 90 s (`meta.duration`). Every project carries a rights flag
   (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
   news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
 - **B · Watchlist** (next, own brainstorm): YouTube channels/playlists, Bilibili user spaces and saved searches feed a
   "Video mới" list via the scheduler. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
 - **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz
   only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused content on every platform.
+
+## Video length: 62–90 s (added 26/09/2026)
+
+The owner's rule: every video lasts at least 1 min 2 s. The top is 90 s because Facebook Reels published through the
+Graph API accept 3–90 s (checked 26/09: YouTube Shorts allow 3 min, Instagram Reels via API 15 min, TikTok per
+creator, X 140 s on free accounts). `pipeline.MIN_SECONDS = 62`, `MAX_SECONDS = 90`, default target 80 s; older
+30 / 60 s targets are raised to 70.
+
+- Script: word count from the target at 2.5 words/s; a script that can't reach 62 s is lengthened before the voice.
+- Voice: if narration + 0.6 s falls outside 62–90 s, Claude rewrites once to the word count the measured speech rate
+  needs, and it is read again (rerender does the same, so old projects come out ≥ 62 s).
+- Render: still short → the last shot continues with source footage up to 62 s (captions end with the voice);
+  still over 90 s → a log line warns that Facebook Reels (API) won't take it.
 
 ## Out of scope for now
 

@@ -5,7 +5,7 @@ from . import db, llm, search
 
 MODE = "topic"
 RIGHTS = ("unknown", "owned", "licensed", "cc")  # quyền dùng video nguồn; chưa rõ = unknown
-DURATIONS = (30, 60, 90)
+DURATIONS = (70, 80, 90)  # mọi video > 1 phút 2 giây (pipeline.MIN_SECONDS), tối đa 90 s
 
 SUBJECT_SYSTEM = "Tu prépares une courte vidéo explicative en français. Réponds uniquement en JSON."
 SUBJECT_PROMPT = """Sujet proposé (dans n'importe quelle langue) : {topic}
@@ -72,11 +72,11 @@ def expand(topic: str) -> dict:
 
 
 def lines_for(duration_sec: int) -> tuple[int, int]:
-    """Số dòng kịch bản theo độ dài: 30 s → 4–5, 60 s → 7–11, 90 s → 11–16."""
+    """Số dòng kịch bản theo độ dài: 60 s → 7–11, 80 s → 9–15, 90 s → 11–16."""
     return max(4, round(duration_sec / 8.5)), max(5, round(duration_sec / 5.5))
 
 
-def create(topic: str = "", links: list[str] | None = None, links_only: bool = False, duration: int = 60,
+def create(topic: str = "", links: list[str] | None = None, links_only: bool = False, duration: int = 80,
            rights: str = "unknown") -> int:
     """Tạo dự án chủ đề (chưa chạy). Không có chủ đề thì chỉ dùng link. ValueError nếu thiếu / sai dữ liệu."""
     topic = " ".join(topic.split())[:300]
