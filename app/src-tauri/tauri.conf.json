@@ -36,7 +36,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRDOTcxNTYyMkE5M0RFQTkKUldTcDNwTXFZaFdYVEptcnJ0Slh3SGNsaElaeWVhNy92dENFMVE0OTAwUTNra3Z2ckZ5WUVtSEcK",
       "windows": {
         "installMode": "passive"
       }
