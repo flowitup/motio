@@ -1,5 +1,6 @@
 """CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
-retry <id> [step] | delete <id> | serve | engine ...]"""
+retry <id> [step] | delete <id> | watch "<link kênh | từ khoá>" [bilibili] | check | clips | serve |
+engine ...]"""
 import argparse
 import json
 import os
@@ -45,6 +46,19 @@ def main(argv: list[str]) -> None:
         print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "watch":  # watch "<link kênh / playlist | từ khoá>" [youtube | bilibili]: thêm nguồn rồi kiểm tra
+        from . import watch
+        try:
+            wid = watch.add(argv[1] if len(argv) > 1 else "", argv[2] if len(argv) > 2 else "youtube")
+        except ValueError as e:
+            sys.exit(str(e))
+        print(json.dumps(watch.check_all([wid]), ensure_ascii=False, indent=1))
+        _print_clips(wid)
+    elif cmd == "check":  # kiểm tra mọi nguồn theo dõi đang bật
+        from . import watch
+        print(json.dumps(watch.check_all(), ensure_ascii=False, indent=1))
+    elif cmd == "clips":
+        _print_clips()
     elif cmd == "rerender":
         from . import pipeline
         pipeline.rerender(int(argv[1]))
@@ -70,6 +84,12 @@ def main(argv: list[str]) -> None:
         engine(argv[1:])
     else:
         sys.exit(__doc__)
+
+
+def _print_clips(watch_id: int | None = None) -> None:
+    for c in db.list_clips("new", watch_id, 30):
+        score = "" if c["score"] is None else c["score"]
+        print(f"{score:>3}  {c['id']:<28} {c['title_fr'] or c['title']}  ({c['watch_name']})")
 
 
 LOOPBACK = ("127.0.0.1", "localhost", "::1")

@@ -157,6 +157,7 @@ function HealthCard({ api }: { api: Api }) {
     ["TTS", h.providers.tts ?? <span className="text-destructive">{t.settings.none}</span>],
     ["ASR", `${h.providers.asr.engine} · ${h.providers.asr.model}`],
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
+    [t.settings.jsRuntime, h.js_runtime ?? <span className="text-destructive">{t.settings.jsRuntimeMissing}</span>],
     ["claude CLI", h.claude_cli ?? <span className="text-muted-foreground">{t.settings.notFound}</span>],
     ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
     [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],

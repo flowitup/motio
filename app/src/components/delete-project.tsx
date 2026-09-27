@@ -37,6 +37,8 @@ export function DeleteProjectDialog({
       // Không removeQueries(["project", id]): trang chi tiết còn đang mở sẽ tải lại và gặp 404. Id không bao giờ dùng lại.
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["trends"] });
+      qc.invalidateQueries({ queryKey: ["clips"] });
+      qc.invalidateQueries({ queryKey: ["watches"] });
       onDeleted?.();
     },
   });

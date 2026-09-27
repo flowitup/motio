@@ -4,7 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, config, db, newsnow, pipeline, settings
+from motio import api, config, db, newsnow, pipeline, settings, watch
 
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
@@ -253,15 +253,16 @@ def test_publish_needs_config_and_finished_video(client):
 
 
 def test_scheduled_refresh(monkeypatch):
-    calls = []
+    calls, checks = [], []
     monkeypatch.setattr(newsnow, "refresh", lambda: calls.append(time.time()) or {"new": 0, "scored": 0, "errors": {}})
+    monkeypatch.setattr(watch, "check_all", lambda ids=None: checks.append(ids) or {"checked": 0, "new": 0})
     monkeypatch.setattr(api, "SCHED_TICK", 0.01)
     monkeypatch.setattr(api, "FIRST_DELAY", 0.0)
     with TestClient(api.create_app(TOKEN)) as c:
         st = c.get("/api/state", headers=H).json()
         assert st["refresh_every_min"] == 0 and st["next_refresh"] is None
         time.sleep(0.1)
-        assert calls == []  # tắt theo mặc định
+        assert calls == [] and checks == []  # tắt theo mặc định
         settings.update({"REFRESH_EVERY_MIN": 30})
         end = time.time() + 3
         while not calls and time.time() < end:
@@ -269,5 +270,10 @@ def test_scheduled_refresh(monkeypatch):
         assert len(calls) == 1
         st = c.get("/api/state", headers=H).json()
         assert st["refresh_every_min"] == 30 and st["next_refresh"] == pytest.approx(st["last_refresh"] + 1800)
+        while not checks and time.time() < end:
+            time.sleep(0.01)
+        assert checks == [None]  # nguồn theo dõi: cùng nhịp với tin hot
+        st = c.get("/api/state", headers=H).json()
+        assert st["next_watch"] == pytest.approx(st["last_watch"] + 1800)
         time.sleep(0.1)
-        assert len(calls) == 1  # lần sau là 30 phút nữa
+        assert len(calls) == 1 and len(checks) == 1  # lần sau là 30 phút nữa

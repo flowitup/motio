@@ -20,7 +20,7 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
 1. **`motio/api.py`** — JSON-only FastAPI app replacing the Jinja dashboard (keep `web.py` until M2 ships).
    Auth: random token, `Authorization: Bearer <token>`; `?token=` accepted only for `/media` and SSE.
    CORS for `tauri://localhost`, `http://tauri.localhost`, `http://localhost:1420`.
-   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg found, claude CLI found
+   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg, JS runtime (deno) and claude CLI found
    - `GET  /api/trends?hours=24&source=` · `POST /api/trends/refresh` (async) · `GET /api/state`
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`
@@ -30,6 +30,9 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
    - `DELETE /api/projects/{id}` · `GET/PUT /api/projects/{id}/script` — delete a project, edit its script (added
      26/09, see "Edit and delete projects")
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
+  - `GET/POST /api/watches` · `PATCH/DELETE /api/watches/{id}` · `POST /api/watches/check` (async) ·
+    `GET /api/clips?status=new|used|hidden&watch_id=` · `PATCH /api/clips/{id}` `{status}` ·
+    `POST /api/clips/{id}/produce` `{duration, links_only?}` (added 26/09, see "Beyond hot news")
    - `GET  /api/voices` — ElevenLabs voices (id, name, labels) when a key is set
    - `GET/PUT /api/settings` — see 4.
    - `GET  /media/{path}` — files under `data/`
@@ -139,8 +142,16 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   skipped. Length 70 / 80 / 90 s (`meta.duration`). Every project carries a rights flag
   (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
   news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
-- **B · Watchlist** (next, own brainstorm): YouTube channels/playlists, Bilibili user spaces and saved searches feed a
-  "Video mới" list via the scheduler. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
+- **B · Watchlist** (built, `motio/watch.py`): a "Video mới" page follows YouTube channels (videos + Shorts tabs) and
+  playlists, Bilibili user spaces / series / favourites, and saved searches (YouTube: videos uploaded this month; Bilibili). yt-dlp
+  lists them flat (no upload date, so "new" = not seen before); a new source shows its latest 10 videos per list,
+  later checks only unseen ones. Checks run on the `REFRESH_EVERY_MIN` scheduler, when a source is added, or with
+  "Kiểm tra ngay"; one low-effort Claude call per 20 new videos gives a French title and a score. "Làm video" makes a
+  topic project from the video's link (title as the topic). A source's rights flag carries over when only that video
+  is used (the default for owned / licensed / cc sources); adding search footage makes the project `unknown`.
+  Bilibili lists give links only, so Motio reads each new video's page for its title; the space API often needs
+  `YTDLP_COOKIES_FROM_BROWSER`. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
+  The same PR fixes YouTube downloads: yt-dlp needs a JavaScript runtime (Deno, bundled) and `yt-dlp-ejs`.
 - **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz
   only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused content on every platform.
 
@@ -165,7 +176,7 @@ Agreed with the owner on 26/09 (brainstorm: script editor, not a clip-level time
 
 - **Delete**: a trash button on each card in Dự án and on the project page, with a confirm dialog. It removes the
   project row and `data/projects/<id>/`, keeps the shared source cache, and puts a news trend back to "new" when no
-  other project uses it. Refused while the project is queued or running. Posts sent to Postiz stay there. CLI
+  other project uses it (a "Video mới" clip too, unless its source was removed). Refused while the project is queued or running. Posts sent to Postiz stay there. CLI
   `delete <id>`.
 - **Edit**: a "Kịch bản" card on the project page (`motio/edit.py`, `GET/PUT /api/projects/{id}/script`) edits the
   on-video title, each voice-over line (edit, add, move, remove; lines keep their clips, new lines get filler

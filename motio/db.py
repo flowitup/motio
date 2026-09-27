@@ -1,4 +1,4 @@
-"""SQLite cho MVP (bảng trend, project). Giai đoạn 1 chuyển sang Postgres."""
+"""SQLite cho MVP (bảng trend, project, watch, clip). Giai đoạn 1 chuyển sang Postgres."""
 import json
 import sqlite3
 import threading
@@ -25,6 +25,22 @@ CREATE TABLE IF NOT EXISTS project (
   step TEXT, pct INTEGER DEFAULT 0, log TEXT DEFAULT '',
   meta TEXT DEFAULT '{}', created_at REAL, updated_at REAL
 );
+CREATE TABLE IF NOT EXISTS watch (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT, site TEXT,           -- channel | playlist | space | search · youtube | bilibili
+  target TEXT,                    -- URL (kênh, playlist, không gian) hoặc từ khoá tìm
+  name TEXT, rights TEXT DEFAULT 'unknown', enabled INTEGER DEFAULT 1,
+  created_at REAL, last_checked REAL, last_error TEXT,
+  UNIQUE (site, target)
+);
+CREATE TABLE IF NOT EXISTS clip (
+  id TEXT PRIMARY KEY,            -- "{site}:{video id}"
+  watch_id INTEGER, site TEXT, url TEXT, title TEXT, title_fr TEXT, reason TEXT,
+  uploader TEXT, duration REAL, views INTEGER, thumbnail TEXT, score INTEGER,
+  first_seen REAL, status TEXT DEFAULT 'new',  -- new | old (có sẵn lúc thêm nguồn) | hidden | used
+  project_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS clip_feed ON clip (status, first_seen);
 """
 
 
@@ -131,7 +147,8 @@ def list_projects(limit: int = 20) -> list[dict]:
 
 
 def delete_project(pid: int) -> bool:
-    """Xoá dự án không còn chạy. Tin hot của nó quay về 'new' khi không còn dự án nào khác dùng.
+    """Xoá dự án không còn chạy. Tin hot của nó quay về 'new' khi không còn dự án nào khác dùng; video từ
+    "Video mới" cũng quay về 'new' (bỏ luôn nếu nguồn đã bị xoá).
     Trả False nếu không xoá (không có, hoặc đang chờ / đang chạy)."""
     with _lock, conn() as c:
         r = c.execute("SELECT trend_id FROM project WHERE id=?", (pid,)).fetchone()
@@ -139,6 +156,9 @@ def delete_project(pid: int) -> bool:
         tid = r["trend_id"] if r else None
         if gone and tid and not c.execute("SELECT 1 FROM project WHERE trend_id=?", (tid,)).fetchone():
             c.execute("UPDATE trend SET status='new' WHERE id=? AND status='used'", (tid,))
+        if gone:
+            c.execute("DELETE FROM clip WHERE project_id=? AND watch_id NOT IN (SELECT id FROM watch)", (pid,))
+            c.execute("UPDATE clip SET status='new', project_id=NULL WHERE project_id=?", (pid,))
         return bool(gone)
 
 
@@ -156,3 +176,96 @@ def fail_stale() -> list[int]:
     for pid in ids:
         update_project(pid, status="failed", log="LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.")
     return ids
+
+
+# ---------- nguồn theo dõi (watch) và video mới (clip) ----------
+WATCH_FIELDS = ("name", "rights", "enabled", "last_checked", "last_error")
+
+
+def add_watch(kind: str, site: str, target: str, name: str, rights: str = "unknown") -> int:
+    with _lock, conn() as c:
+        return c.execute("INSERT INTO watch (kind, site, target, name, rights, created_at) VALUES (?,?,?,?,?,?)",
+                         (kind, site, target, name, rights, time.time())).lastrowid
+
+
+def find_watch(site: str, target: str) -> dict | None:
+    with conn() as c:
+        return _watch(c.execute("SELECT * FROM watch WHERE site=? AND target=?", (site, target)).fetchone())
+
+
+def _watch(r) -> dict | None:
+    return {**dict(r), "enabled": bool(r["enabled"])} if r else None
+
+
+def get_watch(wid: int) -> dict | None:
+    with conn() as c:
+        return _watch(c.execute("SELECT * FROM watch WHERE id=?", (wid,)).fetchone())
+
+
+def list_watches() -> list[dict]:
+    """Mọi nguồn, kèm số video mới (chưa làm, chưa ẩn)."""
+    with conn() as c:
+        rows = c.execute("SELECT w.*, (SELECT COUNT(*) FROM clip WHERE watch_id=w.id AND status='new') AS new_count "
+                         "FROM watch w ORDER BY w.id").fetchall()
+    return [_watch(r) for r in rows]
+
+
+def update_watch(wid: int, **fields) -> None:
+    cols = [k for k in fields if k in WATCH_FIELDS]
+    if not cols:
+        return
+    with _lock, conn() as c:
+        c.execute(f"UPDATE watch SET {', '.join(f'{k}=?' for k in cols)} WHERE id=?",
+                  (*(fields[k] for k in cols), wid))
+
+
+def delete_watch(wid: int) -> None:
+    """Xoá nguồn và các video của nó chưa dùng làm dự án."""
+    with _lock, conn() as c:
+        c.execute("DELETE FROM clip WHERE watch_id=? AND status != 'used'", (wid,))
+        c.execute("DELETE FROM watch WHERE id=?", (wid,))
+
+
+def known_clip_ids(ids: list[str]) -> set[str]:
+    if not ids:
+        return set()
+    with conn() as c:
+        return {r[0] for r in c.execute(f"SELECT id FROM clip WHERE id IN ({','.join('?' * len(ids))})", ids)}
+
+
+def insert_clips(clips: list[dict]) -> None:
+    now = time.time()
+    keys = ("id", "watch_id", "site", "url", "title", "uploader", "duration", "views", "thumbnail", "status")
+    with _lock, conn() as c:
+        c.executemany(f"INSERT OR IGNORE INTO clip ({', '.join(keys)}, first_seen) "
+                      f"VALUES ({', '.join(':' + k for k in keys)}, :now)",
+                      [{**{k: cl.get(k) for k in keys}, "now": now} for cl in clips])
+
+
+def score_clip(cid: str, title_fr: str | None, score: int | None, reason: str | None) -> None:
+    with _lock, conn() as c:
+        c.execute("UPDATE clip SET title_fr=?, score=?, reason=? WHERE id=?", (title_fr, score, reason, cid))
+
+
+def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 200) -> list[dict]:
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.rights AS rights "
+           "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.status = ?")
+    args: list = [status]
+    if watch_id:
+        sql += " AND clip.watch_id = ?"
+        args.append(watch_id)
+    sql += " ORDER BY clip.score IS NULL, clip.score DESC, clip.first_seen DESC LIMIT ?"
+    with conn() as c:
+        return [dict(r) for r in c.execute(sql, (*args, limit)).fetchall()]
+
+
+def get_clip(cid: str) -> dict | None:
+    with conn() as c:
+        r = c.execute("SELECT clip.*, watch.name AS watch_name, watch.rights AS rights "
+                      "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.id=?", (cid,)).fetchone()
+    return dict(r) if r else None
+
+
+def set_clip_status(cid: str, status: str, project_id: int | None = None) -> None:
+    with _lock, conn() as c:
+        c.execute("UPDATE clip SET status=?, project_id=COALESCE(?, project_id) WHERE id=?", (status, project_id, cid))

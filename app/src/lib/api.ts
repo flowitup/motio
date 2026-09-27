@@ -146,6 +146,7 @@ export type Health = {
   };
   ffmpeg: string | null;
   ffprobe: string | null;
+  js_runtime: string | null;
   claude_cli: string | null;
   postiz: boolean;
   quota_left: number | null;
@@ -159,6 +160,58 @@ export type RefreshState = {
   busy: boolean;
   refresh_every_min: number; // 0 = chỉ cập nhật bằng tay
   next_refresh: number | null;
+  watching: boolean;
+  last_watch: number | null;
+  last_watch_result: {
+    checked?: number;
+    new?: number;
+    scored?: number;
+    errors?: Record<string, string>; // id nguồn → lỗi
+    score_error?: string;
+    error?: string;
+  } | null;
+  next_watch: number | null;
+};
+
+export type WatchKind = "channel" | "playlist" | "space" | "search";
+export type Site = "youtube" | "bilibili";
+
+/** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu. */
+export type Watch = {
+  id: number;
+  kind: WatchKind;
+  site: Site;
+  target: string; // URL, hoặc từ khoá khi kind = search
+  name: string | null;
+  rights: Rights;
+  enabled: boolean;
+  created_at: number;
+  last_checked: number | null;
+  last_error: string | null;
+  new_count: number;
+};
+
+export type ClipStatus = "new" | "used" | "hidden";
+
+/** Video mới tìm thấy ở một nguồn theo dõi. */
+export type Clip = {
+  id: string;
+  watch_id: number | null;
+  watch_name: string | null;
+  site: Site;
+  url: string;
+  title: string;
+  title_fr: string | null;
+  reason: string | null;
+  uploader: string | null;
+  duration: number | null;
+  views: number | null;
+  thumbnail: string | null;
+  score: number | null;
+  first_seen: number;
+  status: ClipStatus;
+  rights: Rights | null;
+  project_id: number | null;
 };
 
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };
@@ -232,6 +285,19 @@ export function makeApi(url: string, token: string) {
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
     addLinks: (id: number, links: string[]) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
+    watches: () => call<Watch[]>("GET", "/api/watches"),
+    addWatch: (body: { target: string; site: Site; rights: Rights }) => call<Watch>("POST", "/api/watches", body),
+    patchWatch: (id: number, body: { name?: string; rights?: Rights; enabled?: boolean }) =>
+      call<Watch>("PATCH", `/api/watches/${id}`, body),
+    deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),
+    checkWatches: () => call<{ started: boolean }>("POST", "/api/watches/check"),
+    clips: (status: ClipStatus, watchId?: number) =>
+      call<Clip[]>("GET", `/api/clips?status=${status}${watchId ? `&watch_id=${watchId}` : ""}`),
+    setClipStatus: (id: string, status: "new" | "hidden") =>
+      call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
+    /** Video giải thích từ một video mới; links_only bỏ trống = chỉ dùng video này khi nguồn có quyền rõ ràng. */
+    produceClip: (id: string, body: { duration: number; links_only: boolean }) =>
+      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
