@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, FolderOpen, Link2, Loader2, Play, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, Copy, Eraser, FolderOpen, Link2, Loader2, Play, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
@@ -45,13 +45,25 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
       <CardContent className="grid gap-3 text-sm">
         {sources.length > 0 && (
           <ul className="grid gap-1.5">
-            {sources.map((s) => (
-              <li key={s.url} className="min-w-0">
-                <ExternalA href={s.url} className="break-all">
-                  {s.platform} · {s.uploader || s.url}
-                </ExternalA>
-                {pinned.has(s.url) && <span className="text-xs text-muted-foreground"> · {t.projects.pasted}</span>}
-                {s.title && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
+            {sources.map((s, i) => (
+              <li key={s.url} className="flex min-w-0 items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <ExternalA href={s.url} className="break-all">
+                    {s.platform} · {s.uploader || s.url}
+                  </ExternalA>
+                  {pinned.has(s.url) && <span className="text-xs text-muted-foreground"> · {t.projects.pasted}</span>}
+                  {s.delogo && (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400"> · {t.delogo.cleaned}</span>
+                  )}
+                  {s.title && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
+                </div>
+                <Link
+                  to={`/delogo?target=p${p.id}-${i}`}
+                  className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  <Eraser className="size-3.5" />
+                  {t.delogo.removeLogo}
+                </Link>
               </li>
             ))}
           </ul>
