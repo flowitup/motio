@@ -21,6 +21,7 @@ as authoritative for scope and milestones.
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
+  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (FFmpeg `delogo`, drawn or auto-found boxes)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
@@ -68,7 +69,9 @@ on every PR; keep them green.
   unless they ask.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
-- Never add features that remove logos/watermarks from third-party footage or evade duplicate /
+- Logo/watermark removal exists only as the manual "Xoá logo" tool (`motio/delogo.py`): the user picks one video and
+  confirms they own it or hold the rights (`owned` / `licensed`, recorded on the video and the project). Never run it
+  automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /
   Content ID detection.
 - Before committing: `uv run ruff check motio` (add ruff as a dev dependency if missing),
   `uv run pytest`, and for render changes `uv run python -m motio rerender 1` + inspect a frame.

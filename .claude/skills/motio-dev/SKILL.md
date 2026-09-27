@@ -100,6 +100,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
 | Postiz posting | `motio/postiz.py`, `app/src/components/publish-card.tsx` |
+| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `remove`, targets `p<id>-<i>` / `u<hex>`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
 | Engine connection (local/remote) | `app/src/lib/engine.tsx`, `app/src-tauri/src/engine.rs` |
@@ -113,7 +114,9 @@ cd app && pnpm install && cd ..              # only if touching the app
 | GitHub Actions | `.github/workflows/{ci,release,deploy}.yml` (§8) |
 
 Project output folder `data/projects/<id>/`: `script.json`, `audio/`, `final.mp4`, `thumb.jpg`,
-`post.txt`, `sources.txt`, `captions.srt`, `captions.ass`.
+`post.txt`, `sources.txt`, `captions.srt`, `captions.ass`, and `delogo/<i>/clean.mp4` when a source had its logo
+removed (`meta.sources[i].path` then points there, `orig_path` keeps the cached original). Uploads for the logo tool
+live in `data/tools/delogo/<hex>/`.
 
 ## 4. Non-negotiables
 
@@ -129,9 +132,12 @@ Project output folder `data/projects/<id>/`: `script.json`, `audio/`, `final.mp4
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
   Always write `sources.txt`; on-video / in-post credits stay optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`,
   default off). News videos carry an original French script; source clips only illustrate, in short segments.
-- **Never build** logo/watermark removal on third-party footage or anything that evades duplicate /
-  Content ID detection. If asked, decline and offer the rights-gated alternative (only footage flagged
-  owned / licensed).
+- **Logo removal stays manual and declared.** The only watermark / logo removal is the "Xoá logo" tool
+  (`motio/delogo.py`, owner's ask 2026-09-27): the user picks one video (a project source or an upload) and
+  confirms they own it or hold the rights (`owned` / `licensed`); the engine refuses a run without that and records
+  it on the source (`meta.sources[i].delogo`) and, once every source is declared, on the project's `meta.rights`.
+  Never apply it automatically in the pipelines or in batch, and **never build** anything that evades duplicate /
+  Content ID detection.
 - **Rights flag.** Every project carries `meta.rights` = `unknown` | `owned` | `licensed` | `cc`
   (`topic.RIGHTS`; set on `POST /api/projects`, changed with `PATCH /api/projects/{id}`). New features that
   treat footage differently by rights (watermark handling, longer clips, remakes) must read this flag and
