@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, newsnow, pipeline, postiz, search, settings, topic, tts, watch
+from . import __version__, asr, config, db, edit, newsnow, pipeline, postiz, search, settings, topic, tts, watch
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
@@ -66,6 +66,13 @@ class ClipProduceIn(BaseModel):
     links_only: bool | None = None  # None = chỉ dùng video này khi nguồn có quyền rõ ràng
 
 
+class ScriptIn(BaseModel):
+    title_fr: str
+    lines: list[dict]  # [{text, clips: [{src, start, end}]}]; clips giữ nguyên từ GET, dòng mới không cần
+    description: str = ""
+    hashtags: list[str] = []
+
+
 class LinksIn(BaseModel):
     links: list[str]
 
@@ -91,6 +98,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["folder"] = str(config.PROJECTS / str(p["id"]))
         out["trend"] = db.get_trend(p["trend_id"]) if p.get("trend_id") else None
         out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
+        out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
     return out
 
 
@@ -365,6 +373,39 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             db.update_project(pid, log=f"Quyền nguồn: {body.rights}", meta={"rights": body.rights})
         return _project_out(_get(pid), full=True)
 
+    @app.delete("/api/projects/{pid}", dependencies=[Depends(auth)])
+    def delete_project(pid: int):
+        """Xoá dự án và thư mục của nó (video, giọng, phụ đề, bài đăng). Bài đã gửi Postiz vẫn ở Postiz."""
+        _get(pid)
+        try:
+            edit.delete(pid)
+        except (edit.Busy, OSError) as e:
+            raise HTTPException(409, str(e)) from e
+        return {"deleted": pid}
+
+    @app.get("/api/projects/{pid}/script", dependencies=[Depends(auth)])
+    def get_script(pid: int):
+        _get(pid)
+        try:
+            return edit.script_view(pid)
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from e
+
+    @app.put("/api/projects/{pid}/script", dependencies=[Depends(auth)])
+    def put_script(pid: int, body: ScriptIn):
+        """Lưu kịch bản đã sửa; dựng lại bằng POST /retry {"start": "voice"}."""
+        _get(pid)
+        try:
+            return edit.save_script(pid, body.model_dump())
+        except edit.Busy as e:
+            raise HTTPException(409, str(e)) from e
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
     @app.post("/api/projects/{pid}/rerender", status_code=202, dependencies=[Depends(auth)])
     def rerender(pid: int):
         p = _get(pid)
@@ -419,6 +460,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                 if await request.is_disconnected():
                     return
                 p = db.get_project(pid)
+                if not p:  # dự án vừa bị xoá
+                    return
                 snap = {"status": p["status"], "step": p["step"], "pct": p["pct"],
                         "log_tail": _log_tail(p["log"]), "updated_at": p["updated_at"]}
                 if snap != last:

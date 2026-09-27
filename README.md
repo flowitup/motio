@@ -30,10 +30,13 @@ its latest 10 videos, then only videos it hasn't seen. Claude gives each one a F
 "Làm video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
 single videos there): paste those links into "Tạo video". Bilibili spaces often need the browser-cookie setting.
 
+On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
+description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
+
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice`).
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
 
 ## Desktop app (Tauri)
 

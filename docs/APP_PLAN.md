@@ -27,6 +27,8 @@ Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan
    - `POST /api/projects/{id}/retry` `{start?}` — continue from the failed step, or redo from a given step (added 26/09)
    - `POST /api/projects` `{topic?, links?, links_only, duration, rights}` — explainer on any topic or from video
      links, no trend needed · `PATCH /api/projects/{id}` `{rights}` (added 26/09, see "Beyond hot news")
+   - `DELETE /api/projects/{id}` · `GET/PUT /api/projects/{id}/script` — delete a project, edit its script (added
+     26/09, see "Edit and delete projects")
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
   - `GET/POST /api/watches` · `PATCH/DELETE /api/watches/{id}` · `POST /api/watches/check` (async) ·
     `GET /api/clips?status=new|used|hidden&watch_id=` · `PATCH /api/clips/{id}` `{status}` ·
@@ -167,6 +169,24 @@ targets are raised to 70, and the 1:30 option aims at 85 s (`TOP_MARGIN`) so a r
 - Still over 90 s after that → the lines just before the closing line are dropped (by their measured length, keeping
   the hook, the closing line and at least 3 lines) and the script is read again, at most twice.
 - Render: still short → the last shot continues with source footage up to 62 s (captions end with the voice).
+
+## Edit and delete projects (added 26/09/2026)
+
+Agreed with the owner on 26/09 (brainstorm: script editor, not a clip-level timeline editor).
+
+- **Delete**: a trash button on each card in Dự án and on the project page, with a confirm dialog. It removes the
+  project row and `data/projects/<id>/`, keeps the shared source cache, and puts a news trend back to "new" when no
+  other project uses it (a "Video mới" clip too, unless its source was removed). Refused while the project is queued or running. Posts sent to Postiz stay there. CLI
+  `delete <id>`.
+- **Edit**: a "Kịch bản" card on the project page (`motio/edit.py`, `GET/PUT /api/projects/{id}/script`) edits the
+  on-video title, each voice-over line (edit, add, move, remove; lines keep their clips, new lines get filler
+  footage), the description and hashtags. It estimates the length against 62–90 s from the speech rate measured on
+  the last voice (`meta.speech_rate` once the script changes). Saving a finished project rewrites `post.txt` at once;
+  a title or line change marks the video as out of date (`meta.edited_at`) until it is re-rendered.
+- **Rerun**: "Lưu và dựng lại" saves and runs the existing voice + render step on the edited script, so the length
+  rules still apply (Claude fits once, then lines near the end are dropped if still over 90 s). The redo picker warns
+  that starting from "Viết kịch bản" or earlier writes a new script.
+- Later, if needed: choosing and trimming each line's clips with a source preview.
 
 ## Out of scope for now
 

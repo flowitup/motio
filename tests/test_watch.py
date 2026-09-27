@@ -214,6 +214,21 @@ def test_produce_from_clip(rights, links_only, want_only, want_rights):
     assert (c["status"], c["project_id"]) == ("used", pid)
 
 
+def test_deleting_a_project_gives_its_clip_back():
+    wid = watch.add(VOX)
+    db.insert_clips([{"id": f"youtube:{v}", "watch_id": wid, "site": "youtube", "url": f"https://www.youtube.com/watch?v={v}",
+                      "title": v, "status": "new"} for v in ("v1", "v2")])
+    p1, p2 = watch.produce("youtube:v1"), watch.produce("youtube:v2")
+    for pid in (p1, p2):
+        db.update_project(pid, status="done")
+    assert db.delete_project(p1)
+    c = db.get_clip("youtube:v1")
+    assert (c["status"], c["project_id"]) == ("new", None)
+    db.delete_watch(wid)  # nguồn đã xoá: video đã dùng được giữ đến khi dự án bị xoá
+    assert db.get_clip("youtube:v1") is None and db.get_clip("youtube:v2")["status"] == "used"
+    assert db.delete_project(p2) and db.get_clip("youtube:v2") is None
+
+
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(pipeline, "produce", lambda pid: db.update_project(pid, status="done"))

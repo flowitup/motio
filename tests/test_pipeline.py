@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from motio import asr, config, db, llm, pipeline, render, scenes, search, topic, tts
+from motio import asr, config, db, edit, llm, pipeline, render, scenes, search, topic, tts
 
 
 @pytest.fixture
@@ -167,6 +167,23 @@ def test_explicit_restart_drops_later_results(fake):
     calls.clear()
     pipeline.resume(pid, "transcribe")  # bóc lời lại từ đầu (vd. sau khi đổi model Whisper)
     assert calls == ["transcribe", "transcribe", "script", "voice", "render"]
+
+
+def test_edited_script_is_what_gets_voiced_on_rerun(fake):
+    calls, _ = fake
+    pid = _new()
+    pipeline.produce(pid)
+    raw = edit.script_view(pid)["script"]
+    raw["title_fr"] = "Titre corrigé"
+    raw["lines"][0]["text"] = " ".join(["main"] * 45)  # même longueur: reste dans 62–90 s
+    edit.save_script(pid, raw)
+    calls.clear()
+    pipeline.resume(pid, "voice")
+    assert calls == ["voice", "render"]  # pas de nouveau script
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    assert plan["lines"][0]["text"].startswith("main main") and plan["title_fr"] == "Titre corrigé"
+    p = db.get_project(pid)
+    assert p["status"] == "done" and p["meta"]["title"] == "Titre corrigé"
 
 
 def test_retry_needs_saved_data(fake):
