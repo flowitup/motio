@@ -155,16 +155,18 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
 
 ## Video length: 62–90 s (added 26/09/2026)
 
-The owner's rule: every video lasts at least 1 min 2 s. The top is 90 s because Facebook Reels published through the
-Graph API accept 3–90 s (checked 26/09: YouTube Shorts allow 3 min, Instagram Reels via API 15 min, TikTok per
-creator, X 140 s on free accounts). `pipeline.MIN_SECONDS = 62`, `MAX_SECONDS = 90`, default target 80 s; older
-30 / 60 s targets are raised to 70.
+The owner's rule: every video lasts at least 1 min 2 s, which also clears TikTok Creator Rewards (it only pays for
+videos longer than 1 min). The top is 90 s because Facebook Reels published through the Graph API accept 3–90 s
+(checked 26/09: YouTube Shorts allow 3 min and earn at any length, Instagram Reels via API 15 min, TikTok per creator,
+X 140 s through the API). `pipeline.MIN_SECONDS = 62`, `MAX_SECONDS = 90`, default target 80 s; older 30 / 60 s
+targets are raised to 70, and the 1:30 option aims at 85 s (`TOP_MARGIN`) so a rewrite that runs long still fits.
 
 - Script: word count from the target at 2.5 words/s; a script that can't reach 62 s is lengthened before the voice.
 - Voice: if narration + 0.6 s falls outside 62–90 s, Claude rewrites once to the word count the measured speech rate
   needs, and it is read again (rerender does the same, so old projects come out ≥ 62 s).
-- Render: still short → the last shot continues with source footage up to 62 s (captions end with the voice);
-  still over 90 s → a log line warns that Facebook Reels (API) won't take it.
+- Still over 90 s after that → the lines just before the closing line are dropped (by their measured length, keeping
+  the hook, the closing line and at least 3 lines) and the script is read again, at most twice.
+- Render: still short → the last shot continues with source footage up to 62 s (captions end with the voice).
 
 ## Out of scope for now
 
