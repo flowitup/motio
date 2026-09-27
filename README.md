@@ -27,8 +27,8 @@ On a project's page you can also edit the script (the title shown on the video, 
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
 **Xoá logo** (remove a logo) cleans a static logo or watermark off one of your own videos: pick a project's source clip
-or upload a file, draw a box around the logo on a frame (or press **Tự tìm** to find logos that stay in place), confirm
-that you own the video or have the rights to it, and the LaMa AI model redraws what was behind the logo on every frame.
+or upload a file, draw a box around the logo on a frame (or press **Tự tìm** to find logos that stay in place), then
+press **Xoá logo**. The LaMa AI model redraws what was behind the logo on every frame.
 The first run downloads the model once (92 MB, [LaMa](https://github.com/advimman/lama) exported by
 [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/inpainting_lama), Apache 2.0) into `data/models/`.
 It runs on the CPU: still shots go fast (the fill is reused while the picture behind the logo doesn't change), moving

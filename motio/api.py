@@ -66,7 +66,7 @@ class DelogoFrameIn(BaseModel):
 
 class DelogoRunIn(BaseModel):
     boxes: list[dict]  # [{x, y, w, h}] theo pixel của khung hình
-    rights: str  # owned | licensed: người dùng xác nhận mình sở hữu / có quyền dùng video này
+    rights: str | None = None  # optional existing-client declaration: owned | licensed
 
 
 class PublishIn(BaseModel):
@@ -399,7 +399,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                           meta={"postiz": [*meta.get("postiz", []), entry]})
         return res
 
-    # ---------- xoá logo (video người dùng chọn, sau khi họ xác nhận quyền) ----------
+    # ---------- xoá logo (video người dùng chọn) ----------
     def _dl(fn, *args):
         try:
             return fn(*args)

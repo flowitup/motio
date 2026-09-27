@@ -71,7 +71,7 @@ on every PR; keep them green.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Logo/watermark removal exists only as the manual "Xoá logo" tool (`motio/delogo.py`): the user picks one video and
-  confirms they own it or hold the rights (`owned` / `licensed`, recorded on the video and the project). Never run it
+  starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /
   Content ID detection.
 - Before committing: `uv run ruff check motio` (add ruff as a dev dependency if missing),
