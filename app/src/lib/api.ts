@@ -82,6 +82,22 @@ export type ProjectDetail = Project & {
   folder: string;
   trend: Trend | null;
   retry: { auto: RetryStep; steps: RetryStep[] };
+  has_script: boolean;
+};
+
+export type ScriptClip = { src: number; start: number; end: number };
+export type ScriptLine = { text: string; clips: ScriptClip[] };
+export type Script = { title_fr: string; lines: ScriptLine[]; description: string; hashtags: string[] };
+/** Kịch bản cho trình sửa, kèm số liệu để ước lượng độ dài video. */
+export type ScriptView = {
+  script: Script;
+  edited_at: number | null;
+  stale: boolean; // video dựng trước lần sửa lời bình / tiêu đề gần nhất
+  words_per_sec: number;
+  min_seconds: number;
+  max_seconds: number;
+  tail: number;
+  version: number;
 };
 
 export type ProgressEvent = { status: ProjectStatus; step: string | null; pct: number; log_tail: string[] };
@@ -162,6 +178,11 @@ export function makeApi(url: string, token: string) {
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
+    /** Xoá dự án và thư mục của nó; bài đã gửi Postiz vẫn ở Postiz. */
+    deleteProject: (id: number) => call<{ deleted: number }>("DELETE", `/api/projects/${id}`),
+    script: (id: number) => call<ScriptView>("GET", `/api/projects/${id}/script`),
+    /** Lưu kịch bản; dựng lại bằng retry(id, "voice"). */
+    saveScript: (id: number, script: Script) => call<ScriptView>("PUT", `/api/projects/${id}/script`, script),
     /** Chạy lại từ `start`; bỏ trống = chạy tiếp từ bước bị lỗi, giữ kết quả đã có. */
     retry: (id: number, start?: RetryStep) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/retry`, start ? { start } : {}),

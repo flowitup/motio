@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, FolderOpen, Link2, Loader2, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Copy, FolderOpen, Link2, Loader2, Play, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
+import { DeleteProjectDialog } from "@/components/delete-project";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { PublishCard } from "@/components/publish-card";
+import { ScriptCard } from "@/components/script-card";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +17,9 @@ import { useProjectEvents } from "@/hooks/use-project-events";
 import { useApi, type Api, type ProjectDetail, type RetryStep, type Rights } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
+
+// Chạy lại từ các bước này thì Claude viết kịch bản mới, thay bản hiện tại.
+const REDO_SCRIPT: RetryStep[] = ["search", "download", "transcribe", "script"];
 
 function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail; active: boolean; onQueued: () => void }) {
   const [text, setText] = useState("");
@@ -85,7 +90,9 @@ export default function ProjectDetailPage() {
   const { info } = useEngine();
   const id = Number(useParams().id);
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [from, setFrom] = useState<RetryStep | null>(null); // null = bước hệ thống đề xuất
   const logRef = useRef<HTMLPreElement>(null);
 
@@ -94,6 +101,7 @@ export default function ProjectDetailPage() {
   const ev = useProjectEvents(api, id, active, () => {
     refetch();
     qc.invalidateQueries({ queryKey: ["projects"] });
+    qc.invalidateQueries({ queryKey: ["script", id] });
   });
 
   // Không chọn bước: chạy tiếp từ bước lỗi (giữ bản bóc lời đã xong); chọn bước: làm lại từ bước đó.
@@ -167,8 +175,32 @@ export default function ProjectDetailPage() {
             {t.projects.openFolder}
           </Button>
         )}
+        <Button
+          variant="outline"
+          onClick={() => setDeleting(true)}
+          disabled={active}
+          title={active ? t.projects.deleteBusy : undefined}
+          className="hover:text-destructive"
+        >
+          <Trash2 />
+          {t.projects.delete}
+        </Button>
       </header>
       {retry.error && <p className="text-sm text-destructive">{retry.error.message}</p>}
+      {!active && p.has_script && REDO_SCRIPT.includes(from ?? p.retry.auto) && (
+        <p className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="size-4 shrink-0" />
+          {t.projects.redoReplacesScript}
+        </p>
+      )}
+      <DeleteProjectDialog
+        api={api}
+        id={p.id}
+        title={p.meta.title || p.title}
+        open={deleting}
+        onOpenChange={setDeleting}
+        onDeleted={() => navigate("/projects")}
+      />
 
       {active && (
         <div className="space-y-2">
@@ -182,7 +214,8 @@ export default function ProjectDetailPage() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_1fr]">
         <div className="overflow-hidden rounded-xl bg-black">
-          {p.meta.video && status === "done" ? (
+          {/* Đang hỏi xoá: bỏ trình phát để engine không còn giữ final.mp4 (Windows không xoá được file đang mở). */}
+          {p.meta.video && status === "done" && !deleting ? (
             <video
               key={p.updated_at}
               src={api.mediaUrl(p.meta.video, p.updated_at)}
@@ -216,6 +249,8 @@ export default function ProjectDetailPage() {
           {status === "done" && p.meta.video && (
             <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} onSent={() => refetch()} />
           )}
+
+          {p.has_script && <ScriptCard api={api} id={p.id} active={active} />}
 
           <Card>
             <CardHeader>

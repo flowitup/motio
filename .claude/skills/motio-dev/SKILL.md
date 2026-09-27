@@ -98,6 +98,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Paths, binaries, OS checks | `motio/config.py` (`which()`, `env()`, `flag()`, `IS_MAC`/`IS_WIN`) |
 | JSON API, refresh scheduler | `motio/api.py` (`create_app(token, headless)`; `REFRESH_EVERY_MIN`) |
 | CLI / engine entrypoint | `motio/__main__.py` |
+| Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
 | Postiz posting | `motio/postiz.py`, `app/src/components/publish-card.tsx` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |

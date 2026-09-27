@@ -23,9 +23,12 @@ Beyond hot news: in the app, **Dự án → Tạo video** (Projects → make vid
 video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
 Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
 
+On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
+description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
+
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice`).
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
 
 ## Desktop app (Tauri)
 

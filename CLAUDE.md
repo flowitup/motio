@@ -20,6 +20,7 @@ as authoritative for scope and milestones.
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
+  - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
@@ -39,6 +40,7 @@ uv run python -m motio produce <trend_id>   # full pipeline for one topic
 uv run python -m motio rerender <project>   # voice + render again from script.json
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
 uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice
+uv run python -m motio delete <project>     # delete a project and its folder (source cache kept)
 uv run python -m motio serve                # legacy dashboard on :8765
 # after M1:
 uv run python -m motio engine --port 0 --token <t>

@@ -1,0 +1,216 @@
+"""Sửa và xoá dự án từ app: đọc / lưu kịch bản (script.json) rồi dựng lại, xoá dự án cùng thư mục của nó."""
+import json
+import re
+import shutil
+import time
+from pathlib import Path
+
+from . import config, db, pipeline, render, tts
+
+BUSY = ("queued", "running")
+MIN_LINES = 3  # như pipeline: kịch bản dưới 3 dòng là quá ngắn
+MAX_LINES = 40
+MAX_TITLE = 100
+MAX_LINE_CHARS = 400
+MAX_DESC = 1500
+MAX_TAGS = 10  # bài đăng chỉ dùng 6 hashtag đầu
+MAX_CLIPS = 4
+
+
+class Busy(RuntimeError):
+    """Dự án đang chạy: chưa sửa / xoá được."""
+
+
+def _dir(pid: int) -> Path:
+    return config.PROJECTS / str(pid)
+
+
+def _project(pid: int) -> dict:
+    p = db.get_project(pid)
+    if not p:
+        raise LookupError(f"Không có dự án #{pid}")
+    return p
+
+
+def _idle(p: dict) -> None:
+    if p["status"] in BUSY:
+        raise Busy("Dự án đang chạy, chờ xong rồi thử lại")
+
+
+def _read(pid: int) -> dict:
+    f = _dir(pid) / "script.json"
+    if not f.exists():
+        raise FileNotFoundError("Dự án chưa có kịch bản")
+    try:
+        plan = json.loads(f.read_text())  # cùng mã hoá với pipeline
+    except json.JSONDecodeError as e:
+        raise ValueError(f"script.json hỏng: {e}") from e
+    if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
+        raise ValueError("script.json hỏng: thiếu danh sách dòng")
+    return plan
+
+
+def _write(pid: int, plan: dict) -> None:
+    f = _dir(pid) / "script.json"
+    try:
+        f.write_text(json.dumps(plan, ensure_ascii=False, indent=1))  # cùng mã hoá mặc định với pipeline
+    except UnicodeEncodeError:  # Windows (cp1252) + emoji…: JSON thuần ASCII đọc được với mọi mã hoá
+        f.write_text(json.dumps(plan, ensure_ascii=True, indent=1))
+
+
+def _words(lines: list[dict]) -> int:
+    return sum(len(ln["text"].split()) for ln in lines)
+
+
+def _one_line(text) -> str:
+    """Gộp xuống dòng / khoảng trắng thừa thành một dấu cách; giữ NBSP của kiểu chữ Pháp."""
+    return re.sub(r"[ \t\r\n]+", " ", str(text or "")).strip()
+
+
+def _clips(raw) -> list[dict]:
+    """Đoạn hình của một dòng {src, start, end}; bỏ mục sai (render tự lấp hình cho dòng không có đoạn nào)."""
+    out = []
+    for c in raw if isinstance(raw, list) else []:
+        try:
+            start = float(c["start"])
+            out.append({"src": int(c["src"]), "start": start, "end": float(c.get("end", start + 4))})
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+    return out[:MAX_CLIPS]
+
+
+def _tags(raw) -> list[str]:
+    """Hashtag từ danh sách hoặc chuỗi cách nhau bằng dấu cách / phẩy; thêm #, bỏ trùng."""
+    items = [raw] if isinstance(raw, str) else [str(x) for x in raw or []]
+    tags, seen = [], set()
+    for w in " ".join(items).replace(",", " ").split():
+        w = "#" + w.lstrip("#")
+        if len(w) > 1 and w.lower() not in seen:
+            seen.add(w.lower())
+            tags.append(w[:60])
+    return tags[:MAX_TAGS]
+
+
+def clean(raw: dict) -> dict:
+    """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
+    title = _one_line(raw.get("title_fr"))
+    if not title:
+        raise ValueError("Tiêu đề không được để trống")
+    if len(title) > MAX_TITLE:
+        raise ValueError(f"Tiêu đề dài tối đa {MAX_TITLE} ký tự")
+    lines = []
+    for ln in raw.get("lines") or []:
+        ln = ln if isinstance(ln, dict) else {"text": ln}
+        text = _one_line(ln.get("text"))
+        if not text:  # dòng để trống thì bỏ
+            continue
+        if len(text) > MAX_LINE_CHARS:
+            raise ValueError(f"Dòng {len(lines) + 1} dài quá {MAX_LINE_CHARS} ký tự")
+        lines.append({"text": text, "clips": _clips(ln.get("clips"))})
+    if len(lines) < MIN_LINES:
+        raise ValueError(f"Kịch bản cần ít nhất {MIN_LINES} dòng lời bình")
+    if len(lines) > MAX_LINES:
+        raise ValueError(f"Kịch bản tối đa {MAX_LINES} dòng")
+    desc = str(raw.get("description") or "").strip()
+    if len(desc) > MAX_DESC:
+        raise ValueError(f"Mô tả dài tối đa {MAX_DESC} ký tự")
+    return {"title_fr": title, "lines": lines, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
+
+
+def _narration(pid: int) -> Path | None:
+    hits = [p for p in (_dir(pid) / "audio").glob("narration.*") if p.suffix in (".mp3", ".wav")]
+    return max(hits, key=lambda p: p.stat().st_mtime) if hits else None
+
+
+def _measured_rate(pid: int, plan: dict) -> float | None:
+    """Tốc độ đọc thật (từ / giây) của lần đọc gần nhất, khi script.json hiện tại chính là bản đã được đọc."""
+    audio, script = _narration(pid), _dir(pid) / "script.json"
+    if not audio or not script.exists() or audio.stat().st_mtime < script.stat().st_mtime:
+        return None
+    try:
+        sec = tts.probe_duration(audio)
+        rate = _words([{"text": _one_line(ln.get("text"))} for ln in plan["lines"]]) / sec
+    except Exception:  # không có ffprobe, file hỏng, dòng sai kiểu…: dùng tốc độ đã lưu / mặc định
+        return None
+    return rate if 1.0 <= rate <= 5.0 else None
+
+
+def script_view(pid: int) -> dict:
+    """Kịch bản cho trình sửa trong app, kèm số liệu để ước lượng độ dài video (62–90 s)."""
+    p = _project(pid)
+    plan = _read(pid)
+    rate = _measured_rate(pid, plan) or p["meta"].get("speech_rate") or pipeline.WORDS_PER_SEC
+    final = _dir(pid) / "final.mp4"
+    edited = p["meta"].get("edited_at")
+    return {
+        "script": {
+            "title_fr": str(plan.get("title_fr") or ""),
+            "lines": [{"text": str(ln.get("text") or "") if isinstance(ln, dict) else str(ln),
+                       "clips": _clips(ln.get("clips")) if isinstance(ln, dict) else []} for ln in plan["lines"]],
+            "description": str(plan.get("description") or ""),
+            "hashtags": _tags(plan.get("hashtags")),
+        },
+        "edited_at": edited,
+        # video dựng trước lần sửa (lệch 1 s vì đồng hồ mtime của hệ thống file thô hơn time.time())
+        "stale": bool(edited and final.exists() and edited > final.stat().st_mtime + 1),
+        "words_per_sec": round(rate, 3),
+        "min_seconds": pipeline.MIN_SECONDS,
+        "max_seconds": pipeline.MAX_SECONDS,
+        "tail": render.TAIL,
+        "version": (_dir(pid) / "script.json").stat().st_mtime,
+    }
+
+
+def save_script(pid: int, raw: dict) -> dict:
+    """Lưu kịch bản đã sửa. Đổi tiêu đề / lời bình thì video cần dựng lại (bước Giọng đọc và dựng);
+    đổi mô tả / hashtag của video đã xong thì post.txt cập nhật ngay, không cần dựng."""
+    p = _project(pid)
+    _idle(p)
+    old = _read(pid)
+    new = clean(raw)
+    old_lines = [ln if isinstance(ln, dict) else {"text": ln} for ln in old["lines"]]
+    parts = []
+    if new["title_fr"] != _one_line(old.get("title_fr")):
+        parts.append("tiêu đề")
+    if [ln["text"] for ln in new["lines"]] != [_one_line(ln.get("text")) for ln in old_lines]:
+        parts.append(f"lời bình ({len(new['lines'])} dòng, {_words(new['lines'])} từ)")
+    elif [ln["clips"] for ln in new["lines"]] != [_clips(ln.get("clips")) for ln in old_lines]:
+        parts.append("đoạn hình")
+    on_video = bool(parts)
+    if new["description"] != str(old.get("description") or "").strip():
+        parts.append("mô tả")
+    if new["hashtags"] != _tags(old.get("hashtags")):
+        parts.append("hashtag")
+    if not parts:
+        return script_view(pid)  # không đổi gì
+
+    meta = {"title": new["title_fr"]}
+    rate = _measured_rate(pid, old)  # đo trước khi ghi đè: bản cũ là bản đã được đọc
+    if rate:
+        meta["speech_rate"] = round(rate, 3)
+    if on_video:
+        meta["edited_at"] = time.time()
+    _write(pid, {**old, **new})
+    if p["status"] == "done":
+        meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid))
+        meta["hashtags"] = new["hashtags"]
+    note = " · cần dựng lại để video đổi theo" if on_video and p["status"] == "done" else ""
+    db.update_project(pid, log=f"Sửa kịch bản: {', '.join(parts)}{note}", meta=meta)
+    return script_view(pid)
+
+
+def delete(pid: int) -> None:
+    """Xoá dự án: thư mục data/projects/<id>/ rồi dòng trong SQLite. Giữ cache video nguồn (dự án khác có thể dùng).
+
+    Không xoá được thư mục (file đang mở…) thì giữ dự án để thử lại.
+    """
+    p = _project(pid)
+    _idle(p)
+    folder = _dir(pid)
+    if folder.exists():
+        try:
+            shutil.rmtree(folder)
+        except OSError as e:
+            raise OSError(f"Không xoá được thư mục dự án ({e.strerror or e}). Đóng file đang mở rồi thử lại.") from e
+    if not db.delete_project(pid):
+        raise Busy("Dự án vừa được chạy lại, chờ xong rồi thử lại")

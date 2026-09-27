@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Film, Loader2, Plus, Video, X } from "lucide-react";
+import { Film, Loader2, Plus, Trash2, Video, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice, Field } from "@/components/form";
 import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useApi, type Api, type Rights } from "@/lib/api";
+import { useApi, type Api, type Project, type Rights } from "@/lib/api";
 import { t } from "@/i18n";
 
 const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
@@ -96,6 +97,7 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
 export default function ProjectsPage() {
   const api = useApi()!;
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<Project | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ["projects"],
     queryFn: () => api.projects(),
@@ -119,37 +121,60 @@ export default function ProjectsPage() {
       <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
         {isLoading && Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-xl" />)}
         {data?.map((p) => (
-          <Link key={p.id} to={`/projects/${p.id}`} className="group">
-            <Card className="gap-0 overflow-hidden p-0 transition-shadow group-hover:shadow-md">
-              <div className="relative aspect-[9/16] bg-muted">
-                {p.meta.thumb ? (
-                  <img
-                    src={api.mediaUrl(p.meta.thumb, p.updated_at)}
-                    alt=""
-                    className="size-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <Film className="absolute inset-0 m-auto size-10 text-muted-foreground/50" />
-                )}
-                <StatusChip status={p.status} className="absolute top-2 left-2" />
-              </div>
-              <div className="space-y-2 p-3">
-                <div className="line-clamp-2 text-sm font-medium leading-snug">{p.meta.title || p.title}</div>
-                {(p.status === "running" || p.status === "queued") && (
-                  <>
-                    <Progress value={p.pct} />
-                    <div className="text-xs text-muted-foreground">{p.step}</div>
-                  </>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  #{p.id} · {t.age(p.updated_at)}
+          <div key={p.id} className="group relative">
+            <Link to={`/projects/${p.id}`} className="block">
+              <Card className="gap-0 overflow-hidden p-0 transition-shadow group-hover:shadow-md">
+                <div className="relative aspect-[9/16] bg-muted">
+                  {p.meta.thumb ? (
+                    <img
+                      src={api.mediaUrl(p.meta.thumb, p.updated_at)}
+                      alt=""
+                      className="size-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <Film className="absolute inset-0 m-auto size-10 text-muted-foreground/50" />
+                  )}
+                  <StatusChip status={p.status} className="absolute top-2 left-2" />
                 </div>
-              </div>
-            </Card>
-          </Link>
+                <div className="space-y-2 p-3">
+                  <div className="line-clamp-2 text-sm font-medium leading-snug">{p.meta.title || p.title}</div>
+                  {(p.status === "running" || p.status === "queued") && (
+                    <>
+                      <Progress value={p.pct} />
+                      <div className="text-xs text-muted-foreground">{p.step}</div>
+                    </>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    #{p.id} · {t.age(p.updated_at)}
+                  </div>
+                </div>
+              </Card>
+            </Link>
+            {p.status !== "running" && p.status !== "queued" && (
+              <Button
+                size="icon-sm"
+                variant="secondary"
+                onClick={() => setDeleting(p)}
+                aria-label={t.projects.delete}
+                title={t.projects.delete}
+                className="absolute top-2 right-2 opacity-0 shadow-sm group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
+              >
+                <Trash2 />
+              </Button>
+            )}
+          </div>
         ))}
       </div>
+      {deleting && (
+        <DeleteProjectDialog
+          api={api}
+          id={deleting.id}
+          title={deleting.meta.title || deleting.title}
+          open
+          onOpenChange={(o) => !o && setDeleting(null)}
+        />
+      )}
     </div>
   );
 }

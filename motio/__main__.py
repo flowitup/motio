@@ -1,5 +1,5 @@
 """CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
-retry <id> [step] | serve | engine ...]"""
+retry <id> [step] | delete <id> | serve | engine ...]"""
 import argparse
 import json
 import os
@@ -53,6 +53,13 @@ def main(argv: list[str]) -> None:
         from . import pipeline
         pipeline.resume(int(argv[1]), argv[2] if len(argv) > 2 else None)
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "delete":  # xoá dự án + thư mục của nó; giữ cache video nguồn
+        from . import edit
+        try:
+            edit.delete(int(argv[1]))
+        except (LookupError, edit.Busy, OSError) as e:
+            sys.exit(str(e))
+        print(f"Đã xoá dự án #{argv[1]}")
     elif cmd == "serve":
         import uvicorn
         host = config.env("MOTIO_HOST", "127.0.0.1")

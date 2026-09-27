@@ -154,6 +154,44 @@ def test_add_links_queues_retry(client):
     assert client.post(f"/api/projects/{pid}/links", headers=H, json={"links": []}).status_code == 400
 
 
+def test_edit_script(client):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    plan = {"title_fr": "Titre", "description": "D.", "hashtags": ["#Chine"],
+            "lines": [{"text": f"ligne {i}", "clips": [{"src": 0, "start": 5, "end": 9}]} for i in range(4)]}
+    (config.PROJECTS / str(pid) / "script.json").write_text(json.dumps(plan))
+    assert client.get(f"/api/projects/{pid}", headers=H).json()["has_script"] is True
+    v = client.get(f"/api/projects/{pid}/script", headers=H).json()
+    assert v["script"]["lines"][0]["text"] == "ligne 0" and v["max_seconds"] == pipeline.MAX_SECONDS
+    body = {**v["script"], "lines": [*v["script"]["lines"][:3], {"text": "nouvelle ligne"}]}
+    r = client.put(f"/api/projects/{pid}/script", headers=H, json=body)
+    assert r.status_code == 200 and r.json()["script"]["lines"][3] == {"text": "nouvelle ligne", "clips": []}
+    assert "Sửa kịch bản" in client.get(f"/api/projects/{pid}", headers=H).json()["log"]
+    short = client.put(f"/api/projects/{pid}/script", headers=H, json={**body, "lines": body["lines"][:2]})
+    assert short.status_code == 400 and "3" in short.json()["detail"]
+    db.update_project(pid, status="running")
+    assert client.put(f"/api/projects/{pid}/script", headers=H, json=body).status_code == 409
+    empty = db.create_project(None, "x", mode="topic")
+    assert client.get(f"/api/projects/{empty}", headers=H).json()["has_script"] is False
+    assert client.get(f"/api/projects/{empty}/script", headers=H).status_code == 404
+    assert client.get("/api/projects/999/script", headers=H).status_code == 404
+
+
+def test_delete_project(client):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    assert client.get("/api/trends", headers=H).json()[0]["status"] == "used"
+    db.update_project(pid, status="running")
+    assert client.delete(f"/api/projects/{pid}", headers=H).status_code == 409
+    db.update_project(pid, status="done")
+    r = client.delete(f"/api/projects/{pid}", headers=H)
+    assert r.status_code == 200 and r.json() == {"deleted": pid}
+    assert client.get(f"/api/projects/{pid}", headers=H).status_code == 404
+    assert not (config.PROJECTS / str(pid)).exists()
+    assert client.get("/api/trends", headers=H).json()[0]["status"] == "new"  # hiện lại nút Làm video
+    assert client.delete("/api/projects/999", headers=H).status_code == 404
+
+
 def test_media_blocks_traversal_and_settings(client):
     settings.update({"ELEVENLABS_API_KEY": "secret-key-1234"})
     assert client.get(f"/media/settings.json?token={TOKEN}").status_code == 404
