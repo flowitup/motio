@@ -262,7 +262,17 @@ def _state(work: Path) -> dict:
 def _save_state(work: Path, **changes) -> dict:
     work.mkdir(parents=True, exist_ok=True)
     st = {**_state(work), **changes}
-    (work / "state.json").write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    # Ghi file tạm rồi thay: job nền ghi trong lúc UI đang đọc, không để ai thấy state.json dở dang.
+    tmp = work / f"state.{uuid.uuid4().hex}.tmp"
+    tmp.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    for attempt in range(5):
+        try:
+            tmp.replace(work / "state.json")
+            break
+        except PermissionError:  # Windows: file đang được đọc thì chưa thay được
+            if attempt == 4:
+                raise
+            time.sleep(0.05)
     return st
 
 
