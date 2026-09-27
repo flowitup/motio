@@ -22,7 +22,6 @@ import {
   useApi,
   type Api,
   type DelogoBox,
-  type DelogoRights,
   type DelogoTarget,
 } from "@/lib/api";
 import { inTauri, openExternal, openFolder, useEngine } from "@/lib/engine";
@@ -240,7 +239,7 @@ function BoxCanvas({
   );
 }
 
-/** Cột phải: vẽ / tự tìm khung, xác nhận quyền, xoá logo, xem kết quả. */
+/** Cột phải: vẽ / tự tìm khung, xoá logo, xem kết quả. */
 function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -253,13 +252,9 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
   const v = q.data;
   const active = v?.status === "queued" || v?.status === "running";
   const [boxes, setBoxes] = useState<DelogoBox[] | null>(null); // null = chưa sửa, dùng khung đã lưu
-  const [confirmed, setConfirmed] = useState<boolean | null>(null);
-  const [rights, setRights] = useState<DelogoRights | null>(null);
   const [at, setAt] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const shown = boxes ?? v?.boxes ?? [];
-  const isConfirmed = confirmed ?? !!v?.rights;
-  const chosenRights = rights ?? v?.rights ?? "owned";
 
   const put = (d: DelogoTarget) => qc.setQueryData(["delogo", target], d);
   const frame = useMutation({ mutationFn: (sec?: number) => api.delogoFrame(target, sec), onSuccess: put });
@@ -271,7 +266,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
     },
   });
   const run = useMutation({
-    mutationFn: () => api.delogoRun(target, shown, chosenRights),
+    mutationFn: () => api.delogoRun(target, shown),
     onSuccess: (d) => {
       put(d);
       setBoxes(null);
@@ -396,32 +391,8 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
             {note && <span className="text-sm text-muted-foreground">{note}</span>}
           </div>
 
-          <div className="grid gap-3 rounded-lg border p-3">
-            <label className="flex items-start gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 accent-primary"
-                checked={isConfirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
-                disabled={busy}
-              />
-              {t.delogo.confirm}
-            </label>
-            {isConfirmed && (
-              <div className="grid gap-1.5 pl-6">
-                <Choice
-                  value={chosenRights}
-                  onChange={(r) => setRights(r as DelogoRights)}
-                  options={(["owned", "licensed"] as const).map((r) => [r, t.delogo.rights[r]])}
-                  className="w-full sm:w-56"
-                />
-                <p className="text-xs text-muted-foreground">{t.delogo.confirmHint}</p>
-              </div>
-            )}
-          </div>
-
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => run.mutate()} disabled={busy || !shown.length || !isConfirmed}>
+            <Button onClick={() => run.mutate()} disabled={busy || !shown.length}>
               {busy ? <Loader2 className="animate-spin" /> : <WandSparkles />}
               {t.delogo.run}
             </Button>

@@ -21,7 +21,7 @@ export type SourceInfo = {
   uploader: string;
   title: string;
   duration: number;
-  delogo?: { boxes: DelogoBox[]; rights: DelogoRights; method?: "lama"; at: number }; // bản sạch thay nguồn này
+  delogo?: { boxes: DelogoBox[]; rights: DelogoRights | null; method?: "lama"; at: number }; // bản sạch thay nguồn này
 };
 
 /** Khung quanh logo, theo pixel của khung hình video. */
@@ -319,8 +319,7 @@ export function makeApi(url: string, token: string) {
     /** Lấy khung hình ở giây `at` (bỏ trống = 10 % độ dài) để vẽ khung. */
     delogoFrame: (key: string, at?: number) => call<DelogoTarget>("POST", `${dl(key)}/frame`, { at: at ?? null }),
     delogoDetect: (key: string) => call<{ boxes: DelogoBox[]; note: string | null }>("POST", `${dl(key)}/detect`),
-    /** rights: người dùng xác nhận mình sở hữu / có quyền dùng video này. */
-    delogoRun: (key: string, boxes: DelogoBox[], rights: DelogoRights) =>
+    delogoRun: (key: string, boxes: DelogoBox[], rights?: DelogoRights) =>
       call<DelogoTarget>("POST", `${dl(key)}/run`, { boxes, rights }),
     /** Bỏ bản đã xoá logo: nguồn dự án quay về video gốc. */
     delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),

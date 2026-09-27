@@ -133,8 +133,8 @@ def test_project_source_flow(client, fake_ffmpeg):
     assert v["kind"] == "source" and v["frame"] == f"projects/{pid}/delogo/0/frame.jpg" and v["frame_at"] == 1.2
     assert v["status"] == "idle" and v["output"] is None and v["name"] == "Douyin · chaîne"
 
-    # phải xác nhận quyền trước khi chạy
-    for body in ({"boxes": BOX}, {"boxes": BOX, "rights": "unknown"}, {"boxes": BOX, "rights": ""}):
+    # vẫn từ chối quyền khai báo không hợp lệ
+    for body in ({"boxes": BOX, "rights": "unknown"}, {"boxes": BOX, "rights": ""}):
         r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json=body)
         assert r.status_code in (400, 422)
     assert not fake_ffmpeg
@@ -162,6 +162,49 @@ def test_project_source_flow(client, fake_ffmpeg):
     assert v["status"] == "idle" and v["output"] is None and not clean.exists()
     s = db.get_project(pid)["meta"]["sources"][0]
     assert s["path"] == str(orig) and "orig_path" not in s and "delogo" not in s
+
+
+@pytest.mark.parametrize("project_rights", ["unknown", "owned", "licensed", "cc"])
+def test_run_without_rights_preserves_project_rights(client, fake_ffmpeg, project_rights):
+    pid, _ = _source_project()
+    db.update_project(pid, meta={"rights": project_rights})
+    key = f"p{pid}-0"
+    response = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX})
+    assert response.status_code == 202
+    result = _wait(client, key)
+    assert result["status"] == "done" and result["rights"] is None
+    project = db.get_project(pid)
+    assert project["meta"]["rights"] == project_rights
+    assert project["meta"]["sources"][0]["delogo"]["rights"] is None
+    assert "xác nhận quyền" not in project["log"]
+
+
+@pytest.mark.parametrize("kind", ["source", "upload"])
+@pytest.mark.parametrize("rights", [None, "owned", "licensed"])
+def test_rerun_without_rights_preserves_saved_rights(client, fake_ffmpeg, kind, rights):
+    if kind == "source":
+        pid, _ = _source_project()
+        key = f"p{pid}-0"
+    else:
+        response = client.post("/api/delogo/uploads", headers=H,
+                               files={"file": ("clip.mp4", b"video", "video/mp4")})
+        assert response.status_code == 201
+        key = response.json()["target"]
+    body = {"boxes": BOX}
+    if rights is not None:
+        body["rights"] = rights
+    assert client.post(f"/api/delogo/targets/{key}/run", headers=H, json=body).status_code == 202
+    assert _wait(client, key)["rights"] == rights
+    if kind == "source":
+        db.update_project(pid, meta={"rights": "cc"})
+        previous_log = db.get_project(pid)["log"]
+    assert client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX * 2}).status_code == 202
+    result = _wait(client, key)
+    assert result["status"] == "done" and result["rights"] == rights and result["boxes"] == BOX * 2
+    if kind == "source":
+        project = db.get_project(pid)
+        assert project["meta"]["rights"] == "cc"
+        assert "xác nhận quyền" not in project["log"][len(previous_log):]
 
 
 def test_rights_follow_all_sources(client, fake_ffmpeg):

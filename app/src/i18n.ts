@@ -184,10 +184,6 @@ const vi = {
     detectFound: (n: number) => `Tìm thấy ${n} logo đứng yên. Kiểm tra khung trên hình rồi xoá.`,
     clearBoxes: "Bỏ hết khung",
     removeBox: "Bỏ khung này",
-    confirm: "Tôi sở hữu video này hoặc có quyền dùng nó",
-    confirmHint:
-      "Motio không kiểm tra được quyền này: lời xác nhận của bạn được lưu cùng video, và dự án ghi quyền “Của tôi” hoặc “Có giấy phép”.",
-    rights: { owned: "Của tôi", licensed: "Có giấy phép" } as Record<string, string>,
     run: "Xoá logo",
     modelHint:
       "Lần đầu, Motio tải mô hình AI (92 MB) về máy. Cảnh đứng yên xử lý nhanh; cảnh chuyển động có thể mất vài phút cho mỗi phút video.",

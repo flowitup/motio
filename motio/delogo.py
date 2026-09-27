@@ -1,6 +1,6 @@
 """Xoá logo / watermark đứng yên khỏi một video: vẽ khung, hoặc tự tìm logo tĩnh; LaMa (inpaint.py) vẽ lại chỗ đó.
 
-Chỉ chạy khi người dùng chọn một video và xác nhận mình sở hữu hoặc có quyền dùng nó (rights = owned | licensed).
+Chỉ chạy khi người dùng chọn một video. Giữ quyền đã khai báo nếu có (owned | licensed).
 Không bao giờ tự chạy trong pipeline (tin hot, chủ đề), không chạy hàng loạt.
 
 Đích (target):
@@ -24,7 +24,7 @@ import numpy as np
 
 from . import config, db, inpaint
 
-RIGHTS = ("owned", "licensed")  # xác nhận của người dùng trước khi chạy
+RIGHTS = ("owned", "licensed")  # khai báo quyền tuỳ chọn từ client cũ
 MAX_BOXES = 4
 MIN_SIDE = 4  # px, cạnh nhỏ nhất của một khung
 UPLOADS = config.DATA / "tools" / "delogo"
@@ -340,28 +340,33 @@ def _try_clamp(b: dict, info: dict) -> dict | None:
         return None
 
 
-def start(key: str, boxes: list[dict], rights: str, submit: Callable[[Callable[[], None]], object]) -> dict:
-    """Xếp hàng xoá logo. rights là lời xác nhận của người dùng: họ sở hữu (owned) hoặc có quyền (licensed)."""
-    if rights not in RIGHTS:
-        raise ValueError("Xác nhận bạn sở hữu video này hoặc có quyền dùng nó rồi mới xoá logo")
+def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Callable[[], None]], object]) -> dict:
+    """Xếp hàng xoá logo; quyền khai báo là tuỳ chọn, giữ quyền đã lưu khi bỏ qua."""
+    if rights is not None and rights not in RIGHTS:
+        raise ValueError("Quyền nguồn không hợp lệ")
     t = resolve(key)
     info = probe(t.src)
     boxes = clamp_boxes(boxes, info["width"], info["height"])
     if t.pid is not None and db.get_project(t.pid)["status"] in BUSY:
         raise Busy("Dự án đang chạy, chờ xong rồi thử lại")
+    update_rights = rights is not None
+    declaration = f"người dùng xác nhận quyền {rights}, " if update_rights else ""
+    if rights is None:
+        rights = view(key)["rights"]
     with _lock:
         if key in _jobs and _jobs[key]["status"] in BUSY:
             raise Busy("Video này đang được xoá logo")
         job = _jobs[key] = {"status": "queued", "pct": 0, "error": None}
     _save_state(t.work, boxes=boxes, rights=rights)
     if t.pid is not None:
-        db.update_project(t.pid, log=f"Xoá logo nguồn #{t.index + 1} ({t.name}): người dùng xác nhận quyền "
-                                     f"{rights}, {len(boxes)} khung")
-    submit(lambda: run(key, boxes, rights, t.url, job))
+        db.update_project(t.pid, log=f"Xoá logo nguồn #{t.index + 1} ({t.name}): "
+                                     f"{declaration}{len(boxes)} khung")
+    submit(lambda: run(key, boxes, rights, t.url, job, update_rights=update_rights))
     return view(key)
 
 
-def run(key: str, boxes: list[dict], rights: str, url: str | None = None, job: dict | None = None) -> None:
+def run(key: str, boxes: list[dict], rights: str | None, url: str | None = None, job: dict | None = None,
+        *, update_rights: bool = True) -> None:
     job = job if job is not None else _jobs.setdefault(key, {"status": "queued", "pct": 0, "error": None})
 
     def finish() -> None:
@@ -392,7 +397,7 @@ def run(key: str, boxes: list[dict], rights: str, url: str | None = None, job: d
         inpaint.video(t.src, out, boxes, probe(t.src), tick, lambda: bool(job.get("cancel")))
         record = {"boxes": boxes, "rights": rights, "method": "lama", "at": time.time()}
         if t.pid is not None:
-            _apply_to_source(t, out, record)
+            _apply_to_source(t, out, record, update_rights=update_rights)
         else:
             _save_state(t.work, done=record)
         finish()
@@ -424,7 +429,7 @@ def cancel(key: str) -> dict:
     return view(key)
 
 
-def _apply_to_source(t: Target, out: Path, record: dict) -> None:
+def _apply_to_source(t: Target, out: Path, record: dict, *, update_rights: bool = True) -> None:
     """Bản sạch thay nguồn này cho lần dựng sau. Bóc lời và cắt cảnh không đổi: chép cache sang bản sạch."""
     p = db.get_project(t.pid)
     sources = list(p["meta"].get("sources") or [])
@@ -439,7 +444,7 @@ def _apply_to_source(t: Target, out: Path, record: dict) -> None:
     sources[t.index] = s
     meta: dict = {"sources": sources}
     declared = [(x.get("delogo") or {}).get("rights") for x in sources]
-    if all(declared):  # mọi nguồn đều đã được xác nhận: quyền của cả dự án theo lời xác nhận
+    if update_rights and all(declared):  # mọi nguồn đều đã được xác nhận: quyền của cả dự án theo lời xác nhận
         meta["rights"] = "licensed" if "licensed" in declared else "owned"
     db.update_project(t.pid, log=f"Đã xoá logo nguồn #{t.index + 1}: bấm Chạy lại từ Giọng đọc để dựng lại video",
                       meta=meta)
