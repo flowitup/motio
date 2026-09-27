@@ -26,6 +26,12 @@ Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
+**Xoá logo** (remove a logo) cleans a static logo or watermark off one of your own videos: pick a project's source clip
+or upload a file, draw a box around the logo on a frame (or press **Tự tìm** to find logos that stay in place), confirm
+that you own the video or have the rights to it, and FFmpeg's `delogo` fills the box on every frame. An uploaded file
+gives you a cleaned copy; a project clip is replaced by its clean copy for the next render (the original is kept and
+can be restored). It never runs by itself in the pipelines.
+
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
@@ -126,6 +132,7 @@ motio/topic.py     topic mode: explainer from any topic or video links, source r
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
+motio/delogo.py    "Xoá logo": remove a static logo from a video you own (FFmpeg delogo, drawn or auto-found boxes)
 motio/web.py       legacy dashboard (to be removed)
 ```
 

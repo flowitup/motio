@@ -177,6 +177,26 @@ Agreed with the owner on 26/09 (brainstorm: script editor, not a clip-level time
   that starting from "Viết kịch bản" or earlier writes a new script.
 - Later, if needed: choosing and trimming each line's clips with a source preview.
 
+## Xoá logo: remove a logo from your own video (added 27/09/2026)
+
+Asked by the owner on 27/09: pick a video and remove its watermark. Design agreed in the thread: a manual tool, no
+pipeline step.
+
+- A **Xoá logo** page (`app/src/pages/delogo.tsx`, `motio/delogo.py`, `/api/delogo/*`). The video is a project's
+  source clip (`p<id>-<i>`, also linked from each source on the project page) or an uploaded file (`u<hex>`, kept in
+  `data/tools/delogo/`).
+- Boxes are drawn on a frame (slider to pick the frame) or found by **Tự tìm**: edges that keep the same place and
+  direction across ~32 sampled frames while the picture moves; letterbox lines and still videos are rejected.
+- Removal is FFmpeg `delogo` on every frame (H.264 CRF 18, AAC), on the engine's single job queue. No model, nothing
+  to download; it leaves a soft fill where the logo was. Learned video inpainters were ruled out for the installers
+  (ProPainter, E2FGVI are non-commercial); LaMa (Apache 2.0, per frame) is the upgrade path if the fill shows too much.
+- Before it runs, the user ticks "Tôi sở hữu video này hoặc có quyền dùng nó" and picks owned / licensed; the engine
+  refuses a run without it. The declaration is stored on the source (`meta.sources[i].delogo`) and, once every
+  source of the project is declared, in `meta.rights`.
+- A cleaned project clip replaces the source for the next render (`path` → `delogo/<i>/clean.mp4`, `orig_path`
+  keeps the original; transcript and scene caches are copied), "Dựng lại video" reruns from the voice step, and
+  "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
