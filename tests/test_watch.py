@@ -88,6 +88,7 @@ def test_first_check_then_only_unseen_videos():
     r = watch.check(db.get_watch(wid))
     assert len(r["new"]) == 12 and r["error"] is None  # 10 video mới nhất + 2 Shorts; bỏ buổi phát sắp tới
     assert all(o["playlistend"] == watch.PER_LIST and o["extract_flat"] == "in_playlist" for o in FakeYDL.opts)
+    assert all(isinstance(o["logger"], watch._Silent) for o in FakeYDL.opts)  # lỗi yt-dlp không in ra stderr
     w = db.get_watch(wid)
     assert w["name"] == "Vox" and w["last_checked"]
     assert len(db.list_clips("old")) == 5  # còn lại: coi như đã thấy, không hiện
@@ -111,22 +112,56 @@ def test_bilibili_space_reads_titles_and_explains_block(monkeypatch):
     assert FakeYDL.opts[0]["cookiesfrombrowser"] == ("firefox",)
 
     video = "https://www.bilibili.com/video/BV1a"
+    gone, blocked = "https://www.bilibili.com/video/BV1gone", "https://www.bilibili.com/video/BV1wait"
     FakeYDL.pages = {url: {"entries": [{"id": "BV1a", "ie_key": "BiliBili", "url": video},
+                                       {"id": "BV1gone", "ie_key": "BiliBili", "url": gone},
+                                       {"id": "BV1wait", "ie_key": "BiliBili", "url": blocked},
                                        {"id": "42_7", "ie_key": "BilibiliCollectionList", "url": "https://x"}]}}
     FakeYDL.details = {video: {"title": "熊猫吃竹子", "uploader": "UP主", "duration": 95, "view_count": 5,
-                               "thumbnail": "http://i0.hdslb.com/a.jpg"}}
+                               "thumbnail": "http://i0.hdslb.com/a.jpg"},
+                       gone: Exception("ERROR: [BiliBili] BV1gone: This video may be deleted or geo-restricted."),
+                       blocked: Exception("ERROR: [BiliBili] BV1wait: HTTP Error 412: Precondition Failed")}
     r = watch.check(db.get_watch(wid))
     assert r["new"] == ["bilibili:BV1a"]
     c = db.get_clip("bilibili:BV1a")
     assert (c["title"], c["uploader"], c["duration"]) == ("熊猫吃竹子", "UP主", 95)
     assert c["thumbnail"] == "https://i0.hdslb.com/a.jpg"
-    assert db.get_watch(wid)["last_error"] is None
+    assert db.get_clip("bilibili:BV1gone")["status"] == "old"  # đã xoá / giới hạn vùng: không hiện trống
+    assert db.get_clip("bilibili:BV1wait") is None  # bị chặn: lượt sau thử lại
+    w = db.get_watch(wid)
+    assert w["last_error"] is None and w["name"] == "UP主"  # không gian không có tên: lấy tên kênh của video
+
+    FakeYDL.details[blocked] = {"title": "Cuối cùng", "uploader": "UP主"}
+    assert watch.check(db.get_watch(wid))["new"] == ["bilibili:BV1wait"]
+
+
+def test_bilibili_search_keeps_videos_and_dedupes_av_ids():
+    assert watch.av_to_bv(170001) == "BV17x411w7KC" and watch.av_to_bv(1) == "BV1xx411c7mQ"  # cặp đã biết
+    wid = watch.add("熊猫", site="bilibili")
+    FakeYDL.pages = {"bilisearch15:熊猫": Exception("ERROR: [BiliBiliSearch] 熊猫: Unable to download JSON metadata: "
+                                                   "HTTP Error 412: Precondition Failed")}
+    watch.check(db.get_watch(wid))
+    assert "Cookie trình duyệt" in db.get_watch(wid)["last_error"]  # lỗi không nhắc "bilibili" vẫn được giải thích
+
+    FakeYDL.pages = {"bilisearch15:熊猫": {"entries": [
+        {"id": "170001", "ie_key": "BiliBili", "url": "http://www.bilibili.com/video/av170001"},
+        {"id": "966", "ie_key": "BiliBili", "url": "https://www.bilibili.com/cheese/play/ss966"}]}}
+    FakeYDL.details = {"https://www.bilibili.com/video/BV17x411w7KC": {"title": "熊猫", "uploader": "UP"}}
+    r = watch.check(db.get_watch(wid))
+    assert r["new"] == ["bilibili:BV17x411w7KC"] and db.get_clip("bilibili:966") is None  # khoá học trả phí: bỏ
+    assert db.get_watch(wid)["name"] == "熊猫"
+
+    space = watch.add("https://space.bilibili.com/7")
+    FakeYDL.pages = {"https://space.bilibili.com/7/video": {"entries": [
+        {"id": "BV17x411w7KC", "ie_key": "BiliBili", "url": "https://www.bilibili.com/video/BV17x411w7KC"}]}}
+    assert watch.check(db.get_watch(space))["new"] == []  # cùng video, đã thấy qua tìm kiếm
 
 
 def test_check_all_scores_new_videos(monkeypatch):
     wid = watch.add("street food")
-    FakeYDL.pages = {f"https://www.youtube.com/results?search_query=street+food&sp={watch.YT_BY_DATE}":
-                     {"entries": _yt(["a", "b"])}}
+    FakeYDL.pages = {f"https://www.youtube.com/results?search_query=street+food&sp={watch.YT_THIS_MONTH}":
+                     {"entries": _yt(["a", "b"]) + [{"id": "s", "ie_key": "Youtube", "title": "Short s",
+                                                     "url": "https://www.youtube.com/shorts/s"}]}}
     prompts = []
 
     def fake_ask(prompt, system, effort=None, **kw):
@@ -136,9 +171,11 @@ def test_check_all_scores_new_videos(monkeypatch):
 
     monkeypatch.setattr(llm, "ask_json", fake_ask)
     r = watch.check_all()
-    assert r == {"checked": 1, "new": 2, "errors": {}, "scored": 2}
+    assert r == {"checked": 1, "new": 3, "errors": {}, "scored": 3}
     assert prompts[0][1] == "low" and "Video a" in prompts[0][0]
-    a, b = db.list_clips()
+    short = next(line for line in prompts[0][0].splitlines() if '"youtube:s"' in line)
+    assert '"format": "Short"' in short and '"durée_s": null' in short  # độ dài chưa biết, không phải 0
+    a, b, _ = db.list_clips()
     assert (a["id"], a["title_fr"], a["score"]) == ("youtube:a", "La cuisine de rue", 88)
     assert a["watch_name"] == "street food"
     assert b["score"] is None and b["title_fr"] is None

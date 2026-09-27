@@ -20,7 +20,8 @@ PER_LIST = 15  # mỗi lần kiểm tra đọc tối đa 15 mục đầu của m
 MAX_DETAILS = 20  # số trang video tối đa đọc thêm mỗi lượt (Bilibili chỉ trả link, không có tiêu đề)
 MAX_WATCHES = 50
 YT_TABS = ("videos", "shorts")  # kênh YouTube: theo dõi cả video thường và Shorts
-YT_BY_DATE = "CAISAhAB"  # tham số tìm kiếm YouTube: chỉ video, mới nhất trước
+# Tìm kiếm YouTube đã bỏ sắp xếp theo ngày: lọc "tải lên tháng này" + chỉ video (tuần này hay trả về rỗng)
+YT_THIS_MONTH = "EgQIBBAB"
 VIDEO_IE = {"youtube": "Youtube", "bilibili": "BiliBili"}
 
 _YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
@@ -29,6 +30,13 @@ NOT_A_LIST = "Đây là link một video: dán link kênh hoặc playlist, hoặ
 UNSUPPORTED = ("Chỉ theo dõi được kênh, playlist YouTube, không gian Bilibili hoặc từ khoá tìm. "
                "Douyin, Facebook: dán link từng video vào Dự án → Tạo video")
 BILI_BLOCKED = "Bilibili chặn khi chưa đăng nhập: chọn trình duyệt ở Cài đặt → Cookie trình duyệt"
+_BLOCK = re.compile(r"\b(412|352|401)\b")
+
+# Bilibili: số av → mã BV (thuật toán công khai của Bilibili), để cùng một video từ tìm kiếm (av) và không gian (BV)
+# không bị đếm hai lần
+_BV_XOR, _BV_MAX, _BV_BASE = 23442827791579, 1 << 51, 58
+_BV_ALPHABET = "FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf"
+_BV_ORDER = (8, 7, 0, 5, 1, 3, 2, 4, 6)
 
 
 def classify(text: str, site: str = "youtube") -> dict:
@@ -80,8 +88,16 @@ def add(text: str, site: str = "youtube", rights: str = "unknown") -> int:
 
 
 # ---------- đọc danh sách ----------
+class _Silent:
+    """yt-dlp vẫn in ERROR ra stderr dù quiet; lỗi đã được bắt và lưu vào nguồn."""
+    def debug(self, msg: str) -> None: ...
+    def info(self, msg: str) -> None: ...
+    def warning(self, msg: str) -> None: ...
+    def error(self, msg: str) -> None: ...
+
+
 def _opts(site: str, n: int | None = None) -> dict:
-    opts = {**search._base(), "skip_download": True}
+    opts = {**search._base(), "skip_download": True, "logger": _Silent()}
     if n:
         opts |= {"extract_flat": "in_playlist", "playlistend": n}
     if site == "bilibili":
@@ -94,7 +110,7 @@ def _urls(w: dict) -> list[str]:
         return [f"{w['target']}/{tab}" for tab in YT_TABS]
     if w["kind"] == "search":
         if w["site"] == "youtube":
-            return [f"https://www.youtube.com/results?search_query={quote_plus(w['target'])}&sp={YT_BY_DATE}"]
+            return [f"https://www.youtube.com/results?search_query={quote_plus(w['target'])}&sp={YT_THIS_MONTH}"]
         return [f"bilisearch{PER_LIST}:{w['target']}"]
     return [w["target"]]
 
@@ -116,6 +132,14 @@ def _thumb(e: dict) -> str | None:
     return _https(e.get("thumbnail") or ((e.get("thumbnails") or [{}])[-1] or {}).get("url"))
 
 
+def av_to_bv(aid: int) -> str:
+    tmp, out = (_BV_MAX | aid) ^ _BV_XOR, [""] * 9
+    for pos in _BV_ORDER:
+        out[pos] = _BV_ALPHABET[tmp % _BV_BASE]
+        tmp //= _BV_BASE
+    return "BV1" + "".join(out)
+
+
 def _clip(e: dict, w: dict, owner: str | None) -> dict | None:
     vid = e.get("id")
     if not vid or e.get("ie_key") not in (None, VIDEO_IE[w["site"]]):
@@ -128,26 +152,35 @@ def _clip(e: dict, w: dict, owner: str | None) -> dict | None:
         if not url.startswith("http"):
             url = f"https://www.youtube.com/watch?v={vid}"
         thumb = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+    else:
+        m = re.search(r"bilibili\.com/video/(BV\w+|av(\d+))", url)
+        if not m:
+            return None  # khoá học trả phí (/cheese/), phim bộ… không phải video thường
+        vid = m[1] if m[1].startswith("BV") else av_to_bv(int(m[2]))
+        url = f"https://www.bilibili.com/video/{vid}"
     return {"id": f"{w['site']}:{vid}", "watch_id": w["id"], "site": w["site"], "url": _https(url),
             "title": (e.get("title") or "").strip(), "uploader": e.get("channel") or e.get("uploader") or owner,
             "duration": e.get("duration") or None, "views": e.get("view_count"), "thumbnail": thumb}
 
 
 def _details(c: dict) -> dict:
-    """Danh sách Bilibili chỉ có link: đọc trang video để lấy tiêu đề, kênh, độ dài, lượt xem, ảnh."""
+    """Danh sách Bilibili chỉ có link: đọc trang video để lấy tiêu đề, kênh, độ dài, lượt xem, ảnh.
+
+    Không đọc được: bị chặn (412…) thì bỏ qua để lượt sau thử lại; video đã xoá / giới hạn vùng thì coi như đã thấy.
+    """
     try:
         with YoutubeDL(_opts(c["site"])) as y:
             info = y.extract_info(c["url"], download=False, process=False) or {}
-    except Exception:
-        return c
+    except Exception as e:
+        return {**c, "status": "retry" if _BLOCK.search(str(e)) else "old"}
     return {**c, "title": (info.get("title") or "").strip(), "uploader": info.get("uploader") or c["uploader"],
             "duration": info.get("duration") or c["duration"], "views": info.get("view_count") or c["views"],
             "thumbnail": _thumb(info) or c["thumbnail"]}
 
 
-def _short(e: Exception) -> str:
+def _short(e: Exception, site: str) -> str:
     msg = re.sub(r"\x1b\[[0-9;]*m", "", str(e)).removeprefix("ERROR: ").strip()
-    if re.search(r"\b(412|352|401)\b", msg) and "bilibili" in msg.lower():
+    if site == "bilibili" and _BLOCK.search(msg):
         msg = f"{BILI_BLOCKED} ({msg[:120]})"
     return msg[:300]
 
@@ -162,7 +195,7 @@ def check(w: dict) -> dict:
             with YoutubeDL(_opts(w["site"], PER_LIST)) as y:
                 info = y.extract_info(url, download=False) or {}
         except Exception as e:
-            errors.append(_short(e))
+            errors.append(_short(e, w["site"]))
             continue
         ok = True
         if w["kind"] != "search":
@@ -179,7 +212,10 @@ def check(w: dict) -> dict:
         with ThreadPoolExecutor(max_workers=4) as ex:
             done = {c["id"]: c for c in ex.map(_details, need)}
         fresh = [done.get(c["id"], c) for c in fresh]
+    fresh = [c for c in fresh if c["status"] != "retry"]
     db.insert_clips(fresh)
+    if w["kind"] == "space":  # không gian Bilibili không trả tên kênh: lấy từ trang video
+        owner = owner or next((c["uploader"] for c in fresh if c["uploader"]), None)
     fields = {"last_error": " · ".join(errors) or None}
     if ok:
         fields["last_checked"] = time.time()
@@ -200,6 +236,8 @@ SCORE_PROMPT = """Voici de nouvelles vidéos publiées par des chaînes et des r
   musicaux, les podcasts face caméra, les directs, les compilations sans sujet et la publicité.
 - reason : 5–12 mots expliquant le score
 
+Une durée null est inconnue (fréquent pour les Shorts) : ne baisse pas le score pour autant.
+
 Réponds avec une liste JSON d'objets {{"id", "title_fr", "score", "reason"}}.
 
 Vidéos :
@@ -217,8 +255,9 @@ def score(clips: list[dict]) -> int:
     """Tiêu đề Pháp + điểm cho video mới: một lần gọi Claude (effort thấp) mỗi lô 20, 4 lô song song."""
     def run(batch: list[dict]) -> int:
         lines = "\n".join(json.dumps({"id": c["id"], "plateforme": c["site"], "chaîne": c["uploader"],
-                                      "durée_s": int(c["duration"] or 0), "vues": c["views"],
-                                      "titre": c["title"]}, ensure_ascii=False) for c in batch)
+                                      "format": "Short" if "/shorts/" in (c["url"] or "") else "vidéo",
+                                      "durée_s": int(c["duration"]) if c["duration"] else None,
+                                      "vues": c["views"], "titre": c["title"]}, ensure_ascii=False) for c in batch)
         result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low")
         by_id = {r.get("id"): r for r in result if isinstance(r, dict)} if isinstance(result, list) else {}
         for c in batch:

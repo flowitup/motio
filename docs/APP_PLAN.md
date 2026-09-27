@@ -141,7 +141,7 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
   news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
 - **B · Watchlist** (built, `motio/watch.py`): a "Video mới" page follows YouTube channels (videos + Shorts tabs) and
-  playlists, Bilibili user spaces / series / favourites, and saved searches (YouTube newest first, Bilibili). yt-dlp
+  playlists, Bilibili user spaces / series / favourites, and saved searches (YouTube: videos uploaded this month; Bilibili). yt-dlp
   lists them flat (no upload date, so "new" = not seen before); a new source shows its latest 10 videos per list,
   later checks only unseen ones. Checks run on the `REFRESH_EVERY_MIN` scheduler, when a source is added, or with
   "Kiểm tra ngay"; one low-effort Claude call per 20 new videos gives a French title and a score. "Làm video" makes a
