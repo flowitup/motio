@@ -26,6 +26,7 @@ as authoritative for scope and milestones.
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
 - `deploy/` + `Dockerfile` — Hetzner server stack (engine + Postiz + Caddy), runbook `docs/DEPLOY.md`.
 - `tools/` — dev scripts. `docs/` — plans and notes.
+- `.claude/skills/motio-dev/` — the dev playbook skill (workflow, gates, ship, release, server rules).
 - `data/` — runtime data (SQLite, downloaded sources, rendered projects). Never commit.
 - `.env` — secrets. Never read, print, or commit it.
 
