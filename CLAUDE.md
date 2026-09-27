@@ -21,7 +21,8 @@ as authoritative for scope and milestones.
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
-  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (FFmpeg `delogo`, drawn or auto-found boxes)
+  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes)
+  - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).

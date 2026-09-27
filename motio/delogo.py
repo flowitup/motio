@@ -1,4 +1,4 @@
-"""Xoá logo / watermark đứng yên khỏi một video bằng bộ lọc delogo của FFmpeg: vẽ khung, hoặc tự tìm logo tĩnh.
+"""Xoá logo / watermark đứng yên khỏi một video: vẽ khung, hoặc tự tìm logo tĩnh; LaMa (inpaint.py) vẽ lại chỗ đó.
 
 Chỉ chạy khi người dùng chọn một video và xác nhận mình sở hữu hoặc có quyền dùng nó (rights = owned | licensed).
 Không bao giờ tự chạy trong pipeline (tin hot, chủ đề), không chạy hàng loạt.
@@ -9,11 +9,9 @@ Không bao giờ tự chạy trong pipeline (tin hot, chủ đề), không chạ
 - "u<hex>": một file tải lên, ở data/tools/delogo/<hex>/ (input.*, clean.mp4).
 """
 import json
-import os
 import re
 import shutil
 import subprocess
-import tempfile
 import threading
 import time
 import uuid
@@ -24,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import config, db
+from . import config, db, inpaint
 
 RIGHTS = ("owned", "licensed")  # xác nhận của người dùng trước khi chạy
 MAX_BOXES = 4
@@ -58,7 +56,8 @@ _lock = threading.Lock()
 @lru_cache(maxsize=64)
 def _probe(path: str, _mtime: int, _size: int) -> dict:
     r = subprocess.run([config.ffprobe(), "-v", "error", "-select_streams", "v:0", "-show_entries",
-                        "stream=width,height:stream_side_data=rotation:stream_tags=rotate:format=duration",
+                        "stream=width,height,avg_frame_rate,r_frame_rate,color_space,color_primaries,color_transfer"
+                        ":stream_side_data=rotation:stream_tags=rotate:format=duration",
                         "-of", "json", path], capture_output=True, text=True)
     data = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
     streams = data.get("streams") or []
@@ -70,11 +69,14 @@ def _probe(path: str, _mtime: int, _size: int) -> dict:
     rot = rot or int(float((s.get("tags") or {}).get("rotate") or 0))
     if abs(rot) % 180 == 90:  # video quay dọc: FFmpeg tự xoay khi giải mã, toạ độ theo hình đã xoay
         w, h = h, w
-    return {"width": w, "height": h, "duration": round(float((data.get("format") or {}).get("duration") or 0), 3)}
+    fps = next((f for f in (s.get("avg_frame_rate"), s.get("r_frame_rate")) if f and 1 <= inpaint.fps_value(f) <= 120),
+               "30")
+    return {"width": w, "height": h, "duration": round(float((data.get("format") or {}).get("duration") or 0), 3),
+            "fps": fps, **{k: s[k] for k in ("color_space", "color_primaries", "color_transfer") if s.get(k)}}
 
 
 def probe(path: Path) -> dict:
-    """{width, height, duration} theo hình hiển thị (đã xoay)."""
+    """{width, height, duration, fps, color_*} theo hình hiển thị (đã xoay)."""
     st = Path(path).stat()
     return _probe(str(path), st.st_mtime_ns, st.st_size)
 
@@ -103,38 +105,9 @@ def sample_gray(src: Path, info: dict, n: int = SAMPLES, small: int = SMALL_W) -
     return buf[: k * sw * sh].reshape(k, sh, sw), info["width"] / sw
 
 
-def remove(src: Path, dst: Path, boxes: list[dict], duration: float,
-           progress: Callable[[float], None] | None = None) -> Path:
-    """Chạy delogo cho từng khung trên mọi khung hình, mã hoá lại hình (H.264), giữ tiếng (AAC)."""
-    vf = ",".join(f"delogo=x={b['x']}:y={b['y']}:w={b['w']}:h={b['h']}" for b in boxes)
-    part = dst.with_name(dst.stem + ".part.mp4")
-    cmd = [config.ffmpeg(), "-y", "-v", "error", "-nostats", "-progress", "pipe:1", "-i", str(src),
-           "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn",
-           "-vf", f"{vf},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
-           "-movflags", "+faststart", str(part)]
-    with tempfile.TemporaryFile() as err:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, text=True)
-        for line in p.stdout:
-            key, _, val = line.strip().partition("=")
-            if key in ("out_time_us", "out_time_ms") and progress and duration > 0:  # cả hai đều là micro giây
-                try:
-                    progress(min(int(val) / 1e6 / duration, 0.99))
-                except ValueError:
-                    pass
-        rc = p.wait()
-        err.seek(0)
-        msg = err.read().decode(errors="replace")
-    if rc != 0:
-        part.unlink(missing_ok=True)
-        raise RuntimeError(f"FFmpeg lỗi: {msg[-800:]}")
-    os.replace(part, dst)
-    return dst
-
-
 # ---------- khung ----------
 def clamp_boxes(raw: list[dict], width: int, height: int) -> list[dict]:
-    """Khung (pixel của khung hình) → khung hợp lệ cho delogo: cách mép ít nhất 1 px, cạnh ≥ MIN_SIDE."""
+    """Khung (pixel của khung hình) → khung hợp lệ: nằm trong khung hình (cách mép 1 px), cạnh ≥ MIN_SIDE."""
     if not raw:
         raise ValueError("Chưa có khung nào: vẽ khung quanh logo hoặc bấm Tự tìm")
     if len(raw) > MAX_BOXES:
@@ -229,7 +202,7 @@ def find_static(frames: np.ndarray, scale: float = 1.0) -> tuple[list[dict], str
             continue
         found.append((float(steady[y0:y1, x0:x1][static[y0:y1, x0:x1]].sum()), ty0, tx0, ty1, tx1))
     found.sort(reverse=True)
-    pad = 2  # px mẫu quanh logo: delogo nội suy từ viền ngoài khung
+    pad = 4  # px mẫu quanh logo: phủ cả viền mờ và nền mờ của logo (phần sót lại, LaMa sẽ vẽ tiếp)
     boxes = [{"x": round((x0 - pad) * scale), "y": round((y0 - pad) * scale),
               "w": round((x1 - x0 + 2 * pad) * scale), "h": round((y1 - y0 + 2 * pad) * scale)}
              for _, y0, x0, y1, x1 in found[:MAX_BOXES]]
@@ -313,12 +286,15 @@ def view(key: str) -> dict:
     frame = t.work / "frame.jpg"
     return {
         "target": key, "kind": "source" if t.pid is not None else "upload", "name": t.name,
-        "project_id": t.pid, "index": t.index, "url": t.url, **info,
+        "project_id": t.pid, "index": t.index, "url": t.url,
+        "width": info["width"], "height": info["height"], "duration": info["duration"],
         "frame": _rel(frame) if frame.is_file() else None, "frame_at": st.get("frame_at"),
         "boxes": (record or {}).get("boxes") or st.get("boxes") or [],
         "rights": (record or {}).get("rights") or st.get("rights"),
         "status": job["status"] if job else ("done" if done else "idle"),
         "pct": job["pct"] if job else (100 if done else 0), "error": job.get("error") if job else None,
+        "phase": job.get("phase") if job else None, "eta": job.get("eta") if job else None,
+        "stopping": bool(job and job.get("cancel")), "model_ready": inpaint.model_ready(),
         "output": _rel(out) if done else None, "done_at": (record or {}).get("at"),
         "folder": str(t.work),
     }
@@ -366,34 +342,76 @@ def start(key: str, boxes: list[dict], rights: str, submit: Callable[[Callable[[
     with _lock:
         if key in _jobs and _jobs[key]["status"] in BUSY:
             raise Busy("Video này đang được xoá logo")
-        _jobs[key] = {"status": "queued", "pct": 0, "error": None}
+        job = _jobs[key] = {"status": "queued", "pct": 0, "error": None}
     _save_state(t.work, boxes=boxes, rights=rights)
     if t.pid is not None:
         db.update_project(t.pid, log=f"Xoá logo nguồn #{t.index + 1} ({t.name}): người dùng xác nhận quyền "
                                      f"{rights}, {len(boxes)} khung")
-    submit(lambda: run(key, boxes, rights, t.url))
+    submit(lambda: run(key, boxes, rights, t.url, job))
     return view(key)
 
 
-def run(key: str, boxes: list[dict], rights: str, url: str | None = None) -> None:
-    job = _jobs.setdefault(key, {"status": "queued", "pct": 0, "error": None})
-    job.update(status="running", pct=0)
+def run(key: str, boxes: list[dict], rights: str, url: str | None = None, job: dict | None = None) -> None:
+    job = job if job is not None else _jobs.setdefault(key, {"status": "queued", "pct": 0, "error": None})
+
+    def finish() -> None:
+        with _lock:
+            if _jobs.get(key) is job:
+                _jobs.pop(key)
+
+    if job.get("cancel"):  # dừng khi còn đang chờ
+        return finish()
+    job.update(status="running", pct=0, phase="fill", eta=None)
     try:
         t = resolve(key)
         if t.url != url:
             raise RuntimeError("Nguồn của dự án đã đổi trong lúc chờ: chọn lại video")
         out = t.work / "clean.mp4"
         t.work.mkdir(parents=True, exist_ok=True)
-        remove(t.src, out, boxes, probe(t.src)["duration"], lambda f: job.update(pct=int(f * 100)))
-        record = {"boxes": boxes, "rights": rights, "at": time.time()}
+        if not inpaint.model_ready():  # lần đầu: tải mô hình AI
+            job.update(phase="model")
+            inpaint.ensure_model(lambda f: job.update(pct=int(f * 100)))
+            job.update(phase="fill", pct=0)
+        started = time.monotonic()
+
+        def tick(done: int, total: int) -> None:
+            spent = time.monotonic() - started
+            eta = round(spent * (total - done) / done) if done >= 10 else None  # giây còn lại, ước tính
+            job.update(pct=min(done * 100 // total, 99), eta=eta)
+
+        inpaint.video(t.src, out, boxes, probe(t.src), tick, lambda: bool(job.get("cancel")))
+        record = {"boxes": boxes, "rights": rights, "method": "lama", "at": time.time()}
         if t.pid is not None:
             _apply_to_source(t, out, record)
         else:
             _save_state(t.work, done=record)
-        _jobs.pop(key, None)
+        finish()
+    except inpaint.Cancelled:
+        if t.pid is not None:
+            db.update_project(t.pid, log=f"Đã dừng xoá logo nguồn #{t.index + 1}")
+        finish()
     except Exception as e:
         job.update(status="failed", error=str(e)[:500])
         raise
+
+
+def stop_all() -> None:
+    for job in list(_jobs.values()):
+        job["cancel"] = True
+
+
+def cancel(key: str) -> dict:
+    """Dừng việc xoá logo đang chạy hoặc đang chờ; kết quả cũ (nếu có) giữ nguyên."""
+    resolve(key)
+    job = _jobs.get(key)
+    if not job or job["status"] not in BUSY:
+        raise ValueError("Video này không có việc xoá logo nào đang chạy")
+    job["cancel"] = True
+    if job["status"] == "queued":
+        with _lock:
+            if _jobs.get(key) is job:
+                _jobs.pop(key)
+    return view(key)
 
 
 def _apply_to_source(t: Target, out: Path, record: dict) -> None:

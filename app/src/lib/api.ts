@@ -21,7 +21,7 @@ export type SourceInfo = {
   uploader: string;
   title: string;
   duration: number;
-  delogo?: { boxes: DelogoBox[]; rights: DelogoRights; at: number }; // đã xoá logo: bản sạch thay nguồn này
+  delogo?: { boxes: DelogoBox[]; rights: DelogoRights; method?: "lama"; at: number }; // bản sạch thay nguồn này
 };
 
 /** Khung quanh logo, theo pixel của khung hình video. */
@@ -46,6 +46,10 @@ export type DelogoTarget = {
   status: DelogoStatus;
   pct: number;
   error: string | null;
+  phase: "model" | "fill" | null; // model = đang tải mô hình AI (lần đầu), fill = đang vẽ lại vùng logo
+  eta: number | null; // giây còn lại, ước tính
+  stopping: boolean;
+  model_ready: boolean; // mô hình AI đã tải về máy chạy engine
   output: string | null;
   done_at: number | null;
   folder: string;
@@ -253,6 +257,7 @@ export function makeApi(url: string, token: string) {
     delogoRun: (key: string, boxes: DelogoBox[], rights: DelogoRights) =>
       call<DelogoTarget>("POST", `${dl(key)}/run`, { boxes, rights }),
     /** Bỏ bản đã xoá logo: nguồn dự án quay về video gốc. */
+    delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),
     delogoRestore: (key: string) => call<DelogoTarget>("DELETE", `${dl(key)}/result`),
     delogoDelete: (key: string) => call<{ deleted: string }>("DELETE", dl(key)),
     settings: () => call<Settings>("GET", "/api/settings"),

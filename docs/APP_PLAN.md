@@ -187,9 +187,17 @@ pipeline step.
   `data/tools/delogo/`).
 - Boxes are drawn on a frame (slider to pick the frame) or found by **Tự tìm**: edges that keep the same place and
   direction across ~32 sampled frames while the picture moves; letterbox lines and still videos are rejected.
-- Removal is FFmpeg `delogo` on every frame (H.264 CRF 18, AAC), on the engine's single job queue. No model, nothing
-  to download; it leaves a soft fill where the logo was. Learned video inpainters were ruled out for the installers
-  (ProPainter, E2FGVI are non-commercial); LaMa (Apache 2.0, per frame) is the upgrade path if the fill shows too much.
+- Removal (changed 27/09 on the owner's ask, "Replace ffmpeg with LaMa"): the LaMa AI model redraws the boxed area
+  on every frame (`motio/inpaint.py`). Model: OpenCV Zoo's ONNX export of LaMa (`inpainting_lama_2025jan.onnx`,
+  92 MB, Apache 2.0), downloaded once to `data/models/` and checked by sha256; its fixed 512×512 input is opened to
+  any size (6 bytes of the input / output shapes). onnxruntime on the CPU, macOS / Windows / Linux alike.
+  Per frame: crop the box plus a margin, shrink to ≤ 256 px, fill, scale back, blend over a thin ring so no box edge
+  shows; while the picture around the logo stays the same, the last fill is reused (fast on still shots, no
+  flicker). FFmpeg only decodes and re-encodes (H.264 CRF 18, AAC, exact-rounding RGB ↔ YUV so the untouched picture
+  keeps its values). Measured in a 4-core cloud container: ~0.07 s per frame on a still shot, ~0.7 s per frame and
+  logo on a moving one; the Mac should be faster (not measured yet). Logo jobs run on their own queue so they don't
+  hold up video production; the page shows time left and a Stop button. Video inpainters (ProPainter, E2FGVI) stay
+  out: non-commercial licenses.
 - Before it runs, the user ticks "Tôi sở hữu video này hoặc có quyền dùng nó" and picks owned / licensed; the engine
   refuses a run without it. The declaration is stored on the source (`meta.sources[i].delogo`) and, once every
   source of the project is declared, in `meta.rights`.

@@ -4,6 +4,7 @@ import {
   FolderOpen,
   Loader2,
   RotateCcw,
+  Square,
   ScanSearch,
   Trash2,
   Undo2,
@@ -276,6 +277,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
       setBoxes(null);
     },
   });
+  const stop = useMutation({ mutationFn: () => api.delogoCancel(target), onSuccess: put });
   const restore = useMutation({
     mutationFn: () => api.delogoRestore(target),
     onSuccess: (d) => {
@@ -331,7 +333,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
   const busy = active || run.isPending;
   // ?v= đổi theo thời điểm để trình duyệt không giữ khung hình / kết quả cũ
   const media = (rel: string, stamp?: number | null) => api.mediaUrl(rel, Math.round((stamp ?? 0) * 1000) + 1);
-  const error = frame.error ?? detect.error ?? run.error ?? restore.error ?? rerender.error;
+  const error = frame.error ?? detect.error ?? run.error ?? stop.error ?? restore.error ?? rerender.error;
 
   return (
     <div className="min-w-0 space-y-5">
@@ -426,11 +428,32 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
             {error && <span className="text-sm text-destructive">{error.message}</span>}
             {v.status === "failed" && v.error && <span className="text-sm text-destructive">{v.error}</span>}
           </div>
+          {!v.model_ready && !active && <p className="text-xs text-muted-foreground">{t.delogo.modelHint}</p>}
           {active && (
             <div className="space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <span>{v.status === "queued" ? t.delogo.queued : t.delogo.running}</span>
-                <span className="text-muted-foreground">{v.pct}%</span>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span>
+                  {v.stopping
+                    ? t.delogo.stopping
+                    : v.status === "queued"
+                      ? t.delogo.queued
+                      : v.phase === "model"
+                        ? t.delogo.downloading
+                        : t.delogo.running}
+                </span>
+                <span className="flex items-center gap-3 text-muted-foreground">
+                  {v.status === "running" && v.phase === "fill" && v.eta != null && t.delogo.eta(v.eta)}
+                  <span>{v.pct}%</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => stop.mutate()}
+                    disabled={v.stopping || stop.isPending}
+                  >
+                    <Square />
+                    {t.delogo.stop}
+                  </Button>
+                </span>
               </div>
               <Progress value={v.pct} />
             </div>
