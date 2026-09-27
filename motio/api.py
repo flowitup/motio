@@ -14,12 +14,12 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, edit, newsnow, pipeline, postiz, search, settings, topic, tts, watch
+from . import __version__, asr, config, db, delogo, edit, newsnow, pipeline, postiz, search, settings, topic, tts, watch
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
@@ -81,6 +81,15 @@ class RetryIn(BaseModel):
     start: str | None = None  # search | download | transcribe | script | voice; None = từ bước bị lỗi
 
 
+class DelogoFrameIn(BaseModel):
+    at: float | None = None  # giây; bỏ trống = 10 % độ dài video
+
+
+class DelogoRunIn(BaseModel):
+    boxes: list[dict]  # [{x, y, w, h}] theo pixel của khung hình
+    rights: str  # owned | licensed: người dùng xác nhận mình sở hữu / có quyền dùng video này
+
+
 class PublishIn(BaseModel):
     channels: list[str]
     mode: str = "draft"  # draft | schedule | now
@@ -106,6 +115,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     if not token:
         raise ValueError("token is required")
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
+    tools = ThreadPoolExecutor(max_workers=1, thread_name_prefix="delogo")  # xoá logo (lâu) không chặn việc làm video
     state = {"refreshing": False, "last_refresh": None, "last_result": None,
              "watching": False, "last_watch": None, "last_watch_result": None}
     refresh_lock = threading.Lock()
@@ -145,6 +155,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         yield
         stop.set()
         jobs.shutdown(wait=False, cancel_futures=True)
+        delogo.stop_all()  # FFmpeg + mô hình dừng ở khung hình kế tiếp, engine thoát được ngay
+        tools.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Motio engine", version=__version__, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"],
@@ -511,6 +523,63 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
                           meta={"postiz": [*meta.get("postiz", []), entry]})
         return res
+
+    # ---------- xoá logo (video người dùng chọn, sau khi họ xác nhận quyền) ----------
+    def _dl(fn, *args):
+        try:
+            return fn(*args)
+        except delogo.NotFound as e:
+            raise HTTPException(404, str(e)) from e
+        except delogo.Busy as e:
+            raise HTTPException(409, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except (RuntimeError, OSError) as e:
+            raise HTTPException(500, str(e)[:500]) from e
+
+    def _bg(fn) -> None:
+        try:
+            fn()
+        except Exception as e:  # lỗi đã ghi vào trạng thái job
+            print(f"motio: xoá logo lỗi: {e}", file=sys.stderr)
+
+    @app.get("/api/delogo/uploads", dependencies=[Depends(auth)])
+    def delogo_uploads():
+        return delogo.list_uploads()
+
+    @app.post("/api/delogo/uploads", status_code=201, dependencies=[Depends(auth)])
+    def delogo_upload(file: UploadFile):
+        key = _dl(delogo.save_upload, file.filename or "", file.file)
+        return _dl(delogo.frame, key)
+
+    @app.get("/api/delogo/targets/{key}", dependencies=[Depends(auth)])
+    def delogo_view(key: str):
+        return _dl(delogo.view, key)
+
+    @app.post("/api/delogo/targets/{key}/frame", dependencies=[Depends(auth)])
+    def delogo_frame(key: str, body: DelogoFrameIn | None = None):
+        return _dl(delogo.frame, key, body.at if body else None)
+
+    @app.post("/api/delogo/targets/{key}/detect", dependencies=[Depends(auth)])
+    def delogo_detect(key: str):
+        return _dl(delogo.detect, key)
+
+    @app.post("/api/delogo/targets/{key}/run", status_code=202, dependencies=[Depends(auth)])
+    def delogo_run(key: str, body: DelogoRunIn):
+        return _dl(delogo.start, key, body.boxes, body.rights, lambda fn: tools.submit(_bg, fn))
+
+    @app.post("/api/delogo/targets/{key}/cancel", dependencies=[Depends(auth)])
+    def delogo_cancel(key: str):
+        return _dl(delogo.cancel, key)
+
+    @app.delete("/api/delogo/targets/{key}/result", dependencies=[Depends(auth)])
+    def delogo_restore(key: str):
+        return _dl(delogo.restore, key)
+
+    @app.delete("/api/delogo/targets/{key}", dependencies=[Depends(auth)])
+    def delogo_delete(key: str):
+        _dl(delogo.delete_upload, key)
+        return {"deleted": key}
 
     # ---------- giọng, cài đặt ----------
     @app.get("/api/voices", dependencies=[Depends(auth)])

@@ -188,6 +188,34 @@ Agreed with the owner on 26/09 (brainstorm: script editor, not a clip-level time
   that starting from "Viết kịch bản" or earlier writes a new script.
 - Later, if needed: choosing and trimming each line's clips with a source preview.
 
+## Xoá logo: remove a logo from your own video (added 27/09/2026)
+
+Asked by the owner on 27/09: pick a video and remove its watermark. Design agreed in the thread: a manual tool, no
+pipeline step.
+
+- A **Xoá logo** page (`app/src/pages/delogo.tsx`, `motio/delogo.py`, `/api/delogo/*`). The video is a project's
+  source clip (`p<id>-<i>`, also linked from each source on the project page) or an uploaded file (`u<hex>`, kept in
+  `data/tools/delogo/`).
+- Boxes are drawn on a frame (slider to pick the frame) or found by **Tự tìm**: edges that keep the same place and
+  direction across ~32 sampled frames while the picture moves; letterbox lines and still videos are rejected.
+- Removal (changed 27/09 on the owner's ask, "Replace ffmpeg with LaMa"): the LaMa AI model redraws the boxed area
+  on every frame (`motio/inpaint.py`). Model: OpenCV Zoo's ONNX export of LaMa (`inpainting_lama_2025jan.onnx`,
+  92 MB, Apache 2.0), downloaded once to `data/models/` and checked by sha256; its fixed 512×512 input is opened to
+  any size (6 bytes of the input / output shapes). onnxruntime on the CPU, macOS / Windows / Linux alike.
+  Per frame: crop the box plus a margin, shrink to ≤ 256 px, fill, scale back, blend over a thin ring so no box edge
+  shows; while the picture around the logo stays the same, the last fill is reused (fast on still shots, no
+  flicker). FFmpeg only decodes and re-encodes (H.264 CRF 18, AAC, exact-rounding RGB ↔ YUV so the untouched picture
+  keeps its values). Measured in a 4-core cloud container: ~0.07 s per frame on a still shot, ~0.7 s per frame and
+  logo on a moving one; the Mac should be faster (not measured yet). Logo jobs run on their own queue so they don't
+  hold up video production; the page shows time left and a Stop button. Video inpainters (ProPainter, E2FGVI) stay
+  out: non-commercial licenses.
+- Before it runs, the user ticks "Tôi sở hữu video này hoặc có quyền dùng nó" and picks owned / licensed; the engine
+  refuses a run without it. The declaration is stored on the source (`meta.sources[i].delogo`) and, once every
+  source of the project is declared, in `meta.rights`.
+- A cleaned project clip replaces the source for the next render (`path` → `delogo/<i>/clean.mp4`, `orig_path`
+  keeps the original; transcript and scene caches are copied), "Dựng lại video" reruns from the voice step, and
+  "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to

@@ -21,7 +21,40 @@ export type SourceInfo = {
   uploader: string;
   title: string;
   duration: number;
+  delogo?: { boxes: DelogoBox[]; rights: DelogoRights; method?: "lama"; at: number }; // bản sạch thay nguồn này
 };
+
+/** Khung quanh logo, theo pixel của khung hình video. */
+export type DelogoBox = { x: number; y: number; w: number; h: number };
+export type DelogoRights = "owned" | "licensed";
+export type DelogoStatus = "idle" | "queued" | "running" | "done" | "failed";
+/** Một video để xoá logo: nguồn dự án ("p<id>-<i>") hoặc file tải lên ("u<hex>"). */
+export type DelogoTarget = {
+  target: string;
+  kind: "source" | "upload";
+  name: string;
+  project_id: number | null;
+  index: number | null;
+  url: string | null;
+  width: number;
+  height: number;
+  duration: number;
+  frame: string | null;
+  frame_at: number | null;
+  boxes: DelogoBox[];
+  rights: DelogoRights | null; // xác nhận đã lưu của người dùng
+  status: DelogoStatus;
+  pct: number;
+  error: string | null;
+  phase: "model" | "fill" | null; // model = đang tải mô hình AI (lần đầu), fill = đang vẽ lại vùng logo
+  eta: number | null; // giây còn lại, ước tính
+  stopping: boolean;
+  model_ready: boolean; // mô hình AI đã tải về máy chạy engine
+  output: string | null;
+  done_at: number | null;
+  folder: string;
+};
+export type DelogoUpload = { target: string; name: string; created_at: number | null; status: DelogoStatus };
 
 export type Rights = "unknown" | "owned" | "licensed" | "cc";
 
@@ -213,6 +246,30 @@ export function makeApi(url: string, token: string) {
     return r.json();
   }
   const q = `token=${encodeURIComponent(token)}`;
+  const dl = (key: string) => `/api/delogo/targets/${encodeURIComponent(key)}`;
+  /** Tải file lên (multipart) bằng XHR để có tiến trình. */
+  function upload(file: File, onProgress?: (pct: number) => void): Promise<DelogoTarget> {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", `${url}/api/delogo/uploads`);
+      x.setRequestHeader("Authorization", `Bearer ${token}`);
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((100 * e.loaded) / e.total));
+      x.onload = () => {
+        let body: { detail?: string } & Partial<DelogoTarget> = {};
+        try {
+          body = JSON.parse(x.responseText);
+        } catch {
+          /* không phải JSON */
+        }
+        if (x.status >= 200 && x.status < 300) resolve(body as DelogoTarget);
+        else reject(new ApiError(x.status, body.detail ?? x.statusText));
+      };
+      x.onerror = () => reject(new ApiError(0, "Không kết nối được engine"));
+      const form = new FormData();
+      form.append("file", file);
+      x.send(form);
+    });
+  }
   return {
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),
@@ -256,6 +313,19 @@ export function makeApi(url: string, token: string) {
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>
       call<Omit<PublishRecord, "at">>("POST", `/api/projects/${id}/publish`, body),
+    delogoUploads: () => call<DelogoUpload[]>("GET", "/api/delogo/uploads"),
+    delogoUpload: upload,
+    delogoTarget: (key: string) => call<DelogoTarget>("GET", dl(key)),
+    /** Lấy khung hình ở giây `at` (bỏ trống = 10 % độ dài) để vẽ khung. */
+    delogoFrame: (key: string, at?: number) => call<DelogoTarget>("POST", `${dl(key)}/frame`, { at: at ?? null }),
+    delogoDetect: (key: string) => call<{ boxes: DelogoBox[]; note: string | null }>("POST", `${dl(key)}/detect`),
+    /** rights: người dùng xác nhận mình sở hữu / có quyền dùng video này. */
+    delogoRun: (key: string, boxes: DelogoBox[], rights: DelogoRights) =>
+      call<DelogoTarget>("POST", `${dl(key)}/run`, { boxes, rights }),
+    /** Bỏ bản đã xoá logo: nguồn dự án quay về video gốc. */
+    delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),
+    delogoRestore: (key: string) => call<DelogoTarget>("DELETE", `${dl(key)}/result`),
+    delogoDelete: (key: string) => call<{ deleted: string }>("DELETE", dl(key)),
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
