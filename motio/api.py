@@ -94,6 +94,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     if not token:
         raise ValueError("token is required")
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
+    tools = ThreadPoolExecutor(max_workers=1, thread_name_prefix="delogo")  # xoá logo (lâu) không chặn việc làm video
     state = {"refreshing": False, "last_refresh": None, "last_result": None}
     refresh_lock = threading.Lock()
     started = time.time()
@@ -121,6 +122,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         yield
         stop.set()
         jobs.shutdown(wait=False, cancel_futures=True)
+        delogo.stop_all()  # FFmpeg + mô hình dừng ở khung hình kế tiếp, engine thoát được ngay
+        tools.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Motio engine", version=__version__, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"],
@@ -438,7 +441,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/delogo/targets/{key}/run", status_code=202, dependencies=[Depends(auth)])
     def delogo_run(key: str, body: DelogoRunIn):
-        return _dl(delogo.start, key, body.boxes, body.rights, lambda fn: jobs.submit(_bg, fn))
+        return _dl(delogo.start, key, body.boxes, body.rights, lambda fn: tools.submit(_bg, fn))
+
+    @app.post("/api/delogo/targets/{key}/cancel", dependencies=[Depends(auth)])
+    def delogo_cancel(key: str):
+        return _dl(delogo.cancel, key)
 
     @app.delete("/api/delogo/targets/{key}/result", dependencies=[Depends(auth)])
     def delogo_restore(key: str):

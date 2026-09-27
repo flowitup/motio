@@ -100,7 +100,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
 | Postiz posting | `motio/postiz.py`, `app/src/components/publish-card.tsx` |
-| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `remove`, targets `p<id>-<i>` / `u<hex>`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
+| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
 | Engine connection (local/remote) | `app/src/lib/engine.tsx`, `app/src-tauri/src/engine.rs` |
@@ -298,7 +298,8 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
   usually works. Expect fewer sources on the server.
 - `uv` is not on PATH when the app is launched from Finder / Explorer; `engine.rs` searches common
   locations. Keep that list in sync if you change how uv is found.
-- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`.
+- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`. "Xoá logo"
+  jobs have their own one-at-a-time queue (`tools` in `api.py`) so a long LaMa run doesn't hold up production.
 - Stale `running` projects are marked `failed` on engine start; don't rely on resuming them.
 - Release asset names feed `tools/updater_manifest.py`: renaming bundles or changing `bundles:` in
   `release.yml` breaks updates unless the manifest targets and its test change too.
@@ -312,6 +313,10 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - Installers run the engine frozen by PyInstaller, not uv. A new dependency that loads data files or plugins
   at runtime may need `--collect-all` in `tools/build_engine.py`; `motio.web` (legacy dashboard) is excluded
   from the freeze. Touch the packaging tools and the PR builds the installers, which proves it.
+- The LaMa model is not in the installers: `inpaint.ensure_model` downloads it on the first logo run from OpenCV Zoo
+  (pinned by sha256, then 6 shape bytes are patched at fixed offsets). If OpenCV ever replaces that file, downloads
+  fail with a "sai sha256" error: update `MODEL_URL`, both hashes and `_FREE_DIMS` together. Tests never download it
+  (they use a fake session). The model's input width must be a multiple of 16 and height of 8.
 
 ## 12. Cleanup (last step)
 

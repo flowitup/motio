@@ -28,7 +28,11 @@ description and hashtags) and re-voice + re-render from your edit, rerun from an
 
 **Xoá logo** (remove a logo) cleans a static logo or watermark off one of your own videos: pick a project's source clip
 or upload a file, draw a box around the logo on a frame (or press **Tự tìm** to find logos that stay in place), confirm
-that you own the video or have the rights to it, and FFmpeg's `delogo` fills the box on every frame. An uploaded file
+that you own the video or have the rights to it, and the LaMa AI model redraws what was behind the logo on every frame.
+The first run downloads the model once (92 MB, [LaMa](https://github.com/advimman/lama) exported by
+[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/inpainting_lama), Apache 2.0) into `data/models/`.
+It runs on the CPU: still shots go fast (the fill is reused while the picture behind the logo doesn't change), moving
+shots take a few minutes per minute of video, and the page shows the time left and a Stop button. An uploaded file
 gives you a cleaned copy; a project clip is replaced by its clean copy for the next render (the original is kept and
 can be restored). It never runs by itself in the pipelines.
 
@@ -132,7 +136,8 @@ motio/topic.py     topic mode: explainer from any topic or video links, source r
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
-motio/delogo.py    "Xoá logo": remove a static logo from a video you own (FFmpeg delogo, drawn or auto-found boxes)
+motio/delogo.py    "Xoá logo": remove a static logo from a video you own (drawn or auto-found boxes)
+motio/inpaint.py   LaMa AI fill for "Xoá logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/web.py       legacy dashboard (to be removed)
 ```
 

@@ -1,6 +1,7 @@
-"""Xoá logo (motio/delogo.py): tự tìm logo đứng yên, khung hợp lệ, API cho nguồn dự án và file tải lên."""
+"""Xoá logo (motio/delogo.py): tự tìm logo đứng yên, khung hợp lệ, API cho nguồn dự án và file tải lên, dừng."""
 import json
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, config, db, delogo
+from motio import api, config, db, delogo, inpaint
 
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
@@ -69,21 +70,22 @@ def test_clamp_boxes():
             delogo.clamp_boxes(bad, 640, 360)
 
 
-# ---------- API (FFmpeg giả) ----------
+# ---------- API (FFmpeg và mô hình giả) ----------
 @pytest.fixture
 def fake_ffmpeg(monkeypatch):
     calls = []
 
-    def remove(src, dst, boxes, duration, progress=None):
+    def video(src, dst, boxes, info, progress=None, cancelled=lambda: False):
         calls.append((Path(src), boxes))
-        progress and progress(0.5)
+        progress and progress(150, 300)
         Path(dst).write_bytes(b"clean")
         return dst
 
-    monkeypatch.setattr(delogo, "probe", lambda p: {"width": 640, "height": 360, "duration": 12.0})
+    monkeypatch.setattr(delogo, "probe", lambda p: {"width": 640, "height": 360, "duration": 12.0, "fps": "25/1"})
     monkeypatch.setattr(delogo, "grab_frame", lambda src, at, out: (out.parent.mkdir(parents=True, exist_ok=True),
                                                                      out.write_bytes(b"jpg"), out)[-1])
-    monkeypatch.setattr(delogo, "remove", remove)
+    monkeypatch.setattr(inpaint, "video", video)
+    monkeypatch.setattr(inpaint, "model_ready", lambda: True)
     return calls
 
 
@@ -212,9 +214,164 @@ def test_detect_route(client, monkeypatch, fake_ffmpeg):
     assert client.get(f"/api/delogo/targets/p{pid}-0", headers=H).json()["boxes"] == r["boxes"]
 
 
-# ---------- FFmpeg thật ----------
+# ---------- LaMa: vùng cắt, dán lại, tải mô hình (mô hình giả) ----------
+class FakeLama:
+    """Thay mô hình: tô vùng mặt nạ bằng màu trung bình của phần nền. Đếm số lần chạy."""
+
+    def __init__(self):
+        self.runs = 0
+        self.sizes = []
+
+    def run(self, _outputs, feed):
+        self.runs += 1
+        img, mask = feed["image"], feed["mask"]
+        self.sizes.append(img.shape[2:])
+        assert img.dtype == mask.dtype == np.float32 and img.max() <= 1.0
+        assert img.shape[3] % 16 == 0 and img.shape[2] % 8 == 0  # cỡ mô hình nhận được
+        keep = mask[0, 0] == 0
+        fill = np.stack([c[keep].mean() for c in img[0]])[:, None, None]
+        return [np.where(mask[0] > 0, fill, img[0])[None] * 255]
+
+
+def _logo_frame(h=360, w=640, seed=1) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    frame = (rng.integers(90, 110, (h, w, 3))).astype(np.uint8)
+    frame[20:60, 500:620] = 255
+    return frame
+
+
+def test_patch_geometry_and_fill():
+    frame = _logo_frame()
+    before = frame.copy()
+    p = inpaint.Patch({"x": 500, "y": 20, "w": 120, "h": 40}, 640, 360)
+    assert 0 <= p.x0 < 500 and p.x1 <= 640 and 0 <= p.y0 < 20 and p.y1 > 60  # vùng cắt có lề, nằm trong khung
+    tw, th = p.size
+    assert tw % 16 == 0 and th % 8 == 0 and max(tw, th) <= inpaint.WORK + 16
+    assert p.alpha[20 - p.y0:60 - p.y0, 500 - p.x0:620 - p.x0].min() == 1  # cả khung được vẽ lại
+    lama = FakeLama()
+    assert p.apply(frame, lama) and lama.runs == 1
+    assert abs(frame[20:60, 500:620].astype(int).mean() - 100) < 4  # logo trắng → màu nền
+    assert (frame[:, :400] == before[:, :400]).all() and (frame[100:] == before[100:]).all()  # ngoài viền giữ nguyên
+    # cảnh không đổi: dùng lại lần vẽ trước, không chạy mô hình
+    again = before.copy()
+    assert not p.apply(again, lama) and lama.runs == 1 and (again == frame).all()
+    # nền quanh logo đổi hẳn: vẽ lại
+    moved = before.copy()
+    moved[:20] = 30
+    assert p.apply(moved, lama) and lama.runs == 2
+
+
+def test_patch_at_frame_edge_and_big_logo():
+    p = inpaint.Patch({"x": 1, "y": 1, "w": 1000, "h": 300}, 1080, 1920)
+    assert (p.x0, p.y0) == (0, 0) and p.x1 == 1080
+    assert max(p.size) <= inpaint.WORK + 16  # logo lớn: thu nhỏ về cỡ làm việc
+    frame = np.full((1920, 1080, 3), 100, np.uint8)
+    frame[1:301, 1:1001] = 255
+    p.apply(frame, FakeLama())
+    assert frame[1:301, 1:1001].mean() < 110
+
+
+class _FakeStream:
+    def __init__(self, body: bytes, status=200):
+        self.body, self.status_code, self.headers = body, status, {"content-length": str(len(body))}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import httpx
+            raise httpx.HTTPStatusError("404", request=httpx.Request("GET", "x"), response=httpx.Response(404))
+
+    def iter_bytes(self, _n):
+        yield self.body
+
+
+def test_model_download_is_checked(monkeypatch):
+    seen = []
+    monkeypatch.setattr(inpaint.httpx, "stream", lambda *a, **k: _FakeStream(b"not the model"))
+    with pytest.raises(RuntimeError, match="sha256"):
+        inpaint.ensure_model(seen.append)
+    assert seen == [1.0] and not inpaint.model_ready()
+    assert not list(inpaint.model_path().parent.glob("*.part"))
+    monkeypatch.setattr(inpaint.httpx, "stream", lambda *a, **k: _FakeStream(b"", status=404))
+    with pytest.raises(RuntimeError, match="Không tải được"):
+        inpaint.ensure_model()
+
+
+def test_first_run_downloads_model_then_fills(client, fake_ffmpeg, monkeypatch):
+    ready = {"ok": False}
+    order = []
+
+    def ensure(progress):
+        order.append("model")
+        progress(0.5)
+        ready["ok"] = True
+
+    monkeypatch.setattr(inpaint, "model_ready", lambda: ready["ok"])
+    monkeypatch.setattr(inpaint, "ensure_model", ensure)
+    pid, _ = _source_project()
+    key = f"p{pid}-0"
+    assert client.get(f"/api/delogo/targets/{key}", headers=H).json()["model_ready"] is False
+    client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, "rights": "owned"})
+    v = _wait(client, key)
+    assert v["status"] == "done" and v["model_ready"] is True and order == ["model"] and fake_ffmpeg
+    assert db.get_project(pid)["meta"]["sources"][0]["delogo"]["method"] == "lama"
+
+
+def test_stop_a_running_job(client, fake_ffmpeg, monkeypatch):
+    started = threading.Event()
+
+    def slow(src, dst, boxes, info, progress=None, cancelled=lambda: False):
+        for i in range(1, 500):
+            started.set()
+            if cancelled():
+                raise inpaint.Cancelled("stop")
+            progress(i, 1000)
+            time.sleep(0.01)
+        raise AssertionError("never cancelled")
+
+    monkeypatch.setattr(inpaint, "video", slow)
+    pid, _ = _source_project()
+    key = f"p{pid}-0"
+    assert client.post(f"/api/delogo/targets/{key}/cancel", headers=H).status_code == 400  # không có gì để dừng
+    client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, "rights": "owned"})
+    assert started.wait(5)
+    time.sleep(0.2)
+    v = client.get(f"/api/delogo/targets/{key}", headers=H).json()
+    assert v["status"] == "running" and v["phase"] == "fill" and v["pct"] > 0 and v["eta"] is not None
+    v = client.post(f"/api/delogo/targets/{key}/cancel", headers=H).json()
+    assert v["stopping"] is True
+    end = time.time() + 5
+    while client.get(f"/api/delogo/targets/{key}", headers=H).json()["status"] != "idle":
+        assert time.time() < end
+        time.sleep(0.02)
+    p = db.get_project(pid)
+    assert "delogo" not in p["meta"]["sources"][0] and "Đã dừng xoá logo" in p["log"]
+
+
+# ---------- FFmpeg thật (mô hình giả) ----------
+def _make_clip(path: Path, frames: np.ndarray, audio=True) -> None:
+    n, h, w = frames.shape[:3]
+    cmd = [config.ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}", "-r", "25",
+           "-i", "-"]
+    if audio:
+        cmd += ["-f", "lavfi", "-i", f"sine=f=440:d={n / 25}", "-c:a", "aac"]
+    subprocess.run(cmd + ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-colorspace", "bt709", str(path)],
+                   input=frames.tobytes(), check=True)
+
+
+def _gray(path: Path, w=320, h=180) -> np.ndarray:
+    r = subprocess.run([config.ffmpeg(), "-v", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                       capture_output=True, check=True)
+    return np.frombuffer(r.stdout, np.uint8).reshape(-1, h, w)
+
+
 @pytest.mark.skipif(not has_ffmpeg, reason="cần ffmpeg")
-def test_detect_and_remove_real_video(tmp_path):
+def test_detect_and_remove_real_video(tmp_path, monkeypatch):
     frames = _frames(n=50, h=180, w=320, seed=3)
     frames[:, 20:50, 380 - 160:] = 0  # logo "_frames" nằm ngoài khung 320: vẽ lại một logo trong khung
     frames[:, 10:12, 230:300] = 255
@@ -222,17 +379,37 @@ def test_detect_and_remove_real_video(tmp_path):
     frames[:, 10:36, 230:232] = 255
     frames[:, 10:36, 298:300] = 255
     src = tmp_path / "logo.mp4"
-    subprocess.run([config.ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", "320x180",
-                    "-r", "25", "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)],
-                   input=frames.tobytes(), check=True)
+    _make_clip(src, frames)
     info = delogo.probe(src)
     assert (info["width"], info["height"]) == (320, 180) and info["duration"] == pytest.approx(2.0, abs=0.1)
+    assert info["fps"] == "25/1" and info["color_space"] == "bt709"
     boxes, note = delogo.find_static(*delogo.sample_gray(src, info))
     assert note is None and len(boxes) == 1 and _inside(boxes[0], 230, 10, 70, 26)
+    lama = FakeLama()
+    monkeypatch.setattr(inpaint, "session", lambda: lama)
     seen = []
-    out = delogo.remove(src, tmp_path / "clean.mp4", delogo.clamp_boxes(boxes, 320, 180), info["duration"],
-                        seen.append)
-    assert delogo.probe(out)["width"] == 320 and seen and max(seen) <= 0.99
-    after, _ = delogo.sample_gray(out, delogo.probe(out))
+    out = inpaint.video(src, tmp_path / "clean.mp4", delogo.clamp_boxes(boxes, 320, 180), info,
+                        lambda done, total: seen.append((done, total)))
+    got = delogo.probe(out)
+    assert (got["width"], got["height"], got["color_space"]) == (320, 180, "bt709") and got["duration"] > 1.9
+    assert seen[-1][0] == 50 and lama.runs >= 1
+    r = subprocess.run([config.ffprobe(), "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                        str(out)], capture_output=True, text=True)
+    assert r.stdout.split() == ["video", "audio"]  # giữ tiếng
+    before, after = _gray(src), _gray(out)
+    assert len(after) == len(before) == 50
     assert after[:, 11, 240:290].mean() < 200  # đường viền trắng của logo đã bị lấp
+    assert np.abs(after[:, 90:].astype(int) - before[:, 90:]).mean() < 4  # phần không vá giữ nguyên (chỉ mã hoá lại)
     assert not (tmp_path / "clean.part.mp4").exists()
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="cần ffmpeg")
+def test_video_cancel_leaves_nothing(tmp_path, monkeypatch):
+    src = tmp_path / "clip.mp4"
+    _make_clip(src, _frames(n=40, h=180, w=320), audio=False)
+    monkeypatch.setattr(inpaint, "session", FakeLama)
+    calls = []
+    with pytest.raises(inpaint.Cancelled):
+        inpaint.video(src, tmp_path / "clean.mp4", [{"x": 230, "y": 10, "w": 70, "h": 26}], delogo.probe(src),
+                      cancelled=lambda: calls.append(1) or len(calls) > 3)
+    assert not (tmp_path / "clean.mp4").exists() and not (tmp_path / "clean.part.mp4").exists()

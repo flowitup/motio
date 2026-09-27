@@ -120,7 +120,7 @@ const vi = {
   },
   delogo: {
     title: "Xoá logo",
-    hint: "Chọn một video của bạn, vẽ khung quanh logo hoặc watermark (hoặc bấm Tự tìm), rồi xoá nó trên mọi khung hình.",
+    hint: "Chọn một video của bạn, vẽ khung quanh logo hoặc watermark (hoặc bấm Tự tìm). AI (LaMa) vẽ lại phần hình sau logo trên mọi khung hình.",
     pick: "Chọn video",
     upload: "Tải video lên",
     uploading: (pct: number) => `Đang tải lên… ${pct}%`,
@@ -134,7 +134,8 @@ const vi = {
     empty: "Chọn một video bên trái hoặc tải video lên để bắt đầu.",
     info: (w: number, h: number, sec: number) => `${w}×${h} · ${seconds(sec)}`,
     frameAt: "Khung hình",
-    drawHint: "Kéo chuột trên hình để vẽ khung quanh logo, tối đa 4 khung. Kéo thanh trượt để xem khung hình khác.",
+    drawHint:
+      "Kéo chuột trên hình để vẽ khung quanh logo, tối đa 4 khung. Vẽ phủ cả nền mờ của logo: phần còn sót, AI sẽ vẽ tiếp theo. Kéo thanh trượt để xem khung hình khác.",
     detect: "Tự tìm",
     detectFound: (n: number) => `Tìm thấy ${n} logo đứng yên. Kiểm tra khung trên hình rồi xoá.`,
     clearBoxes: "Bỏ hết khung",
@@ -144,8 +145,14 @@ const vi = {
       "Motio không kiểm tra được quyền này: lời xác nhận của bạn được lưu cùng video, và dự án ghi quyền “Của tôi” hoặc “Có giấy phép”.",
     rights: { owned: "Của tôi", licensed: "Có giấy phép" } as Record<string, string>,
     run: "Xoá logo",
-    queued: "Đang chờ (engine làm từng việc một)…",
-    running: "Đang xoá logo…",
+    modelHint:
+      "Lần đầu, Motio tải mô hình AI (92 MB) về máy. Cảnh đứng yên xử lý nhanh; cảnh chuyển động có thể mất vài phút cho mỗi phút video.",
+    queued: "Đang chờ video khác xoá logo xong…",
+    downloading: "Đang tải mô hình AI (92 MB, chỉ lần đầu)…",
+    running: "AI đang vẽ lại vùng logo…",
+    eta: (sec: number) => `còn khoảng ${seconds(Math.max(sec, 1))}`,
+    stop: "Dừng",
+    stopping: "Đang dừng…",
     result: "Kết quả",
     resultSource:
       "Bản đã xoá logo thay video gốc khi dựng lại dự án. “Dựng lại video” đọc lại giọng và dựng video, như “Lưu và dựng lại”.",
