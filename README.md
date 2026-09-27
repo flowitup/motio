@@ -11,6 +11,7 @@ videos are in French.
 ```bash
 cd ~/Works/motio
 uv sync                             # first time only
+brew install deno                   # yt-dlp needs a JavaScript runtime to download YouTube videos
 uv run python -m motio serve        # open http://127.0.0.1:8765
 ```
 
@@ -22,6 +23,12 @@ uv run python -m motio serve        # open http://127.0.0.1:8765
 Beyond hot news: in the app, **Dự án → Tạo video** (Projects → make video) takes any topic, in any language, and/or
 video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
 Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
+
+**Video mới** (new videos) follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
+Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Kiểm tra ngay" (check now); a new source shows
+its latest 10 videos, then only videos it hasn't seen. Claude gives each one a French title and a score, and
+"Làm video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
+single videos there): paste those links into "Tạo video". Bilibili spaces often need the browser-cookie setting.
 
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
@@ -37,7 +44,8 @@ gives you a cleaned copy; a project clip is replaced by its clean copy for the n
 can be restored). It never runs by itself in the pipelines.
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... rerender <project>`, `... retry <project> [step]` (continue from the failed
+`... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
+`... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
 
 ## Desktop app (Tauri)
@@ -54,7 +62,7 @@ token); the app then doesn't start its own engine.
 ## Packaging, CI and releases
 
 ```bash
-uv run --group build python tools/build_engine.py   # PyInstaller engine + static ffmpeg → app/src-tauri/resources/
+uv run --group build python tools/build_engine.py   # PyInstaller engine + ffmpeg, deno → app/src-tauri/resources/
 cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) or .msi (Windows)
 ```
 
@@ -111,12 +119,12 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
-| `REFRESH_EVERY_MIN` | The engine refreshes hot topics every N minutes (0 = manual only; 30 on the server) |
+| `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
 | `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
-| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE` | Binary paths if they are not on PATH |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.
 
@@ -133,6 +141,7 @@ motio/captions.py  French karaoke captions (≤ 42 characters per line), exports
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
+motio/watch.py     followed channels, playlists and searches → "Video mới", French titles + scores
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)

@@ -16,9 +16,15 @@ PLATFORM = {"Youtube": "YouTube", "BiliBili": "Bilibili", "Douyin": "Douyin", "T
 _BASE = {"quiet": True, "no_warnings": True, "noprogress": True, "socket_timeout": 30}
 
 
+def _base() -> dict:
+    """Tuỳ chọn chung cho yt-dlp, kèm runtime JavaScript (Deno…) để giải thử thách của YouTube."""
+    rt = config.js_runtimes()
+    return {**_BASE, "js_runtimes": rt} if rt else dict(_BASE)
+
+
 def search(query: str, site: str, n: int = 6) -> list[dict]:
     prefix = SEARCH_PREFIX[site]
-    opts = {**_BASE, "extract_flat": "in_playlist", "skip_download": True}
+    opts = {**_base(), "extract_flat": "in_playlist", "skip_download": True}
     try:
         with YoutubeDL(opts) as y:
             info = y.extract_info(f"{prefix}{n}:{query}", download=False)
@@ -89,7 +95,7 @@ def _cookie_opts() -> dict:
 def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False) -> dict:
     """Tải 1 video (≤ 720p, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    opts = {**_BASE,
+    opts = {**_base(),
             "format": f"bv*[height<={max_height}][ext=mp4]+ba[ext=m4a]/bv*[height<={max_height}]+ba/"
                       f"b[height<={max_height}]/b",
             "merge_output_format": "mp4",

@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, delogo, edit, newsnow, pipeline, postiz, search, settings, topic, tts
+from . import __version__, asr, config, db, delogo, edit, newsnow, pipeline, postiz, search, settings, topic, tts, watch
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed")
@@ -43,6 +43,27 @@ class TopicIn(BaseModel):
 
 class ProjectPatch(BaseModel):
     rights: str | None = None
+
+
+class WatchIn(BaseModel):
+    target: str  # link kênh / playlist YouTube, không gian Bilibili, hoặc từ khoá tìm
+    site: str = "youtube"  # nơi tìm khi `target` là từ khoá: youtube | bilibili
+    rights: str = "unknown"
+
+
+class WatchPatch(BaseModel):
+    name: str | None = None
+    rights: str | None = None
+    enabled: bool | None = None
+
+
+class ClipPatch(BaseModel):
+    status: str  # new | hidden
+
+
+class ClipProduceIn(BaseModel):
+    duration: int = 80
+    links_only: bool | None = None  # None = chỉ dùng video này khi nguồn có quyền rõ ràng
 
 
 class ScriptIn(BaseModel):
@@ -95,8 +116,10 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         raise ValueError("token is required")
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
     tools = ThreadPoolExecutor(max_workers=1, thread_name_prefix="delogo")  # xoá logo (lâu) không chặn việc làm video
-    state = {"refreshing": False, "last_refresh": None, "last_result": None}
+    state = {"refreshing": False, "last_refresh": None, "last_result": None,
+             "watching": False, "last_watch": None, "last_watch_result": None}
     refresh_lock = threading.Lock()
+    watch_lock = threading.Lock()
     started = time.time()
     stop = threading.Event()
 
@@ -106,12 +129,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             return None
         return state["last_refresh"] + every * 60 if state["last_refresh"] else started + FIRST_DELAY
 
+    def next_watch() -> float | None:
+        """Nguồn theo dõi được kiểm tra cùng nhịp REFRESH_EVERY_MIN với tin hot."""
+        every = config.refresh_every_min()
+        if not every:
+            return None
+        return state["last_watch"] + every * 60 if state["last_watch"] else started + FIRST_DELAY
+
     def scheduler() -> None:
-        """REFRESH_EVERY_MIN > 0: tự cập nhật tin theo lịch. Đọc lại cài đặt mỗi vòng nên đổi là có hiệu lực."""
+        """REFRESH_EVERY_MIN > 0: tự cập nhật tin và nguồn theo dõi theo lịch. Đổi cài đặt là có hiệu lực ngay."""
         while not stop.wait(SCHED_TICK):
             due = next_refresh()
             if due is not None and time.time() >= due and not state["refreshing"]:
                 _refresh()
+            due = next_watch()
+            if due is not None and time.time() >= due and not state["watching"]:
+                _check_watches()
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -160,6 +193,19 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             state["last_refresh"] = time.time()
             refresh_lock.release()
 
+    def _check_watches(ids: list[int] | None = None) -> None:
+        """Kiểm tra nguồn theo dõi (tất cả, hoặc `ids` vừa thêm). Lượt sau chờ lượt trước xong."""
+        with watch_lock:
+            state["watching"] = True
+            try:
+                state["last_watch_result"] = watch.check_all(ids)
+            except Exception as e:
+                state["last_watch_result"] = {"error": str(e)[:300]}
+            finally:
+                state["watching"] = False
+                if ids is None:
+                    state["last_watch"] = time.time()
+
     # ---------- hệ thống ----------
     @app.get("/api/health", dependencies=[Depends(auth)])
     def health():
@@ -177,6 +223,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             },
             "ffmpeg": config.find("ffmpeg"),
             "ffprobe": config.find("ffprobe"),
+            "js_runtime": next(iter(config.js_runtimes().values()), {}).get("path"),
             "claude_cli": claude,
             "postiz": postiz.configured(),
             "quota_left": pipeline.quota_left(),
@@ -186,7 +233,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.get("/api/state", dependencies=[Depends(auth)])
     def get_state():
         return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20)),
-                "refresh_every_min": config.refresh_every_min(), "next_refresh": next_refresh()}
+                "refresh_every_min": config.refresh_every_min(), "next_refresh": next_refresh(),
+                "next_watch": next_watch()}
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
@@ -221,6 +269,83 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if links:
             db.update_project(pid, log=f"{len(links)} link nguồn dán tay",
                               meta={"links": links, "links_only": bool(body.links_only)})
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
+    # ---------- nguồn theo dõi, video mới ----------
+    def _watch(wid: int) -> dict:
+        w = db.get_watch(wid)
+        if not w:
+            raise HTTPException(404, "Không có nguồn này")
+        return w
+
+    @app.get("/api/watches", dependencies=[Depends(auth)])
+    def watches():
+        return db.list_watches()
+
+    @app.post("/api/watches", status_code=201, dependencies=[Depends(auth)])
+    def add_watch(body: WatchIn):
+        """Thêm nguồn rồi kiểm tra ngay trong nền: lần đầu hiện 10 video mới nhất."""
+        try:
+            wid = watch.add(body.target, body.site, body.rights)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        threading.Thread(target=_check_watches, args=([wid],), daemon=True).start()
+        return _watch(wid)
+
+    @app.patch("/api/watches/{wid}", dependencies=[Depends(auth)])
+    def patch_watch(wid: int, body: WatchPatch):
+        _watch(wid)
+        if body.rights is not None and body.rights not in topic.RIGHTS:
+            raise HTTPException(400, f"Quyền nguồn không hợp lệ: {body.rights}")
+        name = " ".join((body.name or "").split())[:200]
+        db.update_watch(wid, **{k: v for k, v in (("name", name), ("rights", body.rights),
+                                                  ("enabled", body.enabled)) if v not in (None, "")})
+        return _watch(wid)
+
+    @app.delete("/api/watches/{wid}", dependencies=[Depends(auth)])
+    def delete_watch(wid: int):
+        _watch(wid)
+        db.delete_watch(wid)
+        return {"deleted": wid}
+
+    @app.post("/api/watches/check", status_code=202, dependencies=[Depends(auth)])
+    def check_watches():
+        started = not state["watching"]
+        if started:
+            state["watching"] = True  # để lần gọi kế tiếp thấy ngay, trước khi luồng chạy
+            threading.Thread(target=_check_watches, daemon=True).start()
+        return {"started": started}
+
+    @app.get("/api/clips", dependencies=[Depends(auth)])
+    def clips(status: str = "new", watch_id: int | None = None, limit: int = 200):
+        return db.list_clips(status, watch_id, limit)
+
+    def _clip(cid: str) -> dict:
+        c = db.get_clip(cid)
+        if not c:
+            raise HTTPException(404, "Không có video này")
+        return c
+
+    @app.patch("/api/clips/{cid}", dependencies=[Depends(auth)])
+    def patch_clip(cid: str, body: ClipPatch):
+        c = _clip(cid)
+        if body.status not in ("new", "hidden") or c["status"] == "used":
+            raise HTTPException(400, "Chỉ ẩn hoặc hiện lại được video chưa làm")
+        db.set_clip_status(cid, body.status)
+        return _clip(cid)
+
+    @app.post("/api/clips/{cid}/produce", status_code=202, dependencies=[Depends(auth)])
+    def produce_clip(cid: str, body: ClipProduceIn | None = None):
+        """Video giải thích từ một video mới (dự án chủ đề: link của video + tiêu đề làm chủ đề)."""
+        _clip(cid)
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
+        body = body or ClipProduceIn()
+        try:
+            pid = watch.produce(cid, body.duration, body.links_only)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
