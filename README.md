@@ -36,7 +36,12 @@ videos, hashtags that always go first, and two approval gates. With the script g
 script approval** until you read it, edit it if needed, and press **Approve and continue**; with the video gate on, a
 finished video stops at **Awaiting video approval** until you press **Approve and send**. A profile can also send
 the approved video to its Postiz channels by itself, as a draft, at the channel's next free posting time, or right
-away (once per project; later re-renders don't post again). Pick the channel when you make a video (Trending, New
+away (once per project; later re-renders don't post again). Tick **16:9** next to a Postiz channel (a YouTube channel
+for regular videos, say) and Motio also renders a 16:9 copy of each video with the same cut, voice and captions, and
+sends that copy to those channels. Turn on **Make videos automatically** and, after each scheduled refresh, Motio
+makes a video for that channel from every new trending topic at or above the minimum score, up to the videos per day
+you set (the daily limit in Settings still applies); these videos stop at the channel's approval gates like any other
+and are marked "Made automatically". Pick the channel when you make a video (Trending, New
 videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
 Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
 
@@ -61,7 +66,8 @@ Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyi
 `... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... approve <project> [nosend]`
-(approve a script or video waiting at a channel's gate), `... delete <project>`. `produce` and `topic` use the default
+(approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's
+auto-make score now), `... delete <project>`. `produce` and `topic` use the default
 channel.
 
 ## Desktop app (Tauri)
@@ -152,7 +158,7 @@ motio/search.py    yt-dlp search (YouTube, Bilibili) / download of sources, past
 motio/asr.py       Whisper (mlx on the Mac, faster-whisper elsewhere)
 motio/llm.py       claude -p or the Claude API
 motio/tts.py       ElevenLabs with timestamps (macOS voice when there is no key)
-motio/render.py    9:16 render: Pillow draws the text, FFmpeg composes
+motio/render.py    9:16 render (+ 16:9 copy): Pillow draws the text, FFmpeg composes
 motio/captions.py  French karaoke captions (≤ 42 characters per line), exports captions.srt / captions.ass
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
@@ -162,6 +168,7 @@ motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
 motio/channels.py  channel profiles: badge, script style, voice, hashtags, approval gates, Postiz auto-send, posting times
+motio/automake.py  make videos by themselves for trends above a channel's score, after each scheduled refresh
 motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)
 motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/web.py       legacy dashboard (to be removed)

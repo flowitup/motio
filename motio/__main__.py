@@ -1,8 +1,10 @@
-"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<topic>" [link ...] | rerender <id> |
-retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips |
-serve | engine ...]
+"""CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
+rerender <id> | retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<channel link | keywords>" [bilibili] |
+check | clips | serve | engine ...]
 
-produce / topic use the default channel (if any): with an approval gate, the project waits for `approve`."""
+produce / topic use the default channel (if any): with an approval gate, the project waits for `approve`.
+automake makes, one after another, the trends that reach a channel's auto-make score (the engine does it by itself
+after each scheduled refresh)."""
 import argparse
 import json
 import os
@@ -27,6 +29,15 @@ def main(argv: list[str]) -> None:
     if cmd == "refresh":
         from . import newsnow
         print(json.dumps(newsnow.refresh(), ensure_ascii=False, indent=1))
+    elif cmd == "automake":
+        from . import automake, pipeline
+        picks = automake.picks()
+        if not picks:
+            print("Nothing to make: no new trend reaches a channel's auto-make score (or today's limit is reached)")
+        for t, ch in picks:
+            pid = automake.start(t, ch)
+            print(f"Project #{pid} ({ch['name']}, score {t['score']}): {t['title_fr']}")
+            pipeline.produce(pid)
     elif cmd == "trends":
         for t in db.list_trends()[:30]:
             print(f"{t['score']:>3}  {t['id']:<28} {t['title_fr']}")

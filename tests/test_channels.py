@@ -19,9 +19,17 @@ def test_clean_normalises_a_profile():
     assert d["gate_script"] is True and d["gate_video"] is True and "unknown" not in d
 
 
+def test_clean_keeps_16_9_channels_inside_the_postiz_list_and_auto_make_defaults():
+    d = channels.clean({"name": "x", "postiz": ["tt1", "yt1"], "wide_postiz": ["yt1", "fb9", "yt1"]})
+    assert d["wide_postiz"] == ["yt1"] and d["auto_score"] == 0 and d["auto_daily"] == 2
+    d = channels.clean({"name": "x", "auto_score": "88", "auto_daily": 3})
+    assert (d["auto_score"], d["auto_daily"]) == (88, 3)
+
+
 @pytest.mark.parametrize("bad", [{"name": " "}, {"name": "x", "duration": 60}, {"name": "x", "send_mode": "later"},
                                  {"name": "x", "send_mode": "schedule", "postiz": ["tt1"]},
-                                 {"name": "x", "send_times": ["25:00"]}])
+                                 {"name": "x", "send_times": ["25:00"]}, {"name": "x", "auto_score": 101},
+                                 {"name": "x", "auto_daily": 0}, {"name": "x", "auto_score": "high"}])
 def test_clean_rejects_bad_profiles(bad):
     with pytest.raises(ValueError):
         channels.clean(bad)
@@ -36,6 +44,16 @@ def test_one_default_and_pick():
         channels.pick(9999)
     db.delete_channel(b["id"])
     assert channels.pick(None) is None
+
+
+def test_profile_saved_before_new_fields_gets_their_defaults():
+    new = ("wide_postiz", "auto_score", "auto_daily")
+    old = {k: v for k, v in channels.clean({"name": "Old"}).items() if k not in new}
+    cid = db.save_channel(None, old, False)
+    ch = next(c for c in channels.listing() if c["id"] == cid)
+    assert (ch["wide_postiz"], ch["auto_score"], ch["auto_daily"]) == ([], 0, 2)
+    assert channels.pick(cid)["wide_postiz"] == []
+    db.delete_channel(cid)
 
 
 def test_badge_follows_the_channel_then_the_mode():

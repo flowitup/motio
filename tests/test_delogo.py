@@ -477,7 +477,7 @@ def test_pipeline_warns_about_uncleaned_parts(monkeypatch):
     db.update_project(pid, meta={"sources": s})
     logs = []
 
-    def render(plan, sources, nar, out, progress=None, min_total=0, badge=""):
+    def render(plan, sources, nar, out, progress=None, min_total=0, badge="", wide=False):
         _timeline(pid, [(0, 2.0, 2.0), (0, 70.0, 5.0)])
         return {"pieces": 2, "duration": 70.0}
 

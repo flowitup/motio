@@ -249,9 +249,20 @@ The owner asked to build the rest of the blueprint in phase order; for GĐ1 they
 - **Auto-send**: with the video gate off, a finished video goes to Postiz at once. Each project is sent automatically
   once; later re-renders finish without posting again (sending again stays manual). A Postiz error is logged
   (`meta.send_error`) and the video still finishes.
-- Next (PR 2): the 16:9 copy for channels marked for it, and auto-make: after each scheduled refresh, trends at or above
-  a profile's score are made for that profile, within `MAX_VIDEOS_PER_DAY` and a per-profile daily cap, and still stop
-  at its gates. Slack notifications wait for a Slack app from the owner.
+- **16:9 copy** (PR 2): a profile lists `wide_postiz`, a subset of its Postiz channels. When it has any, the render step
+  also composes `final_wide.mp4` (1920×1080) from the same pieces, narration and caption cues: `render.Layout` holds
+  each format's sizes (`VERTICAL`, `WIDE`), the wide frame fits the clip inside instead of cropping it, with the title
+  top left and the captions low. `meta.wide` points to it (none: a stale copy is deleted). Auto-send posts the 16:9
+  copy to `wide_postiz` channels and the 9:16 video to the others (if the copy is missing, 9:16 goes everywhere and the
+  log says so); the project page plays either and the Postiz card can send either (`version`: vertical | wide).
+- **Auto-make** (PR 2, `motio/automake.py`): a profile with `auto_score` > 0 gets videos made for it after each
+  *scheduled* refresh (not the Refresh button): trends still on the board in the last 6 h, first seen in the last 24 h,
+  status new, score ≥ `auto_score`, best score first. Each trend goes to the first profile it qualifies for (default
+  profile first, then by id) that still has room under its `auto_daily` cap (1–20, counted from local midnight), all
+  within `MAX_VIDEOS_PER_DAY`. The project gets `meta.auto`, runs like a click on "Make video" for that channel and
+  still stops at its gates. `uv run python -m motio automake` runs the same pick by hand. Profiles saved before PR 2
+  read the new fields as their defaults (no 16:9, auto-make off).
+- Slack notifications wait for a Slack app from the owner.
 
 ## English UI (added 28/09/2026)
 

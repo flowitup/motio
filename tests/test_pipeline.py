@@ -67,13 +67,16 @@ def fake(monkeypatch, tmp_path):
         return {"audio": str(out_dir / "n.mp3"), "duration": sum(durs), "provider": "fake", "voice": "v",
                 "lines": [{"start": a, "end": a + d} for a, d in zip(starts, durs, strict=True)]}
 
-    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0, badge=""):
+    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0, badge="", wide=False):
         boom("render")
         total = max(nar["duration"] + render.TAIL, min_total)
         rendered.append({"words": sum(len(ln["text"].split()) for ln in plan["lines"]), "total": total,
-                         "badge": badge})
+                         "badge": badge, "wide": wide})
         (out / "final.mp4").write_bytes(b"v")
-        return {"video": str(out / "final.mp4"), "thumb": "", "duration": total, "pieces": 4}
+        if wide:
+            (out / "final_wide.mp4").write_bytes(b"w")
+        return {"video": str(out / "final.mp4"), "thumb": "", "duration": total, "pieces": 4,
+                "wide": str(out / "final_wide.mp4") if wide else None}
 
     monkeypatch.setattr(search, "candidates", candidates)
     monkeypatch.setattr(search, "download", download)
@@ -527,3 +530,46 @@ def test_retry_clears_a_pending_review(fake):
     pipeline.resume(pid, "voice")
     p = db.get_project(pid)
     assert p["status"] == "done" and p["meta"]["review"] is None
+
+
+# ---------- GĐ1 phần 2: bản 16:9 ----------
+def _posted_media(fake_postiz) -> list[tuple[list[str], str]]:
+    """(kênh, tên file tải lên) của mỗi bài gửi sang Postiz giả."""
+    uploads = [r for r in fake_postiz if r.url.path.endswith("/upload")]
+    posts = [json.loads(r.content) for r in fake_postiz if r.url.path.endswith("/posts")]
+    names = [re.search(rb'filename="([^"]+)"', u.content)[1].decode() for u in uploads]
+    return [([p["integration"]["id"] for p in body["posts"]], name) for body, name in zip(posts, names, strict=True)]
+
+
+def test_wide_channel_gets_the_16_9_copy(fake, fake_postiz):
+    calls, _ = fake
+    ch = _profile(postiz=["tt1", "yt1"], wide_postiz=["yt1"])
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert calls.rendered[-1]["wide"] and p["meta"]["wide"] == f"projects/{pid}/final_wide.mp4"
+    assert "16:9 copy" in p["log"] and p["status"] == "done"
+    assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4"), (["yt1"], "final_wide.mp4")]
+    assert [e.get("version") for e in p["meta"]["postiz"]] == [None, "wide"]
+
+
+def test_no_wide_channel_no_16_9_copy_and_stale_copy_removed(fake):
+    calls, _ = fake
+    pid = _new()
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "final_wide.mp4").write_bytes(b"old")
+    pipeline.produce(pid)
+    assert not calls.rendered[-1]["wide"] and db.get_project(pid)["meta"]["wide"] is None
+    assert not (out / "final_wide.mp4").exists()
+
+
+def test_missing_16_9_copy_sends_the_9_16_video_everywhere(fake, fake_postiz):
+    ch = _profile(postiz=["tt1", "yt1"], wide_postiz=["yt1"], gate_video=True)
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    (config.DATA / db.get_project(pid)["meta"]["wide"]).unlink()
+    pipeline.approve_video(pid)
+    p = db.get_project(pid)
+    assert _posted_media(fake_postiz) == [(["tt1", "yt1"], "final.mp4")]
+    assert "16:9 copy missing" in p["log"] and not p["meta"]["send_error"]

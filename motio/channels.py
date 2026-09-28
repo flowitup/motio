@@ -1,7 +1,8 @@
 """Kênh: hồ sơ của một kênh đăng ("bộ não" trong blueprint GĐ1).
 
 Mỗi hồ sơ giữ: nhãn đỏ trên video, ghi chú giọng văn thêm vào prompt kịch bản, giọng ElevenLabs, độ dài mặc định,
-hashtag luôn có, hai cổng duyệt (kịch bản, video cuối) và các kênh Postiz để tự gửi khi video được duyệt.
+hashtag luôn có, hai cổng duyệt (kịch bản, video cuối), các kênh Postiz để tự gửi khi video được duyệt (kênh nào
+nhận bản 16:9), và tự làm video khi tin hot đạt điểm (automake.py).
 Dự án trỏ tới hồ sơ bằng `meta.channel`; không có hồ sơ thì chạy như trước (không dừng duyệt, không tự gửi).
 """
 import datetime as dt
@@ -12,11 +13,14 @@ from . import db, topic
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
 SEND_MODES = ("draft", "schedule", "now")  # như postiz.MODES
 MAX_NAME, MAX_BADGE, MAX_STYLE, MAX_TAGS, MAX_TIMES = 60, 24, 1500, 6, 6
+AUTO_SCORE = 85  # điểm tối thiểu gợi ý khi bật tự làm (app đặt sẵn)
+MAX_AUTO_DAILY = 20
 SLOT_LEAD = dt.timedelta(minutes=10)  # khung đăng sớm nhất: ít nhất 10 phút sau lúc gửi
 _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
 DEFAULTS = {"name": "", "badge": "", "style": "", "voice_id": "", "duration": 80, "hashtags": [],
-            "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft", "send_times": []}
+            "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft", "send_times": [],
+            "wide_postiz": [], "auto_score": 0, "auto_daily": 2}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -55,6 +59,16 @@ def clean(data: dict) -> dict:
     d["send_times"] = sorted(set(times))[:MAX_TIMES]
     if d["send_mode"] == "schedule" and d["postiz"] and not d["send_times"]:
         raise ValueError("Scheduling needs at least one posting time")
+    # kênh Postiz nhận bản 16:9: chỉ trong các kênh Postiz của hồ sơ
+    d["wide_postiz"] = [i for i in dict.fromkeys(str(i) for i in d["wide_postiz"]) if i in d["postiz"]]
+    try:
+        d["auto_score"], d["auto_daily"] = int(d["auto_score"]), int(d["auto_daily"])
+    except (TypeError, ValueError):
+        raise ValueError("Auto-make score and videos per day must be numbers") from None
+    if not 0 <= d["auto_score"] <= 100:
+        raise ValueError("Auto-make score must be between 1 and 100 (0 = off)")
+    if not 1 <= d["auto_daily"] <= MAX_AUTO_DAILY:
+        raise ValueError(f"Auto-made videos per day must be between 1 and {MAX_AUTO_DAILY}")
     return d
 
 
@@ -68,16 +82,25 @@ def update(cid: int, data: dict, is_default: bool) -> dict:
     return db.get_channel(db.save_channel(cid, clean(data), is_default))
 
 
+def full(ch: dict | None) -> dict | None:
+    """Hồ sơ đủ trường: hồ sơ lưu trước khi có trường mới (16:9, tự làm) lấy giá trị mặc định."""
+    return {**DEFAULTS, **ch} if ch else None
+
+
+def listing() -> list[dict]:
+    return [full(ch) for ch in db.list_channels()]
+
+
 def pick(channel: int | None) -> dict | None:
     """Hồ sơ cho một dự án mới: None = kênh mặc định (nếu có), 0 = không dùng kênh. LookupError nếu không có."""
     if channel is None:
-        return db.default_channel()
+        return full(db.default_channel())
     if channel == 0:
         return None
     ch = db.get_channel(channel)
     if not ch:
         raise LookupError("Channel not found")
-    return ch
+    return full(ch)
 
 
 def attach(pid: int, ch: dict | None, news: bool = False) -> None:
@@ -93,8 +116,7 @@ def attach(pid: int, ch: dict | None, news: bool = False) -> None:
 def for_project(proj: dict) -> dict | None:
     """Hồ sơ của dự án, None nếu không có (hoặc đã bị xoá: dự án chạy như không có kênh)."""
     cid = (proj.get("meta") or {}).get("channel")
-    ch = db.get_channel(cid) if cid else None
-    return {**DEFAULTS, **ch} if ch else None
+    return full(db.get_channel(cid) if cid else None)
 
 
 def badge_for(proj: dict) -> str:

@@ -16,13 +16,16 @@ as authoritative for scope and milestones.
   - `config.py` env + paths · `db.py` SQLite (trend, project) · `newsnow.py` fetch/translate/score trends
   - `search.py` yt-dlp search/download · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
-  - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
+  - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
-    auto-send after approval (draft / next posting time / now); projects point to one with `meta.channel`
+    auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
+    (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
+  - `automake.py` after each scheduled refresh, make videos for new trends at or above a profile's `auto_score`
+    (per-profile `auto_daily` cap + `MAX_VIDEOS_PER_DAY`); such projects carry `meta.auto`
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
     project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
@@ -48,6 +51,7 @@ uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
 uv run python -m motio approve <project> [nosend]  # approve a script / video waiting at a channel's gate
+uv run python -m motio automake             # make the trends that meet a channel's auto-make score now
 uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice|render (render keeps the voice)
 uv run python -m motio delete <project>     # delete a project and its folder (source cache kept)
 uv run python -m motio serve                # legacy dashboard on :8765
