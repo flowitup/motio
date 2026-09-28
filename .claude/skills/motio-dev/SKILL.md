@@ -111,7 +111,8 @@ cd app && pnpm install && cd ..              # only if touching the app
 | In-app updater | `app/src-tauri/src/updater.rs`, `app/src/lib/updater.tsx`, `tools/updater_manifest.py` |
 | Engine packaging (installers) | `tools/build_engine.py` (PyInstaller onedir), `tools/engine_entry.py`, `tools/fetch_ffmpeg.py` → `app/src-tauri/resources/motio-engine/` |
 | Screens | `app/src/pages/{trends,projects,project-detail,settings}.tsx` |
-| UI strings | `app/src/i18n.ts` (the only place for UI text) |
+| UI strings | `app/src/i18n.ts` (the only place for UI text: `en` + `vi` catalogs, `t`, `setLang`, `useLang`) |
+| Engine messages the app shows | `motio/i18n.py` (`tr`, `tr_n`, Vietnamese in `VI`; language from `UI_LANG`); `tests/test_i18n.py` |
 | UI primitives | `app/src/components/ui/*` (shadcn), Tailwind 4 |
 | Tauri permissions / config | `app/src-tauri/capabilities/default.json`, `app/src-tauri/tauri.conf.json` |
 | Server stack | `Dockerfile`, `deploy/` (compose, Caddyfile, env.example, bootstrap.sh), `docs/DEPLOY.md` |
@@ -129,9 +130,12 @@ live in `data/tools/delogo/<hex>/`.
   `MOTIO_CLAUDE`, bundled `bin/`). No `/opt/homebrew` or `C:\` outside that lookup helper.
 - **All LLM calls through `motio/llm.py`.** The `claude_cli` provider strips `ANTHROPIC_API_KEY` from the
   `claude -p` subprocess env so it bills the Claude plan, not the API account. Keep that.
-- **Language.** UI text is English (owner, 2026-09-28; Vietnamese before), all of it in `app/src/i18n.ts` so
-  other languages can be added. Engine text the app shows (step labels, log lines, API errors, CLI output) is
-  English too. Video content and post text are French. Code, identifiers, commits and the README in English (since PR #10;
+- **Language.** The UI is English (default) or Vietnamese, switched in Settings → Language (owner, 2026-09-28).
+  Every new UI string goes into **both** catalogs in `app/src/i18n.ts` (`vi: Messages`, so a missing one fails
+  `pnpm build`); read `t.…` while rendering, never in a module-level constant, or the switch won't show it. Every new
+  engine message the app shows (step label, log line, error) is English inside `tr("… {field}", field=…)` /
+  `tr_n(n, "noun")` with its Vietnamese added to `i18n.VI` (`tests/test_i18n.py` fails otherwise; `step("Label", …)`
+  translates the label). CLI help and the legacy dashboard stay English. Video content and post text are French. Code, identifiers, commits and the README in English (since PR #10;
   `docs/DEPLOY.md` is still Vietnamese); short comments may be Vietnamese.
 - **Content rules.** Keep "Voix off générée par IA." in the post and the platforms' AI flags (AI Act art. 50).
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
@@ -201,8 +205,8 @@ skipped without it). Captions keep ≤ 2 lines of ≤ 42 characters that also fi
 typography (NBSP before `: ; ! ?`, « », ’). Then do the render smoke (§6, gate 4) on the Mac and look at a
 frame: the spoken word is highlighted (no on-video AI label since PR #12).
 
-**UI change.** Strings in `i18n.ts`, shadcn primitives from `components/ui`, TanStack Query for data.
-Follows OS light/dark; check both.
+**UI change.** Strings in `i18n.ts` (English and Vietnamese), shadcn primitives from `components/ui`, TanStack
+Query for data. Follows OS light/dark; check both, and look at the screen in Vietnamese too (longer labels).
 
 **Workflow change.** Edit the YAML, then prove it: `release.yml` builds installers (no release) on any PR
 that touches it; `deploy.yml` only runs by hand or with `AUTO_DEPLOY`, so review it line by line and say
@@ -214,7 +218,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 182 passed, 5 skipped without FFmpeg (GĐ1 profiles branch, 28/09)
+uv run pytest                          # 205 passed, 6 skipped without FFmpeg (language switch + 16:9 copy, 28/09)
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)
@@ -305,7 +309,7 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - `mlx-whisper` only installs on macOS arm64; Linux/Windows use `faster-whisper` (CPU int8, CUDA if present).
 - `claude -p` is not available on the server or in CI: tests must mock the LLM, TTS, ASR, yt-dlp and Postiz.
 - macOS `say` fallback exists for dev only; without an ElevenLabs key on Windows/Linux, `tts.py` raises
-  `TTSUnavailable` with an English message the UI shows. Keep it that way, never a silent fallback.
+  `TTSUnavailable` with a message the UI shows (in the UI language). Keep it that way, never a silent fallback.
 - YouTube often blocks downloads from datacenter IPs ("Sign in to confirm you're not a bot"); Bilibili
   usually works. Expect fewer sources on the server.
 - `uv` is not on PATH when the app is launched from Finder / Explorer; `engine.rs` searches common

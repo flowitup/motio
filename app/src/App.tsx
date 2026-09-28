@@ -4,10 +4,11 @@ import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
+import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
 import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
-import { t } from "@/i18n";
+import { t, useLang, type Messages } from "@/i18n";
 import ChannelsPage from "@/pages/channels";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
@@ -16,13 +17,13 @@ import ProjectsPage from "@/pages/projects";
 import SettingsPage from "@/pages/settings";
 import TrendsPage from "@/pages/trends";
 
-const NAV = [
-  { to: "/trends", label: t.nav.trends, icon: Flame },
-  { to: "/clips", label: t.nav.clips, icon: Rss },
-  { to: "/projects", label: t.nav.projects, icon: FolderKanban },
-  { to: "/channels", label: t.nav.channels, icon: Tv },
-  { to: "/delogo", label: t.nav.delogo, icon: Eraser },
-  { to: "/settings", label: t.nav.settings, icon: SettingsIcon },
+const NAV: { to: string; label: keyof Messages["nav"]; icon: typeof Flame }[] = [
+  { to: "/trends", label: "trends", icon: Flame },
+  { to: "/clips", label: "clips", icon: Rss },
+  { to: "/projects", label: "projects", icon: FolderKanban },
+  { to: "/channels", label: "channels", icon: Tv },
+  { to: "/delogo", label: "delogo", icon: Eraser },
+  { to: "/settings", label: "settings", icon: SettingsIcon },
 ];
 
 function EngineBadge() {
@@ -30,7 +31,10 @@ function EngineBadge() {
   const color = { ready: "bg-emerald-500", starting: "bg-amber-500", error: "bg-red-500" }[info.status];
   const label = { ready: t.engine.ready, starting: t.engine.starting, error: t.engine.error }[info.status];
   return (
-    <div className="flex items-center gap-2 px-3 text-xs text-muted-foreground" title={info.error ?? info.url}>
+    <div
+      className="flex items-center gap-2 px-3 text-xs text-muted-foreground"
+      title={info.error ? t.native(info.error) : info.url}
+    >
       <span className={cn("size-2 rounded-full", color)} />
       <span className="truncate">{label}</span>
     </div>
@@ -68,7 +72,7 @@ export function EngineGate({ children }: { children: ReactNode }) {
         <>
           <TriangleAlert className="size-8 text-destructive" />
           <p className="font-medium">{t.engine.error}</p>
-          {info.error && <p className="max-w-md text-sm text-muted-foreground">{info.error}</p>}
+          {info.error && <p className="max-w-md text-sm text-muted-foreground">{t.native(info.error)}</p>}
           <div className="flex gap-2">
             <Button onClick={restart}>{t.engine.retry}</Button>
             <Button variant="outline" onClick={() => navigate("/settings")}>
@@ -81,14 +85,28 @@ export function EngineGate({ children }: { children: ReactNode }) {
   );
 }
 
+/** The engine writes its steps, log lines and errors in the app's language (UI_LANG in its settings). */
+function useEngineLang() {
+  const api = useApi();
+  const lang = useLang();
+  useEffect(() => {
+    if (!api) return;
+    api
+      .settings()
+      .then((s) => ((s.UI_LANG?.value || "en") === lang ? undefined : api.saveSettings({ UI_LANG: lang })))
+      .catch(() => {}); // engine older than the language switch: it stays in English
+  }, [api, lang]);
+}
+
 export default function App() {
   const { info } = useEngine();
   const qc = useQueryClient();
-  // Đổi engine (khởi động lại, local ↔ từ xa): bỏ dữ liệu cũ.
+  // Đổi engine (khởi động lại, local ↔ từ xa) hoặc đổi ngôn ngữ (App dựng lại): tải lại dữ liệu.
   useEffect(() => {
     qc.resetQueries();
   }, [info.url, info.token, qc]);
   useProjectNotifications();
+  useEngineLang();
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -107,7 +125,7 @@ export default function App() {
               }
             >
               <Icon className="size-4" />
-              {label}
+              {t.nav[label]}
             </NavLink>
           ))}
         </nav>

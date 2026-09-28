@@ -11,9 +11,24 @@ import { VoicePicker } from "@/components/voice-picker";
 import { useApi, type Api, type Settings } from "@/lib/api";
 import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
 import { useUpdater } from "@/lib/updater";
-import { t } from "@/i18n";
+import { LANGS, setLang, t, useLang, type Lang } from "@/i18n";
 
 type Draft = Record<string, string | boolean>;
+
+function LanguageCard() {
+  const lang = useLang();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.settings.language}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-1.5">
+        <Choice value={lang} onChange={(v) => setLang(v as Lang)} options={LANGS} className="w-48" />
+        <p className="text-xs text-muted-foreground">{t.settings.languageHint}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 function EngineCard() {
   const { info, getConfig, setConfig, restart } = useEngine();
@@ -75,7 +90,11 @@ function EngineCard() {
             </Button>
           )}
           <span className="text-sm text-muted-foreground">
-            {info.status === "ready" ? `${t.engine.ready} · ${info.url}` : (info.error ?? t.engine.starting)}
+            {info.status === "ready"
+              ? `${t.engine.ready} · ${info.url}`
+              : info.error
+                ? t.native(info.error)
+                : t.engine.starting}
           </span>
         </div>
       </CardContent>
@@ -141,7 +160,7 @@ function UpdateCard() {
           </div>
         )}
 
-        {u.error && <p className="text-sm text-destructive">{u.error}</p>}
+        {u.error && <p className="text-sm text-destructive">{t.native(u.error)}</p>}
       </CardContent>
     </Card>
   );
@@ -367,6 +386,7 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
+      <LanguageCard />
       <EngineCard />
       <UpdateCard />
       {api && (

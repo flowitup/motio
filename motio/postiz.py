@@ -11,6 +11,7 @@ from pathlib import Path
 import httpx
 
 from . import config, db
+from .i18n import tr
 
 MODES = ("draft", "schedule", "now")
 _transport: httpx.BaseTransport | None = None  # test thay bằng httpx.MockTransport
@@ -26,7 +27,7 @@ def configured() -> bool:
 
 def _client(timeout: float = 60) -> httpx.Client:
     if not configured():
-        raise PostizError("POSTIZ_URL and POSTIZ_API_KEY are not configured")
+        raise PostizError(tr("POSTIZ_URL and POSTIZ_API_KEY are not configured"))
     return httpx.Client(base_url=config.env("POSTIZ_URL").rstrip("/") + "/public/v1",
                         headers={"Authorization": config.env("POSTIZ_API_KEY")},  # key trần, không có "Bearer"
                         timeout=timeout, transport=_transport)
@@ -78,15 +79,15 @@ def _date(mode: str, when: str | None) -> str:
     if mode != "schedule":
         return dt.datetime.now(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     if not when:
-        raise ValueError("Scheduling needs a posting time (date)")
+        raise ValueError(tr("Scheduling needs a posting time (date)"))
     try:
         d = dt.datetime.fromisoformat(when)
     except ValueError:
-        raise ValueError(f"Invalid time: {when}") from None
+        raise ValueError(tr("Invalid time: {time}", time=when)) from None
     if d.tzinfo is None:
-        raise ValueError("The time needs a time zone, e.g. 2026-10-01T18:00:00+02:00")
+        raise ValueError(tr("The time needs a time zone, e.g. 2026-10-01T18:00:00+02:00"))
     if d <= dt.datetime.now(dt.UTC):
-        raise ValueError("The posting time must be in the future")
+        raise ValueError(tr("The posting time must be in the future"))
     return d.astimezone(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
@@ -94,14 +95,14 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
             mode: str = "draft", when: str | None = None) -> dict:
     """Tải video lên rồi tạo một bài cho mỗi kênh. mode: draft (nháp trong Postiz), schedule (cần when), now."""
     if mode not in MODES:
-        raise ValueError(f"mode must be one of {', '.join(MODES)}")
+        raise ValueError(tr("mode must be one of {choices}", choices=", ".join(MODES)))
     if not channel_ids:
-        raise ValueError("Pick at least one channel")
+        raise ValueError(tr("Pick at least one channel"))
     date = _date(mode, when)
     known = {c["id"]: c for c in channels()}
     missing = [i for i in channel_ids if i not in known]
     if missing:
-        raise ValueError(f"Channels not found in Postiz: {', '.join(missing)}")
+        raise ValueError(tr("Channels not found in Postiz: {names}", names=", ".join(missing)))
     chosen = [known[i] for i in channel_ids]
     media = upload(video)
     body = {"type": mode, "date": date, "shortLink": False, "tags": [],
@@ -130,12 +131,13 @@ def publish_project(pid: int, channel_ids: list[str], mode: str = "draft", when:
     profile: id kênh Motio khi gửi tự động (để biết giờ đăng nào của kênh đã dùng). version: vertical (9:16) | wide
     (16:9). LookupError nếu chưa có video khổ đó."""
     if version not in VERSIONS:
-        raise ValueError(f"version must be one of {', '.join(VERSIONS)}")
+        raise ValueError(tr("version must be one of {choices}", choices=", ".join(VERSIONS)))
     p = db.get_project(pid)
     meta = p["meta"]
     video = project_video(meta, version)
     if not video:
-        raise LookupError("Project has no 16:9 copy yet" if version == "wide" else "Project has no finished video yet")
+        raise LookupError(tr("Project has no 16:9 copy yet") if version == "wide"
+                          else tr("Project has no finished video yet"))
     title = meta.get("title") or p["title"]
     text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
     res = publish(video, text, title, meta.get("hashtags") or [], channel_ids, mode, when)

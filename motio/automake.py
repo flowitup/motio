@@ -7,6 +7,7 @@ duyệt của kênh như dự án bấm tay.
 import time
 
 from . import channels, db, pipeline
+from .i18n import tr
 
 HOURS = 6  # tin còn trên bảng tin trong 6 giờ qua
 FRESH_HOURS = 24  # và xuất hiện lần đầu trong 24 giờ qua: bật tự làm không làm lại tin cũ
@@ -44,5 +45,6 @@ def start(t: dict, ch: dict) -> int:
     pid = db.create_project(t["id"], t["title_fr"] or t["title_zh"])
     channels.attach(pid, ch, news=True)
     db.update_project(pid, meta={"auto": True},
-                      log=f"Made automatically: score {t['score']} (channel {ch['name']} makes {ch['auto_score']}+)")
+                      log=tr("Made automatically: score {score} (channel {name} makes {min}+)", score=t["score"],
+                             name=ch["name"], min=ch["auto_score"]))
     return pid

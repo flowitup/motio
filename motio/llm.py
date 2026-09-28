@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 
 from . import config
+from .i18n import tr
 
 
 class LLMError(RuntimeError):
@@ -25,7 +26,7 @@ def complete(prompt: str, system: str, model: str | None = None, max_tokens: int
         return _claude_cli(prompt, system, model, effort)
     if provider == "anthropic":
         return _anthropic(prompt, system, model, max_tokens)
-    raise LLMError(f"Unsupported LLM_PROVIDER: {provider}")
+    raise LLMError(tr("Unsupported LLM_PROVIDER: {provider}", provider=provider))
 
 
 def _claude_cli(prompt: str, system: str, model: str, effort: str | None = None) -> str:
@@ -42,11 +43,11 @@ def _claude_cli(prompt: str, system: str, model: str, effort: str | None = None)
     with tempfile.TemporaryDirectory() as tmp:  # cwd trống: không nạp CLAUDE.md của repo nào
         r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=900, cwd=tmp, env=env)
     if r.returncode != 0 and not r.stdout.strip():
-        raise LLMError(f"claude -p failed ({r.returncode}): {r.stderr[-800:]}")
+        raise LLMError(tr("claude -p failed ({code}): {error}", code=r.returncode, error=r.stderr[-800:]))
     try:
         data = json.loads(r.stdout)
     except json.JSONDecodeError as e:
-        raise LLMError(f"claude -p did not return JSON: {r.stdout[-500:]}") from e
+        raise LLMError(tr("claude -p did not return JSON: {output}", output=r.stdout[-500:])) from e
     if data.get("is_error"):
         raise LLMError(f"claude -p: {data.get('result') or data}")
     return data.get("result") or ""
@@ -69,7 +70,7 @@ def parse_json(text: str):
         text = m.group(1)
     starts = [i for i in (text.find("{"), text.find("[")) if i >= 0]
     if not starts:
-        raise LLMError(f"No JSON found in the reply: {text[:300]}")
+        raise LLMError(tr("No JSON found in the reply: {text}", text=text[:300]))
     s = min(starts)
     closer = "}" if text[s] == "{" else "]"
     e = text.rfind(closer)
@@ -85,4 +86,4 @@ def ask_json(prompt: str, system: str, model: str | None = None, retries: int = 
         except (json.JSONDecodeError, LLMError) as e:
             last = e
             prompt += "\n\nRAPPEL : réponds uniquement avec du JSON valide, sans texte autour."
-    raise LLMError(f"Invalid JSON after {retries + 1} attempts: {last}")
+    raise LLMError(tr("Invalid JSON after {n} attempts: {error}", n=retries + 1, error=last))

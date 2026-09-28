@@ -3,8 +3,8 @@
 Motio turns trending Chinese news (NewsNow hot lists) into French 9:16 videos. A Python engine does the work and a
 desktop app (macOS, Windows) drives it: it finds source clips on YouTube and Bilibili, transcribes them with Whisper,
 has Claude write a French voice-over script and pick the clip segments, voices it with ElevenLabs, and renders it with
-FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in English; the
-videos are in French.
+FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in English or
+Vietnamese (Settings → Language); the videos are in French.
 
 ## Run on a Mac (legacy web dashboard)
 
@@ -143,6 +143,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
 | `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
+| `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |
 | `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |

@@ -67,7 +67,7 @@ Prerequisite: Rust toolchain (`brew install rustup && rustup-init -y`). **Ask th
    engine --port 0 --token <random>` from the repo root; prod (M3): sidecar `motio-engine`. Read stdout until the
    ready line, keep port + token in state, expose `engine_info()` command, kill the child on exit.
    Setting "Remote engine" (URL + token) skips spawning.
-3. **Screens** (English UI since 28/09/2026, Vietnamese before; sidebar layout, follows OS light/dark):
+3. **Screens** (English or Vietnamese UI, Settings → Language, since 28/09/2026; sidebar layout, follows OS light/dark):
    - **Trending** — score badge, FR title, ZH title, source, angle; filter by source; "Refresh"; "Make video".
    - **Projects** — list with thumbnails and status chips; detail with progress bar, step, live log (SSE),
      9:16 video player, post text + "Copy", "Re-render", "Open folder".
@@ -271,6 +271,15 @@ be added), the Tauri messages, and the engine text the app shows as is (step lab
 output, the legacy dashboard). Video content and post text stay French. Older sections of this plan quote the
 Vietnamese labels of their time (Tin hot = Trending, Video mới = New videos, Dự án = Projects, Kênh = Channels,
 Xoá logo = Remove logo, Cài đặt = Settings).
+
+## Language switch (added 28/09/2026)
+
+Right after the English UI, the owner asked to switch between English and Vietnamese. Settings → Language
+(English / Tiếng Việt) applies at once and is remembered on the machine; English is the default. `app/src/i18n.ts`
+holds both catalogs (the Vietnamese one is the pre-English text, restored from git, plus the strings added since).
+The app also saves `UI_LANG` in the engine's settings, so new step labels, log lines and errors come in the same
+language (`motio/i18n.py`); lines already in a project's log stay as written. Messages from the Tauri shell are
+matched to Vietnamese in the app. CLI help, the legacy dashboard, video content and post text are unchanged.
 
 ## Out of scope for now
 

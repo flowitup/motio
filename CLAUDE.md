@@ -26,6 +26,7 @@ as authoritative for scope and milestones.
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
   - `automake.py` after each scheduled refresh, make videos for new trends at or above a profile's `auto_score`
     (per-profile `auto_daily` cap + `MAX_VIDEOS_PER_DAY`); such projects carry `meta.auto`
+  - `i18n.py` engine messages in the UI language (`tr`, `tr_n`, Vietnamese in `VI`, `UI_LANG`)
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
     project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
@@ -68,8 +69,11 @@ on every PR; keep them green.
 
 ## Conventions
 
-- UI text is English (owner, 2026-09-28; it was Vietnamese before), all of it in `app/src/i18n.ts` so other
-  languages can be added; engine messages the app shows (steps, logs, errors) are English too. Video content is French.
+- The UI is English (default) or Vietnamese, picked in Settings → Language (owner, 2026-09-28). Every UI string lives
+  in both catalogs of `app/src/i18n.ts` (`vi` is typed as `en`, so a missing string fails `pnpm build`). Engine
+  messages the app shows (steps, logs, errors) are written in English inside `tr()` / `tr_n()` from `motio/i18n.py`
+  with their Vietnamese in `i18n.VI` (`tests/test_i18n.py` fails when one is missing); the app sets the engine's
+  `UI_LANG`. CLI help and the legacy dashboard stay English. Video content is French.
 - Code, identifiers and commit messages in English; short comments may be Vietnamese.
 - The engine must stay cross-platform: guard OS-specific code with `platform.system()`, use `pathlib`,
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
