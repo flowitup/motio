@@ -259,10 +259,19 @@ def resolve(key: str) -> Target:
 
 
 def _state(work: Path) -> dict:
-    try:
-        return json.loads((work / "state.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+    path = work / "state.json"
+    for attempt in range(5):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError):
+            # Windows: đọc đúng lúc job nền đang thay state.json thì lỗi quyền một chốc. Đọc lại, đừng coi là
+            # trống: trống làm tệp tải lên thành "không tìm thấy" và _save_state ghi đè mất các khoá khác.
+            if attempt == 4:
+                return {}
+            time.sleep(0.05)
+    return {}
 
 
 def _save_state(work: Path, **changes) -> dict:
