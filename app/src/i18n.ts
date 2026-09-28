@@ -1,5 +1,14 @@
-// Every UI string lives in this one dictionary, so other languages (FR, VI…) can be added later.
-const locale = "en-GB"; // 24-hour clock, day before month
+import { useSyncExternalStore } from "react";
+
+// Every UI string lives here, in English (`en`, the default) and Vietnamese (`vi`). `vi` has the type of `en`, so a
+// string added to one catalog and not the other fails the build. Settings → Language switches with `setLang`.
+export type Lang = "en" | "vi";
+
+/** Each language named in itself, for the picker. */
+export const LANGS: [Lang, string][] = [
+  ["en", "English"],
+  ["vi", "Tiếng Việt"],
+];
 
 const seconds = (sec: number) => {
   const s = Math.round(sec);
@@ -205,7 +214,7 @@ const en = {
     sendTimes: "Posting times",
     sendTimesPlaceholder: "12:00 18:30",
     sendTimesHint: "Times on the machine running the engine, separated by spaces. Each time gets one post per day.",
-    summaryGates: (script: boolean, video: boolean) =>
+    summaryGates: (script: boolean, video: boolean): string =>
       script && video ? "Script and video approval" : script ? "Script approval" : video ? "Video approval" : "No approval gates",
     summaryPostiz: (n: number, mode: string) =>
       n ? `Sends to ${plural(n, "Postiz channel")} (${mode})` : "Doesn't send automatically",
@@ -370,6 +379,8 @@ const en = {
     postiz: "Posting (Postiz)",
     postizUrl: "Postiz API URL",
     postizHint: "E.g. https://postiz.example.com/api. An engine running on the server is already set up.",
+    language: "Language",
+    languageHint: "Also used for the engine's steps, log and error messages. Videos and posts stay in French.",
   },
   update: {
     title: "Update app",
@@ -388,8 +399,10 @@ const en = {
     failed: (t: string) => `Project failed: ${t}`,
   },
   common: { error: "Error", loading: "Loading…", noEngine: "Can't connect to the engine" },
-  clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-  dateTime: (iso: string) => new Date(iso).toLocaleString(locale),
+  clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+  dateTime: (iso: string) => new Date(iso).toLocaleString("en-GB"),
+  /** A message from the Tauri shell (engine.rs, updater.rs, always English), in this language. */
+  native: (msg: string) => msg,
   age: (ts?: number | null) => {
     if (!ts) return "—";
     const m = Math.floor((Date.now() / 1000 - ts) / 60);
@@ -400,4 +413,459 @@ const en = {
   },
 };
 
-export const t = en;
+export type Messages = typeof en;
+
+const secondsVi = (sec: number) => {
+  const s = Math.round(sec);
+  const m = Math.floor(s / 60);
+  return m ? `${m} phút ${s % 60 ? `${s % 60} giây` : ""}`.trim() : `${s} giây`;
+};
+
+/** The Tauri shell's messages (engine.rs, updater.rs) start with one of these English phrases. */
+const NATIVE_VI: [string, string][] = [
+  ["uv not found. Install uv or set MOTIO_UV.", "Không tìm thấy uv. Cài uv hoặc đặt MOTIO_UV."],
+  ["Bundled engine missing: ", "Thiếu engine đóng gói: "],
+  ["Couldn't start the engine: ", "Không chạy được engine: "],
+  ["The engine stopped. See the log in the terminal.", "Engine đã dừng. Xem log trong terminal."],
+  ["No remote engine URL set", "Chưa nhập URL engine từ xa"],
+  ["Update check failed: ", "Lỗi kiểm tra cập nhật: "],
+  ["Check for updates first.", "Hãy kiểm tra cập nhật trước."],
+  ["Update failed: ", "Cập nhật lỗi: "],
+];
+
+const vi: Messages = {
+  appName: "Motio",
+  nav: {
+    trends: "Tin hot",
+    clips: "Video mới",
+    projects: "Dự án",
+    channels: "Kênh",
+    delogo: "Xoá logo",
+    settings: "Cài đặt",
+  },
+  engine: {
+    starting: "Đang khởi động engine…",
+    error: "Engine không chạy",
+    retry: "Thử lại",
+    openSettings: "Mở cài đặt",
+    local: "Engine trên máy",
+    remote: "Engine từ xa",
+    ready: "Engine sẵn sàng",
+    notInTauri: "Không chạy trong Tauri: đặt VITE_ENGINE_URL và VITE_ENGINE_TOKEN",
+  },
+  trends: {
+    title: "Tin hot",
+    refresh: "Cập nhật tin",
+    refreshing: "Đang cập nhật…",
+    allSources: "Tất cả nguồn",
+    produce: "Làm video",
+    used: "Đã làm",
+    empty: "Chưa có tin. Bấm “Cập nhật tin”.",
+    lastRefresh: "Cập nhật lần cuối",
+    refreshError: "Lỗi cập nhật",
+    newScored: (n: number) => `${n} tin mới`,
+    autoRefresh: (min: number) => `Tự cập nhật mỗi ${min} phút`,
+    nextRefresh: "lần tới",
+    links: "Link nguồn",
+    linksHint: "Mỗi dòng một link video (Douyin, X, Weibo, TikTok…). Link luôn được dùng; tự tìm lấp phần còn lại.",
+    linksOnly: "Chỉ dùng các link này",
+    produceWithLinks: "Làm video với link",
+    forChannel: "Làm cho kênh",
+  },
+  clips: {
+    title: "Video mới",
+    check: "Kiểm tra ngay",
+    checking: "Đang kiểm tra…",
+    lastCheck: "Kiểm tra lần cuối",
+    autoCheck: (min: number) => `Tự kiểm tra mỗi ${min} phút`,
+    manualCheck: "Chỉ kiểm tra khi bấm (đặt “Tự cập nhật tin” trong Cài đặt để tự động)",
+    next: "lần tới",
+    found: (n: number) => `${n} video mới`,
+    checkError: "Lỗi",
+    scoreError: "Chưa chấm điểm được",
+    allWatches: "Tất cả nguồn",
+    tabs: { new: "Mới", used: "Đã làm", hidden: "Đã ẩn" } as Record<string, string>,
+    empty: {
+      new: "Chưa có video mới. Thêm nguồn theo dõi rồi bấm “Kiểm tra ngay”.",
+      used: "Chưa làm video nào từ đây.",
+      hidden: "Không có video bị ẩn.",
+    } as Record<string, string>,
+    noWatches: "Chưa theo dõi nguồn nào.",
+    produce: "Làm video",
+    create: "Tạo",
+    only: "Chỉ dùng video này",
+    onlyHint: "Tắt: Motio tìm thêm video trên YouTube, Bilibili; khi đó quyền của dự án là “Chưa rõ”.",
+    hide: "Ẩn",
+    unhide: "Hiện lại",
+    openProject: "Mở dự án",
+    views: (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`) + " lượt xem",
+    sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
+  },
+  watches: {
+    title: "Nguồn theo dõi",
+    target: "Link kênh, playlist hoặc từ khoá",
+    placeholder: "https://www.youtube.com/@… · https://space.bilibili.com/… · street food Chengdu",
+    hint: "Kênh hoặc playlist YouTube, không gian Bilibili (space.bilibili.com/…), hoặc từ khoá tìm. Douyin, Facebook chưa theo dõi được: dán link từng video vào Dự án → Tạo video.",
+    searchOn: "Tìm từ khoá trên",
+    add: "Thêm",
+    enabled: "Bật",
+    remove: "Xoá nguồn",
+    confirmRemove: (name: string) => `Xoá “${name}”? Các video chưa làm của nguồn này cũng bị xoá.`,
+    kinds: { channel: "Kênh", playlist: "Playlist", space: "Không gian", search: "Tìm kiếm" } as Record<string, string>,
+    newCount: (n: number) => `${n} mới`,
+    notChecked: "chưa kiểm tra",
+  },
+  projects: {
+    title: "Dự án",
+    empty: "Chưa có dự án nào. Bấm “Tạo video” hoặc vào Tin hot.",
+    create: "Tạo video",
+    topic: "Chủ đề",
+    topicPlaceholder: "Vd. xe điện BYD, cuisine du Sichuan, gấu trúc…",
+    topicHint: "Mọi chủ đề, mọi ngôn ngữ. Motio tìm video trên YouTube và Bilibili rồi viết lời bình tiếng Pháp.",
+    links: "Link video (không bắt buộc)",
+    linksHint: "Mỗi dòng một link: Douyin, Bilibili, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó.",
+    linksOnly: "Chỉ dùng các link này",
+    duration: "Độ dài",
+    durations: { "70": "1 phút 10", "80": "1 phút 20", "90": "1 phút 30" } as Record<string, string>,
+    durationHint: "Mọi video dài ít nhất 1 phút 2 giây và tối đa 1 phút 30 (giới hạn Facebook Reels).",
+    rights: "Quyền dùng video nguồn",
+    rightsHint: "Ghi lại quyền của bạn với video nguồn. Sau này, video lồng tiếng chỉ gửi Postiz được khi nguồn là của bạn, có giấy phép hoặc CC.",
+    rightsOptions: {
+      unknown: "Chưa rõ",
+      owned: "Của tôi",
+      licensed: "Có giấy phép",
+      cc: "Creative Commons",
+    } as Record<string, string>,
+    make: "Làm video",
+    cancel: "Đóng",
+    modes: { news: "Tin hot", topic: "Chủ đề" } as Record<string, string>,
+    back: "Dự án",
+    log: "Nhật ký",
+    post: "Nội dung bài đăng",
+    copy: "Copy",
+    copied: "Đã copy",
+    resume: "Chạy tiếp",
+    rerun: "Chạy lại",
+    rerunFrom: "Chạy lại từ bước",
+    steps: {
+      search: "Tìm nguồn",
+      download: "Tải video",
+      transcribe: "Bóc lời",
+      script: "Viết kịch bản",
+      voice: "Giọng đọc và dựng",
+      render: "Dựng (giữ giọng đọc)",
+    } as Record<string, string>,
+    openFolder: "Mở thư mục",
+    source: "Tin gốc",
+    sources: "Video nguồn",
+    pasted: "dán tay",
+    addLinks: "Thêm link nguồn",
+    addLinksHint: "Mỗi dòng một link (Douyin, X, …). Motio tải thêm rồi làm lại từ bước tải video.",
+    addAndRerun: "Thêm và làm lại",
+    noVideo: "Chưa có video",
+    delete: "Xoá",
+    deleteTitle: (id: number) => `Xoá dự án #${id}?`,
+    deleteBody:
+      "Xoá video, giọng đọc, phụ đề và bài đăng của dự án này. Không hoàn tác được. Video nguồn đã tải vẫn giữ cho dự án khác; bài đã gửi sang Postiz vẫn còn trong Postiz.",
+    deleteConfirm: "Xoá dự án",
+    deleteCancel: "Huỷ",
+    deleteBusy: "Dự án đang chạy, chờ xong rồi mới xoá được.",
+    redoReplacesScript: "Làm lại từ bước này sẽ viết kịch bản mới, thay kịch bản hiện tại (cả phần bạn đã sửa).",
+    status: {
+      queued: "Chờ",
+      running: "Đang làm",
+      review: "Chờ duyệt",
+      done: "Xong",
+      failed: "Lỗi",
+    } as Record<string, string>,
+    channel: (name: string) => `Kênh ${name}`,
+  },
+  channels: {
+    title: "Kênh",
+    intro:
+      "Mỗi kênh là một bộ cài đặt cho video của kênh đó: nhãn trên video, giọng văn, giọng đọc, cổng duyệt và kênh Postiz để tự gửi. Chọn kênh khi làm video; video không có kênh chạy như trước.",
+    add: "Thêm kênh",
+    empty: "Chưa có kênh nào. Video chạy một mạch như trước, không dừng chờ duyệt và không tự gửi.",
+    edit: "Sửa",
+    save: "Lưu",
+    saved: "Đã lưu",
+    cancel: "Huỷ",
+    delete: "Xoá kênh",
+    confirmDelete: (name: string) => `Xoá kênh “${name}”? Dự án đã làm cho kênh này chạy tiếp như không có kênh.`,
+    name: "Tên kênh",
+    namePlaceholder: "Vd. Chine Express",
+    isDefault: "Kênh mặc định",
+    defaultHint: "Được chọn sẵn khi làm video ở Tin hot, Video mới và Tạo video.",
+    defaultBadge: "Mặc định",
+    badge: "Nhãn trên video",
+    badgePlaceholder: "Vd. ACTU CHINE",
+    badgeHint: "Nhãn đỏ phía trên tiêu đề. Để trống thì video không có nhãn.",
+    style: "Giọng văn cho kịch bản",
+    stylePlaceholder: "Vd. Ton léger et complice, public 18–25 ans, une touche d'humour, toujours une astuce pratique.",
+    styleHint: "Claude đọc ghi chú này mỗi lần viết lời bình cho kênh. Viết tiếng Pháp hoặc tiếng Việt đều được.",
+    voice: "Giọng đọc",
+    voiceDefault: "Theo Cài đặt",
+    duration: "Độ dài video tin nóng",
+    durationHint: "Tạo video và Video mới vẫn tự chọn độ dài.",
+    hashtags: "Hashtag luôn có",
+    hashtagsHint: "Cách nhau bằng dấu cách, đứng trước hashtag Claude đề xuất (bài đăng dùng 6 cái đầu).",
+    gates: "Duyệt trước khi đi tiếp",
+    gateScript: "Dừng chờ duyệt kịch bản",
+    gateScriptHint: "Motio viết kịch bản rồi dừng. Bạn đọc, sửa nếu cần, rồi bấm Duyệt để đọc giọng và dựng.",
+    gateVideo: "Dừng chờ duyệt video",
+    gateVideoHint: "Video dựng xong thì dừng. Bạn xem rồi bấm Duyệt để gửi sang Postiz.",
+    postiz: "Tự gửi sang Postiz",
+    postizHint: "Gửi khi video được duyệt, hoặc ngay khi dựng xong nếu tắt duyệt video. Mỗi dự án chỉ tự gửi một lần.",
+    postizNone: "Không tự gửi",
+    sendMode: "Cách gửi",
+    sendModes: { draft: "Nháp", schedule: "Lên lịch", now: "Đăng ngay" } as Record<string, string>,
+    sendModeHint: {
+      draft: "Tạo bài nháp trong Postiz, bạn đăng từ Postiz.",
+      schedule: "Đặt vào giờ đăng kế tiếp còn trống của kênh.",
+      now: "Đăng ngay khi video được duyệt.",
+    } as Record<string, string>,
+    sendTimes: "Giờ đăng",
+    sendTimesPlaceholder: "12:00 18:30",
+    sendTimesHint: "Giờ của máy chạy engine, cách nhau bằng dấu cách. Mỗi giờ nhận một bài mỗi ngày.",
+    summaryGates: (script: boolean, video: boolean) =>
+      script && video ? "Duyệt kịch bản và video" : script ? "Duyệt kịch bản" : video ? "Duyệt video" : "Không dừng duyệt",
+    summaryPostiz: (n: number, mode: string) => (n ? `Tự gửi ${n} kênh Postiz (${mode})` : "Không tự gửi"),
+    none: "Không dùng kênh",
+    pick: "Kênh",
+  },
+  review: {
+    script: "Kịch bản đang chờ bạn duyệt",
+    scriptHint: "Đọc lời bình trong thẻ Kịch bản bên dưới, sửa nếu cần (bấm Lưu), rồi bấm Duyệt để đọc giọng và dựng video.",
+    approveScript: "Duyệt và làm tiếp",
+    video: "Video đang chờ bạn duyệt",
+    videoHint: "Xem video bên trái. Muốn sửa lời bình thì sửa trong thẻ Kịch bản rồi dựng lại.",
+    videoHintSend: (n: number) => `Duyệt thì Motio gửi sang ${n} kênh Postiz theo cài đặt của kênh.`,
+    approveSend: "Duyệt và gửi",
+    approve: "Duyệt",
+    approveNoSend: "Duyệt, không gửi",
+    sendError: "Chưa tự gửi được sang Postiz",
+  },
+  script: {
+    title: "Kịch bản",
+    hint: "Sửa tiêu đề và lời bình rồi bấm “Lưu và dựng lại”: Motio đọc lại giọng và dựng video từ kịch bản này. Mô tả và hashtag lưu là dùng ngay.",
+    videoTitle: "Tiêu đề trên video",
+    lines: "Lời bình",
+    clips: (n: number) => (n ? `${n} đoạn hình` : "hình tự chọn"),
+    moveUp: "Đưa lên",
+    moveDown: "Đưa xuống",
+    insertBelow: "Chèn dòng bên dưới",
+    removeLine: "Xoá dòng",
+    addLine: "Thêm dòng",
+    description: "Mô tả bài đăng",
+    hashtags: "Hashtag",
+    hashtagsHint: "Cách nhau bằng dấu cách. Bài đăng dùng 6 hashtag đầu.",
+    words: (n: number) => `${n} từ`,
+    estimate: (sec: number) => `video ≈ ${secondsVi(sec)}`,
+    outOfRange: (min: number, max: number) =>
+      `Ngoài khoảng ${secondsVi(min)} – ${secondsVi(max)}: khi dựng lại, Motio sẽ tự chỉnh độ dài kịch bản cho vừa, có thể đổi phần bạn đã sửa.`,
+    minLines: (n: number) => `Cần ít nhất ${n} dòng lời bình.`,
+    stale: "Video chưa theo kịch bản đã sửa.",
+    reset: "Hoàn tác",
+    save: "Lưu",
+    saved: "Đã lưu",
+    saveAndRender: "Lưu và dựng lại",
+    render: "Dựng lại",
+  },
+  delogo: {
+    title: "Xoá logo",
+    hint: "Chọn một video của bạn, vẽ khung quanh logo hoặc watermark (hoặc bấm Tự tìm). AI (LaMa) vẽ lại phần hình sau logo trên mọi khung hình.",
+    pick: "Chọn video",
+    upload: "Tải video lên",
+    uploading: (pct: number) => `Đang tải lên… ${pct}%`,
+    uploadHint: "MP4, MOV, MKV, WEBM, M4V hoặc AVI, tối đa 2 GB.",
+    uploads: "Đã tải lên",
+    projectSources: "Video nguồn của dự án",
+    pickProject: "Chọn dự án",
+    noSources: "Dự án này chưa có video nguồn.",
+    cleaned: "đã xoá logo",
+    removeLogo: "Xoá logo",
+    empty: "Chọn một video bên trái hoặc tải video lên để bắt đầu.",
+    info: (w: number, h: number, sec: number) => `${w}×${h} · ${secondsVi(sec)}`,
+    frameAt: "Khung hình",
+    drawHint:
+      "Kéo chuột trên hình để vẽ khung quanh logo, tối đa 4 khung. Vẽ phủ cả nền mờ của logo: phần còn sót, AI sẽ vẽ tiếp theo. Kéo thanh trượt để xem khung hình khác.",
+    detect: "Tự tìm",
+    detectFound: (n: number) => `Tìm thấy ${n} logo đứng yên. Kiểm tra khung trên hình rồi xoá.`,
+    clearBoxes: "Bỏ hết khung",
+    removeBox: "Bỏ khung này",
+    run: "Xoá logo",
+    scope: "Xoá ở đâu",
+    scopes: { used: "Đoạn video final dùng", all: "Cả video", range: "Một đoạn" } as Record<string, string>,
+    usedHint: (n: number, sec: number, total: number) =>
+      `Chỉ xoá ${n} đoạn mà video final dùng (thêm vài giây mỗi bên): ${secondsVi(sec)} trên ${secondsVi(total)} của clip nguồn.`,
+    notRendered: "Video final của dự án chưa dùng nguồn này: dựng video trước rồi xoá logo.",
+    allHint: "AI vẽ lại mọi khung hình: video dài có thể mất hàng giờ. Chỉ cần một phần thì chọn Một đoạn.",
+    from: "Từ",
+    to: "đến",
+    here: "Khung đang xem",
+    badTime: "Nhập thời điểm dạng 1:23 hoặc số giây",
+    badSpan: "Điểm cuối phải sau điểm đầu ít nhất nửa giây",
+    cleanedParts: (n: number, sec: number) => `Đã xoá logo ở ${n} đoạn (${secondsVi(sec)}), phần còn lại giữ nguyên.`,
+    uncovered: (spans: string) =>
+      `Video final mới dùng cả đoạn chưa xoá logo (${spans}). Bấm Xoá logo lần nữa rồi dựng lại video.`,
+    modelHint:
+      "Lần đầu, Motio tải mô hình AI (92 MB) về máy. Cảnh đứng yên xử lý nhanh; cảnh chuyển động có thể mất vài phút cho mỗi phút video.",
+    queued: "Đang chờ video khác xoá logo xong…",
+    downloading: "Đang tải mô hình AI (92 MB, chỉ lần đầu)…",
+    running: "AI đang vẽ lại vùng logo…",
+    eta: (sec: number) => `còn khoảng ${secondsVi(Math.max(sec, 1))}`,
+    stop: "Dừng",
+    stopping: "Đang dừng…",
+    result: "Kết quả",
+    resultSource:
+      "Bản đã xoá logo thay video gốc khi dựng lại dự án. “Dựng lại video” đọc lại giọng và dựng video, như “Lưu và dựng lại”.",
+    rerender: "Dựng lại video",
+    rerenderKeepVoice: "Dựng lại video (giữ giọng)",
+    resultSourceKeepVoice:
+      "Bản đã xoá logo thay video gốc khi dựng lại dự án. “Dựng lại video (giữ giọng)” dựng lại hình với giọng đọc cũ, không đọc lại.",
+    openProject: "Mở dự án",
+    restore: "Dùng lại video gốc",
+    download: "Tải về",
+    openFolder: "Mở thư mục",
+    deleteResult: "Xoá kết quả",
+    deleteUpload: "Xoá video đã tải lên",
+  },
+  publish: {
+    title: "Đăng bài (Postiz)",
+    notConfigured: "Chưa kết nối Postiz. Vào Cài đặt → Đăng bài để nhập URL và API key.",
+    noChannels: "Postiz chưa có kênh nào. Mở Postiz và thêm kênh (TikTok, YouTube…).",
+    channels: "Kênh",
+    modes: { draft: "Nháp", schedule: "Lên lịch", now: "Đăng ngay" } as Record<string, string>,
+    modeHint: {
+      draft: "Tạo bài nháp trong Postiz, bạn duyệt rồi đăng từ Postiz.",
+      schedule: "Postiz tự đăng vào thời điểm đã chọn.",
+      now: "Đăng ngay lên các kênh đã chọn.",
+    } as Record<string, string>,
+    when: "Thời điểm đăng",
+    send: "Gửi sang Postiz",
+    sent: "Đã gửi",
+    history: "Đã gửi sang Postiz",
+  },
+  settings: {
+    title: "Cài đặt",
+    save: "Lưu",
+    saved: "Đã lưu",
+    engine: "Engine",
+    engineMode: "Chế độ",
+    engineUrl: "URL engine",
+    engineToken: "Token",
+    applyEngine: "Áp dụng",
+    llm: "Viết kịch bản (LLM)",
+    provider: "Nhà cung cấp",
+    model: "Model",
+    keys: "API keys",
+    keyPlaceholder: "Nhập key mới để thay",
+    voice: "Giọng đọc (ElevenLabs)",
+    voiceLabel: "Giọng",
+    voiceAuto: "Tự chọn giọng tiếng Pháp",
+    voiceNeedKey: "Nhập ElevenLabs API key để chọn giọng.",
+    ttsModel: "Model ElevenLabs",
+    whisper: "Model Whisper",
+    content: "Nội dung",
+    creditOnVideo: "Ghi nguồn trên video",
+    creditInPost: "Ghi nguồn trong bài đăng",
+    maxPerDay: "Số video tối đa mỗi ngày (0 = không giới hạn)",
+    newsSources: "Nguồn tin (phân cách bằng dấu phẩy)",
+    refreshEvery: "Tự cập nhật tin hot và nguồn theo dõi mỗi (phút, 0 = tắt)",
+    newsnowUrl: "NewsNow",
+    newsnowHint: "Bỏ trống = bản công khai newsnow.busiyi.world. Engine trên server dùng bản tự host.",
+    cookies: "Cookie trình duyệt cho link dán tay",
+    cookiesNone: "Không dùng",
+    cookiesHint: "Douyin và X hay đòi đăng nhập: Motio dùng phiên của trình duyệt này khi tải link bạn dán (engine trên máy).",
+    health: "Tình trạng engine",
+    version: "Phiên bản",
+    platform: "Hệ điều hành",
+    notFound: "không tìm thấy",
+    jsRuntime: "JavaScript (YouTube)",
+    jsRuntimeMissing: "không tìm thấy: cài Deno (brew install deno) để tải YouTube",
+    none: "không có",
+    quotaLeft: "Còn lại hôm nay",
+    unlimited: "không giới hạn",
+    fromEnv: ".env",
+    fromSettings: "đã lưu",
+    postiz: "Đăng bài (Postiz)",
+    postizUrl: "URL API Postiz",
+    postizHint: "Vd. https://postiz.example.com/api. Engine chạy trên server đã được cấu hình sẵn.",
+    language: "Ngôn ngữ",
+    languageHint: "Dùng cho cả bước, nhật ký và lỗi của engine. Video và bài đăng vẫn bằng tiếng Pháp.",
+  },
+  update: {
+    title: "Cập nhật ứng dụng",
+    current: "Phiên bản đang dùng",
+    check: "Kiểm tra cập nhật",
+    upToDate: "Đang dùng bản mới nhất.",
+    available: (v: string) => `Có bản mới ${v}`,
+    install: "Cập nhật và khởi động lại",
+    downloading: "Đang tải bản cập nhật…",
+    restartHint: "Motio sẽ tự khởi động lại. Video đang làm trên engine trong máy sẽ bị dừng.",
+    releasePage: "Xem trên GitHub",
+  },
+  notify: {
+    done: (t: string) => `Video xong: ${t}`,
+    review: (t: string) => `Chờ bạn duyệt: ${t}`,
+    failed: (t: string) => `Dự án lỗi: ${t}`,
+  },
+  common: { error: "Lỗi", loading: "Đang tải…", noEngine: "Không kết nối được engine" },
+  clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+  dateTime: (iso: string) => new Date(iso).toLocaleString("vi-VN"),
+  native: (msg: string) => {
+    const hit = NATIVE_VI.find(([en]) => msg.startsWith(en));
+    return hit ? hit[1] + msg.slice(hit[0].length) : msg;
+  },
+  age: (ts?: number | null) => {
+    if (!ts) return "—";
+    const m = Math.floor((Date.now() / 1000 - ts) / 60);
+    if (m < 1) return "vừa xong";
+    if (m < 60) return `${m} phút trước`;
+    if (m < 60 * 24) return `${Math.floor(m / 60)} giờ trước`;
+    return `${Math.floor(m / 1440)} ngày trước`;
+  },
+};
+
+const catalogs: Record<Lang, Messages> = { en, vi };
+const STORE = "motio.lang";
+
+function stored(): Lang {
+  try {
+    return localStorage.getItem(STORE) === "vi" ? "vi" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+export let lang: Lang = stored();
+/** The strings in the current language. Read `t.…` while rendering, not in module-level constants, so a switch shows. */
+export let t: Messages = catalogs[lang];
+document.documentElement.lang = lang;
+
+const listeners = new Set<() => void>();
+const subscribe = (f: () => void) => {
+  listeners.add(f);
+  return () => {
+    listeners.delete(f);
+  };
+};
+
+/** Switch the UI language now and remember it on this machine. */
+export function setLang(next: Lang) {
+  if (next === lang) return;
+  lang = next;
+  t = catalogs[next];
+  document.documentElement.lang = next;
+  try {
+    localStorage.setItem(STORE, next);
+  } catch {
+    // storage blocked: the choice lasts until the app closes
+  }
+  listeners.forEach((f) => f());
+}
+
+/** The current language; the component re-renders when it changes. */
+export function useLang(): Lang {
+  return useSyncExternalStore(subscribe, () => lang);
+}

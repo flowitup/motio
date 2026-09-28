@@ -23,7 +23,9 @@ const browserInfo: EngineInfo = {
   mode: "remote",
   url: import.meta.env.VITE_ENGINE_URL ?? "",
   token: import.meta.env.VITE_ENGINE_TOKEN ?? "",
-  error: t.engine.notInTauri,
+  get error() {
+    return t.engine.notInTauri;
+  },
 };
 
 type Ctx = {
