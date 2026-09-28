@@ -39,7 +39,10 @@ press **Xoá logo**. The LaMa AI model redraws what was behind the logo on every
 The first run downloads the model once (92 MB, [LaMa](https://github.com/advimman/lama) exported by
 [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/inpainting_lama), Apache 2.0) into `data/models/`.
 It runs on the CPU: still shots go fast (the fill is reused while the picture behind the logo doesn't change), moving
-shots take a few minutes per minute of video, and the page shows the time left and a Stop button. An uploaded file
+shots take a few minutes per minute of video. So on a project's clip it cleans, by default, only the parts the finished
+video uses (plus a few seconds either side), which turns hours into minutes on a long news clip; you can also pick
+**Cả video** (whole video) or **Một đoạn** (one part, from–to). The page shows the time left and a Stop button, and if
+a later render uses a part that wasn't cleaned, the project log and the page say so. An uploaded file
 gives you a cleaned copy; a project clip is replaced by its clean copy for the next render (the original is kept and
 can be restored). It never runs by itself in the pipelines.
 

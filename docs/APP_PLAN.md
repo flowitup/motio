@@ -209,9 +209,17 @@ pipeline step.
   logo on a moving one; the Mac should be faster (not measured yet). Logo jobs run on their own queue so they don't
   hold up video production; the page shows time left and a Stop button. Video inpainters (ProPainter, E2FGVI) stay
   out: non-commercial licenses.
-- Before it runs, the user ticks "Tôi sở hữu video này hoặc có quyền dùng nó" and picks owned / licensed; the engine
-  refuses a run without it. The declaration is stored on the source (`meta.sources[i].delogo`) and, once every
-  source of the project is declared, in `meta.rights`.
+- Where to clean ("Xoá ở đâu", added 28/09 after a 14-minute news clip with 2 logos showed 235 min left on the Mac):
+  **Đoạn video đang dùng** (default for a project source that has been rendered: the pieces of this source in the
+  last render's `timeline.json`, which now records each piece's source URL, widened 1 s before / 3 s after and
+  merged when less than 2 s apart), **Cả video**, or **Một đoạn** (from–to). Frames outside are re-encoded untouched,
+  so the clean file keeps the source's length and timestamps; the record keeps `ranges`. After each render the
+  pipeline logs any piece of a partly cleaned source that falls outside those ranges and the page shows it; it never
+  cleans by itself. The model's int8 weights are now unpacked once when it loads, not on every frame (~28 % faster,
+  same output).
+- The "Tôi sở hữu video này…" tick was removed on the owner's ask (PR #19, app 0.5.1). A rights value sent through
+  the API is still stored on the source (`meta.sources[i].delogo`) and, once every source is declared, in
+  `meta.rights`.
 - A cleaned project clip replaces the source for the next render (`path` → `delogo/<i>/clean.mp4`, `orig_path`
   keeps the original; transcript and scene caches are copied), "Dựng lại video" reruns from the voice step, and
   "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.

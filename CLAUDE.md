@@ -22,7 +22,8 @@ as authoritative for scope and milestones.
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("Video mới")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
-  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes)
+  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
+    project source defaults to only the parts its last render used (`timeline.json`), or the whole video / one part
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI

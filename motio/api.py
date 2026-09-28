@@ -88,6 +88,9 @@ class DelogoFrameIn(BaseModel):
 class DelogoRunIn(BaseModel):
     boxes: list[dict]  # [{x, y, w, h}] theo pixel của khung hình
     rights: str | None = None  # optional existing-client declaration: owned | licensed
+    scope: str = "all"  # all | range (start–end, giây) | used (đoạn video thành phẩm của dự án đang dùng)
+    start: float | None = None
+    end: float | None = None
 
 
 class PublishIn(BaseModel):
@@ -566,7 +569,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/delogo/targets/{key}/run", status_code=202, dependencies=[Depends(auth)])
     def delogo_run(key: str, body: DelogoRunIn):
-        return _dl(delogo.start, key, body.boxes, body.rights, lambda fn: tools.submit(_bg, fn))
+        span = (body.start or 0.0, body.end or 0.0) if body.scope == "range" else None
+        return _dl(delogo.start, key, body.boxes, body.rights, lambda fn: tools.submit(_bg, fn), body.scope, span)
 
     @app.post("/api/delogo/targets/{key}/cancel", dependencies=[Depends(auth)])
     def delogo_cancel(key: str):

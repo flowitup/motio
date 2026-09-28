@@ -185,6 +185,20 @@ const vi = {
     clearBoxes: "Bỏ hết khung",
     removeBox: "Bỏ khung này",
     run: "Xoá logo",
+    scope: "Xoá ở đâu",
+    scopes: { used: "Đoạn video đang dùng", all: "Cả video", range: "Một đoạn" } as Record<string, string>,
+    usedHint: (n: number, sec: number, total: number) =>
+      `${n} đoạn mà video của dự án dùng (thêm vài giây mỗi bên), tổng ${seconds(sec)} trên ${seconds(total)}. Dựng lại với kịch bản khác mà dùng đoạn mới thì xoá lại.`,
+    notRendered: "Dự án chưa dựng video từ nguồn này: chọn Cả video hoặc Một đoạn.",
+    allHint: "AI vẽ lại mọi khung hình: video dài có thể mất hàng giờ. Chỉ cần một phần thì chọn Một đoạn.",
+    from: "Từ",
+    to: "đến",
+    here: "Khung đang xem",
+    badTime: "Nhập thời điểm dạng 1:23 hoặc số giây",
+    badSpan: "Điểm cuối phải sau điểm đầu ít nhất nửa giây",
+    cleanedParts: (n: number, sec: number) => `Đã xoá logo ở ${n} đoạn (${seconds(sec)}), phần còn lại giữ nguyên.`,
+    uncovered: (spans: string) =>
+      `Video vừa dựng dùng cả đoạn chưa xoá logo (${spans}). Chọn “Đoạn video đang dùng” rồi bấm Xoá logo lần nữa.`,
     modelHint:
       "Lần đầu, Motio tải mô hình AI (92 MB) về máy. Cảnh đứng yên xử lý nhanh; cảnh chuyển động có thể mất vài phút cho mỗi phút video.",
     queued: "Đang chờ video khác xoá logo xong…",

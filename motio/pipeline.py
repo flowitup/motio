@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import asr, config, db, llm, render, scenes, search, topic, tts
+from . import asr, config, db, delogo, llm, render, scenes, search, topic, tts
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
 PICK_PROMPT = """Sujet : {title_zh} / {title_fr}
@@ -464,6 +464,10 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         step("Dựng", 70 + int(26 * done / total), None)
 
     res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS)
+    for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
+        spans = ", ".join(f"{delogo.clock(a)}–{delogo.clock(b)}" for a, b in miss[:4]) + ("…" if len(miss) > 4 else "")
+        step("Dựng", 96, f"Nguồn #{i + 1} mới xoá logo một phần, video này còn dùng đoạn chưa xoá ({spans}): mở "
+                         "Xoá logo, chọn Đoạn video đang dùng rồi xoá lại")
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)

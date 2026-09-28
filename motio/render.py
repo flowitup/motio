@@ -282,5 +282,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     thumb = out_dir / "thumb.jpg"
     _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])
-    (out_dir / "timeline.json").write_text(json.dumps([p.__dict__ for p in pieces], ensure_ascii=False, indent=1))
+    # đoạn nào của nguồn nào (url để Xoá logo biết nguồn chưa đổi): Xoá logo chỉ cần xoá những đoạn này
+    (out_dir / "timeline.json").write_text(json.dumps([{**p.__dict__, "url": sources[p.src].get("url")}
+                                                       for p in pieces], ensure_ascii=False, indent=1))
     return {"video": str(final), "thumb": str(thumb), "duration": total, "pieces": len(pieces), "captions": len(cues)}
