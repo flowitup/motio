@@ -70,7 +70,6 @@ const vi = {
     placeholder: "https://www.youtube.com/@… · https://space.bilibili.com/… · street food Chengdu",
     hint: "Kênh hoặc playlist YouTube, không gian Bilibili (space.bilibili.com/…), hoặc từ khoá tìm. Douyin, Facebook chưa theo dõi được: dán link từng video vào Dự án → Tạo video.",
     searchOn: "Tìm từ khoá trên",
-    rights: "Quyền với video của nguồn",
     add: "Thêm",
     enabled: "Bật",
     remove: "Xoá nguồn",
