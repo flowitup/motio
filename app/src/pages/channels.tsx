@@ -36,13 +36,21 @@ const BLANK: ChannelInput = {
   postiz: [],
   send_mode: "draft",
   send_times: [],
+  wide_postiz: [],
+  auto_score: 0,
+  auto_daily: 2,
   default: false,
 };
+const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
 
 /** Hồ sơ đang sửa; hashtag và giờ đăng giữ dạng chữ để gõ thoải mái, tách khi lưu. */
 type Draft = Omit<ChannelInput, "hashtags" | "send_times"> & { hashtags: string; send_times: string };
 
-const toDraft = (c: ChannelInput): Draft => ({ ...c, hashtags: c.hashtags.join(" "), send_times: c.send_times.join(" ") });
+// An older remote engine may send profiles without the newer fields: fill them from BLANK.
+const toDraft = (x: ChannelInput): Draft => {
+  const c = { ...BLANK, ...x };
+  return { ...c, hashtags: c.hashtags.join(" "), send_times: c.send_times.join(" ") };
+};
 const words = (s: string) => s.split(/[\s,]+/).filter(Boolean);
 const fromDraft = (d: Draft): ChannelInput => ({ ...d, hashtags: words(d.hashtags), send_times: words(d.send_times) });
 
@@ -58,8 +66,20 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
   );
 }
 
-/** Kênh Postiz để tự gửi: danh sách chọn, hoặc lời nhắc khi Postiz chưa kết nối. */
-function PostizPicker({ api, value, onChange }: { api: Api; value: string[]; onChange: (v: string[]) => void }) {
+/** Kênh Postiz để tự gửi (và kênh nào nhận bản 16:9): danh sách chọn, hoặc lời nhắc khi Postiz chưa kết nối. */
+function PostizPicker({
+  api,
+  value,
+  onChange,
+  wide,
+  onWide,
+}: {
+  api: Api;
+  value: string[];
+  onChange: (v: string[]) => void;
+  wide: string[];
+  onWide: (v: string[]) => void;
+}) {
   const { data, error } = useQuery({
     queryKey: ["postiz-channels"],
     queryFn: () => api.postizChannels(),
@@ -80,26 +100,45 @@ function PostizPicker({ api, value, onChange }: { api: Api; value: string[]; onC
   if (!data) return <Loader2 className="size-4 animate-spin" />;
   if (!data.length) return <p className="text-sm text-muted-foreground">{t.publish.noChannels}</p>;
   const known = new Set(data.map((c) => c.id));
+  const toggle = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter((x) => x !== id));
+      onWide(wide.filter((x) => x !== id));
+    } else onChange([...value, id]);
+  };
   return (
     <div className="grid gap-1.5">
       {data.map((c) => (
-        <label key={c.id} className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4 accent-primary"
-            checked={value.includes(c.id)}
-            disabled={c.disabled}
-            onChange={() => onChange(value.includes(c.id) ? value.filter((x) => x !== c.id) : [...value, c.id])}
-          />
-          <span>{c.name}</span>
-          <span className="text-muted-foreground">· {c.provider}</span>
-        </label>
+        <div key={c.id} className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={value.includes(c.id)}
+              disabled={c.disabled}
+              onChange={() => toggle(c.id)}
+            />
+            <span>{c.name}</span>
+            <span className="text-muted-foreground">· {c.provider}</span>
+          </label>
+          {value.includes(c.id) && (
+            <label className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-3.5 accent-primary"
+                checked={wide.includes(c.id)}
+                onChange={() => onWide(wide.includes(c.id) ? wide.filter((x) => x !== c.id) : [...wide, c.id])}
+              />
+              {t.channels.wide}
+            </label>
+          )}
+        </div>
       ))}
       {value
         .filter((id) => !known.has(id))
         .map((id) => (
           <label key={id} className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input type="checkbox" className="size-4 accent-primary" checked onChange={() => onChange(value.filter((x) => x !== id))} />
+            <input type="checkbox" className="size-4 accent-primary" checked onChange={() => toggle(id)} />
             {id}
           </label>
         ))}
@@ -191,9 +230,16 @@ function ChannelForm({
             <div className="text-sm font-medium">{t.channels.postiz}</div>
             <p className="text-xs text-muted-foreground">{t.channels.postizHint}</p>
           </div>
-          <PostizPicker api={api} value={d.postiz} onChange={(v) => set("postiz", v)} />
+          <PostizPicker
+            api={api}
+            value={d.postiz}
+            onChange={(v) => set("postiz", v)}
+            wide={d.wide_postiz}
+            onWide={(v) => set("wide_postiz", v)}
+          />
           {d.postiz.length > 0 && (
             <>
+              <p className="text-xs text-muted-foreground">{t.channels.wideHint}</p>
               <div className="grid gap-1.5">
                 <div className="text-sm">{t.channels.sendMode}</div>
                 <div className="flex flex-wrap gap-2">
@@ -211,6 +257,39 @@ function ChannelForm({
                 </Field>
               )}
             </>
+          )}
+        </div>
+
+        <div className="grid gap-3 border-t pt-4">
+          <Toggle
+            checked={d.auto_score > 0}
+            onChange={(v) => set("auto_score", v ? AUTO_SCORE : 0)}
+            label={t.channels.auto}
+            hint={t.channels.autoHint}
+          />
+          {d.auto_score > 0 && (
+            <div className="grid items-start gap-4 pl-11 sm:grid-cols-2">
+              <Field label={t.channels.autoScore} hint={t.channels.autoScoreHint}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  className="w-28"
+                  value={d.auto_score}
+                  onChange={(e) => set("auto_score", Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                />
+              </Field>
+              <Field label={t.channels.autoDaily} hint={t.channels.autoDailyHint}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  className="w-28"
+                  value={d.auto_daily}
+                  onChange={(e) => set("auto_daily", Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                />
+              </Field>
+            </div>
           )}
         </div>
 
@@ -255,12 +334,15 @@ function ChannelForm({
   );
 }
 
-function Summary({ c }: { c: Channel }) {
+function Summary({ c: raw }: { c: Channel }) {
+  const c = { ...BLANK, ...raw };
   const bits = [
     t.channels.summaryGates(c.gate_script, c.gate_video),
     t.channels.summaryPostiz(c.postiz.length, t.channels.sendModes[c.send_mode]),
+    c.wide_postiz.length ? t.channels.summaryWide(c.wide_postiz.length) : "",
+    c.auto_score ? t.channels.summaryAuto(c.auto_score, c.auto_daily) : "",
     t.projects.durations[String(c.duration)],
-  ];
+  ].filter(Boolean);
   return <div className="text-sm text-muted-foreground">{bits.join(" · ")}</div>;
 }
 

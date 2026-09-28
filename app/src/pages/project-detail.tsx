@@ -28,7 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights } from "@/lib/api";
+import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights, type VideoVersion } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
 
@@ -162,6 +162,7 @@ export default function ProjectDetailPage() {
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [from, setFrom] = useState<RetryStep | null>(null); // null = bước hệ thống đề xuất
+  const [view, setView] = useState<VideoVersion>("vertical"); // khổ đang xem khi có bản 16:9
   const logRef = useRef<HTMLPreElement>(null);
 
   const { data: p, error, refetch } = useQuery({ queryKey: ["project", id], queryFn: () => api.project(id) });
@@ -195,6 +196,7 @@ export default function ProjectDetailPage() {
   if (error) return <p className="p-6 text-destructive">{error.message}</p>;
   if (!p) return <p className="p-6 text-muted-foreground">{t.common.loading}</p>;
 
+  const wide = view === "wide" && !!p.meta.wide;
   const post = p.meta.description ? `${p.meta.title ?? p.title}\n\n${p.meta.description}` : "";
   const copy = async () => {
     await navigator.clipboard.writeText(post);
@@ -215,6 +217,7 @@ export default function ProjectDetailPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {status && <StatusChip status={status} />}#{p.id} · {t.projects.modes[p.mode] ?? p.mode} ·{" "}
             {channel && `${t.projects.channel(channel.name)} · `}
+            {p.meta.auto && `${t.projects.auto} · `}
             {t.age(p.updated_at)}
           </div>
         </div>
@@ -302,19 +305,34 @@ export default function ProjectDetailPage() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_1fr]">
-        <div className="overflow-hidden rounded-xl bg-black">
-          {/* Đang hỏi xoá: bỏ trình phát để engine không còn giữ final.mp4 (Windows không xoá được file đang mở). */}
-          {p.meta.video && (status === "done" || (status === "review" && p.meta.review === "video")) && !deleting ? (
-            <video
-              key={p.updated_at}
-              src={api.mediaUrl(p.meta.video, p.updated_at)}
-              poster={p.meta.thumb ? api.mediaUrl(p.meta.thumb, p.updated_at) : undefined}
-              controls
-              className="aspect-[9/16] w-full"
-            />
-          ) : (
-            <div className="flex aspect-[9/16] items-center justify-center text-sm text-white/60">
-              {active ? <Loader2 className="size-8 animate-spin" /> : t.projects.noVideo}
+        <div className="space-y-2">
+          <div className="overflow-hidden rounded-xl bg-black">
+            {/* Đang hỏi xoá: bỏ trình phát để engine không còn giữ final.mp4 (Windows không xoá được file đang mở). */}
+            {p.meta.video && (status === "done" || (status === "review" && p.meta.review === "video")) && !deleting ? (
+              wide ? (
+                <video key={`w${p.updated_at}`} src={api.mediaUrl(p.meta.wide!, p.updated_at)} controls className="aspect-video w-full" />
+              ) : (
+                <video
+                  key={p.updated_at}
+                  src={api.mediaUrl(p.meta.video, p.updated_at)}
+                  poster={p.meta.thumb ? api.mediaUrl(p.meta.thumb, p.updated_at) : undefined}
+                  controls
+                  className="aspect-[9/16] w-full"
+                />
+              )
+            ) : (
+              <div className="flex aspect-[9/16] items-center justify-center text-sm text-white/60">
+                {active ? <Loader2 className="size-8 animate-spin" /> : t.projects.noVideo}
+              </div>
+            )}
+          </div>
+          {p.meta.wide && (
+            <div className="flex justify-center gap-2">
+              {(["vertical", "wide"] as const).map((v) => (
+                <Button key={v} size="sm" variant={view === v ? "default" : "outline"} onClick={() => setView(v)}>
+                  {t.projects.versions[v]}
+                </Button>
+              ))}
             </div>
           )}
         </div>
@@ -336,7 +354,7 @@ export default function ProjectDetailPage() {
           )}
 
           {status === "done" && p.meta.video && (
-            <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} onSent={() => refetch()} />
+            <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} hasWide={!!p.meta.wide} onSent={() => refetch()} />
           )}
 
           {p.has_script && <ScriptCard api={api} id={p.id} active={active} />}

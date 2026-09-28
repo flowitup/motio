@@ -114,22 +114,37 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
             "channels": [{"id": c["id"], "name": c["name"], "provider": c["provider"]} for c in chosen]}
 
 
+VERSIONS = ("vertical", "wide")  # 9:16 (meta.video) | 16:9 (meta.wide)
+
+
+def project_video(meta: dict, version: str = "vertical") -> Path | None:
+    """File video của dự án theo khổ, None nếu chưa có."""
+    rel = meta.get("wide" if version == "wide" else "video")
+    path = config.DATA / rel if rel else None
+    return path if path and path.is_file() else None
+
+
 def publish_project(pid: int, channel_ids: list[str], mode: str = "draft", when: str | None = None,
-                    profile: int | None = None) -> dict:
+                    profile: int | None = None, version: str = "vertical") -> dict:
     """Gửi video đã dựng của dự án (tiêu đề + mô tả bài đăng) và ghi vào lịch sử `meta.postiz`.
-    profile: id kênh Motio khi gửi tự động (để biết giờ đăng nào của kênh đã dùng). LookupError nếu chưa có video."""
+    profile: id kênh Motio khi gửi tự động (để biết giờ đăng nào của kênh đã dùng). version: vertical (9:16) | wide
+    (16:9). LookupError nếu chưa có video khổ đó."""
+    if version not in VERSIONS:
+        raise ValueError(f"version must be one of {', '.join(VERSIONS)}")
     p = db.get_project(pid)
     meta = p["meta"]
-    video = config.DATA / meta["video"] if meta.get("video") else None
-    if not video or not video.is_file():
-        raise LookupError("Project has no finished video yet")
+    video = project_video(meta, version)
+    if not video:
+        raise LookupError("Project has no 16:9 copy yet" if version == "wide" else "Project has no finished video yet")
     title = meta.get("title") or p["title"]
     text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
     res = publish(video, text, title, meta.get("hashtags") or [], channel_ids, mode, when)
     entry = {"at": time.time(), **{k: res[k] for k in ("mode", "date", "channels", "posts")}}
     if profile:
         entry["profile"] = profile
+    if version == "wide":
+        entry["version"] = "wide"
     names = ", ".join(c["name"] for c in res["channels"])
-    db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
+    db.update_project(pid, log=f"Postiz ({res['mode']}{', 16:9' if version == 'wide' else ''}): {names}",
                       meta={"postiz": [*(db.get_project(pid)["meta"].get("postiz") or []), entry]})
     return res

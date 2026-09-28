@@ -5,21 +5,24 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ApiError, type Api, type PublishMode, type PublishRecord } from "@/lib/api";
+import { ApiError, type Api, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
 import { t } from "@/i18n";
 
 const MODES: PublishMode[] = ["draft", "schedule", "now"];
+const VERSIONS: VideoVersion[] = ["vertical", "wide"];
 
 /** Gửi video của dự án sang Postiz: chọn kênh, nháp / lên lịch / đăng ngay. */
 export function PublishCard({
   api,
   projectId,
   history,
+  hasWide,
   onSent,
 }: {
   api: Api;
   projectId: number;
   history: PublishRecord[];
+  hasWide: boolean; // dự án có bản 16:9
   onSent: () => void;
 }) {
   const { data: channels, error } = useQuery({
@@ -31,12 +34,14 @@ export function PublishCard({
   const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<PublishMode>("draft");
   const [when, setWhen] = useState("");
+  const [version, setVersion] = useState<VideoVersion>("vertical");
 
   const send = useMutation({
     mutationFn: () =>
       api.publish(projectId, {
         channels: picked,
         mode,
+        version: hasWide ? version : "vertical",
         // datetime-local là giờ máy; toISOString() đổi sang UTC có "Z" cho engine
         ...(mode === "schedule" ? { date: new Date(when).toISOString() } : {}),
       }),
@@ -88,6 +93,20 @@ export function PublishCard({
           ))}
         </div>
 
+        {hasWide && (
+          <div className="space-y-1.5">
+            <div className="text-sm font-medium">{t.publish.version}</div>
+            <div className="flex flex-wrap gap-2">
+              {VERSIONS.map((v) => (
+                <Button key={v} size="sm" variant={version === v ? "default" : "outline"} onClick={() => setVersion(v)}>
+                  {t.projects.versions[v]}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{t.publish.versionHint}</p>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <div className="flex flex-wrap gap-2">
             {MODES.map((m) => (
@@ -134,7 +153,8 @@ export function PublishCard({
               <div key={h.at} className="text-muted-foreground">
                 {t.publish.modes[h.mode]}
                 {h.mode === "schedule" && ` ${t.dateTime(h.date)}`} ·{" "}
-                {h.channels.map((c) => c.name).join(", ")} · {t.age(h.at)}
+                {h.channels.map((c) => c.name).join(", ")}
+                {h.version === "wide" && ` · ${t.projects.versions.wide}`} · {t.age(h.at)}
               </div>
             ))}
           </div>

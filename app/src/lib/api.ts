@@ -76,6 +76,7 @@ export type ProjectMeta = {
   links?: string[];
   sources?: SourceInfo[];
   video?: string;
+  wide?: string | null; // bản 16:9 (khi kênh gửi sang kênh Postiz 16:9)
   thumb?: string;
   title?: string;
   description?: string;
@@ -88,6 +89,7 @@ export type ProjectMeta = {
   review?: Review | null; // đang chờ duyệt gì (status = "review")
   send_error?: string | null; // lần tự gửi Postiz gần nhất bị lỗi
   approved_at?: number;
+  auto?: boolean; // tự làm vì tin đạt điểm của kênh
 };
 
 export type Review = "script" | "video";
@@ -106,6 +108,9 @@ export type ChannelInput = {
   postiz: string[]; // id kênh Postiz
   send_mode: SendMode;
   send_times: string[]; // "HH:MM", giờ máy chạy engine
+  wide_postiz: string[]; // trong `postiz`: kênh nhận bản 16:9
+  auto_score: number; // tự làm video khi tin hot đạt điểm này; 0 = tắt
+  auto_daily: number; // tối đa số video tự làm mỗi ngày
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
@@ -126,7 +131,9 @@ export type PublishRecord = {
   channels: { id: string; name: string; provider: string }[];
   posts: { postId: string; integration: string }[];
   profile?: number; // gửi tự động theo hồ sơ kênh này
+  version?: VideoVersion; // "wide" = đã gửi bản 16:9
 };
+export type VideoVersion = "vertical" | "wide";
 
 export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 
@@ -206,6 +213,7 @@ export type RefreshState = {
     error?: string;
   } | null;
   next_watch: number | null;
+  last_auto: { at: number; projects: number[] } | null; // lượt tự làm gần nhất (sau lượt tự cập nhật)
 };
 
 export type WatchKind = "channel" | "playlist" | "space" | "search";
@@ -361,7 +369,7 @@ export function makeApi(url: string, token: string) {
     deleteChannel: (id: number) => call<{ deleted: number }>("DELETE", `/api/channels/${id}`),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
-    publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>
+    publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string; version?: VideoVersion }) =>
       call<Omit<PublishRecord, "at">>("POST", `/api/projects/${id}/publish`, body),
     delogoUploads: () => call<DelogoUpload[]>("GET", "/api/delogo/uploads"),
     delogoUpload: upload,
