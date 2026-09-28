@@ -61,7 +61,9 @@ def fake(monkeypatch, tmp_path):
         boom("voice")
         durs = [len(t.split()) * sec_per_word[0] for t in lines]
         starts = [sum(durs[:i]) for i in range(len(durs))]
-        return {"audio": "n.mp3", "duration": sum(durs), "provider": "fake", "voice": "v",
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "n.mp3").write_bytes(b"mp3")
+        return {"audio": str(out_dir / "n.mp3"), "duration": sum(durs), "provider": "fake", "voice": "v",
                 "lines": [{"start": a, "end": a + d} for a, d in zip(starts, durs, strict=True)]}
 
     def fake_render(plan, sources, nar, out, progress=None, min_total=0.0):
@@ -109,12 +111,31 @@ def test_full_run(fake):
     assert pipeline.available_steps(pid) == list(pipeline.STEPS)
 
 
+def test_render_again_keeps_the_voice(fake):
+    calls, _ = fake
+    pid = _new()
+    pipeline.produce(pid)
+    out = config.PROJECTS / str(pid)
+    plan = json.loads((out / "script.json").read_text())
+    plan["title_fr"] = "Nouveau titre"  # đổi tiêu đề: vẫn dựng lại được với giọng cũ
+    (out / "script.json").write_text(json.dumps(plan))
+    calls.clear()
+    pipeline.resume(pid, "render")
+    p = db.get_project(pid)
+    assert calls == ["render"] and p["status"] == "done" and "Giữ giọng đọc cũ" in p["log"]
+    plan["lines"][0]["text"] += " encore"  # đổi câu đọc: phải đọc lại
+    (out / "script.json").write_text(json.dumps(plan))
+    assert "render" not in pipeline.available_steps(pid) and (out / "script.json").exists()
+    with pytest.raises(ValueError):
+        pipeline.resume(pid, "render")
+
+
 @pytest.mark.parametrize("broken,resume_at,rerun", [
     ("search", "search", ["search", "download", "download", "transcribe", "transcribe", "script", "voice",
                           "render"]),
     ("script", "script", ["script", "voice", "render"]),
     ("voice", "voice", ["voice", "render"]),
-    ("render", "voice", ["voice", "render"]),
+    ("render", "render", ["render"]),  # giọng đọc đã xong: chỉ dựng lại, không đọc lại
 ])
 def test_retry_resumes_at_failed_step(fake, broken, resume_at, rerun):
     calls, fail = fake

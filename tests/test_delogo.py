@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, config, db, delogo, inpaint
+from motio import api, config, db, delogo, inpaint, pipeline
 
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
@@ -75,8 +75,8 @@ def test_clamp_boxes():
 def fake_ffmpeg(monkeypatch):
     calls = []
 
-    def video(src, dst, boxes, info, progress=None, cancelled=lambda: False):
-        calls.append((Path(src), boxes))
+    def video(src, dst, boxes, info, progress=None, cancelled=lambda: False, ranges=None):
+        calls.append((Path(src), boxes, ranges))
         progress and progress(150, 300)
         Path(dst).write_bytes(b"clean")
         return dst
@@ -97,7 +97,8 @@ def client():
         yield c
 
 
-def _source_project(n=1, status="done") -> tuple[int, list[Path]]:
+def _source_project(n=1, status="done", rendered=True) -> tuple[int, list[Path]]:
+    """Dự án có n nguồn; rendered: đã dựng video final dùng mỗi nguồn một đoạn 2–5 s."""
     src_dir = config.CACHE / "sources"
     src_dir.mkdir(parents=True, exist_ok=True)
     files, sources = [], []
@@ -110,6 +111,8 @@ def _source_project(n=1, status="done") -> tuple[int, list[Path]]:
                         "platform": "Douyin", "uploader": "chaîne", "title": "t", "duration": 12})
     pid = db.create_project(None, "Clip", mode="topic")
     db.update_project(pid, status=status, meta={"sources": sources, "rights": "unknown"})
+    if rendered:
+        _timeline(pid, [(i, 2.0, 3.0) for i in range(n)])
     return pid, files
 
 
@@ -368,7 +371,7 @@ def test_first_run_downloads_model_then_fills(client, fake_ffmpeg, monkeypatch):
 def test_stop_a_running_job(client, fake_ffmpeg, monkeypatch):
     started = threading.Event()
 
-    def slow(src, dst, boxes, info, progress=None, cancelled=lambda: False):
+    def slow(src, dst, boxes, info, progress=None, cancelled=lambda: False, ranges=None):
         for i in range(1, 500):
             started.set()
             if cancelled():
@@ -394,6 +397,97 @@ def test_stop_a_running_job(client, fake_ffmpeg, monkeypatch):
         time.sleep(0.02)
     p = db.get_project(pid)
     assert "delogo" not in p["meta"]["sources"][0] and "Đã dừng xoá logo" in p["log"]
+
+
+def _timeline(pid: int, pieces: list[tuple[int, float, float]], url: str | None = "same") -> None:
+    """Giả lần dựng gần nhất: timeline.json như render ghi (src, src_start, dur, t0, url)."""
+    sources = db.get_project(pid)["meta"]["sources"]
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    rows = [{"src": i, "src_start": a, "dur": d, "t0": 0.0, **({"url": sources[i]["url"] if url == "same" else url}
+                                                              if url is not None else {})} for i, a, d in pieces]
+    (out / "timeline.json").write_text(json.dumps(rows))
+
+
+def test_merge_pads_joins_and_clamps():
+    assert delogo.merge([(5.0, 8.0), (2.0, 3.0), (10.0, 11.0)], 12.0) == [[1.0, 12.0]]
+    assert delogo.merge([(0.2, 1.0), (7.0, 8.0)], 9.5) == [[0.0, 4.0], [6.0, 9.5]]
+    assert delogo.merge([(20.0, 25.0)], 12.0) == []
+    assert delogo.merge([], 12.0) == []
+
+
+def test_only_used_parts_of_a_project_source(client, fake_ffmpeg):
+    pid, _ = _source_project(n=2, rendered=False)
+    key = f"p{pid}-0"
+    v = client.get(f"/api/delogo/targets/{key}", headers=H).json()
+    assert v["used"] is None  # chưa dựng
+    r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX})
+    assert r.status_code == 400 and "dựng video trước" in r.json()["detail"] and not fake_ffmpeg
+
+    _timeline(pid, [(0, 2.0, 1.5), (1, 4.0, 3.0), (0, 3.5, 1.0), (0, 11.0, 0.5)])
+    v = client.get(f"/api/delogo/targets/{key}", headers=H).json()
+    assert v["used"] == [[1.0, 7.5], [10.0, 12.0]] and v["uncovered"] == []
+    for body in ({"scope": "all"}, {"scope": "range", "start": 0, "end": 5}):  # nguồn dự án: chỉ đoạn final dùng
+        r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, **body})
+        assert r.status_code == 400 and "video final" in r.json()["detail"]
+    assert client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX}).status_code == 202
+    v = _wait(client, key)
+    assert v["status"] == "done" and v["ranges"] == [[1.0, 7.5], [10.0, 12.0]] and v["scope"] == "used"
+    assert fake_ffmpeg[-1][2] == [[1.0, 7.5], [10.0, 12.0]]
+    p = db.get_project(pid)
+    assert p["meta"]["sources"][0]["delogo"]["ranges"] == [[1.0, 7.5], [10.0, 12.0]]
+    assert "2 đoạn, 8 s / 12 s" in p["log"]
+    assert delogo.uncovered(pid) == []
+
+    # dựng lại dùng một đoạn khác của nguồn 0: báo đoạn chưa xoá, không tự chạy
+    _timeline(pid, [(0, 2.0, 1.5), (0, 7.4, 0.8)])
+    assert client.get(f"/api/delogo/targets/{key}", headers=H).json()["uncovered"] == [[7.4, 8.2]]
+    assert delogo.uncovered(pid) == [(0, [[7.4, 8.2]])]
+    # nguồn đã đổi (url khác) thì timeline cũ không tính
+    _timeline(pid, [(0, 2.0, 1.5)], url="https://other")
+    assert client.get(f"/api/delogo/targets/{key}", headers=H).json()["used"] is None
+    # timeline cũ không ghi url: tin theo số thứ tự
+    _timeline(pid, [(0, 2.0, 1.5)], url=None)
+    assert client.get(f"/api/delogo/targets/{key}", headers=H).json()["used"] == [[1.0, 6.5]]
+
+
+def test_pick_a_range_or_the_whole_video(client, fake_ffmpeg):
+    r = client.post("/api/delogo/uploads", headers=H, files={"file": ("clip.mp4", b"video", "video/mp4")})
+    key = r.json()["target"]
+    assert r.json()["used"] is None
+    for body in ({"scope": "used"}, {"scope": "range", "start": 5, "end": 5.2}, {"scope": "range"},
+                 {"scope": "nope"}):
+        r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, **body})
+        assert r.status_code == 400, body
+    assert not fake_ffmpeg
+    r = client.post(f"/api/delogo/targets/{key}/run", headers=H,
+                    json={"boxes": BOX, "scope": "range", "start": 3, "end": 40})
+    assert r.status_code == 202
+    v = _wait(client, key)
+    assert v["ranges"] == [[3.0, 12.0]] and v["span"] == [3.0, 12.0] and fake_ffmpeg[-1][2] == [[3.0, 12.0]]
+    client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX})  # mặc định: cả video
+    v = _wait(client, key)
+    assert v["ranges"] is None and v["scope"] == "all" and fake_ffmpeg[-1][2] is None
+
+
+def test_pipeline_warns_about_uncleaned_parts(monkeypatch):
+    pid, _ = _source_project()
+    s = db.get_project(pid)["meta"]["sources"]
+    s[0]["delogo"] = {"boxes": BOX, "rights": None, "method": "lama", "at": 0, "ranges": [[1.0, 5.0]]}
+    db.update_project(pid, meta={"sources": s})
+    logs = []
+
+    def render(plan, sources, nar, out, progress=None, min_total=0):
+        _timeline(pid, [(0, 2.0, 2.0), (0, 70.0, 5.0)])
+        return {"pieces": 2, "duration": 70.0}
+
+    monkeypatch.setattr(pipeline, "_voice", lambda plan, out, step, d: (plan, {"duration": 66.0, "provider": "x",
+                                                                                "voice": "v"}))
+    monkeypatch.setattr(pipeline.render, "render", render)
+    monkeypatch.setattr(pipeline, "write_post", lambda plan, sources, out: "desc")
+    pipeline._voice_render_post(pid, {"title_fr": "t", "lines": []}, s, config.PROJECTS / str(pid),
+                                lambda *a, **k: logs.append(a), time.time())
+    assert any("Nguồn #1" in (a[2] or "") and "1:10–1:15" in a[2] for a in logs)
 
 
 # ---------- FFmpeg thật (mô hình giả) ----------
@@ -444,6 +538,30 @@ def test_detect_and_remove_real_video(tmp_path, monkeypatch):
     assert after[:, 11, 240:290].mean() < 200  # đường viền trắng của logo đã bị lấp
     assert np.abs(after[:, 90:].astype(int) - before[:, 90:]).mean() < 4  # phần không vá giữ nguyên (chỉ mã hoá lại)
     assert not (tmp_path / "clean.part.mp4").exists()
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="cần ffmpeg")
+def test_fill_only_the_given_ranges(tmp_path, monkeypatch):
+    frames = _frames(n=50, h=180, w=320, seed=4)
+    frames[:, 10:12, 230:300] = 255  # đường viền trắng của logo
+    src = tmp_path / "logo.mp4"
+    _make_clip(src, frames, audio=False)
+    monkeypatch.setattr(inpaint, "session", FakeLama)
+    seen = []
+    out = inpaint.video(src, tmp_path / "clean.mp4", [{"x": 230, "y": 6, "w": 70, "h": 10}], delogo.probe(src),
+                        lambda done, total: seen.append((done, total)), ranges=[(0.4, 0.8), (1.6, 5.0)])
+    after = _gray(out)
+    assert len(after) == 50 and seen[-1] == (20, 20)  # khung 10–19 và 40–49 (0,4–0,8 s; 1,6 s tới hết)
+    line = after[:, 11, 240:290].mean(axis=1)
+    assert (line[10:20] < 200).all() and (line[40:] < 200).all()
+    assert (line[:10] > 230).all() and (line[20:40] > 230).all()  # ngoài khoảng: logo còn nguyên
+
+
+def test_frame_spans():
+    assert inpaint.frame_spans(None, 25, 100) == [(0, 100)]
+    assert inpaint.frame_spans([(1.0, 2.0), (0.0, 0.5), (1.5, 3.0)], 10, 100) == [(0, 5), (10, 30)]
+    assert inpaint.frame_spans([(8.0, 20.0)], 10, 100) == [(80, 100)]
+    assert inpaint.frame_spans([(20.0, 30.0)], 10, 100) == []
 
 
 @pytest.mark.skipif(not has_ffmpeg, reason="cần ffmpeg")

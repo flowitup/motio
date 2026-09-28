@@ -100,7 +100,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
 | Postiz posting | `motio/postiz.py`, `app/src/components/publish-card.tsx` |
-| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
+| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
 | Engine connection (local/remote) | `app/src/lib/engine.tsx`, `app/src-tauri/src/engine.rs` |

@@ -63,7 +63,7 @@ def main(argv: list[str]) -> None:
         from . import pipeline
         pipeline.rerender(int(argv[1]))
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
-    elif cmd == "retry":  # chạy tiếp từ bước lỗi, hoặc từ bước chỉ định (search … voice)
+    elif cmd == "retry":  # chạy tiếp từ bước lỗi, hoặc từ bước chỉ định (search … voice, render = giữ giọng)
         from . import pipeline
         pipeline.resume(int(argv[1]), argv[2] if len(argv) > 2 else None)
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))

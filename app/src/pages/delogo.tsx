@@ -17,12 +17,15 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Choice } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   useApi,
   type Api,
   type DelogoBox,
+  type DelogoScope,
   type DelogoTarget,
+  type Span,
 } from "@/lib/api";
 import { inTauri, openExternal, openFolder, useEngine } from "@/lib/engine";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,20 @@ const MAX_BOXES = 4;
 const MIN_DRAW = 6; // px khung hình: nhỏ hơn thì coi như bấm nhầm
 
 const sourceKey = (pid: number, i: number) => `p${pid}-${i}`;
+
+/** 83.4 → "1:23" */
+const clock = (sec: number) => {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+/** "1:23" / "1:02:03" / "83.5" → giây; sai dạng → NaN */
+const parseClock = (text: string) => {
+  const parts = text.trim().split(":");
+  if (parts.length > 3 || parts.some((x) => !/^\d+(\.\d+)?$/.test(x))) return NaN;
+  return parts.reduce((acc, x) => acc * 60 + Number(x), 0);
+};
+const total = (spans: Span[]) => spans.reduce((acc, [a, b]) => acc + b - a, 0);
+const spansText = (spans: Span[]) => spans.map(([a, b]) => `${clock(a)}–${clock(Math.ceil(b))}`).join(", ");
 
 /** Cột trái: tải video lên, file đã tải lên, video nguồn của các dự án. */
 function PickCard({ api, selected, onPick }: { api: Api; selected: string | null; onPick: (key: string | null) => void }) {
@@ -254,7 +271,18 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
   const [boxes, setBoxes] = useState<DelogoBox[] | null>(null); // null = chưa sửa, dùng khung đã lưu
   const [at, setAt] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [scope, setScope] = useState<DelogoScope | null>(null); // null = lựa chọn lần trước / mặc định
+  const [from, setFrom] = useState<string | null>(null);
+  const [to, setTo] = useState<string | null>(null);
   const shown = boxes ?? v?.boxes ?? [];
+  // nguồn dự án: chỉ xoá các đoạn video final dùng; file tải lên: cả video hoặc một đoạn
+  const saved = v?.scope === "all" || v?.scope === "range" ? v.scope : null;
+  const chosenScope: DelogoScope = v?.kind === "source" ? "used" : (scope ?? saved ?? "all");
+  const fromText = from ?? clock(v?.span?.[0] ?? 0);
+  const toText = to ?? clock(Math.ceil(v?.span?.[1] ?? v?.duration ?? 0));
+  const span: Span = [parseClock(fromText), parseClock(toText)];
+  const spanBad = chosenScope === "range" && !(span[1] - span[0] >= 0.5);
+  const scopeBad = spanBad || (chosenScope === "used" && !v?.used);
 
   const put = (d: DelogoTarget) => qc.setQueryData(["delogo", target], d);
   const frame = useMutation({ mutationFn: (sec?: number) => api.delogoFrame(target, sec), onSuccess: put });
@@ -266,7 +294,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
     },
   });
   const run = useMutation({
-    mutationFn: () => api.delogoRun(target, shown),
+    mutationFn: () => api.delogoRun(target, shown, chosenScope, chosenScope === "range" ? span : undefined),
     onSuccess: (d) => {
       put(d);
       setBoxes(null);
@@ -280,8 +308,15 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
       qc.invalidateQueries({ queryKey: ["delogo-uploads"] });
     },
   });
+  // dựng lại với giọng đọc cũ khi còn (không tốn lượt ElevenLabs), không thì đọc lại
+  const project = useQuery({
+    queryKey: ["project", v?.project_id],
+    queryFn: () => api.project(v!.project_id!),
+    enabled: v?.project_id != null,
+  });
+  const keepVoice = !!project.data?.retry.steps.includes("render");
   const rerender = useMutation({
-    mutationFn: () => api.retry(v!.project_id!, "voice"),
+    mutationFn: () => api.retry(v!.project_id!, keepVoice ? "render" : "voice"),
     onSuccess: () => navigate(`/projects/${v!.project_id}`),
   });
 
@@ -391,8 +426,62 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
             {note && <span className="text-sm text-muted-foreground">{note}</span>}
           </div>
 
+          <div className="grid gap-2">
+            <span className="text-sm font-medium">{t.delogo.scope}</span>
+            {v.kind === "upload" && (
+              <Choice
+                value={chosenScope}
+                onChange={(x) => setScope(x as DelogoScope)}
+                options={(["all", "range"] as const).map((x) => [x, t.delogo.scopes[x]])}
+                className="w-full sm:w-64"
+              />
+            )}
+            {chosenScope === "used" && (
+              <p className={cn("text-xs", v.used ? "text-muted-foreground" : "text-destructive")}>
+                {v.used ? t.delogo.usedHint(v.used.length, total(v.used), v.duration) : t.delogo.notRendered}
+              </p>
+            )}
+            {chosenScope === "all" && <p className="text-xs text-muted-foreground">{t.delogo.allHint}</p>}
+            {chosenScope === "range" && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span>{t.delogo.from}</span>
+                <Input
+                  value={fromText}
+                  onChange={(e) => setFrom(e.target.value)}
+                  aria-invalid={Number.isNaN(span[0]) || undefined}
+                  disabled={busy}
+                  className="w-20"
+                />
+                <Button variant="ghost" size="sm" onClick={() => setFrom(clock(at ?? v.frame_at ?? 0))} disabled={busy}>
+                  {t.delogo.here}
+                </Button>
+                <span>{t.delogo.to}</span>
+                <Input
+                  value={toText}
+                  onChange={(e) => setTo(e.target.value)}
+                  aria-invalid={Number.isNaN(span[1]) || undefined}
+                  disabled={busy}
+                  className="w-20"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTo(clock(Math.ceil(at ?? v.frame_at ?? 0)))}
+                  disabled={busy}
+                >
+                  {t.delogo.here}
+                </Button>
+                {spanBad && (
+                  <span className="text-xs text-destructive">
+                    {span.some(Number.isNaN) ? t.delogo.badTime : t.delogo.badSpan}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => run.mutate()} disabled={busy || !shown.length}>
+            <Button onClick={() => run.mutate()} disabled={busy || !shown.length || scopeBad}>
               {busy ? <Loader2 className="animate-spin" /> : <WandSparkles />}
               {t.delogo.run}
             </Button>
@@ -444,13 +533,23 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
               controls
               className="mx-auto max-h-[62vh] rounded-lg bg-black"
             />
-            {v.kind === "source" && <p className="text-sm text-muted-foreground">{t.delogo.resultSource}</p>}
+            {v.ranges && (
+              <p className="text-sm text-muted-foreground">{t.delogo.cleanedParts(v.ranges.length, total(v.ranges))}</p>
+            )}
+            {v.uncovered.length > 0 && (
+              <p className="text-sm text-destructive">{t.delogo.uncovered(spansText(v.uncovered))}</p>
+            )}
+            {v.kind === "source" && (
+              <p className="text-sm text-muted-foreground">
+                {keepVoice ? t.delogo.resultSourceKeepVoice : t.delogo.resultSource}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {v.kind === "source" ? (
                 <>
-                  <Button onClick={() => rerender.mutate()} disabled={rerender.isPending}>
+                  <Button onClick={() => rerender.mutate()} disabled={rerender.isPending || project.isPending}>
                     {rerender.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-                    {t.delogo.rerender}
+                    {keepVoice ? t.delogo.rerenderKeepVoice : t.delogo.rerender}
                   </Button>
                   <Button variant="outline" onClick={() => restore.mutate()} disabled={restore.isPending}>
                     <Undo2 />

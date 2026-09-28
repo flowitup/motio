@@ -39,6 +39,12 @@ EDGE = 24  # độ chênh sáng (0–255) giữa hai điểm ảnh liền nhau �
 PERSIST = 0.6  # biên có mặt ở cùng chỗ trong ≥ 60 % khung hình
 MIN_MOTION = 0.2  # ít nhất 20 % điểm ảnh phải thay đổi, không thì không phân biệt được logo với hình
 
+# Phạm vi xoá (scope): nguồn dự án chỉ xoá các đoạn mà video final dùng ("used", chủ dự án 28/09); file tải lên xoá
+# cả video ("all") hoặc một đoạn người dùng chọn ("range").
+PAD_BEFORE, PAD_AFTER = 1.0, 3.0  # giây thêm quanh mỗi đoạn đang dùng: dựng lại (giọng mới) có thể xê dịch chút ít
+MERGE_GAP = 2.0  # hai đoạn cách nhau ít hơn chừng này thì xoá luôn phần giữa
+MIN_SPAN = 0.5
+
 
 class NotFound(LookupError):
     pass
@@ -280,6 +286,62 @@ def _rel(path: Path) -> str:
     return path.resolve().relative_to(config.DATA.resolve()).as_posix()
 
 
+# ---------- đoạn video thành phẩm đang dùng ----------
+def pieces(pid: int, index: int, url: str | None) -> list[tuple[float, float]]:
+    """Các đoạn [đầu, cuối] (giây) của nguồn thứ index mà lần dựng gần nhất dùng (render ghi timeline.json)."""
+    try:
+        raw = json.loads((config.PROJECTS / str(pid) / "timeline.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    out = []
+    for p in raw if isinstance(raw, list) else []:
+        # timeline cũ không ghi url: tin theo số thứ tự nguồn
+        if p.get("src") == index and p.get("url", url) == url and p.get("dur", 0) > 0:
+            out.append((float(p["src_start"]), float(p["src_start"]) + float(p["dur"])))
+    return sorted(out)
+
+
+def merge(spans: list[tuple[float, float]], duration: float, before: float = PAD_BEFORE, after: float = PAD_AFTER,
+          gap: float = MERGE_GAP) -> list[list[float]]:
+    """Nới mỗi đoạn (before / after giây), gộp đoạn chồng hoặc gần nhau, cắt trong [0, duration]."""
+    out: list[list[float]] = []
+    for a, b in sorted(spans):
+        a, b = max(0.0, a - before), min(duration, b + after)
+        if b - a <= 0:
+            continue
+        if out and a - out[-1][1] < gap:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [[round(a, 2), round(b, 2)] for a, b in out]
+
+
+def _used(t: Target, duration: float) -> list[list[float]] | None:
+    if t.pid is None:
+        return None
+    return merge(pieces(t.pid, t.index, t.url), duration) or None
+
+
+def _uncovered(spans: list[tuple[float, float]], cleaned: list[list[float]]) -> list[list[float]]:
+    """Đoạn đang dùng không nằm trọn trong phần đã xoá logo."""
+    return [[round(a, 2), round(b, 2)] for a, b in spans
+            if not any(x - 0.05 <= a and b <= y + 0.05 for x, y in cleaned)]
+
+
+def uncovered(pid: int) -> list[tuple[int, list[list[float]]]]:
+    """Sau khi dựng: nguồn nào đã xoá logo một phần mà video mới dùng đoạn chưa xoá. [(số thứ tự, các đoạn)]."""
+    out = []
+    for i, s in enumerate((db.get_project(pid) or {}).get("meta", {}).get("sources") or []):
+        cleaned = (s.get("delogo") or {}).get("ranges")
+        if cleaned and (miss := _uncovered(pieces(pid, i, s.get("url")), cleaned)):
+            out.append((i, miss))
+    return out
+
+
+def clock(sec: float) -> str:
+    return f"{int(sec // 60)}:{int(sec % 60):02d}"
+
+
 def view(key: str) -> dict:
     t = resolve(key)
     info = probe(t.src)
@@ -294,6 +356,8 @@ def view(key: str) -> dict:
         record = st.get("done") if st.get("done") else None
     done = bool(record) and out.is_file()
     frame = t.work / "frame.jpg"
+    used = _used(t, info["duration"])
+    cleaned = (record or {}).get("ranges") if done else None
     return {
         "target": key, "kind": "source" if t.pid is not None else "upload", "name": t.name,
         "project_id": t.pid, "index": t.index, "url": t.url,
@@ -306,6 +370,9 @@ def view(key: str) -> dict:
         "phase": job.get("phase") if job else None, "eta": job.get("eta") if job else None,
         "stopping": bool(job and job.get("cancel")), "model_ready": inpaint.model_ready(),
         "output": _rel(out) if done else None, "done_at": (record or {}).get("at"),
+        "scope": st.get("scope"), "span": st.get("span"),  # lựa chọn lần trước
+        "used": used, "ranges": cleaned,  # đoạn video thành phẩm đang dùng; đoạn đã xoá (None = cả video)
+        "uncovered": _uncovered(pieces(t.pid, t.index, t.url), cleaned) if cleaned and t.pid is not None else [],
         "folder": str(t.work),
     }
 
@@ -340,13 +407,40 @@ def _try_clamp(b: dict, info: dict) -> dict | None:
         return None
 
 
-def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Callable[[], None]], object]) -> dict:
-    """Xếp hàng xoá logo; quyền khai báo là tuỳ chọn, giữ quyền đã lưu khi bỏ qua."""
+def scope_ranges(t: Target, info: dict, scope: str, span: tuple[float, float] | None) -> list[list[float]] | None:
+    """Phạm vi người dùng chọn → các khoảng (giây) cần vá; None = cả video."""
+    duration = info["duration"]
+    if t.pid is not None:
+        if scope != "used":
+            raise ValueError("Nguồn của dự án chỉ xoá logo ở các đoạn video final dùng")
+        if not (used := _used(t, duration)):
+            raise ValueError("Video final của dự án chưa dùng nguồn này: dựng video trước rồi xoá logo")
+        return used
+    if scope == "all":
+        return None
+    if scope == "range":
+        a, b = span or (0.0, 0.0)
+        a, b = max(0.0, float(a)), min(duration, float(b))
+        if b - a < MIN_SPAN:
+            raise ValueError(f"Chọn đoạn dài ít nhất {MIN_SPAN} s, trong 0:00–{clock(duration)}")
+        return [[round(a, 2), round(b, 2)]]
+    raise ValueError("Phạm vi xoá logo không hợp lệ")
+
+
+def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Callable[[], None]], object],
+          scope: str | None = None, span: tuple[float, float] | None = None) -> dict:
+    """Xếp hàng xoá logo; quyền khai báo là tuỳ chọn, giữ quyền đã lưu khi bỏ qua.
+
+    scope: nguồn dự án chỉ có "used" (các đoạn video final dùng, mặc định); file tải lên "all" (mặc định) hoặc
+    "range" đoạn span=(đầu, cuối) giây.
+    """
     if rights is not None and rights not in RIGHTS:
         raise ValueError("Quyền nguồn không hợp lệ")
     t = resolve(key)
     info = probe(t.src)
     boxes = clamp_boxes(boxes, info["width"], info["height"])
+    scope = scope or ("used" if t.pid is not None else "all")
+    ranges = scope_ranges(t, info, scope, span)
     if t.pid is not None and db.get_project(t.pid)["status"] in BUSY:
         raise Busy("Dự án đang chạy, chờ xong rồi thử lại")
     update_rights = rights is not None
@@ -357,16 +451,18 @@ def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Cal
         if key in _jobs and _jobs[key]["status"] in BUSY:
             raise Busy("Video này đang được xoá logo")
         job = _jobs[key] = {"status": "queued", "pct": 0, "error": None}
-    _save_state(t.work, boxes=boxes, rights=rights)
+    _save_state(t.work, boxes=boxes, rights=rights, scope=scope, span=ranges[0] if scope == "range" else None)
     if t.pid is not None:
+        where = ("cả video" if ranges is None else
+                 f"{len(ranges)} đoạn, {sum(b - a for a, b in ranges):.0f} s / {info['duration']:.0f} s")
         db.update_project(t.pid, log=f"Xoá logo nguồn #{t.index + 1} ({t.name}): "
-                                     f"{declaration}{len(boxes)} khung")
-    submit(lambda: run(key, boxes, rights, t.url, job, update_rights=update_rights))
+                                     f"{declaration}{len(boxes)} khung, {where}")
+    submit(lambda: run(key, boxes, rights, t.url, job, update_rights=update_rights, ranges=ranges))
     return view(key)
 
 
 def run(key: str, boxes: list[dict], rights: str | None, url: str | None = None, job: dict | None = None,
-        *, update_rights: bool = True) -> None:
+        *, update_rights: bool = True, ranges: list[list[float]] | None = None) -> None:
     job = job if job is not None else _jobs.setdefault(key, {"status": "queued", "pct": 0, "error": None})
 
     def finish() -> None:
@@ -394,8 +490,8 @@ def run(key: str, boxes: list[dict], rights: str | None, url: str | None = None,
             eta = round(spent * (total - done) / done) if done >= 10 else None  # giây còn lại, ước tính
             job.update(pct=min(done * 100 // total, 99), eta=eta)
 
-        inpaint.video(t.src, out, boxes, probe(t.src), tick, lambda: bool(job.get("cancel")))
-        record = {"boxes": boxes, "rights": rights, "method": "lama", "at": time.time()}
+        inpaint.video(t.src, out, boxes, probe(t.src), tick, lambda: bool(job.get("cancel")), ranges=ranges)
+        record = {"boxes": boxes, "rights": rights, "method": "lama", "at": time.time(), "ranges": ranges}
         if t.pid is not None:
             _apply_to_source(t, out, record, update_rights=update_rights)
         else:
@@ -446,7 +542,7 @@ def _apply_to_source(t: Target, out: Path, record: dict, *, update_rights: bool 
     declared = [(x.get("delogo") or {}).get("rights") for x in sources]
     if update_rights and all(declared):  # mọi nguồn đều đã được xác nhận: quyền của cả dự án theo lời xác nhận
         meta["rights"] = "licensed" if "licensed" in declared else "owned"
-    db.update_project(t.pid, log=f"Đã xoá logo nguồn #{t.index + 1}: bấm Chạy lại từ Giọng đọc để dựng lại video",
+    db.update_project(t.pid, log=f"Đã xoá logo nguồn #{t.index + 1}: chạy lại từ bước Dựng để dựng lại video",
                       meta=meta)
 
 

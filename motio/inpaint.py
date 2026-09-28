@@ -103,6 +103,9 @@ def session():
         path = ensure_model()
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
+        # Trọng số lưu dạng int8: giải nén sang float một lần khi mở, không phải ở mỗi khung (nhanh hơn ~28 %, kết
+        # quả như cũ; mở chậm hơn vài giây, tốn thêm ~400 MB RAM).
+        opts.add_session_config_entry("session.disable_quant_qdq", "1")
         try:
             _session = ort.InferenceSession(str(path), opts, providers=["CPUExecutionProvider"])
         except Exception as e:  # file hỏng: xoá để lần sau tải lại
@@ -179,17 +182,42 @@ def _read(pipe, n: int) -> bytearray:
     return buf
 
 
+def frame_spans(ranges: list[tuple[float, float]] | None, rate: float, n: int) -> list[tuple[int, float]]:
+    """Khoảng thời gian (giây) → khoảng số thứ tự khung [đầu, cuối), đã gộp, trong [0, n). None = cả video."""
+    if ranges is None:
+        return [(0, n)]
+    spans: list[tuple[int, int]] = []
+    for a, b in sorted((math.floor(a * rate), min(n, math.ceil(b * rate))) for a, b in ranges):
+        a = max(a, 0)
+        if b <= a:
+            continue
+        if spans and a <= spans[-1][1]:
+            spans[-1] = (spans[-1][0], max(spans[-1][1], b))
+        else:
+            spans.append((a, b))
+    return spans
+
+
 def video(src: Path, dst: Path, boxes: list[dict], info: dict,
           progress: Callable[[int, int], None] | None = None,
-          cancelled: Callable[[], bool] = lambda: False) -> Path:
-    """Vá mọi khung logo trên mọi khung hình của src → dst (H.264, giữ tiếng AAC).
+          cancelled: Callable[[], bool] = lambda: False,
+          ranges: list[tuple[float, float]] | None = None) -> Path:
+    """Vá các khung logo trên khung hình của src → dst (H.264, giữ tiếng AAC), dài bằng src.
 
-    info: probe của src (width, height, duration, fps, màu). progress(khung đã xong, tổng khung ước tính).
+    info: probe của src (width, height, duration, fps, màu). ranges: chỉ vá trong các khoảng (giây) này, phần còn lại
+    giữ nguyên hình (vẫn mã hoá lại); None = cả video. progress(khung đã vá, tổng khung cần vá, ước tính).
     """
     sess = session()
     width, height = info["width"], info["height"]
     fps = info.get("fps") or "30"
-    total = max(1, round((info.get("duration") or 0) * (fps_value(fps) or 30)))
+    rate = fps_value(fps) or 30
+    frames = max(1, round((info.get("duration") or 0) * rate))
+    spans = frame_spans(ranges, rate, frames)
+    if not spans:
+        raise ValueError("Khoảng cần xoá logo nằm ngoài video")
+    total = sum(b - a for a, b in spans)
+    if spans[-1][1] == frames:  # số khung thật có thể nhiều hơn ước tính theo độ dài: khoảng chạm cuối thì vá tới hết
+        spans[-1] = (spans[-1][0], math.inf)
     patches = [Patch(b, width, height) for b in boxes]
     # đổi YUV ↔ RGB cùng một ma trận, làm tròn chính xác ở cả hai chiều: phần không vá giữ nguyên từng giá trị điểm
     # ảnh (mặc định lệch ~1 mức sáng). Nhãn màu chép từ bản gốc.
@@ -209,7 +237,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
                "-movflags", "+faststart", str(part)]
     size = width * height * 3
-    done, broken = 0, False
+    done, broken, i, k = 0, False, 0, 0  # i: khung đang đọc, k: khoảng cần vá kế tiếp
     with tempfile.TemporaryFile() as dec_err, tempfile.TemporaryFile() as enc_err:
         dec = subprocess.Popen(dec_cmd, stdout=subprocess.PIPE, stderr=dec_err)
         enc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stderr=enc_err)
@@ -217,18 +245,27 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
             while len(buf := _read(dec.stdout, size)) == size:
                 if cancelled():
                     raise Cancelled("Đã dừng xoá logo")
-                frame = np.frombuffer(buf, np.uint8).reshape(height, width, 3)
-                for p in patches:
-                    p.apply(frame, sess)
+                while k < len(spans) and i >= spans[k][1]:
+                    k += 1
+                fill = k < len(spans) and spans[k][0] <= i
+                if fill:
+                    frame = np.frombuffer(buf, np.uint8).reshape(height, width, 3)
+                    for p in patches:
+                        p.apply(frame, sess)
+                else:
+                    for p in patches:  # sang khoảng sau là cảnh khác: không dùng lại phần đã vẽ
+                        p.prev_in = None
                 try:
                     enc.stdin.write(buf)
                 except OSError:  # bộ mã hoá đã dừng vì lỗi: báo lỗi của nó bên dưới
                     broken = True
                     dec.kill()
                     break
-                done += 1
-                if progress:
-                    progress(done, max(total, done))
+                i += 1
+                if fill:
+                    done += 1
+                    if progress:
+                        progress(done, max(total, done))
             try:
                 enc.stdin.close()
             except OSError:
@@ -249,7 +286,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
                 errors.append(f"FFmpeg lỗi khi {name}: {f.read().decode(errors='replace')[-600:]}")
         if broken and not errors:
             errors.append("FFmpeg dừng giữa chừng khi mã hoá video")
-    if errors or done == 0:
+    if errors or i == 0:
         part.unlink(missing_ok=True)
         raise RuntimeError("\n".join(errors) or "Không đọc được khung hình nào từ video")
     os.replace(part, dst)
