@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config, db, inpaint
+from .i18n import tr, tr_n
 
 RIGHTS = ("owned", "licensed")  # khai báo quyền tuỳ chọn từ client cũ
 MAX_BOXES = 4
@@ -68,7 +69,7 @@ def _probe(path: str, _mtime: int, _size: int) -> dict:
     data = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
     streams = data.get("streams") or []
     if not streams or not streams[0].get("width"):
-        raise ValueError("This file has no readable video stream")
+        raise ValueError(tr("This file has no readable video stream"))
     s = streams[0]
     w, h = int(s["width"]), int(s["height"])
     rot = next((int(float(d["rotation"])) for d in s.get("side_data_list") or [] if "rotation" in d), 0)
@@ -92,7 +93,7 @@ def grab_frame(src: Path, at: float, out: Path) -> Path:
     r = subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-ss", f"{at:.3f}", "-i", str(src), "-frames:v", "1",
                         "-q:v", "3", str(out)], capture_output=True, text=True)
     if r.returncode != 0 or not out.exists():
-        raise RuntimeError(f"Could not grab a frame: {r.stderr[-300:]}")
+        raise RuntimeError(tr("Could not grab a frame: {error}", error=r.stderr[-300:]))
     return out
 
 
@@ -105,7 +106,8 @@ def sample_gray(src: Path, info: dict, n: int = SAMPLES, small: int = SMALL_W) -
                         "-vf", f"fps={n / max(span, 0.5):.5f},scale={sw}:{sh},format=gray", "-frames:v", str(n),
                         "-f", "rawvideo", "-"], capture_output=True)
     if r.returncode != 0:
-        raise RuntimeError(f"FFmpeg could not read the video: {r.stderr.decode(errors='replace')[-300:]}")
+        raise RuntimeError(tr("FFmpeg could not read the video: {error}",
+                              error=r.stderr.decode(errors="replace")[-300:]))
     buf = np.frombuffer(r.stdout, np.uint8)
     k = buf.size // (sw * sh)
     return buf[: k * sw * sh].reshape(k, sh, sw), info["width"] / sw
@@ -115,19 +117,19 @@ def sample_gray(src: Path, info: dict, n: int = SAMPLES, small: int = SMALL_W) -
 def clamp_boxes(raw: list[dict], width: int, height: int) -> list[dict]:
     """Khung (pixel của khung hình) → khung hợp lệ: nằm trong khung hình (cách mép 1 px), cạnh ≥ MIN_SIDE."""
     if not raw:
-        raise ValueError("No boxes yet: draw a box around the logo or click Auto-detect")
+        raise ValueError(tr("No boxes yet: draw a box around the logo or click Auto-detect"))
     if len(raw) > MAX_BOXES:
-        raise ValueError(f"At most {MAX_BOXES} boxes")
+        raise ValueError(tr("At most {n} boxes", n=MAX_BOXES))
     out = []
     for b in raw:
         try:
             x, y, w, h = (round(float(b[k])) for k in ("x", "y", "w", "h"))
         except (KeyError, TypeError, ValueError) as e:
-            raise ValueError("Invalid box") from e
+            raise ValueError(tr("Invalid box")) from e
         x0, y0 = max(x, 1), max(y, 1)
         x1, y1 = min(x + w, width - 1), min(y + h, height - 1)
         if x1 - x0 < MIN_SIDE or y1 - y0 < MIN_SIDE:
-            raise ValueError("Box is too small or outside the frame")
+            raise ValueError(tr("Box is too small or outside the frame"))
         out.append({"x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0})
     return out
 
@@ -181,10 +183,10 @@ def find_static(frames: np.ndarray, scale: float = 1.0) -> tuple[list[dict], str
     """
     n, h, w = frames.shape
     if n < 6:
-        return [], "Video is too short to detect the logo: draw a box by hand"
+        return [], tr("Video is too short to detect the logo: draw a box by hand")
     f = frames.astype(np.int16)
     if (f.std(axis=0) > 10).mean() < MIN_MOTION:
-        return [], "The picture barely moves, so the logo can't be told apart from it: draw a box by hand"
+        return [], tr("The picture barely moves, so the logo can't be told apart from it: draw a box by hand")
     gx, gy = np.diff(f, axis=2)[:, :-1, :], np.diff(f, axis=1)[:, :, :-1]
     # biên cùng chiều ở cùng chỗ qua các khung; biên của hình chuyển động thì triệt tiêu nhau khi lấy trung bình
     steady = np.maximum(np.abs(gx.mean(axis=0)), np.abs(gy.mean(axis=0)))
@@ -194,7 +196,7 @@ def find_static(frames: np.ndarray, scale: float = 1.0) -> tuple[list[dict], str
     static[static.mean(axis=1) > 0.5, :] = False  # mép viền đen / khung: đường thẳng dài gần hết khung hình
     static[:, static.mean(axis=0) > 0.5] = False
     if static.mean() > 0.15:
-        return [], "Too many static details (fixed frame, black bars…): draw a box by hand"
+        return [], tr("Too many static details (fixed frame, black bars…): draw a box by hand")
     r = max(2, w // 60)  # nối các chữ của một logo thành một khối
     found = []
     for y0, x0, y1, x1 in _components(_dilate(static, r)):
@@ -212,7 +214,7 @@ def find_static(frames: np.ndarray, scale: float = 1.0) -> tuple[list[dict], str
     boxes = [{"x": round((x0 - pad) * scale), "y": round((y0 - pad) * scale),
               "w": round((x1 - x0 + 2 * pad) * scale), "h": round((y1 - y0 + 2 * pad) * scale)}
              for _, y0, x0, y1, x1 in found[:MAX_BOXES]]
-    return boxes, None if boxes else "No static logo found: draw a box by hand"
+    return boxes, None if boxes else tr("No static logo found: draw a box by hand")
 
 
 # ---------- đích ----------
@@ -235,7 +237,7 @@ def _source_file(s: dict) -> Path:
     vid = s.get("id") or str(s.get("url", "")).rsplit("=", 1)[-1]
     hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4")) if vid else []
     if not hits:
-        raise NotFound("Source video file missing: rerun the project from step Download")
+        raise NotFound(tr("Source video file missing: rerun the project from step Download"))
     return hits[0]
 
 
@@ -245,7 +247,7 @@ def resolve(key: str) -> Target:
         p = db.get_project(pid)
         sources = (p or {}).get("meta", {}).get("sources") or []
         if not p or i >= len(sources):
-            raise NotFound("Source video not found")
+            raise NotFound(tr("Source video not found"))
         s = sources[i]
         name = " · ".join(x for x in (s.get("platform"), s.get("uploader") or s.get("title")) if x) or s["url"]
         return Target(key, _source_file(s), config.PROJECTS / str(pid) / "delogo" / str(i), name, pid, i, s["url"])
@@ -253,9 +255,9 @@ def resolve(key: str) -> Target:
         d = UPLOADS / m[1]
         st = _state(d)
         if not st.get("file") or not (d / st["file"]).is_file():
-            raise NotFound("File not found")
+            raise NotFound(tr("File not found"))
         return Target(key, d / st["file"], d, st.get("name") or st["file"])
-    raise NotFound("Video not found")
+    raise NotFound(tr("Video not found"))
 
 
 def _state(work: Path) -> dict:
@@ -421,10 +423,10 @@ def scope_ranges(t: Target, info: dict, scope: str, span: tuple[float, float] | 
     duration = info["duration"]
     if t.pid is not None:
         if scope != "used":
-            raise ValueError("For a project source, the logo is only removed in the parts the final video uses")
+            raise ValueError(tr("For a project source, the logo is only removed in the parts the final video uses"))
         if not (used := _used(t, duration)):
-            raise ValueError("The project's final video does not use this source yet: render the video first, then "
-                             "remove the logo")
+            raise ValueError(tr("The project's final video does not use this source yet: render the video first, "
+                                "then remove the logo"))
         return used
     if scope == "all":
         return None
@@ -432,9 +434,10 @@ def scope_ranges(t: Target, info: dict, scope: str, span: tuple[float, float] | 
         a, b = span or (0.0, 0.0)
         a, b = max(0.0, float(a)), min(duration, float(b))
         if b - a < MIN_SPAN:
-            raise ValueError(f"Pick a part at least {MIN_SPAN} s long, within 0:00–{clock(duration)}")
+            raise ValueError(tr("Pick a part at least {min} s long, within 0:00–{end}", min=MIN_SPAN,
+                                end=clock(duration)))
         return [[round(a, 2), round(b, 2)]]
-    raise ValueError("Invalid logo removal scope")
+    raise ValueError(tr("Invalid logo removal scope"))
 
 
 def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Callable[[], None]], object],
@@ -445,29 +448,30 @@ def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Cal
     "range" đoạn span=(đầu, cuối) giây.
     """
     if rights is not None and rights not in RIGHTS:
-        raise ValueError("Invalid source rights")
+        raise ValueError(tr("Invalid source rights"))
     t = resolve(key)
     info = probe(t.src)
     boxes = clamp_boxes(boxes, info["width"], info["height"])
     scope = scope or ("used" if t.pid is not None else "all")
     ranges = scope_ranges(t, info, scope, span)
     if t.pid is not None and db.get_project(t.pid)["status"] in BUSY:
-        raise Busy("Project is running: wait until it finishes, then try again")
+        raise Busy(tr("Project is running: wait until it finishes, then try again"))
     update_rights = rights is not None
-    declaration = f"user confirmed rights {rights}, " if update_rights else ""
+    declaration = tr("user confirmed rights {rights}, ", rights=rights) if update_rights else ""
     if rights is None:
         rights = view(key)["rights"]
     with _lock:
         if key in _jobs and _jobs[key]["status"] in BUSY:
-            raise Busy("The logo is already being removed from this video")
+            raise Busy(tr("The logo is already being removed from this video"))
         job = _jobs[key] = {"status": "queued", "pct": 0, "error": None}
     _save_state(t.work, boxes=boxes, rights=rights, scope=scope, span=ranges[0] if scope == "range" else None)
     if t.pid is not None:
-        where = ("whole video" if ranges is None else
-                 f"{len(ranges)} part{'' if len(ranges) == 1 else 's'}, "
-                 f"{sum(b - a for a, b in ranges):.0f} s / {info['duration']:.0f} s")
-        db.update_project(t.pid, log=f"Remove logo from source #{t.index + 1} ({t.name}): "
-                                     f"{declaration}{len(boxes)} box{'' if len(boxes) == 1 else 'es'}, {where}")
+        where = (tr("whole video") if ranges is None else
+                 tr("{parts}, {seconds} s / {total} s", parts=tr_n(len(ranges), "part"),
+                    seconds=f"{sum(b - a for a, b in ranges):.0f}", total=f"{info['duration']:.0f}"))
+        db.update_project(t.pid, log=tr("Remove logo from source #{n} ({name}): {declaration}{boxes}, {where}",
+                                        n=t.index + 1, name=t.name, declaration=declaration,
+                                        boxes=tr_n(len(boxes), "box", "boxes"), where=where))
     submit(lambda: run(key, boxes, rights, t.url, job, update_rights=update_rights, ranges=ranges))
     return view(key)
 
@@ -487,7 +491,7 @@ def run(key: str, boxes: list[dict], rights: str | None, url: str | None = None,
     try:
         t = resolve(key)
         if t.url != url:
-            raise RuntimeError("The project source changed while waiting: pick the video again")
+            raise RuntimeError(tr("The project source changed while waiting: pick the video again"))
         out = t.work / "clean.mp4"
         t.work.mkdir(parents=True, exist_ok=True)
         if not inpaint.model_ready():  # lần đầu: tải mô hình AI
@@ -510,7 +514,7 @@ def run(key: str, boxes: list[dict], rights: str | None, url: str | None = None,
         finish()
     except inpaint.Cancelled:
         if t.pid is not None:
-            db.update_project(t.pid, log=f"Stopped removing the logo from source #{t.index + 1}")
+            db.update_project(t.pid, log=tr("Stopped removing the logo from source #{n}", n=t.index + 1))
         finish()
     except Exception as e:
         job.update(status="failed", error=str(e)[:500])
@@ -527,7 +531,7 @@ def cancel(key: str) -> dict:
     resolve(key)
     job = _jobs.get(key)
     if not job or job["status"] not in BUSY:
-        raise ValueError("No logo removal is running for this video")
+        raise ValueError(tr("No logo removal is running for this video"))
     job["cancel"] = True
     if job["status"] == "queued":
         with _lock:
@@ -541,7 +545,7 @@ def _apply_to_source(t: Target, out: Path, record: dict, *, update_rights: bool 
     p = db.get_project(t.pid)
     sources = list(p["meta"].get("sources") or [])
     if t.index >= len(sources) or sources[t.index].get("url") != t.url:
-        raise RuntimeError("The project source changed while removing the logo")
+        raise RuntimeError(tr("The project source changed while removing the logo"))
     s = dict(sources[t.index])
     for suffix in (".transcript.json", ".scenes.json"):
         cache = t.src.with_suffix(suffix)
@@ -553,24 +557,25 @@ def _apply_to_source(t: Target, out: Path, record: dict, *, update_rights: bool 
     declared = [(x.get("delogo") or {}).get("rights") for x in sources]
     if update_rights and all(declared):  # mọi nguồn đều đã được xác nhận: quyền của cả dự án theo lời xác nhận
         meta["rights"] = "licensed" if "licensed" in declared else "owned"
-    db.update_project(t.pid, log=f"Logo removed from source #{t.index + 1}: rerun from step Render to re-render "
-                                 "the video", meta=meta)
+    db.update_project(t.pid, log=tr("Logo removed from source #{n}: rerun from step Render to re-render the video",
+                                    n=t.index + 1), meta=meta)
 
 
 def restore(key: str) -> dict:
     """Bỏ bản sạch: nguồn dự án quay về video gốc; file tải lên thì xoá kết quả."""
     t = resolve(key)
     if key in _jobs and _jobs[key]["status"] in BUSY:
-        raise Busy("The logo is already being removed from this video")
+        raise Busy(tr("The logo is already being removed from this video"))
     if t.pid is not None:
         p = db.get_project(t.pid)
         if p["status"] in BUSY:
-            raise Busy("Project is running: wait until it finishes, then try again")
+            raise Busy(tr("Project is running: wait until it finishes, then try again"))
         sources = list(p["meta"]["sources"])
         s = {k: v for k, v in sources[t.index].items() if k not in ("orig_path", "delogo")}
         s["path"] = str(t.src)
         sources[t.index] = s
-        db.update_project(t.pid, log=f"Source #{t.index + 1} is back to the original video (logo-free version dropped)",
+        db.update_project(t.pid, log=tr("Source #{n} is back to the original video (logo-free version dropped)",
+                                        n=t.index + 1),
                           meta={"sources": sources})
     else:
         _save_state(t.work, done=None)
@@ -589,7 +594,7 @@ def save_upload(name: str, stream) -> str:
     base = Path(name or "video.mp4").name
     ext = Path(base).suffix.lower()
     if ext not in VIDEO_EXT:
-        raise ValueError(f"Only video files are accepted: {', '.join(VIDEO_EXT)}")
+        raise ValueError(tr("Only video files are accepted: {types}", types=", ".join(VIDEO_EXT)))
     uid = uuid.uuid4().hex
     d = UPLOADS / uid
     d.mkdir(parents=True)
@@ -600,7 +605,7 @@ def save_upload(name: str, stream) -> str:
             while chunk := stream.read(1 << 20):
                 size += len(chunk)
                 if size > MAX_UPLOAD:
-                    raise ValueError(f"File too large (max {MAX_UPLOAD >> 30} GB)")
+                    raise ValueError(tr("File too large (max {n} GB)", n=MAX_UPLOAD >> 30))
                 f.write(chunk)
         probe(dest)
     except Exception:
@@ -629,11 +634,12 @@ def list_uploads(limit: int = 30) -> list[dict]:
 def delete_upload(key: str) -> None:
     t = resolve(key)
     if t.pid is not None:
-        raise ValueError("Only uploaded files can be deleted")
+        raise ValueError(tr("Only uploaded files can be deleted"))
     if key in _jobs and _jobs[key]["status"] in BUSY:
-        raise Busy("The logo is already being removed from this video")
+        raise Busy(tr("The logo is already being removed from this video"))
     try:
         shutil.rmtree(t.work)
     except OSError as e:
-        raise Busy(f"Could not delete the file ({e.strerror or e}). Close the open video and try again.") from e
+        raise Busy(tr("Could not delete the file ({error}). Close the open video and try again.",
+                       error=e.strerror or e)) from e
     _jobs.pop(key, None)

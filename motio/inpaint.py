@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image
 
 from . import config
+from .i18n import tr
 
 MODEL_URL = ("https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/inpainting_lama/"
              "inpainting_lama_2025jan.onnx")
@@ -79,17 +80,17 @@ def ensure_model(progress: Callable[[float], None] | None = None) -> Path:
                             progress(min(done / total, 1.0))
         except (httpx.HTTPError, OSError) as e:
             part.unlink(missing_ok=True)
-            raise RuntimeError(f"Could not download the logo removal AI model ({e}). Check your connection and try "
-                               "again.") from e
+            raise RuntimeError(tr("Could not download the logo removal AI model ({error}). Check your connection and "
+                                  "try again.", error=e)) from e
         data = bytearray(part.read_bytes())
         part.unlink(missing_ok=True)
         if h.hexdigest() != MODEL_SHA256 or any(data[o:o + 5] != _DIM_512 for o, _ in _FREE_DIMS):
-            raise RuntimeError("The downloaded AI model is not the version Motio needs (sha256 mismatch). "
-                               "Please report it so Motio can be updated.")
+            raise RuntimeError(tr("The downloaded AI model is not the version Motio needs (sha256 mismatch). "
+                                  "Please report it so Motio can be updated."))
         for off, name in _FREE_DIMS:
             data[off:off + 5] = b"\x0a\x03\x12\x01" + name
         if hashlib.sha256(data).hexdigest() != PATCHED_SHA256:
-            raise RuntimeError("Could not prepare the logo removal AI model")
+            raise RuntimeError(tr("Could not prepare the logo removal AI model"))
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_bytes(data)
         os.replace(tmp, path)
@@ -112,8 +113,8 @@ def session():
             _session = ort.InferenceSession(str(path), opts, providers=["CPUExecutionProvider"])
         except Exception as e:  # file hỏng: xoá để lần sau tải lại
             path.unlink(missing_ok=True)
-            raise RuntimeError(f"The logo removal AI model was corrupt and has been deleted to download again: "
-                               f"{e}") from e
+            raise RuntimeError(tr("The logo removal AI model was corrupt and has been deleted to download again: "
+                                  "{error}", error=e)) from e
     return _session
 
 
@@ -217,7 +218,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
     frames = max(1, round((info.get("duration") or 0) * rate))
     spans = frame_spans(ranges, rate, frames)
     if not spans:
-        raise ValueError("The part to remove the logo from is outside the video")
+        raise ValueError(tr("The part to remove the logo from is outside the video"))
     total = sum(b - a for a, b in spans)
     if spans[-1][1] == frames:  # số khung thật có thể nhiều hơn ước tính theo độ dài: khoảng chạm cuối thì vá tới hết
         spans[-1] = (spans[-1][0], math.inf)
@@ -247,7 +248,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
         try:
             while len(buf := _read(dec.stdout, size)) == size:
                 if cancelled():
-                    raise Cancelled("Logo removal stopped")
+                    raise Cancelled(tr("Logo removal stopped"))
                 while k < len(spans) and i >= spans[k][1]:
                     k += 1
                 fill = k < len(spans) and spans[k][0] <= i
@@ -283,14 +284,15 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
         finally:
             dec.stdout.close()
         errors = []
-        for rc, f, name in ((0 if broken else dec_rc, dec_err, "decoding"), (enc_rc, enc_err, "encoding")):
+        for rc, f, msg in ((0 if broken else dec_rc, dec_err, tr("FFmpeg failed while decoding: {error}")),
+                           (enc_rc, enc_err, tr("FFmpeg failed while encoding: {error}"))):
             if rc != 0:
                 f.seek(0)
-                errors.append(f"FFmpeg failed while {name}: {f.read().decode(errors='replace')[-600:]}")
+                errors.append(msg.format(error=f.read().decode(errors="replace")[-600:]))
         if broken and not errors:
-            errors.append("FFmpeg stopped midway while encoding the video")
+            errors.append(tr("FFmpeg stopped midway while encoding the video"))
     if errors or i == 0:
         part.unlink(missing_ok=True)
-        raise RuntimeError("\n".join(errors) or "Could not read any frame from the video")
+        raise RuntimeError("\n".join(errors) or tr("Could not read any frame from the video"))
     os.replace(part, dst)
     return dst

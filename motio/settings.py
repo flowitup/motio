@@ -10,7 +10,7 @@ from pathlib import Path
 KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "NEWS_SOURCES", "REFRESH_EVERY_MIN", "CREDIT_ON_VIDEO",
         "CREDIT_IN_POST",
-        "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER")
+        "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "UI_LANG")
 SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY")
 MASK = "••••"
 
@@ -80,16 +80,20 @@ def _normalize(v) -> str | None:
 
 def update(changes: dict) -> dict[str, dict]:
     """Ghi các khoá mới. Giá trị đã che (bắt đầu bằng ••••) bị bỏ qua; None xoá ghi đè (quay về .env)."""
+    from .i18n import LANGS, tr  # i18n đọc settings: nhập muộn cho khỏi vòng lặp import
+
     unknown = [k for k in changes if k not in KEYS]
     if unknown:
-        raise KeyError(f"Unknown settings: {', '.join(unknown)}")
+        raise KeyError(tr("Unknown settings: {keys}", keys=", ".join(unknown)))
+    if changes.get("UI_LANG") not in (None, "", *LANGS):
+        raise ValueError(tr("UI_LANG must be one of {choices}", choices=", ".join(LANGS)))
     for k in ("MAX_VIDEOS_PER_DAY", "REFRESH_EVERY_MIN"):
         if k in changes and changes[k] not in (None, ""):
             try:
                 if int(changes[k]) < 0:
                     raise ValueError
             except (TypeError, ValueError):
-                raise ValueError(f"{k} must be an integer ≥ 0") from None
+                raise ValueError(tr("{key} must be an integer ≥ 0", key=k)) from None
     data = load()
     for k, v in changes.items():
         v = _normalize(v)

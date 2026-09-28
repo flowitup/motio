@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from . import config, db, pipeline, render, tts
+from .i18n import tr, tr_n
 
 BUSY = ("queued", "running")
 MIN_LINES = 3  # như pipeline: kịch bản dưới 3 dòng là quá ngắn
@@ -28,25 +29,25 @@ def _dir(pid: int) -> Path:
 def _project(pid: int) -> dict:
     p = db.get_project(pid)
     if not p:
-        raise LookupError(f"Project #{pid} not found")
+        raise LookupError(tr("Project #{id} not found", id=pid))
     return p
 
 
 def _idle(p: dict) -> None:
     if p["status"] in BUSY:
-        raise Busy("Project is running: wait until it finishes, then try again")
+        raise Busy(tr("Project is running: wait until it finishes, then try again"))
 
 
 def _read(pid: int) -> dict:
     f = _dir(pid) / "script.json"
     if not f.exists():
-        raise FileNotFoundError("Project has no script yet")
+        raise FileNotFoundError(tr("Project has no script yet"))
     try:
         plan = json.loads(f.read_text())  # cùng mã hoá với pipeline
     except json.JSONDecodeError as e:
-        raise ValueError(f"script.json is corrupt: {e}") from e
+        raise ValueError(tr("script.json is corrupt: {error}", error=e)) from e
     if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
-        raise ValueError("script.json is corrupt: the lines list is missing")
+        raise ValueError(tr("script.json is corrupt: the lines list is missing"))
     return plan
 
 
@@ -95,9 +96,9 @@ def clean(raw: dict) -> dict:
     """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
     title = _one_line(raw.get("title_fr"))
     if not title:
-        raise ValueError("Title can't be empty")
+        raise ValueError(tr("Title can't be empty"))
     if len(title) > MAX_TITLE:
-        raise ValueError(f"Title can be at most {MAX_TITLE} characters")
+        raise ValueError(tr("Title can be at most {n} characters", n=MAX_TITLE))
     lines = []
     for ln in raw.get("lines") or []:
         ln = ln if isinstance(ln, dict) else {"text": ln}
@@ -105,15 +106,15 @@ def clean(raw: dict) -> dict:
         if not text:  # dòng để trống thì bỏ
             continue
         if len(text) > MAX_LINE_CHARS:
-            raise ValueError(f"Line {len(lines) + 1} is longer than {MAX_LINE_CHARS} characters")
+            raise ValueError(tr("Line {line} is longer than {n} characters", line=len(lines) + 1, n=MAX_LINE_CHARS))
         lines.append({"text": text, "clips": _clips(ln.get("clips"))})
     if len(lines) < MIN_LINES:
-        raise ValueError(f"The script needs at least {MIN_LINES} narration lines")
+        raise ValueError(tr("The script needs at least {n} narration lines", n=MIN_LINES))
     if len(lines) > MAX_LINES:
-        raise ValueError(f"The script can have at most {MAX_LINES} lines")
+        raise ValueError(tr("The script can have at most {n} lines", n=MAX_LINES))
     desc = str(raw.get("description") or "").strip()
     if len(desc) > MAX_DESC:
-        raise ValueError(f"Description can be at most {MAX_DESC} characters")
+        raise ValueError(tr("Description can be at most {n} characters", n=MAX_DESC))
     return {"title_fr": title, "lines": lines, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
 
 
@@ -171,16 +172,17 @@ def save_script(pid: int, raw: dict) -> dict:
     old_lines = [ln if isinstance(ln, dict) else {"text": ln} for ln in old["lines"]]
     parts = []
     if new["title_fr"] != _one_line(old.get("title_fr")):
-        parts.append("title")
+        parts.append(tr("title"))
     if [ln["text"] for ln in new["lines"]] != [_one_line(ln.get("text")) for ln in old_lines]:
-        parts.append(f"narration ({len(new['lines'])} lines, {_words(new['lines'])} words)")
+        parts.append(tr("narration ({lines}, {words})", lines=tr_n(len(new["lines"]), "line"),
+                        words=tr_n(_words(new["lines"]), "word")))
     elif [ln["clips"] for ln in new["lines"]] != [_clips(ln.get("clips")) for ln in old_lines]:
-        parts.append("clips")
+        parts.append(tr("clips"))
     on_video = bool(parts)
     if new["description"] != str(old.get("description") or "").strip():
-        parts.append("description")
+        parts.append(tr("description"))
     if new["hashtags"] != _tags(old.get("hashtags")):
-        parts.append("hashtags")
+        parts.append(tr("hashtags"))
     if not parts:
         return script_view(pid)  # không đổi gì
 
@@ -194,8 +196,9 @@ def save_script(pid: int, raw: dict) -> dict:
     if p["status"] == "done":
         meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid))
         meta["hashtags"] = new["hashtags"]
-    note = " · re-render to update the video" if on_video and p["status"] == "done" else ""
-    db.update_project(pid, log=f"Script edited: {', '.join(parts)}{note}", meta=meta)
+    stale = on_video and p["status"] == "done"
+    db.update_project(pid, log=tr("Script edited: {parts} · re-render to update the video" if stale
+                                  else "Script edited: {parts}", parts=", ".join(parts)), meta=meta)
     return script_view(pid)
 
 
@@ -211,7 +214,7 @@ def delete(pid: int) -> None:
         try:
             shutil.rmtree(folder)
         except OSError as e:
-            raise OSError(f"Could not delete the project folder ({e.strerror or e}). Close any open files and try "
-                          "again.") from e
+            raise OSError(tr("Could not delete the project folder ({error}). Close any open files and try again.",
+                             error=e.strerror or e)) from e
     if not db.delete_project(pid):
-        raise Busy("The project was just restarted: wait until it finishes, then try again")
+        raise Busy(tr("The project was just restarted: wait until it finishes, then try again"))

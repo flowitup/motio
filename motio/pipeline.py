@@ -5,6 +5,7 @@ import traceback
 from pathlib import Path
 
 from . import asr, channels, config, db, delogo, llm, postiz, render, scenes, search, topic, tts
+from .i18n import tr, tr_n
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
 PICK_PROMPT = """Sujet : {title_zh} / {title_fr}
@@ -81,11 +82,6 @@ def _words(plan: dict) -> int:
     return sum(len(ln["text"].split()) for ln in plan["lines"])
 
 
-def _n(count: int, word: str) -> str:
-    """Số đếm kèm danh từ tiếng Anh cho nhật ký: 1 line, 3 lines."""
-    return f"{count} {word}" if count == 1 else f"{count} {word}s"
-
-
 def _save_script(out: Path, plan: dict) -> None:
     (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
 
@@ -136,7 +132,7 @@ def quota_left(exclude: int | None = None) -> int | None:
 
 def check_quota(exclude: int | None = None) -> None:
     if quota_left(exclude) == 0:
-        raise QuotaExceeded(f"Daily limit reached: {config.max_videos_per_day()} videos (MAX_VIDEOS_PER_DAY)")
+        raise QuotaExceeded(tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)", n=config.max_videos_per_day()))
 
 
 class Step:
@@ -144,7 +140,8 @@ class Step:
         self.pid = pid
 
     def __call__(self, step: str, pct: int, log: str | None = None, **meta):
-        db.update_project(self.pid, status="running", step=step, pct=pct, log=log, meta=meta or None)
+        """`step` is an English label (STEP_LABELS, "Send to Postiz"), saved in the UI language."""
+        db.update_project(self.pid, status="running", step=tr(step), pct=pct, log=log, meta=meta or None)
 
 
 def _fmt_sources(sources: list[dict], transcripts: list[dict], max_chars: int = 3500) -> str:
@@ -193,27 +190,27 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
     subj = _subject(proj)
     is_topic = subj["mode"] == topic.MODE
     if is_topic and subj["topic"] and not subj.get("keywords"):
-        step("Find sources", 3, f"Claude is interpreting the topic: {subj['topic']}")
+        step("Find sources", 3, tr("Claude is interpreting the topic: {topic}", topic=subj["topic"]))
         subj.update(topic.expand(subj["topic"]))
-        db.update_project(pid, log=f"Topic: {subj['title_fr']} · {subj['angle']}",
+        db.update_project(pid, log=tr("Topic: {title} · {angle}", title=subj["title_fr"], angle=subj["angle"]),
                           meta={"subject": {k: subj[k] for k in ("title_fr", "angle", "keywords")}})
     pinned = [search.link_candidate(u) for u in meta.get("links") or []]
     room = max_sources - len(pinned)
     if pinned:
-        step("Find sources", 5, _n(len(pinned), "pasted link"))
+        step("Find sources", 5, tr_n(len(pinned), "pasted link"))
     if meta.get("links_only") or room <= 0 or (is_topic and not subj["topic"]):
         if not pinned:
-            raise RuntimeError("No source links yet")
-        step("Find sources", 12, f"Using only the {_n(len(pinned), 'pasted link')}", chosen=pinned)
+            raise RuntimeError(tr("No source links yet"))
+        step("Find sources", 12, tr("Using only the {links}", links=tr_n(len(pinned), "pasted link")), chosen=pinned)
         return pinned
     kw = subj.get("keywords") or {}
     if not kw.get("zh") and not is_topic:
         kw["zh"] = [subj["title_zh"]]
-    step("Find sources", 5, f"Keywords: {json.dumps(kw, ensure_ascii=False)}")
+    step("Find sources", 5, tr("Keywords: {keywords}", keywords=json.dumps(kw, ensure_ascii=False)))
     cands = [c for c in search.candidates(kw) if c["url"] not in {p["url"] for p in pinned}]
     if not cands and not pinned:
-        raise RuntimeError("No videos found for this " + ("topic" if is_topic else "story"))
-    picked, why = [], "no search results"
+        raise RuntimeError(tr("No videos found for this topic") if is_topic else tr("No videos found for this story"))
+    picked, why = [], tr("no search results")
     if cands:
         lines = "\n".join(f"{i} · {c['site']} · {c['uploader']} · {int(c['duration'] or 0)} · {c['views']} · "
                           f"{c['title'][:100]}" for i, c in enumerate(cands[:30]))
@@ -229,8 +226,9 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
         picked = picked[:room] or ([] if pinned else cands[:2])
         why = pick.get("why", "")
     chosen = pinned + picked
-    step("Find sources", 12, f"{_n(len(cands), 'candidate')}, picked {len(picked)}"
-         + (f" + {_n(len(pinned), 'pasted link')}" if pinned else "") + f": {why}", candidates=len(cands),
+    step("Find sources", 12, tr("{candidates}, picked {picked}", candidates=tr_n(len(cands), "candidate"),
+                                picked=len(picked))
+         + (f" + {tr_n(len(pinned), 'pasted link')}" if pinned else "") + f": {why}", candidates=len(cands),
          chosen=chosen)
     return chosen
 
@@ -238,14 +236,15 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
 def _step_download(chosen: list[dict], step) -> list[dict]:
     sources = []
     for i, c in enumerate(chosen):
-        step("Download", 12 + int(20 * i / len(chosen)), f"Downloading {c['url']}")
+        step("Download", 12 + int(20 * i / len(chosen)), tr("Downloading {url}", url=c["url"]))
         try:
             sources.append(search.download(c["url"], config.CACHE / "sources", cookies=bool(c.get("pinned"))))
         except Exception as e:
-            step("Download", 12 + int(20 * i / len(chosen)), f"Skipped (download error): {str(e)[:160]}")
+            step("Download", 12 + int(20 * i / len(chosen)),
+                 tr("Skipped (download error): {error}", error=str(e)[:160]))
     if not sources:
-        raise RuntimeError("Could not download any source video")
-    step("Download", 32, f"Downloaded {_n(len(sources), 'source')}",
+        raise RuntimeError(tr("Could not download any source video"))
+    step("Download", 32, tr("Downloaded {sources}", sources=tr_n(len(sources), "source")),
          sources=[{k: s[k] for k in ("path", "url", "id", "platform", "uploader", "uploader_url", "title",
                                      "duration", "license", "upload_date")} for s in sources])
     return sources
@@ -254,18 +253,19 @@ def _step_download(chosen: list[dict], step) -> list[dict]:
 def _step_transcribe(sources: list[dict], step) -> list[dict]:
     transcripts, n_cuts = [], []
     for i, s in enumerate(sources):
-        step("Transcribe", 32 + int(20 * i / len(sources)), f"Whisper + scene cuts: {Path(s['path']).name}")
+        step("Transcribe", 32 + int(20 * i / len(sources)),
+             tr("Whisper + scene cuts: {name}", name=Path(s["path"]).name))
         transcripts.append(asr.transcribe(Path(s["path"])))
         n_cuts.append(len(scenes.detect(Path(s["path"]))))
-    done = [f"{t.get('language') or '-'}: {_n(len(t['segments']), 'segment')}, {_n(n, 'scene')}"
+    done = [f"{t.get('language') or '-'}: {tr_n(len(t['segments']), 'segment')}, {tr_n(n, 'scene')}"
             for t, n in zip(transcripts, n_cuts, strict=False)]
-    step("Transcribe", 52, "Transcribed: " + " · ".join(done))
+    step("Transcribe", 52, tr("Transcribed: {done}", done=" · ".join(done)))
     return transcripts
 
 
 def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: Path, step,
                  duration_sec: int) -> dict:
-    step("Script", 55, "Claude is writing the French narration")
+    step("Script", 55, tr("Claude is writing the French narration"))
     subj = _subject(proj)
     ch = channels.for_project(proj)
     note = channels.style_note(ch)  # giọng văn của kênh, nếu có
@@ -283,16 +283,16 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
             title_fr=subj["title_fr"], angle=subj.get("angle") or "", **size), SCRIPT_SYSTEM + note)
     plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
     if len(plan["lines"]) < 3:
-        raise RuntimeError("Script too short")
+        raise RuntimeError(tr("Script too short"))
     if _words(plan) < (MIN_SECONDS - render.TAIL) * WORDS_PER_SEC:  # chắc chắn dưới 62 s: viết dài ra trước khi đọc
-        step("Script", 58, f"Script has {_n(_words(plan), 'word')}, too short for a video ≥ {MIN_SECONDS} s: "
-             "making it longer")
+        step("Script", 58, tr("Script has {words}, too short for a video ≥ {min} s: making it longer",
+                              words=tr_n(_words(plan), "word"), min=MIN_SECONDS))
         plan = _fit(plan, words)
     plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
     if ch:
         plan["hashtags"] = channels.merge_tags(ch, plan.get("hashtags") or [])
     _save_script(out, plan)
-    step("Script", 62, f"{_n(len(plan['lines']), 'line')}, {_n(_words(plan), 'word')}",
+    step("Script", 62, f"{tr_n(len(plan['lines']), 'line')}, {tr_n(_words(plan), 'word')}",
          title=plan["title_fr"])
     return plan
 
@@ -306,7 +306,7 @@ def _load_sources(pid: int) -> list[dict]:
             vid = s.get("id") or s["url"].rsplit("=", 1)[-1]
             hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4"))
             if not hits:
-                raise FileNotFoundError(f"Source file missing: {s['url']}")
+                raise FileNotFoundError(tr("Source file missing: {url}", url=s["url"]))
             path = str(hits[0])
         sources.append({**s, "path": path})
     return sources
@@ -377,7 +377,7 @@ def _invalidate(pid: int, start: str, redo: bool) -> None:
 def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4, start: str = "search") -> None:
     """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video. meta.duration (nếu có) thắng duration_sec."""
     if start not in STEPS:
-        raise ValueError(f"Invalid step: {start}")
+        raise ValueError(tr("Invalid step: {step}", step=start))
     step = Step(pid)
     duration_sec = target_seconds(db.get_project(pid)["meta"].get("duration") or duration_sec)
     out = config.PROJECTS / str(pid)
@@ -390,7 +390,7 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
         if at == 0:  # chạy lại từ bước sau không làm thêm video mới trong ngày
             check_quota(exclude=pid)
         else:
-            step(STEP_LABELS[start], STEP_PCT[start], f"Rerun from step {STEP_LABELS[start]}")
+            step(STEP_LABELS[start], STEP_PCT[start], tr("Rerun from step {step}", step=tr(STEP_LABELS[start])))
         if at <= 1:
             proj = db.get_project(pid)
             chosen = _step_search(proj, step, max_sources) if at == 0 else proj["meta"]["chosen"]
@@ -402,17 +402,18 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
             plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
             ch = channels.for_project(db.get_project(pid))
             if ch and ch["gate_script"]:
-                _await_review(pid, "script",
-                              f"Channel {ch['name']}: awaiting your script approval before voice and render")
+                _await_review(pid, "script", tr("Channel {name}: awaiting your script approval before voice and "
+                                                "render", name=ch["name"]))
                 return
         else:
             plan = json.loads((out / "script.json").read_text())
         nar = None
         if start == "render" and not (nar := saved_narration(pid)):
-            raise RuntimeError("The previous voice is gone or the script has changed: rerun from step Voice")
+            raise RuntimeError(tr("The previous voice is gone or the script has changed: rerun from step Voice"))
         _voice_render_post(pid, plan, sources, out, step, t_begin, duration_sec, nar)
     except Exception as e:
-        db.update_project(pid, status="failed", log=f"ERROR: {e}\n{traceback.format_exc()[-1200:]}")
+        db.update_project(pid, status="failed",
+                          log=tr("ERROR: {error}", error=e) + f"\n{traceback.format_exc()[-1200:]}")
         raise
 
 
@@ -425,7 +426,7 @@ def add_links(pid: int, links: list[str]) -> str:
     if chosen:
         known = {c["url"] for c in chosen}
         update["chosen"] = [*chosen, *(search.link_candidate(u) for u in links if u not in known)]
-    db.update_project(pid, log=f"Added {_n(len(links), 'source link')}", meta=update)
+    db.update_project(pid, log=tr("Added {links}", links=tr_n(len(links), "source link")), meta=update)
     return "download" if chosen else "search"
 
 
@@ -435,10 +436,10 @@ def resume(pid: int, start: str | None = None) -> None:
     try:
         start = start or resume_point(pid)
         if start not in available_steps(pid):
-            raise ValueError(f"Not enough data to rerun from step {STEP_LABELS.get(start, start)}")
+            raise ValueError(tr("Not enough data to rerun from step {step}", step=tr(STEP_LABELS.get(start, start))))
         _invalidate(pid, start, redo)
     except Exception as e:
-        db.update_project(pid, status="failed", log=f"ERROR: {e}")
+        db.update_project(pid, status="failed", log=tr("ERROR: {error}", error=e))
         raise
     produce(pid, start=start)
 
@@ -447,7 +448,7 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
     """Đọc kịch bản (voice: giọng ElevenLabs của kênh, None = theo Cài đặt). Video (giọng + đuôi) ngoài
     [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần, theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá
     MAX_SECONDS thì bỏ câu gần cuối và đọc lại. Trả (plan, narration)."""
-    step("Voice", 64, "Generating the French voice")
+    step("Voice", 64, tr("Generating the French voice"))
     nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
     length = nar["duration"] + render.TAIL
     step("Voice", 67, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
@@ -455,14 +456,14 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
         return plan, nar
     if not MIN_SECONDS <= length <= MAX_SECONDS:
         want = round(_words(plan) * (duration_sec - render.TAIL) / nar["duration"])
-        step("Voice", 67, f"Video is {length:.0f} s, needs {MIN_SECONDS}–{MAX_SECONDS} s: adjusting the script to "
-                          f"~{want} words")
+        step("Voice", 67, tr("Video is {length} s, needs {min}–{max} s: adjusting the script to ~{words} words",
+                             length=f"{length:.0f}", min=MIN_SECONDS, max=MAX_SECONDS, words=want))
         fitted = _fit(plan, want)
         if fitted is not plan:
             plan = fitted
             _save_script(out, plan)
             nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
-            step("Voice", 68, f"Re-voiced: {nar['duration']:.1f} s", title=plan["title_fr"])
+            step("Voice", 68, tr("Re-voiced: {duration} s", duration=f"{nar['duration']:.1f}"), title=plan["title_fr"])
     for _ in range(2):  # trần cứng: Facebook Reels (API) không nhận video quá 90 s
         length = nar["duration"] + render.TAIL
         if length <= MAX_SECONDS:
@@ -470,12 +471,12 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
         cut, n = _trim(plan, nar)
         if not n:
             break
-        step("Voice", 69, f"Video is {length:.0f} s, max {MAX_SECONDS} s: dropping {_n(n, 'sentence')} near the end "
-                          "and re-voicing")
+        step("Voice", 69, tr("Video is {length} s, max {max} s: dropping {sentences} near the end and re-voicing",
+                             length=f"{length:.0f}", max=MAX_SECONDS, sentences=tr_n(n, "sentence")))
         plan = cut
         _save_script(out, plan)
         nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
-        step("Voice", 69, f"Re-voiced: {nar['duration']:.1f} s")
+        step("Voice", 69, tr("Re-voiced: {duration} s", duration=f"{nar['duration']:.1f}"))
     return plan, nar
 
 
@@ -503,13 +504,15 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
                                                           ensure_ascii=False), encoding="utf-8")
     else:
-        step("Render", 70, f"Keeping the previous voice ({nar.get('provider')} · {nar.get('voice')} · "
-                          f"{nar['duration']:.1f} s)")
+        step("Render", 70, tr("Keeping the previous voice ({voice})",
+                              voice=f"{nar.get('provider')} · {nar.get('voice')} · {nar['duration']:.1f} s"))
     length = nar["duration"] + render.TAIL
     if length < MIN_SECONDS:
-        step("Voice", 70, f"Voice is {length:.1f} s: extending the ending with source footage to {MIN_SECONDS} s")
+        step("Voice", 70, tr("Voice is {length} s: extending the ending with source footage to {min} s",
+                             length=f"{length:.1f}", min=MIN_SECONDS))
     elif length > MAX_SECONDS:
-        step("Voice", 70, f"Video is {length:.0f} s, still over {MAX_SECONDS} s: Facebook Reels (API) will reject it")
+        step("Voice", 70, tr("Video is {length} s, still over {max} s: Facebook Reels (API) will reject it",
+                             length=f"{length:.0f}", max=MAX_SECONDS))
 
     # 6. Dựng
     def prog(done, total):
@@ -518,13 +521,13 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS, badge=channels.badge_for(proj))
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
         spans = ", ".join(f"{delogo.clock(a)}–{delogo.clock(b)}" for a, b in miss[:4]) + ("…" if len(miss) > 4 else "")
-        step("Render", 96, f"Source #{i + 1}: the new video also uses parts where the logo was not removed "
-                           f"({spans}). Open Remove logo, click Remove logo again, then Re-render video")
+        step("Render", 96, tr("Source #{n}: the new video also uses parts where the logo was not removed ({spans}). "
+                              "Open Remove logo, click Remove logo again, then Re-render video", n=i + 1, spans=spans))
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)
-    db.update_project(pid, log=f"Rendered in {time.time() - t_begin:.0f} s · {_n(res['pieces'], 'clip')} · "
-                               f"{res['duration']:.1f} s video",
+    db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
+                                  clips=tr_n(res["pieces"], "clip"), rest=f"{res['duration']:.1f} s video"),
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg",
                             "title": plan["title_fr"], "description": desc,
                             "hashtags": plan.get("hashtags", []), "tts": nar["provider"],
@@ -534,7 +537,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
 
 def _await_review(pid: int, what: str, log: str) -> None:
-    db.update_project(pid, status="review", step=REVIEW_STEPS[what], pct=62 if what == "script" else 100, log=log,
+    db.update_project(pid, status="review", step=tr(REVIEW_STEPS[what]), pct=62 if what == "script" else 100, log=log,
                       meta={"review": what})
 
 
@@ -543,23 +546,26 @@ def _deliver(pid: int, ch: dict | None) -> None:
     đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app."""
     sent = bool(db.get_project(pid)["meta"].get("postiz"))
     if ch and not sent and ch["gate_video"]:
-        _await_review(pid, "video", f"Channel {ch['name']}: awaiting your video approval"
-                                    + (" before sending to Postiz" if ch["postiz"] else ""))
+        _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"
+                                       if ch["postiz"] else "Channel {name}: awaiting your video approval",
+                                       name=ch["name"]))
         return
     if ch and not sent and ch["postiz"]:
         send_to_postiz(pid, ch)
-    db.update_project(pid, status="done", step="Done", pct=100)
+    db.update_project(pid, status="done", step=tr("Done"), pct=100)
 
 
 def send_to_postiz(pid: int, ch: dict) -> bool:
     """Gửi video sang các kênh Postiz của hồ sơ: nháp, giờ đăng kế tiếp của kênh, hoặc đăng ngay. Lỗi chỉ ghi vào
     nhật ký (video vẫn xong, gửi lại bằng tay được). Trả True nếu đã gửi."""
-    Step(pid)("Send to Postiz", 99, f"Sending to Postiz ({ch['send_mode']}) for channel {ch['name']}")
+    Step(pid)("Send to Postiz", 99, tr("Sending to Postiz ({mode}) for channel {name}", mode=ch["send_mode"],
+                                         name=ch["name"]))
     try:
         when = channels.next_slot(ch, channels.taken_slots(ch["id"])) if ch["send_mode"] == "schedule" else None
         postiz.publish_project(pid, ch["postiz"], ch["send_mode"], when, profile=ch["id"])
     except Exception as e:  # Postiz chưa cấu hình, mất mạng, kênh đã bị gỡ…
-        db.update_project(pid, log=f"Could not send to Postiz: {str(e)[:300]}", meta={"send_error": str(e)[:300]})
+        db.update_project(pid, log=tr("Could not send to Postiz: {error}", error=str(e)[:300]),
+                          meta={"send_error": str(e)[:300]})
         return False
     db.update_project(pid, meta={"send_error": None})
     return True
@@ -569,13 +575,13 @@ def approve_video(pid: int, send: bool = True) -> None:
     """Duyệt video đang chờ: gửi sang Postiz theo hồ sơ kênh (send=False: chỉ duyệt, không gửi), rồi xong."""
     p = db.get_project(pid)
     if p["meta"].get("review") != "video":  # API đã đổi trạng thái sang running để khoá dự án trong lúc gửi
-        raise ValueError("Project is not awaiting video approval")
+        raise ValueError(tr("Project is not awaiting video approval"))
     ch = channels.for_project(p)
-    db.update_project(pid, log="Video approved" + ("" if send else ", not sent to Postiz"),
+    db.update_project(pid, log=tr("Video approved") if send else tr("Video approved, not sent to Postiz"),
                       meta={"review": None, "approved_at": time.time()})
     if send and ch and ch["postiz"]:
         send_to_postiz(pid, ch)
-    db.update_project(pid, status="done", step="Done", pct=100)
+    db.update_project(pid, status="done", step=tr("Done"), pct=100)
 
 
 def rerender(pid: int) -> None:

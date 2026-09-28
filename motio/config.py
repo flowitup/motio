@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from . import settings
+from .i18n import tr
 
 FROZEN = getattr(sys, "frozen", False)  # engine đóng gói bằng PyInstaller
 ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent.parent
@@ -84,7 +85,7 @@ def which(name: str) -> str:
         for n in names:
             if (d / n).is_file():
                 return str(d / n)
-    raise FileNotFoundError(f"{name} not found")
+    raise FileNotFoundError(tr("{name} not found", name=name))
 
 
 def find(name: str) -> str | None:

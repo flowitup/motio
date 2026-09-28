@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 from yt_dlp import YoutubeDL
 
 from . import db, llm, search, topic
+from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search")
 SITES = ("youtube", "bilibili")
@@ -43,10 +44,10 @@ def classify(text: str, site: str = "youtube") -> dict:
     """Link kênh / playlist / không gian, hoặc từ khoá tìm → {kind, site, target, name}. ValueError nếu không được."""
     text = " ".join((text or "").split())
     if not text:
-        raise ValueError("Paste a channel / playlist link or enter search keywords")
+        raise ValueError(tr("Paste a channel / playlist link or enter search keywords"))
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
-            raise ValueError(f"Search works only on YouTube or Bilibili, not {site}")
+            raise ValueError(tr("Search works only on YouTube or Bilibili, not {site}", site=site))
         return {"kind": "search", "site": site, "target": text[:200], "name": text[:200]}
     u = urlparse(text)
     host = (u.hostname or "").lower()
@@ -61,9 +62,9 @@ def classify(text: str, site: str = "youtube") -> dict:
         if m := _YT_CHANNEL.match(u.path):
             return {"kind": "channel", "site": "youtube", "target": f"https://www.youtube.com/{m[1]}", "name": None}
         if u.path == "/watch" or u.path.startswith(("/shorts/", "/live/")):
-            raise ValueError(NOT_A_LIST)
+            raise ValueError(tr(NOT_A_LIST))
     elif host == "youtu.be" or (host.endswith("bilibili.com") and u.path.startswith("/video/")):
-        raise ValueError(NOT_A_LIST)
+        raise ValueError(tr(NOT_A_LIST))
     elif host == "space.bilibili.com" and (m := re.match(r"^/(\d+)", u.path)):
         if u.path[m.end():].strip("/") in ("", "video", "upload/video"):
             return {"kind": "space", "site": "bilibili", "target": f"https://space.bilibili.com/{m[1]}/video",
@@ -72,18 +73,18 @@ def classify(text: str, site: str = "youtube") -> dict:
     elif host == "search.bilibili.com" and q.get("keyword"):
         query = " ".join(q["keyword"][0].split())[:200]
         return {"kind": "search", "site": "bilibili", "target": query, "name": query}
-    raise ValueError(UNSUPPORTED)
+    raise ValueError(tr(UNSUPPORTED))
 
 
 def add(text: str, site: str = "youtube", rights: str = "unknown") -> int:
     """Thêm nguồn (chưa kiểm tra). ValueError nếu sai / trùng / quá nhiều."""
     if rights not in topic.RIGHTS:
-        raise ValueError(f"Invalid source rights: {rights}")
+        raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     w = classify(text, site)
     if db.find_watch(w["site"], w["target"]):
-        raise ValueError("This source is already in the list")
+        raise ValueError(tr("This source is already in the list"))
     if len(db.list_watches()) >= MAX_WATCHES:
-        raise ValueError(f"At most {MAX_WATCHES} sources")
+        raise ValueError(tr("At most {n} sources", n=MAX_WATCHES))
     return db.add_watch(w["kind"], w["site"], w["target"], w["name"], rights)
 
 
@@ -181,7 +182,7 @@ def _details(c: dict) -> dict:
 def _short(e: Exception, site: str) -> str:
     msg = re.sub(r"\x1b\[[0-9;]*m", "", str(e)).removeprefix("ERROR: ").strip()
     if site == "bilibili" and _BLOCK.search(msg):
-        msg = f"{BILI_BLOCKED} ({msg[:120]})"
+        msg = f"{tr(BILI_BLOCKED)} ({msg[:120]})"
     return msg[:300]
 
 
@@ -299,12 +300,14 @@ def produce(cid: str, duration: int = 80, links_only: bool | None = None) -> int
     """
     c = db.get_clip(cid)
     if not c:
-        raise LookupError("Video not found")
+        raise LookupError(tr("Video not found"))
     rights = c.get("rights") or "unknown"
     only = rights != "unknown" if links_only is None else bool(links_only)
     title_fr, title = c.get("title_fr") or "", c.get("title") or ""
     subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
     pid = topic.create(subject, [c["url"]], only, duration, rights if only else "unknown")
     db.set_clip_status(cid, "used", pid)
-    db.update_project(pid, log=f"From New videos: {c.get('watch_name') or c['site']} · {c['url']}", meta={"clip": cid})
+    db.update_project(pid, log=tr("From New videos: {source} · {url}", source=c.get("watch_name") or c["site"],
+                                  url=c["url"]),
+                      meta={"clip": cid})
     return pid

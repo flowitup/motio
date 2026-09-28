@@ -8,6 +8,7 @@ import datetime as dt
 import re
 
 from . import db, topic
+from .i18n import tr
 
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
 SEND_MODES = ("draft", "schedule", "now")  # như postiz.MODES
@@ -30,31 +31,31 @@ def _tags(raw: list[str]) -> list[str]:
 
 
 def clean(data: dict) -> dict:
-    """Validate and normalize a profile from the app. Raises ValueError (English message) when invalid."""
+    """Validate and normalize a profile from the app. Raises ValueError (in the UI language) when invalid."""
     d = {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS and v is not None}}
     d["name"] = " ".join(str(d["name"]).split())[:MAX_NAME]
     if not d["name"]:
-        raise ValueError("The channel needs a name")
+        raise ValueError(tr("The channel needs a name"))
     d["badge"] = " ".join(str(d["badge"]).split())[:MAX_BADGE]
     d["style"] = str(d["style"]).strip()[:MAX_STYLE]
     d["voice_id"] = str(d["voice_id"]).strip()
     if int(d["duration"]) not in topic.DURATIONS:
-        raise ValueError(f"Duration must be one of {', '.join(map(str, topic.DURATIONS))} seconds")
+        raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, topic.DURATIONS))))
     d["duration"] = int(d["duration"])
     d["hashtags"] = _tags(d["hashtags"])[:MAX_TAGS]
     d["gate_script"], d["gate_video"] = bool(d["gate_script"]), bool(d["gate_video"])
     d["postiz"] = list(dict.fromkeys(str(i) for i in d["postiz"] if str(i).strip()))
     if d["send_mode"] not in SEND_MODES:
-        raise ValueError(f"Send mode must be one of {', '.join(SEND_MODES)}")
+        raise ValueError(tr("Send mode must be one of {choices}", choices=", ".join(SEND_MODES)))
     times = []
     for t in d["send_times"]:
         m = _TIME.match(str(t).strip())
         if not m:
-            raise ValueError(f"Invalid posting time: {t} (format 18:30)")
+            raise ValueError(tr("Invalid posting time: {time} (format 18:30)", time=t))
         times.append(f"{int(m[1]):02d}:{m[2]}")
     d["send_times"] = sorted(set(times))[:MAX_TIMES]
     if d["send_mode"] == "schedule" and d["postiz"] and not d["send_times"]:
-        raise ValueError("Scheduling needs at least one posting time")
+        raise ValueError(tr("Scheduling needs at least one posting time"))
     return d
 
 
@@ -64,7 +65,7 @@ def create(data: dict, is_default: bool = False) -> dict:
 
 def update(cid: int, data: dict, is_default: bool) -> dict:
     if not db.get_channel(cid):
-        raise LookupError("Channel not found")
+        raise LookupError(tr("Channel not found"))
     return db.get_channel(db.save_channel(cid, clean(data), is_default))
 
 
@@ -76,7 +77,7 @@ def pick(channel: int | None) -> dict | None:
         return None
     ch = db.get_channel(channel)
     if not ch:
-        raise LookupError("Channel not found")
+        raise LookupError(tr("Channel not found"))
     return ch
 
 
@@ -87,7 +88,7 @@ def attach(pid: int, ch: dict | None, news: bool = False) -> None:
     meta = {"channel": ch["id"]}
     if news:
         meta["duration"] = ch["duration"]
-    db.update_project(pid, log=f"Channel: {ch['name']}", meta=meta)
+    db.update_project(pid, log=tr("Channel: {name}", name=ch["name"]), meta=meta)
 
 
 def for_project(proj: dict) -> dict | None:
@@ -130,7 +131,7 @@ def next_slot(ch: dict, taken: set[str], now: dt.datetime | None = None) -> str:
             iso = at.isoformat(timespec="seconds")
             if at >= now + SLOT_LEAD and _utc(iso) not in taken:
                 return iso
-    raise ValueError("No free posting time in the next 60 days")
+    raise ValueError(tr("No free posting time in the next 60 days"))
 
 
 def _utc(iso: str) -> str:

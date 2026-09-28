@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 
 from . import config
+from .i18n import tr
 
 EL = "https://api.elevenlabs.io/v1"
 
@@ -39,8 +40,8 @@ def synthesize(lines: list[str], out_dir: Path, voice: str | None = None) -> dic
         return _elevenlabs(lines, out_dir, voice)
     if p == "macos_say":
         return _macos_say(lines, out_dir)
-    raise TTSUnavailable("No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY "
-                         "(the macOS voice only works on a Mac).")
+    raise TTSUnavailable(tr("No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY "
+                            "(the macOS voice only works on a Mac)."))
 
 
 # ---------- ElevenLabs ----------
@@ -69,7 +70,7 @@ def pick_voice(voice: str | None = None) -> tuple[str, str]:
         for v in voices:
             if pref(v):
                 return v["voice_id"], v.get("name", v["voice_id"])
-    raise RuntimeError("The ElevenLabs account has no voices")
+    raise RuntimeError(tr("The ElevenLabs account has no voices"))
 
 
 def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:

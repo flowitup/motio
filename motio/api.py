@@ -36,6 +36,7 @@ from . import (
     tts,
     watch,
 )
+from .i18n import tr
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
 FINAL = ("done", "failed", "review")  # SSE dừng: xong, lỗi, hoặc chờ duyệt
@@ -205,7 +206,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     def _check(value: str | None) -> None:
         if not value or not secrets.compare_digest(value.encode(), token.encode()):
-            raise HTTPException(401, "Missing or invalid token")
+            raise HTTPException(401, tr("Missing or invalid token"))
 
     def auth(request: Request) -> None:
         h = request.headers.get("authorization", "")
@@ -306,17 +307,18 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def produce(tid: str, body: ProduceIn | None = None):
         t = db.get_trend(tid)
         if not t:
-            raise HTTPException(404, "Trend not found")
+            raise HTTPException(404, tr("Trend not found"))
         links = _links(body.links) if body else []
         if body and body.links_only and not links:
-            raise HTTPException(400, "“Use only these links” needs at least one link")
+            raise HTTPException(400, tr("“Use only these links” needs at least one link"))
         ch = _channel_for(body.channel if body else None)
         if pipeline.quota_left() == 0:
-            raise HTTPException(429, f"Daily limit reached: {config.max_videos_per_day()} videos (MAX_VIDEOS_PER_DAY)")
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
         channels.attach(pid, ch, news=True)
         if links:
-            db.update_project(pid, log=f"Pasted source links: {len(links)}",
+            db.update_project(pid, log=tr("Pasted source links: {n}", n=len(links)),
                               meta={"links": links, "links_only": bool(body.links_only)})
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
@@ -325,7 +327,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def _watch(wid: int) -> dict:
         w = db.get_watch(wid)
         if not w:
-            raise HTTPException(404, "Source not found")
+            raise HTTPException(404, tr("Source not found"))
         return w
 
     @app.get("/api/watches", dependencies=[Depends(auth)])
@@ -346,7 +348,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def patch_watch(wid: int, body: WatchPatch):
         _watch(wid)
         if body.rights is not None and body.rights not in topic.RIGHTS:
-            raise HTTPException(400, f"Invalid source rights: {body.rights}")
+            raise HTTPException(400, tr("Invalid source rights: {rights}", rights=body.rights))
         name = " ".join((body.name or "").split())[:200]
         db.update_watch(wid, **{k: v for k, v in (("name", name), ("rights", body.rights),
                                                   ("enabled", body.enabled)) if v not in (None, "")})
@@ -373,14 +375,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def _clip(cid: str) -> dict:
         c = db.get_clip(cid)
         if not c:
-            raise HTTPException(404, "Video not found")
+            raise HTTPException(404, tr("Video not found"))
         return c
 
     @app.patch("/api/clips/{cid}", dependencies=[Depends(auth)])
     def patch_clip(cid: str, body: ClipPatch):
         c = _clip(cid)
         if body.status not in ("new", "hidden") or c["status"] == "used":
-            raise HTTPException(400, "Only videos not made yet can be hidden or shown again")
+            raise HTTPException(400, tr("Only videos not made yet can be hidden or shown again"))
         db.set_clip_status(cid, body.status)
         return _clip(cid)
 
@@ -391,7 +393,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         body = body or ClipProduceIn()
         ch = _channel_for(body.channel)
         if pipeline.quota_left() == 0:
-            raise HTTPException(429, f"Daily limit reached: {config.max_videos_per_day()} videos (MAX_VIDEOS_PER_DAY)")
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
         try:
             pid = watch.produce(cid, body.duration, body.links_only)
         except ValueError as e:
@@ -408,7 +411,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def _get(pid: int) -> dict:
         p = db.get_project(pid)
         if not p:
-            raise HTTPException(404, "Project not found")
+            raise HTTPException(404, tr("Project not found"))
         return p
 
     @app.get("/api/projects/{pid}", dependencies=[Depends(auth)])
@@ -420,7 +423,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
         ch = _channel_for(body.channel)
         if pipeline.quota_left() == 0:
-            raise HTTPException(429, f"Daily limit reached: {config.max_videos_per_day()} videos (MAX_VIDEOS_PER_DAY)")
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
         try:
             pid = topic.create(body.topic, body.links, body.links_only, body.duration, body.rights)
         except ValueError as e:
@@ -434,8 +438,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         _get(pid)
         if body.rights is not None:
             if body.rights not in topic.RIGHTS:
-                raise HTTPException(400, f"Invalid source rights: {body.rights}")
-            db.update_project(pid, log=f"Source rights: {body.rights}", meta={"rights": body.rights})
+                raise HTTPException(400, tr("Invalid source rights: {rights}", rights=body.rights))
+            db.update_project(pid, log=tr("Source rights: {rights}", rights=body.rights), meta={"rights": body.rights})
         return _project_out(_get(pid), full=True)
 
     @app.delete("/api/projects/{pid}", dependencies=[Depends(auth)])
@@ -475,10 +479,10 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def rerender(pid: int):
         p = _get(pid)
         if p["status"] in ("queued", "running"):
-            raise HTTPException(409, "Project is running")
+            raise HTTPException(409, tr("Project is running"))
         if not (config.PROJECTS / str(pid) / "script.json").exists():
-            raise HTTPException(409, "Project has no script (script.json) to re-render")
-        db.update_project(pid, status="queued", step="Queued for re-render", pct=0, log="Queued for re-render")
+            raise HTTPException(409, tr("Project has no script (script.json) to re-render"))
+        db.update_project(pid, status="queued", step=tr("Queued for re-render"), pct=0, log=tr("Queued for re-render"))
         jobs.submit(_run_job, pipeline.rerender, pid)
         return {"project_id": pid}
 
@@ -486,16 +490,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def retry(pid: int, body: RetryIn | None = None):
         p = _get(pid)
         if p["status"] in ("queued", "running"):
-            raise HTTPException(409, "Project is running")
+            raise HTTPException(409, tr("Project is running"))
         asked = body.start if body else None  # None = chạy tiếp từ bước bị lỗi, giữ kết quả đã có
         start = asked or pipeline.resume_point(pid)
         if start not in pipeline.STEPS:
-            raise HTTPException(400, f"Invalid step: {start}")
+            raise HTTPException(400, tr("Invalid step: {step}", step=start))
+        label = tr(pipeline.STEP_LABELS[start])
         if start not in pipeline.available_steps(pid):
-            raise HTTPException(409, f"Not enough data to rerun from step {pipeline.STEP_LABELS[start]}")
-        label = pipeline.STEP_LABELS[start]
-        db.update_project(pid, status="queued", step=f"Queued to rerun: {label}", pct=0,
-                          log=f"Queued to rerun from step {label}")
+            raise HTTPException(409, tr("Not enough data to rerun from step {step}", step=label))
+        db.update_project(pid, status="queued", step=tr("Queued to rerun: {step}", step=label), pct=0,
+                          log=tr("Queued to rerun from step {step}", step=label))
         jobs.submit(_run_job, lambda i: pipeline.resume(i, asked), pid)
         return {"project_id": pid, "start": start}
 
@@ -504,14 +508,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Thêm link nguồn rồi chạy lại từ bước tải video (hoặc tìm nguồn nếu dự án chưa tới đó)."""
         p = _get(pid)
         if p["status"] in ("queued", "running"):
-            raise HTTPException(409, "Project is running")
+            raise HTTPException(409, tr("Project is running"))
         links = _links(body.links)
         if not links:
-            raise HTTPException(400, "No links given")
+            raise HTTPException(400, tr("No links given"))
         start = pipeline.add_links(pid, links)
-        label = pipeline.STEP_LABELS[start]
-        db.update_project(pid, status="queued", step=f"Queued to rerun: {label}", pct=0,
-                          log=f"Queued to rerun from step {label}")
+        label = tr(pipeline.STEP_LABELS[start])
+        db.update_project(pid, status="queued", step=tr("Queued to rerun: {step}", step=label), pct=0,
+                          log=tr("Queued to rerun from step {step}", step=label))
         jobs.submit(_run_job, lambda i: pipeline.resume(i, start), pid)
         return {"project_id": pid, "start": start}
 
@@ -521,14 +525,15 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         p = _get(pid)
         review = p["meta"].get("review")
         if p["status"] != "review" or review not in pipeline.REVIEW_STEPS:
-            raise HTTPException(409, "Project is not awaiting approval")
+            raise HTTPException(409, tr("Project is not awaiting approval"))
         if review == "script":
-            db.update_project(pid, status="queued", step="Queued for voice and render", pct=0, log="Script approved",
+            db.update_project(pid, status="queued", step=tr("Queued for voice and render"), pct=0,
+                              log=tr("Script approved"),
                               meta={"review": None})
             jobs.submit(_run_job, lambda i: pipeline.produce(i, start="voice"), pid)
         else:
             send = body.send if body else True
-            db.update_project(pid, status="running", step="Send to Postiz" if send else "Done", pct=100)
+            db.update_project(pid, status="running", step=tr("Send to Postiz") if send else tr("Done"), pct=100)
             threading.Thread(target=_run_job, args=(lambda i: pipeline.approve_video(i, send), pid),
                              daemon=True).start()  # tải video lên Postiz không chờ hàng đợi làm video
         return {"project_id": pid, "review": review}
@@ -588,14 +593,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def delete_channel(cid: int):
         """Xoá hồ sơ; dự án đã gắn với nó chạy tiếp như không có kênh."""
         if not db.get_channel(cid):
-            raise HTTPException(404, "Channel not found")
+            raise HTTPException(404, tr("Channel not found"))
         db.delete_channel(cid)
         return {"deleted": cid}
 
     # ---------- đăng bài qua Postiz ----------
     def _need_postiz() -> None:
         if not postiz.configured():
-            raise HTTPException(409, "Postiz is not configured (POSTIZ_URL, POSTIZ_API_KEY)")
+            raise HTTPException(409, tr("Postiz is not configured (POSTIZ_URL, POSTIZ_API_KEY)"))
 
     @app.get("/api/postiz/channels", dependencies=[Depends(auth)])
     def postiz_channels():
@@ -603,7 +608,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         try:
             return postiz.channels()
         except (postiz.PostizError, httpx.HTTPError) as e:
-            raise HTTPException(502, f"Postiz error: {str(e)[:300]}") from e
+            raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
 
     @app.post("/api/projects/{pid}/publish", dependencies=[Depends(auth)])
     def publish(pid: int, body: PublishIn):
@@ -611,14 +616,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         meta = p["meta"]
         video = config.DATA / meta["video"] if meta.get("video") else None
         if p["status"] != "done" or not video or not video.is_file():
-            raise HTTPException(409, "Project has no finished video yet")
+            raise HTTPException(409, tr("Project has no finished video yet"))
         _need_postiz()
         try:
             return postiz.publish_project(pid, body.channels, body.mode, body.date)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:
-            raise HTTPException(502, f"Postiz error: {str(e)[:300]}") from e
+            raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
 
     # ---------- xoá logo (video người dùng chọn) ----------
     def _dl(fn, *args):
@@ -682,11 +687,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.get("/api/voices", dependencies=[Depends(auth)])
     def voices():
         if not config.env("ELEVENLABS_API_KEY"):
-            raise HTTPException(409, "ELEVENLABS_API_KEY is not set")
+            raise HTTPException(409, tr("ELEVENLABS_API_KEY is not set"))
         try:
             vs = tts.list_voices()
         except Exception as e:
-            raise HTTPException(502, f"ElevenLabs error: {str(e)[:200]}") from e
+            raise HTTPException(502, tr("ElevenLabs error: {error}", error=str(e)[:200])) from e
         return [{"id": v["voice_id"], "name": v.get("name", v["voice_id"]), "labels": v.get("labels") or {},
                  "preview_url": v.get("preview_url")} for v in vs]
 
@@ -707,7 +712,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         root = config.DATA.resolve()
         f = (root / path).resolve()
         if not f.is_relative_to(root) or not f.is_file() or f.name == settings.path().name:
-            raise HTTPException(404, "File not found")
+            raise HTTPException(404, tr("File not found"))
         return FileResponse(f)
 
     return app

@@ -5,6 +5,7 @@ import threading
 import time
 
 from .config import DATA
+from .i18n import tr
 
 _DB = DATA / "motio.sqlite3"
 _lock = threading.Lock()
@@ -180,8 +181,8 @@ def fail_stale() -> list[int]:
     with conn() as c:
         ids = [r[0] for r in c.execute("SELECT id FROM project WHERE status IN ('queued', 'running')")]
     for pid in ids:
-        update_project(pid, status="failed", log="ERROR: the engine stopped while the project was running. "
-                                                 "Click Re-render or create it again.")
+        update_project(pid, status="failed", log=tr("ERROR: the engine stopped while the project was running. "
+                                                    "Click Re-render or create it again."))
     return ids
 
 

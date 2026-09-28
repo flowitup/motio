@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from . import captions, config, scenes
 from .asr import has_audio
+from .i18n import tr
 
 W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
@@ -212,7 +213,7 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
 def _run(cmd: list[str]) -> None:
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {r.stderr[-1500:]}")
+        raise RuntimeError(tr("ffmpeg failed: {error}", error=r.stderr[-1500:]))
 
 
 def render_piece(p: Piece, src: dict, overlay: Path, out: Path) -> None:

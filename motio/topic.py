@@ -2,6 +2,7 @@
 from urllib.parse import urlparse
 
 from . import db, llm, search
+from .i18n import tr
 
 MODE = "topic"
 RIGHTS = ("unknown", "owned", "licensed", "cc")  # quyền dùng video nguồn; chưa rõ = unknown
@@ -82,17 +83,18 @@ def create(topic: str = "", links: list[str] | None = None, links_only: bool = F
     topic = " ".join(topic.split())[:300]
     links = search.clean_links(links or [])
     if not topic and not links:
-        raise ValueError("Enter a topic or at least one video link")
+        raise ValueError(tr("Enter a topic or at least one video link"))
     if duration not in DURATIONS:
-        raise ValueError(f"Duration must be one of {', '.join(map(str, DURATIONS))} seconds")
+        raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, DURATIONS))))
     if rights not in RIGHTS:
-        raise ValueError(f"Invalid source rights: {rights}")
+        raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     title = topic
     if not title:
         more = f" (+{len(links) - 1})" if len(links) > 1 else ""
-        title = f"Video from {urlparse(links[0]).hostname or 'link'}{more}"
+        title = tr("Video from {site}", site=urlparse(links[0]).hostname or "link") + more
     pid = db.create_project(None, title, mode=MODE)
-    db.update_project(pid, log=f"Topic: {topic or '(links only)'} · links: {len(links)} · {duration} s",
+    db.update_project(pid, log=tr("Topic: {topic} · links: {links} · {duration} s", topic=topic or tr("(links only)"),
+                                  links=len(links), duration=duration),
                       meta={"topic": topic, "links": links, "links_only": bool(links_only or not topic),
                             "duration": duration, "rights": rights})
     return pid
