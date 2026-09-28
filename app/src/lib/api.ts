@@ -286,7 +286,7 @@ export function makeApi(url: string, token: string) {
     addLinks: (id: number, links: string[]) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
     watches: () => call<Watch[]>("GET", "/api/watches"),
-    addWatch: (body: { target: string; site: Site; rights: Rights }) => call<Watch>("POST", "/api/watches", body),
+    addWatch: (body: { target: string; site: Site; rights?: Rights }) => call<Watch>("POST", "/api/watches", body),
     patchWatch: (id: number, body: { name?: string; rights?: Rights; enabled?: boolean }) =>
       call<Watch>("PATCH", `/api/watches/${id}`, body),
     deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),

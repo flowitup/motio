@@ -12,14 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useApi, type Api, type Clip, type ClipStatus, type Rights, type Site, type Watch } from "@/lib/api";
+import { useApi, type Api, type Clip, type ClipStatus, type Site, type Watch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const ALL = "__all__";
-const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
 const TABS: ClipStatus[] = ["new", "used", "hidden"];
-const rightsOptions = RIGHTS.map((r): [string, string] => [r, t.projects.rightsOptions[r]]);
 
 const watchName = (w: Watch) => w.name || w.target;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
@@ -29,7 +27,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   const qc = useQueryClient();
   const [target, setTarget] = useState("");
   const [site, setSite] = useState<Site>("youtube");
-  const [rights, setRights] = useState<Rights>("unknown");
   const isLink = /^https?:\/\//i.test(target.trim());
   const changed = () => {
     qc.invalidateQueries({ queryKey: ["watches"] });
@@ -37,14 +34,14 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
     qc.invalidateQueries({ queryKey: ["clips"] });
   };
   const add = useMutation({
-    mutationFn: () => api.addWatch({ target: target.trim(), site, rights }),
+    mutationFn: () => api.addWatch({ target: target.trim(), site }),
     onSuccess: () => {
       setTarget("");
       changed();
     },
   });
   const patch = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; rights?: Rights; enabled?: boolean }) => api.patchWatch(id, body),
+    mutationFn: ({ id, ...body }: { id: number; enabled?: boolean }) => api.patchWatch(id, body),
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
@@ -73,9 +70,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
               />
             </Field>
           )}
-          <Field label={t.watches.rights}>
-            <Choice value={rights} onChange={(v) => setRights(v as Rights)} options={rightsOptions} className="w-44" />
-          </Field>
           <Button type="submit" className="ml-auto" disabled={!target.trim() || add.isPending}>
             {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
             {t.watches.add}
@@ -103,12 +97,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
                   {w.last_error && <span className="text-destructive"> · {w.last_error}</span>}
                 </div>
               </div>
-              <Choice
-                value={w.rights}
-                onChange={(v) => patch.mutate({ id: w.id, rights: v as Rights })}
-                options={rightsOptions}
-                className="w-40"
-              />
               <label className="flex items-center gap-2 text-sm" title={t.watches.enabled}>
                 <Switch checked={w.enabled} onCheckedChange={(on) => patch.mutate({ id: w.id, enabled: on })} />
               </label>
