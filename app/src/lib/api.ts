@@ -100,6 +100,7 @@ export type ChannelInput = {
   name: string;
   badge: string; // nhãn đỏ trên tiêu đề video, rỗng = không nhãn
   style: string; // ghi chú giọng văn thêm vào prompt kịch bản
+  glossary: string; // bảng thuật ngữ (mỗi dòng một mục) cho kịch bản và bản dịch lồng tiếng
   voice_id: string; // rỗng = giọng trong Cài đặt
   duration: number; // 70 | 80 | 90, cho video tin nóng
   hashtags: string[];
@@ -140,7 +141,7 @@ export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 export type Project = {
   id: number;
   trend_id: string | null;
-  mode: "news" | "topic";
+  mode: "news" | "topic" | "dub";
   title: string;
   status: ProjectStatus;
   step: string | null;
@@ -152,16 +153,41 @@ export type Project = {
 
 export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice" | "render";
 
+/** Khung theo tỉ lệ khung hình (0..1): [x, y, rộng, cao]. */
+export type BlurBox = [number, number, number, number];
+/** Bản lồng tiếng: đoạn video gốc đã chọn, phần mở / kết (giây), khung làm mờ phụ đề cũ. */
+export type DubView = {
+  start: number | null; // đoạn do người dùng đặt, null = tự chọn
+  end: number | null;
+  excerpt: [number, number] | null; // đoạn đã chọn (sau bước kịch bản)
+  pad: [number, number] | null; // giây mở / kết bằng khung hình đứng yên
+  blur: BlurBox | null;
+  blur_auto: boolean; // khung do Motio tự tìm
+  source: string | null; // đường dẫn /media của video gốc đã tải
+  needs_review: boolean; // quyền nguồn chưa rõ: không tự gửi Postiz
+};
+
 export type ProjectDetail = Project & {
   log: string;
   folder: string;
   trend: Trend | null;
   retry: { auto: RetryStep; steps: RetryStep[] };
   has_script: boolean;
+  dub: DubView | null;
 };
 
 export type ScriptClip = { src: number; start: number; end: number };
-export type ScriptLine = { text: string; clips: ScriptClip[] };
+/** Bản lồng tiếng thêm: loại (intro | dub | outro), ai nói, câu gốc (zh), lúc vào / hạn (giây), số ký tự vừa chỗ. */
+export type ScriptLine = {
+  text: string;
+  clips: ScriptClip[];
+  kind?: "intro" | "dub" | "outro";
+  speaker?: string;
+  zh?: string;
+  at?: number;
+  until?: number;
+  max_chars?: number;
+};
 export type Script = { title_fr: string; lines: ScriptLine[]; description: string; hashtags: string[] };
 /** Kịch bản cho trình sửa, kèm số liệu để ước lượng độ dài video. */
 export type ScriptView = {
@@ -173,6 +199,7 @@ export type ScriptView = {
   max_seconds: number;
   tail: number;
   version: number;
+  dub: { register: string; speakers: Record<string, string>; language: string | null } | null;
 };
 
 export type ProgressEvent = { status: ProjectStatus; step: string | null; pct: number; log_tail: string[] };
@@ -332,6 +359,15 @@ export function makeApi(url: string, token: string) {
       channel?: number;
     }) =>
       call<{ project_id: number }>("POST", "/api/projects", body),
+    /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn. */
+    createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
+      call<{ project_id: number }>("POST", "/api/dubs", body),
+    /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
+    dubClip: (id: string, channel?: number) =>
+      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),
+    /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
+    updateDub: (id: number, body: { start?: number | null; end?: number | null; blur?: BlurBox | null }) =>
+      call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/dub`, body),
     setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
     addLinks: (id: number, links: string[]) =>

@@ -17,6 +17,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
+import { DubBlurCard, DubCompareCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { PublishCard } from "@/components/publish-card";
@@ -82,21 +83,25 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
             ))}
           </ul>
         )}
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
-          className="min-h-16 font-mono text-xs"
-          aria-label={t.projects.addLinks}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="mr-auto text-xs text-muted-foreground">{t.projects.addLinksHint}</p>
-          <Button size="sm" variant="outline" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
-            {add.isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
-            {t.projects.addAndRerun}
-          </Button>
-        </div>
-        {add.error && <p className="text-destructive">{add.error.message}</p>}
+        {p.mode !== "dub" && (
+          <>
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
+              className="min-h-16 font-mono text-xs"
+              aria-label={t.projects.addLinks}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="mr-auto text-xs text-muted-foreground">{t.projects.addLinksHint}</p>
+              <Button size="sm" variant="outline" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
+                {add.isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
+                {t.projects.addAndRerun}
+              </Button>
+            </div>
+            {add.error && <p className="text-destructive">{add.error.message}</p>}
+          </>
+        )}
         <Field label={t.projects.rights} hint={t.projects.rightsHint}>
           <Choice
             value={p.meta.rights ?? "unknown"}
@@ -126,6 +131,7 @@ function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; c
           {video ? t.review.videoHint : t.review.scriptHint}
           {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
         </p>
+        {video && targets > 0 && p.dub?.needs_review && <p className="text-muted-foreground">{t.dub.reviewNote}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {video ? (
             <>
@@ -164,6 +170,7 @@ export default function ProjectDetailPage() {
   const [from, setFrom] = useState<RetryStep | null>(null); // null = bước hệ thống đề xuất
   const [view, setView] = useState<VideoVersion>("vertical"); // khổ đang xem khi có bản 16:9
   const logRef = useRef<HTMLPreElement>(null);
+  const dubVideo = useRef<HTMLVideoElement>(null); // video lồng tiếng: "Phát cả hai" điều khiển nó cùng video gốc
 
   const { data: p, error, refetch } = useQuery({ queryKey: ["project", id], queryFn: () => api.project(id) });
   const { data: channels } = useQuery({ queryKey: ["channels"], queryFn: () => api.channels(), staleTime: 30_000 });
@@ -313,6 +320,7 @@ export default function ProjectDetailPage() {
                 <video key={`w${p.updated_at}`} src={api.mediaUrl(p.meta.wide!, p.updated_at)} controls className="aspect-video w-full" />
               ) : (
                 <video
+                  ref={dubVideo}
                   key={p.updated_at}
                   src={api.mediaUrl(p.meta.video, p.updated_at)}
                   poster={p.meta.thumb ? api.mediaUrl(p.meta.thumb, p.updated_at) : undefined}
@@ -355,6 +363,13 @@ export default function ProjectDetailPage() {
 
           {status === "done" && p.meta.video && (
             <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} hasWide={!!p.meta.wide} onSent={() => refetch()} />
+          )}
+
+          {p.dub && (
+            <>
+              <DubCompareCard api={api} p={p} dubVideo={dubVideo} active={active} onQueued={() => refetch()} />
+              <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
+            </>
           )}
 
           {p.has_script && <ScriptCard api={api} id={p.id} active={active} />}
