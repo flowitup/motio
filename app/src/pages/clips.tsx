@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Loader2, Plus, RefreshCw, Trash2, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { ScoreBadge } from "@/components/status-chip";
@@ -124,8 +125,10 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
   const [open, setOpen] = useState(false);
   const [duration, setDuration] = useState("80");
   const [only, setOnly] = useState((clip.rights ?? "unknown") !== "unknown");
+  const choice = useChannelChoice(api);
   const produce = useMutation({
-    mutationFn: () => api.produceClip(clip.id, { duration: Number(duration), links_only: only }),
+    mutationFn: () =>
+      api.produceClip(clip.id, { duration: Number(duration), links_only: only, channel: choice.channel }),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["clips"] });
@@ -211,6 +214,11 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
       </div>
       {open && (
         <div className="flex flex-wrap items-end gap-4 border-t pt-3">
+          {choice.channels.length > 0 && (
+            <Field label={t.channels.pick}>
+              <ChannelChoice choice={choice} className="w-44" />
+            </Field>
+          )}
           <Field label={t.projects.duration}>
             <Choice
               value={duration}

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from motio import asr, config, db, edit, llm, pipeline, render, scenes, search, topic, tts
+from motio import asr, channels, config, db, edit, llm, pipeline, render, scenes, search, topic, tts
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def fake(monkeypatch, tmp_path):
         calls.append(name)
         if name in fail:
             fail.discard(name)
-            raise RuntimeError(f"{name} hỏng")
+            raise RuntimeError(f"{name} broke")
 
     def candidates(kw):
         boom("search")
@@ -57,8 +57,9 @@ def fake(monkeypatch, tmp_path):
         boom("script")
         return {"title_fr": "Titre", "lines": _lines(4, 45), "description": "Desc.", "hashtags": ["#Chine"]}
 
-    def synthesize(lines, out_dir):
+    def synthesize(lines, out_dir, voice=None):
         boom("voice")
+        calls.voices.append(voice)
         durs = [len(t.split()) * sec_per_word[0] for t in lines]
         starts = [sum(durs[:i]) for i in range(len(durs))]
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -66,10 +67,11 @@ def fake(monkeypatch, tmp_path):
         return {"audio": str(out_dir / "n.mp3"), "duration": sum(durs), "provider": "fake", "voice": "v",
                 "lines": [{"start": a, "end": a + d} for a, d in zip(starts, durs, strict=True)]}
 
-    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0):
+    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0, badge=""):
         boom("render")
         total = max(nar["duration"] + render.TAIL, min_total)
-        rendered.append({"words": sum(len(ln["text"].split()) for ln in plan["lines"]), "total": total})
+        rendered.append({"words": sum(len(ln["text"].split()) for ln in plan["lines"]), "total": total,
+                         "badge": badge})
         (out / "final.mp4").write_bytes(b"v")
         return {"video": str(out / "final.mp4"), "thumb": "", "duration": total, "pieces": 4}
 
@@ -88,7 +90,11 @@ def fake(monkeypatch, tmp_path):
 
 
 class Calls(list):
-    """Danh sách bước đã chạy, kèm tốc độ đọc giả (speed[0]) và các lần dựng (rendered)."""
+    """Danh sách bước đã chạy, kèm tốc độ đọc giả (speed[0]), các lần dựng (rendered) và giọng đã dùng (voices)."""
+
+    def __init__(self):
+        super().__init__()
+        self.voices: list[str | None] = []
 
 
 def _lines(n: int, words: int) -> list[dict]:
@@ -122,7 +128,7 @@ def test_render_again_keeps_the_voice(fake):
     calls.clear()
     pipeline.resume(pid, "render")
     p = db.get_project(pid)
-    assert calls == ["render"] and p["status"] == "done" and "Giữ giọng đọc cũ" in p["log"]
+    assert calls == ["render"] and p["status"] == "done" and "Keeping the previous voice" in p["log"]
     plan["lines"][0]["text"] += " encore"  # đổi câu đọc: phải đọc lại
     (out / "script.json").write_text(json.dumps(plan))
     assert "render" not in pipeline.available_steps(pid) and (out / "script.json").exists()
@@ -160,7 +166,7 @@ def test_retry_after_transcribe_failure_keeps_finished_transcripts(fake):
     def flaky(path):
         if "_1." in str(path) and "once" not in fail:
             fail.add("once")
-            raise RuntimeError("whisper hỏng")
+            raise RuntimeError("whisper broke")
         return orig(path)
 
     asr.transcribe = flaky
@@ -300,7 +306,7 @@ def test_topic_searches_and_writes_an_explainer(fake, prompts):
 def test_topic_from_links_only(fake, prompts):
     calls, _ = fake
     pid = topic.create("", ["https://www.bilibili.com/video/BV1", "https://www.douyin.com/video/2"], duration=70)
-    assert db.get_project(pid)["title"] == "Video từ www.bilibili.com (+1)"
+    assert db.get_project(pid)["title"] == "Video from www.bilibili.com (+1)"
     pipeline.produce(pid)
     assert calls == ["download+cookies", "download+cookies", "transcribe", "transcribe", "script", "voice", "render"]
     assert f"Sujet : {topic.NO_TOPIC}" in prompts[-1][0] and "de 8 à 13 lignes" in prompts[-1][0]
@@ -354,7 +360,7 @@ def test_still_short_video_is_padded_to_62_seconds(fake, monkeypatch):
     pid = _new()
     pipeline.produce(pid)
     assert calls.rendered[-1]["total"] == pipeline.MIN_SECONDS
-    assert "kéo dài phần cuối" in db.get_project(pid)["log"]
+    assert "extending the ending" in db.get_project(pid)["log"]
 
 
 def test_too_short_script_is_lengthened_before_voice(fake, monkeypatch):
@@ -417,10 +423,107 @@ def test_video_still_over_90_seconds_is_trimmed(fake, monkeypatch):
     saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
     tags = [ln["text"].split()[0] for ln in saved["lines"]]
     assert tags == ["debut", *"abcdefghi", "fin"]  # giữ câu mở đầu và câu kết, bỏ câu gần cuối
-    assert "bỏ 1 câu gần cuối" in db.get_project(pid)["log"]
+    assert "dropping 1 sentence near the end" in db.get_project(pid)["log"]
 
 
 def test_trim_keeps_three_lines_and_estimates_without_timings():
     plan = {"title_fr": "T", "lines": _lines(5, 60)}  # 300 từ
     cut, n = pipeline._trim(plan, {"duration": 200.0, "lines": []})  # 40 s mỗi câu
     assert n == 2 and len(cut["lines"]) == 3 and len(plan["lines"]) == 5
+
+
+# ---------- hồ sơ kênh: nhãn, giọng văn, cổng duyệt, tự gửi Postiz ----------
+def _profile(**kw) -> dict:
+    return channels.create({"name": "Chine Express", "gate_script": False, "gate_video": False, **kw})
+
+
+def _with(profile: dict, pid: int) -> int:
+    channels.attach(pid, profile, news=db.get_project(pid)["mode"] == "news")
+    return pid
+
+
+def test_news_keeps_the_badge_and_topic_videos_get_none(fake):
+    calls, _ = fake
+    pipeline.produce(_new())
+    pipeline.produce(topic.create("gấu trúc"))
+    assert [r["badge"] for r in calls.rendered] == ["ACTU CHINE", ""]
+
+
+def test_profile_style_voice_tags_badge_and_length(fake, prompts):
+    calls, _ = fake
+    ch = _profile(badge="INSOLITE", style="Ton léger, public 18-25 ans.", voice_id="vx", hashtags=["#ChineInsolite"],
+                  duration=70)
+    pid = _with(ch, _new())
+    assert db.get_project(pid)["meta"]["duration"] == 70
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and calls.rendered[-1]["badge"] == "INSOLITE" and calls.voices == ["vx"]
+    assert "Ton léger, public 18-25 ans." in prompts[-1][1] and "Chine Express" in prompts[-1][1]
+    assert p["meta"]["hashtags"][0] == "#ChineInsolite" and "≈ 70 secondes" in prompts[-1][0]
+
+
+def test_script_gate_waits_then_video_gate_then_sends(fake, fake_postiz):
+    calls, _ = fake
+    ch = _profile(gate_script=True, gate_video=True, postiz=["tt1"])
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert (p["status"], p["meta"]["review"], p["step"]) == ("review", "script", "Awaiting script approval")
+    assert "voice" not in calls and not fake_postiz
+
+    pipeline.produce(pid, start="voice")  # "Duyệt và làm tiếp"
+    p = db.get_project(pid)
+    assert (p["status"], p["meta"]["review"]) == ("review", "video") and calls[-2:] == ["voice", "render"]
+    assert not fake_postiz  # chưa duyệt video: chưa gửi
+
+    pipeline.approve_video(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and p["meta"]["review"] is None and p["meta"]["approved_at"]
+    assert [(e["mode"], e["profile"]) for e in p["meta"]["postiz"]] == [("draft", ch["id"])]
+    with pytest.raises(ValueError):
+        pipeline.approve_video(pid)  # không còn chờ duyệt
+
+
+def test_approve_video_without_sending(fake, fake_postiz):
+    ch = _profile(gate_video=True, postiz=["tt1"])
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    pipeline.approve_video(pid, send=False)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and not p["meta"].get("postiz") and not fake_postiz
+
+
+def test_auto_send_once_then_rerender_does_not_resend(fake, fake_postiz):
+    ch = _profile(postiz=["tt1", "yt1"], send_mode="schedule", send_times=["07:00", "19:00"])
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and len(p["meta"]["postiz"]) == 1
+    entry = p["meta"]["postiz"][0]
+    assert entry["mode"] == "schedule" and entry["profile"] == ch["id"] and len(entry["channels"]) == 2
+    pid2 = _with(ch, db.create_project("douyin:p", "Titre 2"))
+    pipeline.produce(pid2)
+    assert db.get_project(pid2)["meta"]["postiz"][0]["date"] != entry["date"]  # giờ đăng kế tiếp, không trùng
+    sent = len(fake_postiz)
+    pipeline.resume(pid, "render")  # dựng lại: không gửi lại, không dừng duyệt
+    assert len(fake_postiz) == sent and db.get_project(pid)["status"] == "done"
+
+
+def test_postiz_failure_still_finishes_the_video(fake):
+    pid = _with(_profile(postiz=["tt1"]), _new())  # Postiz chưa cấu hình
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and "POSTIZ_URL" in p["meta"]["send_error"] and "Could not send" in p["log"]
+
+
+def test_retry_clears_a_pending_review(fake):
+    pid = _with(_profile(gate_script=True), _new())
+    pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "review"
+    pipeline.resume(pid, "script")  # viết lại kịch bản: lại chờ duyệt
+    assert db.get_project(pid)["meta"]["review"] == "script"
+    channels.update(db.get_project(pid)["meta"]["channel"], {"name": "Chine Express", "gate_script": False,
+                                                             "gate_video": False}, False)
+    pipeline.resume(pid, "voice")
+    p = db.get_project(pid)
+    assert p["status"] == "done" and p["meta"]["review"] is None

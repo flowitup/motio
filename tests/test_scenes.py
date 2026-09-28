@@ -4,7 +4,7 @@ import pytest
 
 from motio import config, scenes
 
-pytestmark = pytest.mark.skipif(not config.find("ffmpeg"), reason="cần ffmpeg")
+pytestmark = pytest.mark.skipif(not config.find("ffmpeg"), reason="needs ffmpeg")
 
 
 def test_detect_finds_hard_cuts_and_caches(tmp_path):

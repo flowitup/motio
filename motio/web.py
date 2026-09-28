@@ -38,7 +38,7 @@ def _fmt_age(ts):
     if not ts:
         return "—"
     m = int((time.time() - ts) / 60)
-    return "vừa xong" if m < 1 else f"{m} phút trước" if m < 60 else f"{m // 60} giờ trước"
+    return "just now" if m < 1 else f"{m} min ago" if m < 60 else f"{m // 60} h ago"
 
 
 tpl.env.filters["age"] = _fmt_age
@@ -61,7 +61,7 @@ def refresh():
 def produce(tid: str):
     t = db.get_trend(tid)
     if not t:
-        raise HTTPException(404, "Không có tin này")
+        raise HTTPException(404, "Trend not found")
     pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
     jobs.submit(pipeline.produce, pid)
     return RedirectResponse(f"/projects/{pid}", status_code=303)
@@ -71,7 +71,7 @@ def produce(tid: str):
 def project_page(request: Request, pid: int):
     p = db.get_project(pid)
     if not p:
-        raise HTTPException(404, "Không có dự án này")
+        raise HTTPException(404, "Project not found")
     return tpl.TemplateResponse(request, "project.html", {"p": p, "trend": db.get_trend(p["trend_id"])})
 
 

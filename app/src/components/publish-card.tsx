@@ -133,7 +133,7 @@ export function PublishCard({
             {[...history].reverse().map((h) => (
               <div key={h.at} className="text-muted-foreground">
                 {t.publish.modes[h.mode]}
-                {h.mode === "schedule" && ` ${new Date(h.date).toLocaleString("vi-VN")}`} ·{" "}
+                {h.mode === "schedule" && ` ${t.dateTime(h.date)}`} ·{" "}
                 {h.channels.map((c) => c.name).join(", ")} · {t.age(h.at)}
               </div>
             ))}

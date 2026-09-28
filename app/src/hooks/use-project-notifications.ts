@@ -12,7 +12,7 @@ async function notify(title: string) {
   if (ok) sendNotification({ title: t.appName, body: title });
 }
 
-/** Thông báo hệ thống khi một dự án chuyển sang xong / lỗi. */
+/** Thông báo hệ thống khi một dự án chuyển sang xong / lỗi / chờ duyệt. */
 export function useProjectNotifications() {
   const api = useApi();
   const { data } = useQuery({
@@ -33,6 +33,7 @@ export function useProjectNotifications() {
       if (before && before !== p.status) {
         const title = p.meta.title || p.title;
         if (p.status === "done") notify(t.notify.done(title));
+        if (p.status === "review") notify(t.notify.review(title));
         if (p.status === "failed") notify(t.notify.failed(title));
       }
     }

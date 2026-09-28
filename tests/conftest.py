@@ -11,7 +11,11 @@ from motio import settings  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def clean_settings(monkeypatch):
-    """Mỗi test bắt đầu không có settings.json và không có key trong môi trường."""
+    """Mỗi test bắt đầu không có settings.json, không có key trong môi trường và không có hồ sơ kênh."""
+    from motio import db
+
+    with db.conn() as c:
+        c.execute("DELETE FROM channel")
     settings.path().unlink(missing_ok=True)
     for k in settings.KEYS:
         monkeypatch.delenv(k, raising=False)

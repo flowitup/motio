@@ -1,4 +1,4 @@
-"""SQLite cho MVP (bảng trend, project, watch, clip). Giai đoạn 1 chuyển sang Postgres."""
+"""SQLite cho MVP (bảng trend, project, watch, clip, channel). Giai đoạn 1 chuyển sang Postgres."""
 import json
 import sqlite3
 import threading
@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS clip (
   project_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS clip_feed ON clip (status, first_seen);
+CREATE TABLE IF NOT EXISTS channel (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data TEXT DEFAULT '{}',         -- JSON hồ sơ kênh (motio/channels.py); dự án trỏ tới bằng meta.channel
+  is_default INTEGER DEFAULT 0,
+  created_at REAL, updated_at REAL
+);
 """
 
 
@@ -174,7 +180,8 @@ def fail_stale() -> list[int]:
     with conn() as c:
         ids = [r[0] for r in c.execute("SELECT id FROM project WHERE status IN ('queued', 'running')")]
     for pid in ids:
-        update_project(pid, status="failed", log="LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.")
+        update_project(pid, status="failed", log="ERROR: the engine stopped while the project was running. "
+                                                 "Click Re-render or create it again.")
     return ids
 
 
@@ -269,3 +276,49 @@ def get_clip(cid: str) -> dict | None:
 def set_clip_status(cid: str, status: str, project_id: int | None = None) -> None:
     with _lock, conn() as c:
         c.execute("UPDATE clip SET status=?, project_id=COALESCE(?, project_id) WHERE id=?", (status, project_id, cid))
+
+
+# ---------- kênh (hồ sơ đăng) ----------
+def _channel(r) -> dict | None:
+    if r is None:
+        return None
+    try:
+        data = json.loads(r["data"] or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    return {**data, "id": r["id"], "default": bool(r["is_default"]), "created_at": r["created_at"],
+            "updated_at": r["updated_at"]}
+
+
+def list_channels() -> list[dict]:
+    with conn() as c:
+        return [_channel(r) for r in c.execute("SELECT * FROM channel ORDER BY id")]
+
+
+def get_channel(cid: int) -> dict | None:
+    with conn() as c:
+        return _channel(c.execute("SELECT * FROM channel WHERE id=?", (cid,)).fetchone())
+
+
+def default_channel() -> dict | None:
+    with conn() as c:
+        return _channel(c.execute("SELECT * FROM channel WHERE is_default=1 ORDER BY id LIMIT 1").fetchone())
+
+
+def save_channel(cid: int | None, data: dict, is_default: bool) -> int:
+    """Tạo (cid None) hoặc thay hồ sơ kênh. Chỉ một kênh là mặc định."""
+    now = time.time()
+    with _lock, conn() as c:
+        if is_default:
+            c.execute("UPDATE channel SET is_default=0")
+        blob = json.dumps(data, ensure_ascii=False)
+        if cid is None:
+            return c.execute("INSERT INTO channel (data, is_default, created_at, updated_at) VALUES (?,?,?,?)",
+                             (blob, int(is_default), now, now)).lastrowid
+        c.execute("UPDATE channel SET data=?, is_default=?, updated_at=? WHERE id=?", (blob, int(is_default), now, cid))
+        return cid
+
+
+def delete_channel(cid: int) -> None:
+    with _lock, conn() as c:
+        c.execute("DELETE FROM channel WHERE id=?", (cid,))

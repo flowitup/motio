@@ -1,5 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, Eraser, FolderOpen, Link2, Loader2, Play, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  Copy,
+  Eraser,
+  FolderOpen,
+  Link2,
+  Loader2,
+  Play,
+  RotateCcw,
+  Send,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
@@ -14,7 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi, type Api, type ProjectDetail, type RetryStep, type Rights } from "@/lib/api";
+import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights } from "@/lib/api";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { t } from "@/i18n";
 
@@ -97,6 +111,48 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
   );
 }
 
+/** Dự án dừng ở cổng duyệt của kênh: duyệt kịch bản (đọc giọng và dựng) hoặc duyệt video (gửi Postiz). */
+function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; channel: Channel | undefined; onDone: () => void }) {
+  const approve = useMutation({ mutationFn: (send: boolean) => api.approve(p.id, send), onSuccess: onDone });
+  const video = p.meta.review === "video";
+  const targets = channel?.postiz.length ?? 0;
+  return (
+    <Card className="border-amber-500/50 bg-amber-500/5">
+      <CardHeader>
+        <CardTitle>{video ? t.review.video : t.review.script}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm">
+        <p className="text-muted-foreground">
+          {video ? t.review.videoHint : t.review.scriptHint}
+          {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {video ? (
+            <>
+              <Button onClick={() => approve.mutate(true)} disabled={approve.isPending}>
+                {approve.isPending && approve.variables ? <Loader2 className="animate-spin" /> : targets ? <Send /> : <CheckCheck />}
+                {targets ? t.review.approveSend : t.review.approve}
+              </Button>
+              {targets > 0 && (
+                <Button variant="outline" onClick={() => approve.mutate(false)} disabled={approve.isPending}>
+                  {approve.isPending && !approve.variables ? <Loader2 className="animate-spin" /> : <Check />}
+                  {t.review.approveNoSend}
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button onClick={() => approve.mutate(true)} disabled={approve.isPending}>
+              {approve.isPending ? <Loader2 className="animate-spin" /> : <Play />}
+              {t.review.approveScript}
+            </Button>
+          )}
+          {approve.error && <span className="text-destructive">{approve.error.message}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ProjectDetailPage() {
   const api = useApi()!;
   const { info } = useEngine();
@@ -109,6 +165,8 @@ export default function ProjectDetailPage() {
   const logRef = useRef<HTMLPreElement>(null);
 
   const { data: p, error, refetch } = useQuery({ queryKey: ["project", id], queryFn: () => api.project(id) });
+  const { data: channels } = useQuery({ queryKey: ["channels"], queryFn: () => api.channels(), staleTime: 30_000 });
+  const channel = channels?.find((c) => c.id === p?.meta.channel);
   const active = p?.status === "queued" || p?.status === "running";
   const ev = useProjectEvents(api, id, active, () => {
     refetch();
@@ -156,6 +214,7 @@ export default function ProjectDetailPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{p.meta.title || p.title}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {status && <StatusChip status={status} />}#{p.id} · {t.projects.modes[p.mode] ?? p.mode} ·{" "}
+            {channel && `${t.projects.channel(channel.name)} · `}
             {t.age(p.updated_at)}
           </div>
         </div>
@@ -214,6 +273,24 @@ export default function ProjectDetailPage() {
         onDeleted={() => navigate("/projects")}
       />
 
+      {status === "review" && p.status === "review" && (
+        <ReviewCard
+          api={api}
+          p={p}
+          channel={channel}
+          onDone={() => {
+            refetch();
+            qc.invalidateQueries({ queryKey: ["projects"] });
+          }}
+        />
+      )}
+      {p.meta.send_error && (
+        <p className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="size-4 shrink-0" />
+          {t.review.sendError}: {p.meta.send_error}
+        </p>
+      )}
+
       {active && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
@@ -227,7 +304,7 @@ export default function ProjectDetailPage() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_1fr]">
         <div className="overflow-hidden rounded-xl bg-black">
           {/* Đang hỏi xoá: bỏ trình phát để engine không còn giữ final.mp4 (Windows không xoá được file đang mở). */}
-          {p.meta.video && status === "done" && !deleting ? (
+          {p.meta.video && (status === "done" || (status === "review" && p.meta.review === "video")) && !deleting ? (
             <video
               key={p.updated_at}
               src={api.mediaUrl(p.meta.video, p.updated_at)}

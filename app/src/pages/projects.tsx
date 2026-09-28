@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Plus, Trash2, Video, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice, Field } from "@/components/form";
 import { StatusChip } from "@/components/status-chip";
@@ -26,13 +27,21 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
   const [linksOnly, setLinksOnly] = useState(false);
   const [duration, setDuration] = useState("80");
   const [rights, setRights] = useState<Rights>("unknown");
+  const choice = useChannelChoice(api);
   const links = text
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
   const create = useMutation({
     mutationFn: () =>
-      api.createTopic({ topic: topic.trim(), links, links_only: linksOnly, duration: Number(duration), rights }),
+      api.createTopic({
+        topic: topic.trim(),
+        links,
+        links_only: linksOnly,
+        duration: Number(duration),
+        rights,
+        channel: choice.channel,
+      }),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project_id}`);
@@ -82,6 +91,11 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
             />
           </Field>
         </div>
+        {choice.channels.length > 0 && (
+          <Field label={t.channels.pick}>
+            <ChannelChoice choice={choice} className="w-full sm:w-56" />
+          </Field>
+        )}
         <div className="flex items-center justify-end gap-3">
           {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
           <Button onClick={() => create.mutate()} disabled={(!topic.trim() && !links.length) || create.isPending}>

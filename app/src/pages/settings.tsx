@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import { VoicePicker } from "@/components/voice-picker";
 import { useApi, type Api, type Settings } from "@/lib/api";
 import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
 import { useUpdater } from "@/lib/updater";
@@ -182,26 +183,6 @@ function HealthCard({ api }: { api: Api }) {
   );
 }
 
-function VoicePicker({ api, value, onChange, hasKey }: { api: Api; value: string; onChange: (v: string) => void; hasKey: boolean }) {
-  const { data, error, isLoading } = useQuery({
-    queryKey: ["voices"],
-    queryFn: () => api.voices(),
-    enabled: hasKey,
-    staleTime: 5 * 60_000,
-  });
-  if (!hasKey) return <p className="text-sm text-muted-foreground">{t.settings.voiceNeedKey}</p>;
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
-  if (isLoading) return <Loader2 className="size-4 animate-spin" />;
-  const options: [string, string][] = [
-    ["", t.settings.voiceAuto],
-    ...(data ?? []).map((v): [string, string] => [
-      v.id,
-      [v.name, v.labels.language, v.labels.accent, v.labels.gender].filter(Boolean).join(" · "),
-    ]),
-  ];
-  return <Choice value={value} onChange={onChange} options={options} />;
-}
-
 function SettingsForm({ api }: { api: Api }) {
   const qc = useQueryClient();
   const { data: s, error } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
@@ -284,7 +265,7 @@ function SettingsForm({ api }: { api: Api }) {
           <CardTitle>{t.settings.voice}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Voice">
+          <Field label={t.settings.voiceLabel}>
             <VoicePicker
               api={api}
               hasKey={hasElKey}

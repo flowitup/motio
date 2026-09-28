@@ -52,7 +52,7 @@ pub fn updater_status(app: AppHandle) -> UpdaterStatus {
 
 #[tauri::command]
 pub async fn check_update(app: AppHandle, pending: State<'_, Pending>) -> Result<UpdateCheck, String> {
-    let err = |e: tauri_plugin_updater::Error| format!("Lỗi kiểm tra cập nhật: {e}");
+    let err = |e: tauri_plugin_updater::Error| format!("Update check failed: {e}");
     let engine_app = app.clone();
     let update = app
         .updater_builder()
@@ -80,7 +80,7 @@ pub async fn check_update(app: AppHandle, pending: State<'_, Pending>) -> Result
 /// Download, verify and install the update found by `check_update`, then restart the app.
 #[tauri::command]
 pub async fn install_update(app: AppHandle, pending: State<'_, Pending>) -> Result<(), String> {
-    let update = pending.0.lock().unwrap().clone().ok_or("Hãy kiểm tra cập nhật trước.")?;
+    let update = pending.0.lock().unwrap().clone().ok_or("Check for updates first.")?;
     let (mut downloaded, mut sent) = (0u64, 0u64);
     update
         .download_and_install(
@@ -96,7 +96,7 @@ pub async fn install_update(app: AppHandle, pending: State<'_, Pending>) -> Resu
             || {},
         )
         .await
-        .map_err(|e| format!("Cập nhật lỗi: {e}"))?;
+        .map_err(|e| format!("Update failed: {e}"))?;
     app.state::<Engine>().stop();
     app.restart()
 }

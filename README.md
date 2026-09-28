@@ -3,7 +3,7 @@
 Motio turns trending Chinese news (NewsNow hot lists) into French 9:16 videos. A Python engine does the work and a
 desktop app (macOS, Windows) drives it: it finds source clips on YouTube and Bilibili, transcribes them with Whisper,
 has Claude write a French voice-over script and pick the clip segments, voices it with ElevenLabs, and renders it with
-FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in Vietnamese; the
+FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in English; the
 videos are in French.
 
 ## Run on a Mac (legacy web dashboard)
@@ -15,34 +15,44 @@ brew install deno                   # yt-dlp needs a JavaScript runtime to downl
 uv run python -m motio serve        # open http://127.0.0.1:8765
 ```
 
-1. Click **Cập nhật tin hot** (refresh hot topics): fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
+1. Click **Refresh**: fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
    lists; Claude translates the titles into French and scores them for a French audience.
-2. Pick a topic and click **Làm video** (make video). The project page shows progress, the log, the video and the post
+2. Pick a topic and click **Make video**. The project page shows progress, the log, the video and the post
    text (title, description, sources, hashtags).
 
-Beyond hot news: in the app, **Dự án → Tạo video** (Projects → make video) takes any topic, in any language, and/or
+Beyond hot news: in the app, **Projects → New video** takes any topic, in any language, and/or
 video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
 Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
 
-**Video mới** (new videos) follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
-Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Kiểm tra ngay" (check now); a new source shows
+**New videos** follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
+Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Check now"; a new source shows
 its latest 10 videos, then only videos it hasn't seen. Claude gives each one a French title and a score, and
-"Làm video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
-single videos there): paste those links into "Tạo video". Bilibili spaces often need the browser-cookie setting.
+"Make video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
+single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
+
+**Channels** holds one profile per channel you post to: the red badge on the video ("ACTU CHINE", "INSOLITE",
+or none), style notes Claude follows when it writes the script, the ElevenLabs voice, the default length for hot-news
+videos, hashtags that always go first, and two approval gates. With the script gate on, a project stops at **Awaiting
+script approval** until you read it, edit it if needed, and press **Approve and continue**; with the video gate on, a
+finished video stops at **Awaiting video approval** until you press **Approve and send**. A profile can also send
+the approved video to its Postiz channels by itself, as a draft, at the channel's next free posting time, or right
+away (once per project; later re-renders don't post again). Pick the channel when you make a video (Trending, New
+videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
+Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
 
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
-**Xoá logo** (remove a logo) cleans a static logo or watermark off one of your own videos: pick a project's source clip
-or upload a file, draw a box around the logo on a frame (or press **Tự tìm** to find logos that stay in place), then
-press **Xoá logo**. The LaMa AI model redraws what was behind the logo on every frame.
+**Remove logo** cleans a static logo or watermark off one of your own videos: pick a project's source clip
+or upload a file, draw a box around the logo on a frame (or press **Auto-detect** to find logos that stay in place), then
+press **Remove logo**. The LaMa AI model redraws what was behind the logo on every frame.
 The first run downloads the model once (92 MB, [LaMa](https://github.com/advimman/lama) exported by
 [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/inpainting_lama), Apache 2.0) into `data/models/`.
 It runs on the CPU: still shots go fast (the fill is reused while the picture behind the logo doesn't change), moving
 shots take a few minutes per minute of video. So on a project's clip it cleans only the parts the final video uses
 (plus a few seconds either side), which turns hours into minutes on a long news clip; an uploaded file can be cleaned
-whole (**Cả video**) or in one part (**Một đoạn**, from–to). The page shows the time left and a Stop button. A project
-clip is replaced by its clean copy and **Dựng lại video (giữ giọng)** renders the video again with the voice it
+whole (**Whole video**) or in one part (**One part**, from–to). The page shows the time left and a Stop button. A project
+clip is replaced by its clean copy and **Re-render video (keep voice)** renders the video again with the voice it
 already has (no new ElevenLabs call); if a later render uses a part that wasn't cleaned, the project log and the page
 say so. The original is kept and can be restored. An uploaded file gives you a cleaned copy. It never runs by itself
 in the pipelines.
@@ -50,7 +60,9 @@ in the pipelines.
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... approve <project> [nosend]`
+(approve a script or video waiting at a channel's gate), `... delete <project>`. `produce` and `topic` use the default
+channel.
 
 ## Desktop app (Tauri)
 
@@ -60,7 +72,7 @@ pnpm tauri dev        # opens the app; it starts the engine with uv from the rep
 ```
 
 Needs Rust (`rustup`). The app looks for `uv` on PATH, in `~/.local/bin`, `~/.cargo/bin` and Homebrew; set `MOTIO_UV`
-if it lives elsewhere. Settings (Cài đặt) → "Engine từ xa" (remote engine) uses an engine on another machine (URL +
+if it lives elsewhere. Settings → "Remote engine" uses an engine on another machine (URL +
 token); the app then doesn't start its own engine.
 
 ## Packaging, CI and releases
@@ -83,9 +95,9 @@ installed on the machine; without it, pick "Anthropic API" in Settings.
   for you to check and Publish.
 - The installers are not code-signed: on macOS, open the app the first time via System Settings → Privacy & Security →
   "Open Anyway"; on Windows, click "More info" → "Run anyway". The installers bundle the engine; to use an engine on
-  another machine, go to Settings → "Engine từ xa".
-- **Auto-update** (Settings → "Cập nhật ứng dụng"): the app checks GitHub Releases on launch and when you click
-  "Kiểm tra cập nhật" (check for updates), downloads the new version, verifies its signature and restarts itself. Only
+  another machine, go to Settings → "Remote engine".
+- **Auto-update** (Settings → "Update app"): the app checks GitHub Releases on launch and when you click
+  "Check for updates", downloads the new version, verifies its signature and restarts itself. Only
   published releases are offered. The repo is public, so no GitHub token is needed: the app reads
   `releases/latest/download/latest.json`.
 - Update signing key, one time: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, then
@@ -108,7 +120,7 @@ Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and `/api/pro
 `deploy/` holds the Docker Compose stack for the engine + [Postiz](https://postiz.com) (automatic posting) behind
 Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the server. Steps:
 [docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
-defaults to `LLM_PROVIDER=anthropic`.
+defaults to `LLM_PROVIDER=anthropic`. Channel posting times use the server's `TZ` (default `Europe/Paris`).
 
 ## Configuration (.env)
 
@@ -145,12 +157,13 @@ motio/captions.py  French karaoke captions (≤ 42 characters per line), exports
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
-motio/watch.py     followed channels, playlists and searches → "Video mới", French titles + scores
+motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
-motio/delogo.py    "Xoá logo": remove a static logo from a video you own (drawn or auto-found boxes)
-motio/inpaint.py   LaMa AI fill for "Xoá logo" (onnxruntime, frame by frame, model downloaded on first use)
+motio/channels.py  channel profiles: badge, script style, voice, hashtags, approval gates, Postiz auto-send, posting times
+motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)
+motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/web.py       legacy dashboard (to be removed)
 ```
 

@@ -147,7 +147,7 @@ fn engine_command(app: &AppHandle) -> Result<Command, String> {
         return Ok(Command::new(p));
     }
     if cfg!(debug_assertions) {
-        let uv = find_uv().ok_or("Không tìm thấy uv. Cài uv hoặc đặt MOTIO_UV.")?;
+        let uv = find_uv().ok_or("uv not found. Install uv or set MOTIO_UV.")?;
         let mut cmd = Command::new(uv);
         cmd.args(["run", "python", "-m", "motio"]).current_dir(repo_root());
         return Ok(cmd);
@@ -160,7 +160,7 @@ fn engine_command(app: &AppHandle) -> Result<Command, String> {
         .join("motio-engine")
         .join(exe);
     if !path.is_file() {
-        return Err(format!("Thiếu engine đóng gói: {}", path.display()));
+        return Err(format!("Bundled engine missing: {}", path.display()));
     }
     Ok(Command::new(path))
 }
@@ -200,7 +200,7 @@ fn spawn_local(app: &AppHandle, engine: &Engine) {
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            engine.set(app, failed(&starting, format!("Không chạy được engine: {e}")));
+            engine.set(app, failed(&starting, format!("Couldn't start the engine: {e}")));
             return;
         }
     };
@@ -234,7 +234,7 @@ fn spawn_local(app: &AppHandle, engine: &Engine) {
         // stdout closed: the engine exited (unless we are restarting it on purpose).
         let cur = engine.info.lock().unwrap().clone();
         if cur.mode == Mode::Local && cur.token == token {
-            engine.set(&app, failed(&starting, "Engine đã dừng. Xem log trong terminal."));
+            engine.set(&app, failed(&starting, "The engine stopped. See the log in the terminal."));
         }
     });
 }
@@ -254,7 +254,7 @@ pub fn start(app: &AppHandle) {
                 url: cfg.url.trim_end_matches('/').to_string(),
                 token: cfg.token,
                 version: None,
-                error: cfg.url.is_empty().then(|| "Chưa nhập URL engine từ xa".to_string()),
+                error: cfg.url.is_empty().then(|| "No remote engine URL set".to_string()),
             },
         ),
     }

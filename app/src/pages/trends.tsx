@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Link2, Loader2, RefreshCw, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { ExternalA } from "@/components/external-link";
 import { ScoreBadge } from "@/components/status-chip";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ export default function TrendsPage() {
   const [linksFor, setLinksFor] = useState<string | null>(null); // tin đang mở ô dán link
   const [linksText, setLinksText] = useState("");
   const [linksOnly, setLinksOnly] = useState(false);
+  const choice = useChannelChoice(api);
 
   const all = useQuery({ queryKey: ["trends"], queryFn: () => api.trends() });
   const state = useQuery({
@@ -44,7 +46,7 @@ export default function TrendsPage() {
   });
   const produce = useMutation({
     mutationFn: ({ id, links }: { id: string; links?: string[] }) =>
-      api.produce(id, links?.length ? { links, links_only: linksOnly } : undefined),
+      api.produce(id, { ...(links?.length ? { links, links_only: linksOnly } : {}), channel: choice.channel }),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["trends"] });
@@ -73,6 +75,7 @@ export default function TrendsPage() {
     <div className="mx-auto max-w-5xl space-y-5 p-6">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-semibold tracking-tight">{t.trends.title}</h1>
+        <ChannelChoice choice={choice} label={t.trends.forChannel} className="w-44" />
         <Select value={source} onValueChange={(v) => setSource(v ?? ALL)}>
           <SelectTrigger className="w-48">
             <SelectValue>{(v: string) => (v === ALL ? t.trends.allSources : sources.find(([s]) => s === v)?.[1] ?? v)}</SelectValue>

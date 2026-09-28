@@ -82,14 +82,14 @@ def update(changes: dict) -> dict[str, dict]:
     """Ghi các khoá mới. Giá trị đã che (bắt đầu bằng ••••) bị bỏ qua; None xoá ghi đè (quay về .env)."""
     unknown = [k for k in changes if k not in KEYS]
     if unknown:
-        raise KeyError(f"Khoá không hợp lệ: {', '.join(unknown)}")
+        raise KeyError(f"Unknown settings: {', '.join(unknown)}")
     for k in ("MAX_VIDEOS_PER_DAY", "REFRESH_EVERY_MIN"):
         if k in changes and changes[k] not in (None, ""):
             try:
                 if int(changes[k]) < 0:
                     raise ValueError
             except (TypeError, ValueError):
-                raise ValueError(f"{k} phải là số nguyên ≥ 0") from None
+                raise ValueError(f"{k} must be an integer ≥ 0") from None
     data = load()
     for k, v in changes.items():
         v = _normalize(v)

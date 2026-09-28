@@ -72,11 +72,11 @@ def clean_links(links: list[str]) -> list[str]:
         if not url:
             continue
         if not re.match(r"^https?://[^\s/]+\.[^\s]+$", url):
-            raise ValueError(f"Link không hợp lệ: {url[:120]}")
+            raise ValueError(f"Invalid link: {url[:120]}")
         if url not in out:
             out.append(url)
     if len(out) > MAX_LINKS:
-        raise ValueError(f"Tối đa {MAX_LINKS} link")
+        raise ValueError(f"At most {MAX_LINKS} links")
     return out
 
 
@@ -108,7 +108,7 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))
         if not matches:
-            raise FileNotFoundError(f"yt-dlp không tạo file cho {url}")
+            raise FileNotFoundError(f"yt-dlp did not create a file for {url}")
         path = matches[0]
     key = info.get("extractor_key") or ""
     return {"path": str(path), "url": info.get("webpage_url") or url, "id": info.get("id"),

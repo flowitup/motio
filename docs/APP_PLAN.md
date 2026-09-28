@@ -7,11 +7,12 @@ next to the app, or headless 24/7 on the Windows box, with the Mac app pointing 
 ```
 Motio app (Tauri + React)                    Motio engine (Python, FastAPI)
   macOS .dmg / Windows .msi   ── HTTP ──▶     trends · sources · Whisper · Claude · ElevenLabs
-  Tin hot · Dự án · Cài đặt   127.0.0.1       FFmpeg render · scheduler · (later) Drive + Slack
+  Trending · Projects · …     127.0.0.1       FFmpeg render · scheduler · (later) Drive + Slack
 ```
 
 Stack decisions: Tauri 2, React 19 + Vite + TypeScript, Tailwind + shadcn/ui, TanStack Query.
-Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan.
+Engine: FastAPI, SQLite, uv. Posting goes only through Postiz (see "Server + Postiz" and "GĐ1"), never the platforms'
+APIs directly.
 
 ---
 
@@ -65,12 +66,12 @@ Prerequisite: Rust toolchain (`brew install rustup && rustup-init -y`). **Ask th
 2. **Engine lifecycle** (`src-tauri/src/engine.rs`): on launch spawn the engine — dev: `uv run python -m motio
    engine --port 0 --token <random>` from the repo root; prod (M3): sidecar `motio-engine`. Read stdout until the
    ready line, keep port + token in state, expose `engine_info()` command, kill the child on exit.
-   Setting "Engine từ xa" (URL + token) skips spawning.
-3. **Screens** (Vietnamese UI, sidebar layout, follows OS light/dark):
-   - **Tin hot** — score badge, FR title, ZH title, source, angle; filter by source; "Cập nhật tin"; "Làm video".
-   - **Dự án** — list with thumbnails and status chips; detail with progress bar, step, live log (SSE),
-     9:16 video player, post text + "Copy", "Dựng lại", "Mở thư mục".
-   - **Cài đặt** — engine local/remote, LLM provider + model, API keys (masked), ElevenLabs voice picker
+   Setting "Remote engine" (URL + token) skips spawning.
+3. **Screens** (English UI since 28/09/2026, Vietnamese before; sidebar layout, follows OS light/dark):
+   - **Trending** — score badge, FR title, ZH title, source, angle; filter by source; "Refresh"; "Make video".
+   - **Projects** — list with thumbnails and status chips; detail with progress bar, step, live log (SSE),
+     9:16 video player, post text + "Copy", "Re-render", "Open folder".
+   - **Settings** — engine local/remote, LLM provider + model, API keys (masked), ElevenLabs voice picker
      (`/api/voices`), Whisper model, credit toggles, max videos/day, engine health panel.
 4. Native notification when a project finishes or fails (`tauri-plugin-notification`).
 
@@ -228,8 +229,39 @@ pipeline step.
   voice step when the script's lines changed), and
   "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.
 
+## GĐ1: channel profiles, approval gates, auto-send (added 28/09/2026)
+
+The owner asked to build the rest of the blueprint in phase order; for GĐ1 they picked channel profiles ("Kênh profiles", brainstorm
+28/09) over global switches or YAML files. Shipped in two PRs: (1) profiles, gates, auto-send and the badge fix;
+(2) the 16:9 copy and auto-make above a trend score.
+
+- **Channels page** (`motio/channels.py`, `/api/channels`): one profile per channel: name, red badge on the video
+  (empty = none), style notes appended to the script prompt, ElevenLabs voice, default length for hot-news videos,
+  hashtags that go first, a script gate, a video gate, Postiz channels and a send mode (draft / schedule at the
+  channel's next free posting time, `send_times` in the engine's local time / now). One profile can be the default.
+- Trending, New videos and New video take a `channel` (none = the default profile, 0 = no profile); the project keeps it
+  in `meta.channel`. Without a profile a project runs as before: no gates, no auto-send; the badge is "ACTU CHINE" for
+  news and none for topic explainers (before, every video got "ACTU CHINE").
+- **Gates**: after the script step, a project with the script gate stops as status `review` (`meta.review = script`)
+  and frees the worker; "Approve and continue" (`POST /api/projects/{id}/approve`) runs the voice step. After the render,
+  the video gate stops it again (`meta.review = video`); approving sends it to the profile's Postiz channels (or not,
+  `send: false`). Retrying or re-rendering clears a pending review.
+- **Auto-send**: with the video gate off, a finished video goes to Postiz at once. Each project is sent automatically
+  once; later re-renders finish without posting again (sending again stays manual). A Postiz error is logged
+  (`meta.send_error`) and the video still finishes.
+- Next (PR 2): the 16:9 copy for channels marked for it, and auto-make: after each scheduled refresh, trends at or above
+  a profile's score are made for that profile, within `MAX_VIDEOS_PER_DAY` and a per-profile daily cap, and still stop
+  at its gates. Slack notifications wait for a Slack app from the owner.
+
+## English UI (added 28/09/2026)
+
+The owner asked for the app in English: every string in `app/src/i18n.ts` (one dictionary, so other languages can
+be added), the Tauri messages, and the engine text the app shows as is (step labels, log lines, API errors, CLI
+output, the legacy dashboard). Video content and post text stay French. Older sections of this plan quote the
+Vietnamese labels of their time (Tin hot = Trending, Video mới = New videos, Dự án = Projects, Kênh = Channels,
+Xoá logo = Remove logo, Cài đặt = Settings).
+
 ## Out of scope for now
 
-Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
-Postiz (belongs with the M4 scheduler) · AI clips (fal H3 Max) and Qwen images
-(Modal) inside the pipeline.
+Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel
+profile · AI clips (fal H3 Max) and Qwen images (Modal) inside the pipeline.

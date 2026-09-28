@@ -5,11 +5,12 @@ POSTIZ_API_KEY: Postiz → Settings → Developers → Public API.
 Postiz lo OAuth, lịch đăng và gọi API từng nền tảng; Motio chỉ tải video lên và tạo bài.
 """
 import datetime as dt
+import time
 from pathlib import Path
 
 import httpx
 
-from . import config
+from . import config, db
 
 MODES = ("draft", "schedule", "now")
 _transport: httpx.BaseTransport | None = None  # test thay bằng httpx.MockTransport
@@ -25,7 +26,7 @@ def configured() -> bool:
 
 def _client(timeout: float = 60) -> httpx.Client:
     if not configured():
-        raise PostizError("Chưa cấu hình POSTIZ_URL và POSTIZ_API_KEY")
+        raise PostizError("POSTIZ_URL and POSTIZ_API_KEY are not configured")
     return httpx.Client(base_url=config.env("POSTIZ_URL").rstrip("/") + "/public/v1",
                         headers={"Authorization": config.env("POSTIZ_API_KEY")},  # key trần, không có "Bearer"
                         timeout=timeout, transport=_transport)
@@ -77,15 +78,15 @@ def _date(mode: str, when: str | None) -> str:
     if mode != "schedule":
         return dt.datetime.now(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     if not when:
-        raise ValueError("Lên lịch cần thời điểm đăng (date)")
+        raise ValueError("Scheduling needs a posting time (date)")
     try:
         d = dt.datetime.fromisoformat(when)
     except ValueError:
-        raise ValueError(f"Thời điểm không hợp lệ: {when}") from None
+        raise ValueError(f"Invalid time: {when}") from None
     if d.tzinfo is None:
-        raise ValueError("Thời điểm cần có múi giờ, vd. 2026-10-01T18:00:00+02:00")
+        raise ValueError("The time needs a time zone, e.g. 2026-10-01T18:00:00+02:00")
     if d <= dt.datetime.now(dt.UTC):
-        raise ValueError("Thời điểm đăng phải ở tương lai")
+        raise ValueError("The posting time must be in the future")
     return d.astimezone(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
@@ -93,14 +94,14 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
             mode: str = "draft", when: str | None = None) -> dict:
     """Tải video lên rồi tạo một bài cho mỗi kênh. mode: draft (nháp trong Postiz), schedule (cần when), now."""
     if mode not in MODES:
-        raise ValueError(f"mode phải là một trong {', '.join(MODES)}")
+        raise ValueError(f"mode must be one of {', '.join(MODES)}")
     if not channel_ids:
-        raise ValueError("Chọn ít nhất một kênh")
+        raise ValueError("Pick at least one channel")
     date = _date(mode, when)
     known = {c["id"]: c for c in channels()}
     missing = [i for i in channel_ids if i not in known]
     if missing:
-        raise ValueError(f"Kênh không có trong Postiz: {', '.join(missing)}")
+        raise ValueError(f"Channels not found in Postiz: {', '.join(missing)}")
     chosen = [known[i] for i in channel_ids]
     media = upload(video)
     body = {"type": mode, "date": date, "shortLink": False, "tags": [],
@@ -111,3 +112,24 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
         posts = _json(c.post("/posts", json=body))
     return {"mode": mode, "date": date, "media": media, "posts": posts,
             "channels": [{"id": c["id"], "name": c["name"], "provider": c["provider"]} for c in chosen]}
+
+
+def publish_project(pid: int, channel_ids: list[str], mode: str = "draft", when: str | None = None,
+                    profile: int | None = None) -> dict:
+    """Gửi video đã dựng của dự án (tiêu đề + mô tả bài đăng) và ghi vào lịch sử `meta.postiz`.
+    profile: id kênh Motio khi gửi tự động (để biết giờ đăng nào của kênh đã dùng). LookupError nếu chưa có video."""
+    p = db.get_project(pid)
+    meta = p["meta"]
+    video = config.DATA / meta["video"] if meta.get("video") else None
+    if not video or not video.is_file():
+        raise LookupError("Project has no finished video yet")
+    title = meta.get("title") or p["title"]
+    text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
+    res = publish(video, text, title, meta.get("hashtags") or [], channel_ids, mode, when)
+    entry = {"at": time.time(), **{k: res[k] for k in ("mode", "date", "channels", "posts")}}
+    if profile:
+        entry["profile"] = profile
+    names = ", ".join(c["name"] for c in res["channels"])
+    db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
+                      meta={"postiz": [*(db.get_project(pid)["meta"].get("postiz") or []), entry]})
+    return res

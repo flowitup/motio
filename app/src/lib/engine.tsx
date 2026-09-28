@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { t } from "@/i18n";
 
 export type EngineMode = "local" | "remote";
 export type EngineInfo = {
@@ -22,7 +23,7 @@ const browserInfo: EngineInfo = {
   mode: "remote",
   url: import.meta.env.VITE_ENGINE_URL ?? "",
   token: import.meta.env.VITE_ENGINE_TOKEN ?? "",
-  error: "Không chạy trong Tauri: đặt VITE_ENGINE_URL và VITE_ENGINE_TOKEN",
+  error: t.engine.notInTauri,
 };
 
 type Ctx = {
