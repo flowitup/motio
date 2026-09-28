@@ -82,17 +82,17 @@ def create(topic: str = "", links: list[str] | None = None, links_only: bool = F
     topic = " ".join(topic.split())[:300]
     links = search.clean_links(links or [])
     if not topic and not links:
-        raise ValueError("Nhập chủ đề hoặc ít nhất một link video")
+        raise ValueError("Enter a topic or at least one video link")
     if duration not in DURATIONS:
-        raise ValueError(f"Độ dài phải là {', '.join(map(str, DURATIONS))} giây")
+        raise ValueError(f"Duration must be one of {', '.join(map(str, DURATIONS))} seconds")
     if rights not in RIGHTS:
-        raise ValueError(f"Quyền nguồn không hợp lệ: {rights}")
+        raise ValueError(f"Invalid source rights: {rights}")
     title = topic
     if not title:
         more = f" (+{len(links) - 1})" if len(links) > 1 else ""
-        title = f"Video từ {urlparse(links[0]).hostname or 'link'}{more}"
+        title = f"Video from {urlparse(links[0]).hostname or 'link'}{more}"
     pid = db.create_project(None, title, mode=MODE)
-    db.update_project(pid, log=f"Chủ đề: {topic or '(chỉ link)'} · {len(links)} link · {duration} s",
+    db.update_project(pid, log=f"Topic: {topic or '(links only)'} · links: {len(links)} · {duration} s",
                       meta={"topic": topic, "links": links, "links_only": bool(links_only or not topic),
                             "duration": duration, "rights": rights})
     return pid

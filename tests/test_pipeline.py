@@ -20,7 +20,7 @@ def fake(monkeypatch, tmp_path):
         calls.append(name)
         if name in fail:
             fail.discard(name)
-            raise RuntimeError(f"{name} hỏng")
+            raise RuntimeError(f"{name} broke")
 
     def candidates(kw):
         boom("search")
@@ -128,7 +128,7 @@ def test_render_again_keeps_the_voice(fake):
     calls.clear()
     pipeline.resume(pid, "render")
     p = db.get_project(pid)
-    assert calls == ["render"] and p["status"] == "done" and "Giữ giọng đọc cũ" in p["log"]
+    assert calls == ["render"] and p["status"] == "done" and "Keeping the previous voice" in p["log"]
     plan["lines"][0]["text"] += " encore"  # đổi câu đọc: phải đọc lại
     (out / "script.json").write_text(json.dumps(plan))
     assert "render" not in pipeline.available_steps(pid) and (out / "script.json").exists()
@@ -166,7 +166,7 @@ def test_retry_after_transcribe_failure_keeps_finished_transcripts(fake):
     def flaky(path):
         if "_1." in str(path) and "once" not in fail:
             fail.add("once")
-            raise RuntimeError("whisper hỏng")
+            raise RuntimeError("whisper broke")
         return orig(path)
 
     asr.transcribe = flaky
@@ -306,7 +306,7 @@ def test_topic_searches_and_writes_an_explainer(fake, prompts):
 def test_topic_from_links_only(fake, prompts):
     calls, _ = fake
     pid = topic.create("", ["https://www.bilibili.com/video/BV1", "https://www.douyin.com/video/2"], duration=70)
-    assert db.get_project(pid)["title"] == "Video từ www.bilibili.com (+1)"
+    assert db.get_project(pid)["title"] == "Video from www.bilibili.com (+1)"
     pipeline.produce(pid)
     assert calls == ["download+cookies", "download+cookies", "transcribe", "transcribe", "script", "voice", "render"]
     assert f"Sujet : {topic.NO_TOPIC}" in prompts[-1][0] and "de 8 à 13 lignes" in prompts[-1][0]
@@ -360,7 +360,7 @@ def test_still_short_video_is_padded_to_62_seconds(fake, monkeypatch):
     pid = _new()
     pipeline.produce(pid)
     assert calls.rendered[-1]["total"] == pipeline.MIN_SECONDS
-    assert "kéo dài phần cuối" in db.get_project(pid)["log"]
+    assert "extending the ending" in db.get_project(pid)["log"]
 
 
 def test_too_short_script_is_lengthened_before_voice(fake, monkeypatch):
@@ -423,7 +423,7 @@ def test_video_still_over_90_seconds_is_trimmed(fake, monkeypatch):
     saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
     tags = [ln["text"].split()[0] for ln in saved["lines"]]
     assert tags == ["debut", *"abcdefghi", "fin"]  # giữ câu mở đầu và câu kết, bỏ câu gần cuối
-    assert "bỏ 1 câu gần cuối" in db.get_project(pid)["log"]
+    assert "dropping 1 sentence near the end" in db.get_project(pid)["log"]
 
 
 def test_trim_keeps_three_lines_and_estimates_without_timings():
@@ -468,7 +468,7 @@ def test_script_gate_waits_then_video_gate_then_sends(fake, fake_postiz):
     pid = _with(ch, _new())
     pipeline.produce(pid)
     p = db.get_project(pid)
-    assert (p["status"], p["meta"]["review"], p["step"]) == ("review", "script", "Chờ duyệt kịch bản")
+    assert (p["status"], p["meta"]["review"], p["step"]) == ("review", "script", "Awaiting script approval")
     assert "voice" not in calls and not fake_postiz
 
     pipeline.produce(pid, start="voice")  # "Duyệt và làm tiếp"
@@ -513,7 +513,7 @@ def test_postiz_failure_still_finishes_the_video(fake):
     pid = _with(_profile(postiz=["tt1"]), _new())  # Postiz chưa cấu hình
     pipeline.produce(pid)
     p = db.get_project(pid)
-    assert p["status"] == "done" and "POSTIZ_URL" in p["meta"]["send_error"] and "Chưa gửi được" in p["log"]
+    assert p["status"] == "done" and "POSTIZ_URL" in p["meta"]["send_error"] and "Could not send" in p["log"]
 
 
 def test_retry_clears_a_pending_review(fake):

@@ -19,35 +19,35 @@
 <div class="layout">
   <section class="card">
     <div class="top">
-      <h1 style="font-size:22px;margin:0">Tin hot Trung Quốc</h1>
+      <h1 style="font-size:22px;margin:0">Trending in China</h1>
       <form method="post" action="/trends/refresh" style="margin-left:auto">
         <button class="btn" id="refresh" {% if state.refreshing %}disabled{% endif %}>
-          {% if state.refreshing %}Đang cập nhật…{% else %}Cập nhật tin hot{% endif %}</button>
+          {% if state.refreshing %}Refreshing…{% else %}Refresh{% endif %}</button>
       </form>
     </div>
-    <p class="small muted" id="rstate">Nguồn: NewsNow ({{ ", ".join(["Douyin","Weibo","Baidu","Bilibili","Toutiao","The Paper"]) }}).
-      Lần cập nhật cuối: {{ state.last_refresh | age }}.
-      {% if state.last_result and state.last_result.error %}<b style="color:var(--no)">Lỗi: {{ state.last_result.error }}</b>{% endif %}</p>
+    <p class="small muted" id="rstate">Sources: NewsNow ({{ ", ".join(["Douyin","Weibo","Baidu","Bilibili","Toutiao","The Paper"]) }}).
+      Last refresh: {{ state.last_refresh | age }}.
+      {% if state.last_result and state.last_result.error %}<b style="color:var(--no)">Error: {{ state.last_result.error }}</b>{% endif %}</p>
     {% if not trends %}
-      <p>Chưa có tin nào. Bấm <b>Cập nhật tin hot</b>: app lấy bảng tin, Claude dịch sang tiếng Pháp và chấm điểm (khoảng 1 phút).</p>
+      <p>No trending topics yet. Click <b>Refresh</b>: the app fetches the hot lists, Claude translates them into French and scores them (about 1 minute).</p>
     {% endif %}
     {% for t in trends %}
     <div class="trend">
-      <div class="score {% if t.score >= 70 %}hi{% endif %}" title="Điểm cho khán giả Pháp">{{ t.score }}</div>
+      <div class="score {% if t.score >= 70 %}hi{% endif %}" title="Score for a French audience">{{ t.score }}</div>
       <div>
         <h3>{{ t.title_fr }}</h3>
         <div class="zh">{{ source_name(t.source) }} #{{ t.rank }} · {{ t.title_zh }}
-          {% if t.url %} · <a href="{{ t.url }}" target="_blank" rel="noopener">mở</a>{% endif %}</div>
+          {% if t.url %} · <a href="{{ t.url }}" target="_blank" rel="noopener">open</a>{% endif %}</div>
         {% if t.angle %}<div class="angle">{{ t.angle }}</div>{% endif %}
       </div>
       <form method="post" action="/trends/{{ t.id }}/produce">
-        <button class="btn {% if t.status != 'used' %}primary{% endif %}">{% if t.status == 'used' %}Làm lại{% else %}Làm video{% endif %}</button>
+        <button class="btn {% if t.status != 'used' %}primary{% endif %}">{% if t.status == 'used' %}Make again{% else %}Make video{% endif %}</button>
       </form>
     </div>
     {% endfor %}
   </section>
   <aside class="card">
-    <h2>Dự án gần đây</h2>
+    <h2>Recent projects</h2>
     {% for p in projects %}
     <a class="proj" href="/projects/{{ p.id }}">
       {% if p.meta.thumb %}<img src="/media/{{ p.meta.thumb }}" alt="">{% else %}<img alt="">{% endif %}
@@ -57,7 +57,7 @@
       </div>
     </a>
     {% else %}
-    <p class="small muted">Chưa có dự án. Chọn một tin rồi bấm <b>Làm video</b>.</p>
+    <p class="small muted">No projects yet. Pick a topic and click <b>Make video</b>.</p>
     {% endfor %}
   </aside>
 </div>

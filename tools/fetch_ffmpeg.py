@@ -34,7 +34,7 @@ def _mac(out: Path) -> None:
         want = _get(url + ".sha256").decode().split()[0].lower()
         got = hashlib.sha256(data).hexdigest()
         if got != want:
-            raise SystemExit(f"sha256 sai cho {name}: {got} != {want}")
+            raise SystemExit(f"sha256 mismatch for {name}: {got} != {want}")
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             member = next(m for m in z.namelist() if Path(m).name == name)
             dest = out / name
@@ -56,7 +56,7 @@ def _deno(out: Path, system: str) -> None:
     want = re.search(r"\b[0-9a-fA-F]{64}\b", _get(url + ".sha256sum").decode())[0].lower()
     got = hashlib.sha256(data).hexdigest()
     if got != want:
-        raise SystemExit(f"sha256 sai cho deno: {got} != {want}")
+        raise SystemExit(f"sha256 mismatch for deno: {got} != {want}")
     name = "deno.exe" if system == "Windows" else "deno"
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         dest = out / name
@@ -73,7 +73,7 @@ def main(out_dir: str) -> None:
     elif system == "Windows" and machine in ("amd64", "x86_64"):
         _win(out)
     else:
-        raise SystemExit(f"Chưa hỗ trợ đóng gói ffmpeg cho {system} {machine}")
+        raise SystemExit(f"Bundling ffmpeg is not supported on {system} {machine}")
     _deno(out, system)
     print(f"ffmpeg, ffprobe, deno -> {out}")
 

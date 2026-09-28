@@ -24,7 +24,7 @@ def _project(status="done", trend="douyin:e", plan=None) -> int:
     (out / "final.mp4").write_bytes(b"v")
     old = time.time() - 60  # video dựng một phút trước
     os.utime(out / "final.mp4", (old, old))
-    db.update_project(pid, status=status, meta={"sources": SOURCES, "title": "Titre", "description": "cũ"})
+    db.update_project(pid, status=status, meta={"sources": SOURCES, "title": "Titre", "description": "old"})
     return pid
 
 
@@ -75,7 +75,7 @@ def test_edit_lines_marks_video_stale_and_updates_post():
     post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")
     assert post.startswith("Titre\n\nDesc.") and "générée par IA" in post and "#Nouveau" in post
     assert "熊猫频道" in (config.PROJECTS / str(pid) / "sources.txt").read_text(encoding="utf-8")
-    assert "Sửa kịch bản: lời bình (5 dòng" in p["log"] and "hashtag" in p["log"] and "cần dựng lại" in p["log"]
+    assert "Script edited: narration (5 lines" in p["log"] and "hashtags" in p["log"] and "re-render" in p["log"]
 
 
 def test_post_only_edit_needs_no_render_and_no_change_writes_nothing():
@@ -87,14 +87,14 @@ def test_post_only_edit_needs_no_render_and_no_change_writes_nothing():
     v = edit.save_script(pid, {**raw, "description": "Autre description."})
     assert v["stale"] is False and v["edited_at"] is None
     p = db.get_project(pid)
-    assert p["meta"]["description"].startswith("Autre description.") and "cần dựng lại" not in p["log"]
+    assert p["meta"]["description"].startswith("Autre description.") and "re-render" not in p["log"]
 
 
 def test_failed_project_keeps_post_untouched():
     pid = _project(status="failed")
     edit.save_script(pid, {**edit.script_view(pid)["script"], "title_fr": "Autre titre", "description": "Neuve"})
     p = db.get_project(pid)
-    assert p["meta"]["title"] == "Autre titre" and p["meta"]["description"] == "cũ"
+    assert p["meta"]["title"] == "Autre titre" and p["meta"]["description"] == "old"
     assert not (config.PROJECTS / str(pid) / "post.txt").exists()
 
 

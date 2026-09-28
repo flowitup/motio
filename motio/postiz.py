@@ -26,7 +26,7 @@ def configured() -> bool:
 
 def _client(timeout: float = 60) -> httpx.Client:
     if not configured():
-        raise PostizError("Chưa cấu hình POSTIZ_URL và POSTIZ_API_KEY")
+        raise PostizError("POSTIZ_URL and POSTIZ_API_KEY are not configured")
     return httpx.Client(base_url=config.env("POSTIZ_URL").rstrip("/") + "/public/v1",
                         headers={"Authorization": config.env("POSTIZ_API_KEY")},  # key trần, không có "Bearer"
                         timeout=timeout, transport=_transport)
@@ -78,15 +78,15 @@ def _date(mode: str, when: str | None) -> str:
     if mode != "schedule":
         return dt.datetime.now(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     if not when:
-        raise ValueError("Lên lịch cần thời điểm đăng (date)")
+        raise ValueError("Scheduling needs a posting time (date)")
     try:
         d = dt.datetime.fromisoformat(when)
     except ValueError:
-        raise ValueError(f"Thời điểm không hợp lệ: {when}") from None
+        raise ValueError(f"Invalid time: {when}") from None
     if d.tzinfo is None:
-        raise ValueError("Thời điểm cần có múi giờ, vd. 2026-10-01T18:00:00+02:00")
+        raise ValueError("The time needs a time zone, e.g. 2026-10-01T18:00:00+02:00")
     if d <= dt.datetime.now(dt.UTC):
-        raise ValueError("Thời điểm đăng phải ở tương lai")
+        raise ValueError("The posting time must be in the future")
     return d.astimezone(dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
@@ -94,14 +94,14 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
             mode: str = "draft", when: str | None = None) -> dict:
     """Tải video lên rồi tạo một bài cho mỗi kênh. mode: draft (nháp trong Postiz), schedule (cần when), now."""
     if mode not in MODES:
-        raise ValueError(f"mode phải là một trong {', '.join(MODES)}")
+        raise ValueError(f"mode must be one of {', '.join(MODES)}")
     if not channel_ids:
-        raise ValueError("Chọn ít nhất một kênh")
+        raise ValueError("Pick at least one channel")
     date = _date(mode, when)
     known = {c["id"]: c for c in channels()}
     missing = [i for i in channel_ids if i not in known]
     if missing:
-        raise ValueError(f"Kênh không có trong Postiz: {', '.join(missing)}")
+        raise ValueError(f"Channels not found in Postiz: {', '.join(missing)}")
     chosen = [known[i] for i in channel_ids]
     media = upload(video)
     body = {"type": mode, "date": date, "shortLink": False, "tags": [],
@@ -122,7 +122,7 @@ def publish_project(pid: int, channel_ids: list[str], mode: str = "draft", when:
     meta = p["meta"]
     video = config.DATA / meta["video"] if meta.get("video") else None
     if not video or not video.is_file():
-        raise LookupError("Dự án chưa có video hoàn chỉnh")
+        raise LookupError("Project has no finished video yet")
     title = meta.get("title") or p["title"]
     text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
     res = publish(video, text, title, meta.get("hashtags") or [], channel_ids, mode, when)

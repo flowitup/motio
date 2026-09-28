@@ -1,8 +1,8 @@
-"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
-retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<link kênh | từ khoá>" [bilibili] | check | clips |
+"""CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<topic>" [link ...] | rerender <id> |
+retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips |
 serve | engine ...]
 
-produce / topic dùng kênh mặc định (nếu có): kênh có cổng duyệt thì dự án dừng chờ `approve`."""
+produce / topic use the default channel (if any): with an approval gate, the project waits for `approve`."""
 import argparse
 import json
 import os
@@ -34,10 +34,10 @@ def main(argv: list[str]) -> None:
         from . import channels, pipeline
         t = db.get_trend(argv[1])
         if not t:
-            sys.exit(f"Không có tin {argv[1]}")
+            sys.exit(f"Trend not found: {argv[1]}")
         pid = db.create_project(t["id"], t["title_fr"] or t["title_zh"])
         channels.attach(pid, channels.pick(None), news=True)
-        print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
+        print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
     elif cmd == "topic":  # topic "<chủ đề>" [link …]; chủ đề "" = chỉ dùng link
@@ -47,7 +47,7 @@ def main(argv: list[str]) -> None:
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))
-        print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
+        print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
     elif cmd == "watch":  # watch "<link kênh / playlist | từ khoá>" [youtube | bilibili]: thêm nguồn rồi kiểm tra
@@ -76,12 +76,12 @@ def main(argv: list[str]) -> None:
         pid = int(argv[1])
         review = (db.get_project(pid) or {"meta": {}})["meta"].get("review")
         if review == "script":
-            db.update_project(pid, log="Đã duyệt kịch bản", meta={"review": None})
+            db.update_project(pid, log="Script approved", meta={"review": None})
             pipeline.produce(pid, start="voice")
         elif review == "video":
             pipeline.approve_video(pid, send=argv[2:3] != ["nosend"])
         else:
-            sys.exit(f"Dự án #{pid} không chờ duyệt")
+            sys.exit(f"Project #{pid} is not awaiting approval")
         p = db.get_project(pid)
         print(f"#{pid}: {p['status']} · {p['step']}")
     elif cmd == "delete":  # xoá dự án + thư mục của nó; giữ cache video nguồn
@@ -90,7 +90,7 @@ def main(argv: list[str]) -> None:
             edit.delete(int(argv[1]))
         except (LookupError, edit.Busy, OSError) as e:
             sys.exit(str(e))
-        print(f"Đã xoá dự án #{argv[1]}")
+        print(f"Deleted project #{argv[1]}")
     elif cmd == "serve":
         import uvicorn
         host = config.env("MOTIO_HOST", "127.0.0.1")
@@ -116,15 +116,15 @@ def engine(argv: list[str]) -> None:
     """Chạy engine API. In đúng một dòng JSON {"event":"ready",...} ra stdout khi đã nhận kết nối."""
     ap = argparse.ArgumentParser(prog="motio engine")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=0, help="0 = tự chọn cổng trống")
+    ap.add_argument("--port", type=int, default=0, help="0 = pick a free port")
     ap.add_argument("--token", default=os.getenv("MOTIO_TOKEN", ""),
-                    help="bắt buộc khi --host không phải loopback; mặc định lấy từ MOTIO_TOKEN (server, Docker)")
-    ap.add_argument("--headless", action="store_true", help="chạy nền 24/7 (máy Windows)")
+                    help="required when --host is not loopback; defaults to MOTIO_TOKEN (server, Docker)")
+    ap.add_argument("--headless", action="store_true", help="run in the background 24/7 (Windows machine)")
     ap.add_argument("--exit-with-stdin", action="store_true",
-                    help="thoát khi stdin đóng (app cha chết) — dùng khi app desktop khởi chạy engine")
+                    help="exit when stdin closes (the parent app died); used when the desktop app starts the engine")
     a = ap.parse_args(argv)
     if a.host not in LOOPBACK and not a.token:
-        sys.exit("--host không phải loopback thì bắt buộc có --token")
+        sys.exit("--token is required when --host is not loopback")
 
     import secrets
 

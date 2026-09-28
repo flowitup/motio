@@ -84,7 +84,7 @@ def which(name: str) -> str:
         for n in names:
             if (d / n).is_file():
                 return str(d / n)
-    raise FileNotFoundError(f"Không tìm thấy {name}")
+    raise FileNotFoundError(f"{name} not found")
 
 
 def find(name: str) -> str | None:

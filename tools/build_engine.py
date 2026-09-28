@@ -36,7 +36,7 @@ def main() -> None:
     win = platform.system() == "Windows"
     subprocess.run([str(OUT / NAME / "bin" / ("deno.exe" if win else "deno")), "--version"], check=True)
     if not any("yt_dlp_ejs" in f.parts for f in (OUT / NAME).rglob("*.js")):
-        raise SystemExit("Thiếu script yt-dlp-ejs trong bản đóng gói: YouTube sẽ không tải được")
+        raise SystemExit("yt-dlp-ejs scripts are missing from the bundle: YouTube downloads will fail")
     exe = OUT / NAME / (NAME + (".exe" if win else ""))
     print(f"Engine: {exe}")
 

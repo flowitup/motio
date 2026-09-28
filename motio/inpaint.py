@@ -79,15 +79,17 @@ def ensure_model(progress: Callable[[float], None] | None = None) -> Path:
                             progress(min(done / total, 1.0))
         except (httpx.HTTPError, OSError) as e:
             part.unlink(missing_ok=True)
-            raise RuntimeError(f"Không tải được mô hình AI xoá logo ({e}). Kiểm tra mạng rồi thử lại.") from e
+            raise RuntimeError(f"Could not download the logo removal AI model ({e}). Check your connection and try "
+                               "again.") from e
         data = bytearray(part.read_bytes())
         part.unlink(missing_ok=True)
         if h.hexdigest() != MODEL_SHA256 or any(data[o:o + 5] != _DIM_512 for o, _ in _FREE_DIMS):
-            raise RuntimeError("Mô hình AI tải về không đúng bản Motio cần (sai sha256). Báo lại để cập nhật Motio.")
+            raise RuntimeError("The downloaded AI model is not the version Motio needs (sha256 mismatch). "
+                               "Please report it so Motio can be updated.")
         for off, name in _FREE_DIMS:
             data[off:off + 5] = b"\x0a\x03\x12\x01" + name
         if hashlib.sha256(data).hexdigest() != PATCHED_SHA256:
-            raise RuntimeError("Không chuẩn bị được mô hình AI xoá logo")
+            raise RuntimeError("Could not prepare the logo removal AI model")
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_bytes(data)
         os.replace(tmp, path)
@@ -110,7 +112,8 @@ def session():
             _session = ort.InferenceSession(str(path), opts, providers=["CPUExecutionProvider"])
         except Exception as e:  # file hỏng: xoá để lần sau tải lại
             path.unlink(missing_ok=True)
-            raise RuntimeError(f"Mô hình AI xoá logo bị hỏng, đã xoá để tải lại: {e}") from e
+            raise RuntimeError(f"The logo removal AI model was corrupt and has been deleted to download again: "
+                               f"{e}") from e
     return _session
 
 
@@ -214,7 +217,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
     frames = max(1, round((info.get("duration") or 0) * rate))
     spans = frame_spans(ranges, rate, frames)
     if not spans:
-        raise ValueError("Khoảng cần xoá logo nằm ngoài video")
+        raise ValueError("The part to remove the logo from is outside the video")
     total = sum(b - a for a, b in spans)
     if spans[-1][1] == frames:  # số khung thật có thể nhiều hơn ước tính theo độ dài: khoảng chạm cuối thì vá tới hết
         spans[-1] = (spans[-1][0], math.inf)
@@ -244,7 +247,7 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
         try:
             while len(buf := _read(dec.stdout, size)) == size:
                 if cancelled():
-                    raise Cancelled("Đã dừng xoá logo")
+                    raise Cancelled("Logo removal stopped")
                 while k < len(spans) and i >= spans[k][1]:
                     k += 1
                 fill = k < len(spans) and spans[k][0] <= i
@@ -280,14 +283,14 @@ def video(src: Path, dst: Path, boxes: list[dict], info: dict,
         finally:
             dec.stdout.close()
         errors = []
-        for rc, f, name in ((0 if broken else dec_rc, dec_err, "giải mã"), (enc_rc, enc_err, "mã hoá")):
+        for rc, f, name in ((0 if broken else dec_rc, dec_err, "decoding"), (enc_rc, enc_err, "encoding")):
             if rc != 0:
                 f.seek(0)
-                errors.append(f"FFmpeg lỗi khi {name}: {f.read().decode(errors='replace')[-600:]}")
+                errors.append(f"FFmpeg failed while {name}: {f.read().decode(errors='replace')[-600:]}")
         if broken and not errors:
-            errors.append("FFmpeg dừng giữa chừng khi mã hoá video")
+            errors.append("FFmpeg stopped midway while encoding the video")
     if errors or i == 0:
         part.unlink(missing_ok=True)
-        raise RuntimeError("\n".join(errors) or "Không đọc được khung hình nào từ video")
+        raise RuntimeError("\n".join(errors) or "Could not read any frame from the video")
     os.replace(part, dst)
     return dst

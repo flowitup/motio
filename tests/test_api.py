@@ -22,13 +22,13 @@ def client(monkeypatch):
                      "title_fr": "Autre", "score": 40, "rank": 2})
 
     def fake_produce(pid, **kw):
-        db.update_project(pid, status="running", step="Dựng", pct=50,
-                          log="đang dựng" + (f" từ {kw['start']}" if kw else ""))
+        db.update_project(pid, status="running", step="Render", pct=50,
+                          log="rendering" + (f" from {kw['start']}" if kw else ""))
         out = config.PROJECTS / str(pid)
         out.mkdir(parents=True, exist_ok=True)
         (out / "script.json").write_text("{}")
         (out / "final.mp4").write_bytes(b"0123456789" * 10)
-        db.update_project(pid, status="done", step="Xong", pct=100, log="xong",
+        db.update_project(pid, status="done", step="Done", pct=100, log="finished",
                           meta={"video": f"projects/{pid}/final.mp4"})
 
     monkeypatch.setattr(pipeline, "produce", fake_produce)
@@ -69,13 +69,13 @@ def test_produce_flow_events_and_media(client):
     assert r.status_code == 202
     pid = r.json()["project_id"]
     p = _wait_done(client, pid)
-    assert p["status"] == "done" and p["trend"]["id"] == "douyin:1" and "xong" in p["log"]
+    assert p["status"] == "done" and p["trend"]["id"] == "douyin:1" and "finished" in p["log"]
     assert [x["id"] for x in client.get("/api/projects", headers=H).json()] == [pid]
 
     with client.stream("GET", f"/api/projects/{pid}/events?token={TOKEN}") as s:
         text = "".join(s.iter_text())
     data = json.loads(text.split("data: ", 1)[1].split("\n", 1)[0])
-    assert data["status"] == "done" and data["pct"] == 100 and data["log_tail"][-1].endswith("xong")
+    assert data["status"] == "done" and data["pct"] == 100 and data["log_tail"][-1].endswith("finished")
     assert "event: end" in text
 
     video = p["meta"]["video"]
@@ -105,7 +105,7 @@ def test_rerender(client):
 
 def test_retry(client):
     pid = db.create_project("douyin:1", "x")
-    db.update_project(pid, status="failed", log="LỖI")
+    db.update_project(pid, status="failed", log="ERROR")
     p = client.get(f"/api/projects/{pid}", headers=H).json()
     assert p["retry"] == {"auto": "search", "steps": ["search"]}
     assert client.post(f"/api/projects/{pid}/retry", headers=H, json={"start": "voice"}).status_code == 409
@@ -167,7 +167,7 @@ def test_edit_script(client):
     body = {**v["script"], "lines": [*v["script"]["lines"][:3], {"text": "nouvelle ligne"}]}
     r = client.put(f"/api/projects/{pid}/script", headers=H, json=body)
     assert r.status_code == 200 and r.json()["script"]["lines"][3] == {"text": "nouvelle ligne", "clips": []}
-    assert "Sửa kịch bản" in client.get(f"/api/projects/{pid}", headers=H).json()["log"]
+    assert "Script edited" in client.get(f"/api/projects/{pid}", headers=H).json()["log"]
     short = client.put(f"/api/projects/{pid}/script", headers=H, json={**body, "lines": body["lines"][:2]})
     assert short.status_code == 400 and "3" in short.json()["detail"]
     db.update_project(pid, status="running")
@@ -220,7 +220,7 @@ def test_stale_projects_marked_failed_on_startup():
     with TestClient(api.create_app(TOKEN)):
         pass
     p = db.get_project(pid)
-    assert p["status"] == "failed" and "engine đã dừng" in p["log"]
+    assert p["status"] == "failed" and "engine stopped" in p["log"]
 
 
 def test_cors_preflight(client):
@@ -283,7 +283,7 @@ def test_scheduled_refresh(monkeypatch):
 def test_channels_crud(client):
     assert client.get("/api/channels", headers=H).json() == []
     bad = client.post("/api/channels", headers=H, json={"name": "x", "send_mode": "schedule", "postiz": ["tt1"]})
-    assert bad.status_code == 400 and "giờ đăng" in bad.json()["detail"]
+    assert bad.status_code == 400 and "posting time" in bad.json()["detail"]
     a = client.post("/api/channels", headers=H, json={"name": "Chine Express", "badge": "ACTU CHINE", "default": True})
     assert a.status_code == 201 and a.json()["default"] is True and a.json()["gate_script"] is True
     b = client.post("/api/channels", headers=H, json={"name": "Tech", "hashtags": ["tech"], "default": True}).json()
@@ -316,13 +316,13 @@ def test_approve_script_then_video(client, fake_postiz):
     _wait_done(client, pid)
     assert client.post(f"/api/projects/{pid}/approve", headers=H).status_code == 409  # không chờ duyệt
 
-    db.update_project(pid, status="review", step="Chờ duyệt kịch bản", meta={"review": "script"})
+    db.update_project(pid, status="review", step="Awaiting script approval", meta={"review": "script"})
     r = client.post(f"/api/projects/{pid}/approve", headers=H)
     assert r.status_code == 202 and r.json()["review"] == "script"
     p = _wait_done(client, pid)
-    assert p["meta"]["review"] is None and "Đã duyệt kịch bản" in p["log"] and "từ voice" in p["log"]
+    assert p["meta"]["review"] is None and "Script approved" in p["log"] and "from voice" in p["log"]
 
-    db.update_project(pid, status="review", step="Chờ duyệt video", meta={"review": "video"})
+    db.update_project(pid, status="review", step="Awaiting video approval", meta={"review": "video"})
     assert client.post(f"/api/projects/{pid}/approve", headers=H, json={"send": True}).status_code == 202
     p = _wait_done(client, pid)
     assert p["status"] == "done" and [e["profile"] for e in p["meta"]["postiz"]] == [ch["id"]]

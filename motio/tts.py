@@ -39,8 +39,8 @@ def synthesize(lines: list[str], out_dir: Path, voice: str | None = None) -> dic
         return _elevenlabs(lines, out_dir, voice)
     if p == "macos_say":
         return _macos_say(lines, out_dir)
-    raise TTSUnavailable("Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY "
-                         "(giọng macOS chỉ có trên Mac).")
+    raise TTSUnavailable("No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY "
+                         "(the macOS voice only works on a Mac).")
 
 
 # ---------- ElevenLabs ----------
@@ -69,7 +69,7 @@ def pick_voice(voice: str | None = None) -> tuple[str, str]:
         for v in voices:
             if pref(v):
                 return v["voice_id"], v.get("name", v["voice_id"])
-    raise RuntimeError("Tài khoản ElevenLabs không có giọng nào")
+    raise RuntimeError("The ElevenLabs account has no voices")
 
 
 def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:

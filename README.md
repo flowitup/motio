@@ -15,7 +15,7 @@ brew install deno                   # yt-dlp needs a JavaScript runtime to downl
 uv run python -m motio serve        # open http://127.0.0.1:8765
 ```
 
-1. Click **Cập nhật tin hot** (refresh hot topics): fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
+1. Click **Refresh**: fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
    lists; Claude translates the titles into French and scores them for a French audience.
 2. Pick a topic and click **Make video**. The project page shows progress, the log, the video and the post
    text (title, description, sources, hashtags).

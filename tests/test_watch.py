@@ -72,7 +72,7 @@ def test_classify_rejects(text):
 
 def test_add_rejects_duplicates_and_bad_rights():
     watch.add("https://www.youtube.com/@Vox")
-    with pytest.raises(ValueError, match="đã có"):
+    with pytest.raises(ValueError, match="already"):
         watch.add("https://www.youtube.com/@Vox/shorts")
     with pytest.raises(ValueError):
         watch.add("panda", rights="mine")
@@ -108,7 +108,7 @@ def test_bilibili_space_reads_titles_and_explains_block(monkeypatch):
     FakeYDL.pages = {url: Exception("ERROR: [BilibiliSpaceVideo] 42: Request is blocked by server (412)")}
     r = watch.check(db.get_watch(wid))
     w = db.get_watch(wid)
-    assert r["new"] == [] and "Cookie trình duyệt" in w["last_error"] and w["last_checked"] is None
+    assert r["new"] == [] and "Browser cookies" in w["last_error"] and w["last_checked"] is None
     assert FakeYDL.opts[0]["cookiesfrombrowser"] == ("firefox",)
 
     video = "https://www.bilibili.com/video/BV1a"
@@ -131,7 +131,7 @@ def test_bilibili_space_reads_titles_and_explains_block(monkeypatch):
     w = db.get_watch(wid)
     assert w["last_error"] is None and w["name"] == "UP主"  # không gian không có tên: lấy tên kênh của video
 
-    FakeYDL.details[blocked] = {"title": "Cuối cùng", "uploader": "UP主"}
+    FakeYDL.details[blocked] = {"title": "Finally", "uploader": "UP主"}
     assert watch.check(db.get_watch(wid))["new"] == ["bilibili:BV1wait"]
 
 
@@ -141,7 +141,7 @@ def test_bilibili_search_keeps_videos_and_dedupes_av_ids():
     FakeYDL.pages = {"bilisearch15:熊猫": Exception("ERROR: [BiliBiliSearch] 熊猫: Unable to download JSON metadata: "
                                                    "HTTP Error 412: Precondition Failed")}
     watch.check(db.get_watch(wid))
-    assert "Cookie trình duyệt" in db.get_watch(wid)["last_error"]  # lỗi không nhắc "bilibili" vẫn được giải thích
+    assert "Browser cookies" in db.get_watch(wid)["last_error"]  # lỗi không nhắc "bilibili" vẫn được giải thích
 
     FakeYDL.pages = {"bilisearch15:熊猫": {"entries": [
         {"id": "170001", "ie_key": "BiliBili", "url": "http://www.bilibili.com/video/av170001"},
@@ -184,7 +184,7 @@ def test_check_all_scores_new_videos(monkeypatch):
     assert watch.check_all()["checked"] == 0
 
     def boom(*a, **kw):
-        raise llm.LLMError("LLM_PROVIDER không hỗ trợ: none")
+        raise llm.LLMError("Unsupported LLM_PROVIDER: none")
 
     monkeypatch.setattr(llm, "ask_json", boom)
     db.update_watch(wid, enabled=True)

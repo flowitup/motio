@@ -28,25 +28,25 @@ def _dir(pid: int) -> Path:
 def _project(pid: int) -> dict:
     p = db.get_project(pid)
     if not p:
-        raise LookupError(f"Không có dự án #{pid}")
+        raise LookupError(f"Project #{pid} not found")
     return p
 
 
 def _idle(p: dict) -> None:
     if p["status"] in BUSY:
-        raise Busy("Dự án đang chạy, chờ xong rồi thử lại")
+        raise Busy("Project is running: wait until it finishes, then try again")
 
 
 def _read(pid: int) -> dict:
     f = _dir(pid) / "script.json"
     if not f.exists():
-        raise FileNotFoundError("Dự án chưa có kịch bản")
+        raise FileNotFoundError("Project has no script yet")
     try:
         plan = json.loads(f.read_text())  # cùng mã hoá với pipeline
     except json.JSONDecodeError as e:
-        raise ValueError(f"script.json hỏng: {e}") from e
+        raise ValueError(f"script.json is corrupt: {e}") from e
     if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
-        raise ValueError("script.json hỏng: thiếu danh sách dòng")
+        raise ValueError("script.json is corrupt: the lines list is missing")
     return plan
 
 
@@ -95,9 +95,9 @@ def clean(raw: dict) -> dict:
     """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
     title = _one_line(raw.get("title_fr"))
     if not title:
-        raise ValueError("Tiêu đề không được để trống")
+        raise ValueError("Title can't be empty")
     if len(title) > MAX_TITLE:
-        raise ValueError(f"Tiêu đề dài tối đa {MAX_TITLE} ký tự")
+        raise ValueError(f"Title can be at most {MAX_TITLE} characters")
     lines = []
     for ln in raw.get("lines") or []:
         ln = ln if isinstance(ln, dict) else {"text": ln}
@@ -105,15 +105,15 @@ def clean(raw: dict) -> dict:
         if not text:  # dòng để trống thì bỏ
             continue
         if len(text) > MAX_LINE_CHARS:
-            raise ValueError(f"Dòng {len(lines) + 1} dài quá {MAX_LINE_CHARS} ký tự")
+            raise ValueError(f"Line {len(lines) + 1} is longer than {MAX_LINE_CHARS} characters")
         lines.append({"text": text, "clips": _clips(ln.get("clips"))})
     if len(lines) < MIN_LINES:
-        raise ValueError(f"Kịch bản cần ít nhất {MIN_LINES} dòng lời bình")
+        raise ValueError(f"The script needs at least {MIN_LINES} narration lines")
     if len(lines) > MAX_LINES:
-        raise ValueError(f"Kịch bản tối đa {MAX_LINES} dòng")
+        raise ValueError(f"The script can have at most {MAX_LINES} lines")
     desc = str(raw.get("description") or "").strip()
     if len(desc) > MAX_DESC:
-        raise ValueError(f"Mô tả dài tối đa {MAX_DESC} ký tự")
+        raise ValueError(f"Description can be at most {MAX_DESC} characters")
     return {"title_fr": title, "lines": lines, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
 
 
@@ -171,16 +171,16 @@ def save_script(pid: int, raw: dict) -> dict:
     old_lines = [ln if isinstance(ln, dict) else {"text": ln} for ln in old["lines"]]
     parts = []
     if new["title_fr"] != _one_line(old.get("title_fr")):
-        parts.append("tiêu đề")
+        parts.append("title")
     if [ln["text"] for ln in new["lines"]] != [_one_line(ln.get("text")) for ln in old_lines]:
-        parts.append(f"lời bình ({len(new['lines'])} dòng, {_words(new['lines'])} từ)")
+        parts.append(f"narration ({len(new['lines'])} lines, {_words(new['lines'])} words)")
     elif [ln["clips"] for ln in new["lines"]] != [_clips(ln.get("clips")) for ln in old_lines]:
-        parts.append("đoạn hình")
+        parts.append("clips")
     on_video = bool(parts)
     if new["description"] != str(old.get("description") or "").strip():
-        parts.append("mô tả")
+        parts.append("description")
     if new["hashtags"] != _tags(old.get("hashtags")):
-        parts.append("hashtag")
+        parts.append("hashtags")
     if not parts:
         return script_view(pid)  # không đổi gì
 
@@ -194,8 +194,8 @@ def save_script(pid: int, raw: dict) -> dict:
     if p["status"] == "done":
         meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid))
         meta["hashtags"] = new["hashtags"]
-    note = " · cần dựng lại để video đổi theo" if on_video and p["status"] == "done" else ""
-    db.update_project(pid, log=f"Sửa kịch bản: {', '.join(parts)}{note}", meta=meta)
+    note = " · re-render to update the video" if on_video and p["status"] == "done" else ""
+    db.update_project(pid, log=f"Script edited: {', '.join(parts)}{note}", meta=meta)
     return script_view(pid)
 
 
@@ -211,6 +211,7 @@ def delete(pid: int) -> None:
         try:
             shutil.rmtree(folder)
         except OSError as e:
-            raise OSError(f"Không xoá được thư mục dự án ({e.strerror or e}). Đóng file đang mở rồi thử lại.") from e
+            raise OSError(f"Could not delete the project folder ({e.strerror or e}). Close any open files and try "
+                          "again.") from e
     if not db.delete_project(pid):
-        raise Busy("Dự án vừa được chạy lại, chờ xong rồi thử lại")
+        raise Busy("The project was just restarted: wait until it finishes, then try again")

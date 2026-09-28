@@ -26,10 +26,10 @@ VIDEO_IE = {"youtube": "Youtube", "bilibili": "BiliBili"}
 
 _YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
 _YT_CHANNEL = re.compile(r"^/(@[^/]+|channel/UC[\w-]+|c/[^/]+|user/[^/]+)")
-NOT_A_LIST = "Đây là link một video: dán link kênh hoặc playlist, hoặc dùng Dự án → Tạo video"
-UNSUPPORTED = ("Chỉ theo dõi được kênh, playlist YouTube, không gian Bilibili hoặc từ khoá tìm. "
-               "Douyin, Facebook: dán link từng video vào Dự án → Tạo video")
-BILI_BLOCKED = "Bilibili chặn khi chưa đăng nhập: chọn trình duyệt ở Cài đặt → Cookie trình duyệt"
+NOT_A_LIST = "This is a link to a single video: paste a channel or playlist link, or use Projects → New video"
+UNSUPPORTED = ("Only YouTube channels and playlists, Bilibili spaces or search keywords can be followed. "
+               "Douyin, Facebook: paste each video link in Projects → New video")
+BILI_BLOCKED = "Bilibili blocks requests without a login: pick a browser in Settings → Browser cookies"
 _BLOCK = re.compile(r"\b(412|352|401)\b")
 
 # Bilibili: số av → mã BV (thuật toán công khai của Bilibili), để cùng một video từ tìm kiếm (av) và không gian (BV)
@@ -43,10 +43,10 @@ def classify(text: str, site: str = "youtube") -> dict:
     """Link kênh / playlist / không gian, hoặc từ khoá tìm → {kind, site, target, name}. ValueError nếu không được."""
     text = " ".join((text or "").split())
     if not text:
-        raise ValueError("Dán link kênh / playlist hoặc nhập từ khoá tìm")
+        raise ValueError("Paste a channel / playlist link or enter search keywords")
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
-            raise ValueError(f"Chỉ tìm được trên YouTube hoặc Bilibili, không phải {site}")
+            raise ValueError(f"Search works only on YouTube or Bilibili, not {site}")
         return {"kind": "search", "site": site, "target": text[:200], "name": text[:200]}
     u = urlparse(text)
     host = (u.hostname or "").lower()
@@ -78,12 +78,12 @@ def classify(text: str, site: str = "youtube") -> dict:
 def add(text: str, site: str = "youtube", rights: str = "unknown") -> int:
     """Thêm nguồn (chưa kiểm tra). ValueError nếu sai / trùng / quá nhiều."""
     if rights not in topic.RIGHTS:
-        raise ValueError(f"Quyền nguồn không hợp lệ: {rights}")
+        raise ValueError(f"Invalid source rights: {rights}")
     w = classify(text, site)
     if db.find_watch(w["site"], w["target"]):
-        raise ValueError("Nguồn này đã có trong danh sách")
+        raise ValueError("This source is already in the list")
     if len(db.list_watches()) >= MAX_WATCHES:
-        raise ValueError(f"Tối đa {MAX_WATCHES} nguồn")
+        raise ValueError(f"At most {MAX_WATCHES} sources")
     return db.add_watch(w["kind"], w["site"], w["target"], w["name"], rights)
 
 
@@ -299,12 +299,12 @@ def produce(cid: str, duration: int = 80, links_only: bool | None = None) -> int
     """
     c = db.get_clip(cid)
     if not c:
-        raise LookupError("Không có video này")
+        raise LookupError("Video not found")
     rights = c.get("rights") or "unknown"
     only = rights != "unknown" if links_only is None else bool(links_only)
     title_fr, title = c.get("title_fr") or "", c.get("title") or ""
     subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
     pid = topic.create(subject, [c["url"]], only, duration, rights if only else "unknown")
     db.set_clip_status(cid, "used", pid)
-    db.update_project(pid, log=f"Từ Video mới: {c.get('watch_name') or c['site']} · {c['url']}", meta={"clip": cid})
+    db.update_project(pid, log=f"From New videos: {c.get('watch_name') or c['site']} · {c['url']}", meta={"clip": cid})
     return pid
