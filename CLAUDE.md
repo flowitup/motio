@@ -19,6 +19,12 @@ as authoritative for scope and milestones.
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
+  - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
+    time (tu/vous, channel glossary, speakers) → one voice placed line by line → original music/sounds kept
+    (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions; rights gate
+    (`needs_review`)
+  - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
+    `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
@@ -49,6 +55,7 @@ uv run python -m motio trends               # list scored topics
 uv run python -m motio produce <trend_id>   # full pipeline for one topic
 uv run python -m motio rerender <project>   # voice + render again from script.json
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
+uv run python -m motio dub <link> [start end]      # French dub of one video (times in seconds; none = whole video if short, else Claude picks)
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
 uv run python -m motio approve <project> [nosend]  # approve a script / video waiting at a channel's gate
@@ -90,6 +97,10 @@ on every PR; keep them green.
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /
   Content ID detection.
+- A dub (`motio/dub.py`) keeps someone else's pictures and words: it is auto-sent to Postiz only when `meta.rights` is
+  owned / licensed / cc, otherwise it stops at the video gate (`dub.needs_review`; `unknown` counts as not owned). The
+  subtitle blur covers only the subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is
+  built to dodge duplicate / Content ID detection.
 - Before committing: `uv run ruff check motio` (add ruff as a dev dependency if missing),
   `uv run pytest`, and for render changes `uv run python -m motio rerender 1` + inspect a frame.
 

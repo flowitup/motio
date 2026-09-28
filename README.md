@@ -45,6 +45,23 @@ and are marked "Made automatically". Pick the channel when you make a video (Tre
 videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
 Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
 
+**French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in New videos) turns one video
+(Douyin, Bilibili, YouTube…) into a French version that keeps its pictures, music and sound effects. Motio transcribes
+it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
+on a sentence, or you type from–to), and Claude translates every line so it fits the time of the line it replaces: *tu*
+or *vous* depending on who talks to whom, the channel's glossary (Channels → Glossary) for names and terms, and the
+speaker of each line. One ElevenLabs voice reads the lines, each one placed where the original line started. An AI
+model (UVR MDX-Net, MIT, run on the CPU) separates the original voice from the music and sounds, and the music and
+sounds stay under the French voice; the first dub downloads this model once (67 MB) into `data/models/`, and if it
+cannot run the original sound is kept quietly instead. A video shorter than 62 s gets a French intro and outro on a
+still frame. The old subtitles burned into the picture are blurred: Motio finds the subtitle band, and you can draw
+the box yourself on a frame of the project page. Only that band is blurred, never a logo (**Remove logo** stays a
+separate, manual tool). French karaoke captions go on top as in every video, and the project page plays the original
+part next to the dub (**Play both**), lets you change the part and edit each French line. The post keeps "Voix off
+générée par IA." and the AI flags. A dub reuses someone else's pictures and words, so it is sent to Postiz by itself
+only when the source rights are *owned*, *licensed* or *cc*; otherwise, even if the channel has no video gate, it stops
+at **Awaiting video approval** before anything is sent. One voice per speaker comes next.
+
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
@@ -63,7 +80,7 @@ say so. The original is kept and can be restored. An uploaded file gives you a c
 in the pipelines.
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
+`... topic "giant pandas" [link …]`, `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... approve <project> [nosend]`
 (approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's
@@ -164,6 +181,8 @@ motio/captions.py  French karaoke captions (≤ 42 characters per line), exports
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
+motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
+motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app

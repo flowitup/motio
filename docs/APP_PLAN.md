@@ -155,8 +155,9 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   Bilibili lists give links only, so Motio reads each new video's page for its title; the space API often needs
   `YTDLP_COOKIES_FROM_BROWSER`. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
   The same PR fixes YouTube downloads: yt-dlp needs a JavaScript runtime (Deno, bundled) and `yt-dlp-ejs`.
-- **C · French dub** (after B): the source's pictures with French speech (Demucs, tu/vous, burned captions). Postiz
-  only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused content on every platform.
+- **C · French dub** (built in GĐ2, see "GĐ2: French dub"): the source's pictures with French speech (tu/vous, burned captions,
+  original music kept). Postiz only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused
+  content on every platform.
 
 ## Video length: 62–90 s (added 26/09/2026)
 
@@ -263,6 +264,51 @@ The owner asked to build the rest of the blueprint in phase order; for GĐ1 they
   still stops at its gates. `uv run python -m motio automake` runs the same pick by hand. Profiles saved before PR 2
   read the new fields as their defaults (no 16:9, auto-make off).
 - Slack notifications wait for a Slack app from the owner.
+
+## GĐ2: French dub (added 28/09/2026, part 1)
+
+The owner picked "Motio's own dub" (option B of the 28/09 brainstorm; ElevenLabs Dubbing and a plain voice-over were the
+others). Two PRs: (1) one French voice with tu/vous, glossary, background separation, subtitle blur, captions and a
+side-by-side compare (this section); (2) one voice per speaker, voices chosen in the channel profile (later).
+
+- **Mode `dub`** (`motio/dub.py`): a new project kind next to news and topic. `POST /api/dubs` `{link, start?, end?,
+  rights}` (New video → *French dub*), `POST /api/clips/{id}/dub` (New videos → *Dub in French*), CLI `dub <link>
+  [start end]`. It reuses the pipeline steps and the channel profile (badge, style, voice, hashtags, gates, Postiz).
+  Only the first link is dubbed. Step labels: download and Whisper as usual, the script step writes the dub script, the
+  voice step separates and mixes, the render step composes.
+- **Excerpt**: a video up to 88 s is used whole; a longer one gets an excerpt of 62–85 s that Claude picks at sentence
+  edges (`pick_excerpt`, snapped to Whisper segment edges), or that the user types (from–to on the project page, which
+  reruns from the script step). A source shorter than 62 s gets a French intro and outro on the first / last frame held
+  still (`pads`, at most 24 s together, each at least 3 s); the whole dub stays within 62–90 s (`pipeline.MIN_SECONDS` /
+  `MAX_SECONDS`).
+- **Translation** (`dub.script`, one `llm` call): every Whisper segment of the excerpt (segments under 1.2 s merge with
+  the next) becomes one French line with a character budget from its time slot (14 characters a second). The prompt
+  carries the channel's style note and glossary (`channels.glossary`, Channels → Glossary), the video's title and
+  uploader, and asks for a speaker label and *tu* or *vous* by who talks to whom. `script.json` lines carry `kind`
+  (line | intro | outro), `speaker`, `zh` (the original), `at`, `until`, `max_chars`; the script editor shows them (lines
+  are edited, not added, moved or deleted), and `edit.clean_dub` keeps the extra fields on save.
+- **Voice** (`dub.voice`): one ElevenLabs call for all lines; each line is placed at the start of its original segment
+  (`place`: a line that is longer than the room before the next original line is played up to 1.15× faster; a line
+  still speaking pushes the next one back, so French lines never overlap), alignment timestamps are shifted to match for the captions (`shift_alignment`).
+- **Original sound** (`motio/separate.py`): UVR-MDX-NET-Inst_HQ_3 (MIT, ONNX, 67 MB, sha256 checked, downloaded once to
+  `data/models/`) runs on the CPU with onnxruntime, in 5.9 s chunks with 25 % overlap (about 1.2× real time on 4 cores)
+  and returns the music and sounds without the voice, which `dub.mix` puts under the French voice at 0.8. If the model
+  cannot download or run, the original audio plays at 12 % instead and the log says so.
+- **Subtitle blur** (`dub.detect_band`, `find_band`): sample frames at speech times, find horizontal runs of sharp text
+  edges present in at least 60 % of them, drop static strokes (logos, more than 80 %), ignore the top 30 % of the frame,
+  join small gaps and give up on bands taller than 25 % of the frame. The box is stored normalized (`meta.dub.blur`,
+  `blur_auto`), drawn by the user on the project page (Blur old subtitles), or cleared. `render.blur_filter` applies it
+  to the source picture only, so it never touches the title, badge or French captions. It is not a logo remover.
+- **Captions**: the usual karaoke cues, with a `hold` (1.2 s after the last word) so a caption clears in a long
+  silence instead of staying until the next line.
+- **Compare** (project page): the original part in its own player, *Play both* starts it with the dub, from–to fields
+  change the part.
+- **Rights gate**: a dub whose `meta.rights` is not owned / licensed / cc (unknown counts as not owned) never auto-sends:
+  when its channel would send to Postiz, `_deliver` stops it at the video gate (`meta.review = video`) even if the
+  channel has no such gate, with a log line saying why; approving then sends it (sending stays a person's decision). Owned / licensed / cc dubs follow the channel's gates as any project.
+- Posts keep "Voix off générée par IA." and the platforms' AI flags. Nothing here removes logos or dodges duplicate /
+  Content ID detection.
+- Not verified in the build environment: real ElevenLabs / Claude / yt-dlp runs (faked in tests), Mac and Windows.
 
 ## English UI (added 28/09/2026)
 
