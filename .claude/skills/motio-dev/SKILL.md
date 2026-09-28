@@ -17,9 +17,10 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 
 1. `CLAUDE.md` (repo root): conventions and non-negotiables. Read it every session.
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
-   the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓
-   → B watchlist next → C French dub, Video length 62–90 s ✓, M4 automation later). Anything not in it is a
-   new ask: confirm scope with the owner before building it.
+   the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
+   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 Kênh profiles + gates + auto-send ✓ → GĐ1 16:9 +
+   auto-make next, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
+   building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
 4. Project memory (feature list with status, publishing rules, infra). It goes stale: re-check the code
    before calling anything done.
@@ -99,7 +100,8 @@ cd app && pnpm install && cd ..              # only if touching the app
 | JSON API, refresh scheduler | `motio/api.py` (`create_app(token, headless)`; `REFRESH_EVERY_MIN`) |
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
-| Postiz posting | `motio/postiz.py`, `app/src/components/publish-card.tsx` |
+| Postiz posting | `motio/postiz.py` (`publish`, `publish_project`), `app/src/components/publish-card.tsx` |
+| "Kênh" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
 | "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
@@ -132,12 +134,12 @@ live in `data/tools/delogo/<hex>/`.
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
   Always write `sources.txt`; on-video / in-post credits stay optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`,
   default off). News videos carry an original French script; source clips only illustrate, in short segments.
-- **Logo removal stays manual and declared.** The only watermark / logo removal is the "Xoá logo" tool
-  (`motio/delogo.py`, owner's ask 2026-09-27): the user picks one video (a project source or an upload) and
-  confirms they own it or hold the rights (`owned` / `licensed`); the engine refuses a run without that and records
-  it on the source (`meta.sources[i].delogo`) and, once every source is declared, on the project's `meta.rights`.
-  Never apply it automatically in the pipelines or in batch, and **never build** anything that evades duplicate /
-  Content ID detection.
+- **Logo removal stays manual.** The only watermark / logo removal is the "Xoá logo" tool (`motio/delogo.py`,
+  owner's ask 2026-09-27): the user picks one video (a project source or an upload) and starts it; the owner removed
+  the rights confirmation (PR #19) and the per-source rights field (PR #21). A rights value sent through the API is
+  still recorded on the source (`meta.sources[i].delogo`) and, once every source is declared, on `meta.rights`: keep
+  that. Never apply it automatically in the pipelines or in batch, and **never build** anything that evades
+  duplicate / Content ID detection.
 - **Rights flag.** Every project carries `meta.rights` = `unknown` | `owned` | `licensed` | `cc`
   (`topic.RIGHTS`; set on `POST /api/projects`, changed with `PATCH /api/projects/{id}`). New features that
   treat footage differently by rights (watermark handling, longer clips, remakes) must read this flag and
@@ -151,7 +153,14 @@ live in `data/tools/delogo/<hex>/`.
   `/api/*` needs `Authorization: Bearer`; only `/media/*` and the SSE `/events` route accept `?token=`.
   A non-loopback `--host` requires `--token` (on the server it comes from `MOTIO_TOKEN`).
 - **Posting** goes only through Postiz's Public API (`POST /api/projects/{id}/publish`, draft by default).
-  Never call TikTok / YouTube / Meta / X APIs directly; auto-sending every video waits for the M4 scheduler.
+  Never call TikTok / YouTube / Meta / X APIs directly. Automatic sending happens only for a project whose "Kênh"
+  profile lists Postiz channels, after its gates (`pipeline._deliver`), once per project; later re-renders don't post
+  again. A Postiz failure is logged (`meta.send_error`), never fails the video.
+- **Approval gates.** A profile's script gate stops `produce` after the script step with status `review`
+  (`meta.review = script`) and frees the worker; the video gate stops after the render (`meta.review = video`).
+  `review` is not busy (edit, retry, delete allowed) and ends the SSE stream; `produce` clears a pending review.
+  Projects without a profile never stop. The video badge comes from `channels.badge_for` ("ACTU CHINE" only for news
+  without a profile).
 - **Updater trust.** Never commit the updater private key or any GitHub token, and never compile a token
   into the app. From 0.3.1 (PR #8, repo public) the updater needs no token at all.
 
@@ -202,7 +211,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 91 passed, 2 skipped (scene tests need FFmpeg) on master 46612d7
+uv run pytest                          # 182 passed, 5 skipped without FFmpeg (GĐ1 profiles branch, 28/09)
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)

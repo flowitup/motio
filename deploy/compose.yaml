@@ -55,6 +55,8 @@ services:
       NEWS_SOURCES: ${NEWS_SOURCES:-}
       REFRESH_EVERY_MIN: ${REFRESH_EVERY_MIN:-30}
       MAX_VIDEOS_PER_DAY: ${MAX_VIDEOS_PER_DAY:-}
+      # Giờ đăng của các kênh (Kênh → Lên lịch) tính theo múi giờ này.
+      TZ: ${TZ:-Europe/Paris}
       CREDIT_ON_VIDEO: ${CREDIT_ON_VIDEO:-}
       CREDIT_IN_POST: ${CREDIT_IN_POST:-}
       # Engine gọi Postiz qua mạng nội bộ, không đi vòng ra Internet.

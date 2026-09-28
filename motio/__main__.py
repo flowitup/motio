@@ -1,6 +1,8 @@
 """CLI: uv run python -m motio [refresh | trends | produce <trend_id> | topic "<chủ đề>" [link ...] | rerender <id> |
-retry <id> [step] | delete <id> | watch "<link kênh | từ khoá>" [bilibili] | check | clips | serve |
-engine ...]"""
+retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<link kênh | từ khoá>" [bilibili] | check | clips |
+serve | engine ...]
+
+produce / topic dùng kênh mặc định (nếu có): kênh có cổng duyệt thì dự án dừng chờ `approve`."""
 import argparse
 import json
 import os
@@ -29,20 +31,22 @@ def main(argv: list[str]) -> None:
         for t in db.list_trends()[:30]:
             print(f"{t['score']:>3}  {t['id']:<28} {t['title_fr']}")
     elif cmd == "produce":
-        from . import pipeline
+        from . import channels, pipeline
         t = db.get_trend(argv[1])
         if not t:
             sys.exit(f"Không có tin {argv[1]}")
         pid = db.create_project(t["id"], t["title_fr"] or t["title_zh"])
+        channels.attach(pid, channels.pick(None), news=True)
         print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
     elif cmd == "topic":  # topic "<chủ đề>" [link …]; chủ đề "" = chỉ dùng link
-        from . import pipeline, topic
+        from . import channels, pipeline, topic
         try:
             pid = topic.create(argv[1] if len(argv) > 1 else "", argv[2:])
         except ValueError as e:
             sys.exit(str(e))
+        channels.attach(pid, channels.pick(None))
         print(f"Dự án #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
@@ -67,6 +71,19 @@ def main(argv: list[str]) -> None:
         from . import pipeline
         pipeline.resume(int(argv[1]), argv[2] if len(argv) > 2 else None)
         print(json.dumps(db.get_project(int(argv[1]))["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "approve":  # duyệt dự án đang chờ: kịch bản → đọc giọng và dựng; video → gửi Postiz (nosend: không gửi)
+        from . import pipeline
+        pid = int(argv[1])
+        review = (db.get_project(pid) or {"meta": {}})["meta"].get("review")
+        if review == "script":
+            db.update_project(pid, log="Đã duyệt kịch bản", meta={"review": None})
+            pipeline.produce(pid, start="voice")
+        elif review == "video":
+            pipeline.approve_video(pid, send=argv[2:3] != ["nosend"])
+        else:
+            sys.exit(f"Dự án #{pid} không chờ duyệt")
+        p = db.get_project(pid)
+        print(f"#{pid}: {p['status']} · {p['step']}")
     elif cmd == "delete":  # xoá dự án + thư mục của nó; giữ cache video nguồn
         from . import edit
         try:

@@ -21,8 +21,9 @@ def client(monkeypatch):
     db.upsert_trend({"id": "weibo:2", "source": "weibo", "ext_id": "2", "url": "https://y", "title_zh": "微博",
                      "title_fr": "Autre", "score": 40, "rank": 2})
 
-    def fake_produce(pid):
-        db.update_project(pid, status="running", step="Dựng", pct=50, log="đang dựng")
+    def fake_produce(pid, **kw):
+        db.update_project(pid, status="running", step="Dựng", pct=50,
+                          log="đang dựng" + (f" từ {kw['start']}" if kw else ""))
         out = config.PROJECTS / str(pid)
         out.mkdir(parents=True, exist_ok=True)
         (out / "script.json").write_text("{}")
@@ -277,3 +278,51 @@ def test_scheduled_refresh(monkeypatch):
         assert st["next_watch"] == pytest.approx(st["last_watch"] + 1800)
         time.sleep(0.1)
         assert len(calls) == 1 and len(checks) == 1  # lần sau là 30 phút nữa
+
+
+def test_channels_crud(client):
+    assert client.get("/api/channels", headers=H).json() == []
+    bad = client.post("/api/channels", headers=H, json={"name": "x", "send_mode": "schedule", "postiz": ["tt1"]})
+    assert bad.status_code == 400 and "giờ đăng" in bad.json()["detail"]
+    a = client.post("/api/channels", headers=H, json={"name": "Chine Express", "badge": "ACTU CHINE", "default": True})
+    assert a.status_code == 201 and a.json()["default"] is True and a.json()["gate_script"] is True
+    b = client.post("/api/channels", headers=H, json={"name": "Tech", "hashtags": ["tech"], "default": True}).json()
+    got = client.get("/api/channels", headers=H).json()
+    assert [(c["name"], c["default"]) for c in got] == [("Chine Express", False), ("Tech", True)]
+    up = client.put(f"/api/channels/{b['id']}", headers=H, json={"name": "Tech FR", "duration": 90})
+    assert up.status_code == 200 and up.json()["duration"] == 90 and up.json()["default"] is False
+    assert client.put("/api/channels/999", headers=H, json={"name": "x"}).status_code == 404
+    assert client.delete(f"/api/channels/{b['id']}", headers=H).status_code == 200
+    assert client.delete(f"/api/channels/{b['id']}", headers=H).status_code == 404
+
+
+def test_produce_picks_the_channel(client):
+    ch = client.post("/api/channels", headers=H, json={"name": "Chine", "duration": 70, "default": True,
+                                                        "gate_script": False, "gate_video": False}).json()
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]  # không nói: kênh mặc định
+    meta = _wait_done(client, pid)["meta"]
+    assert meta["channel"] == ch["id"] and meta["duration"] == 70
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"channel": 0}).json()["project_id"]
+    assert "channel" not in _wait_done(client, pid)["meta"]
+    assert client.post("/api/trends/douyin:1/produce", headers=H, json={"channel": 999}).status_code == 400
+    r = client.post("/api/projects", headers=H, json={"topic": "gấu trúc", "channel": ch["id"], "duration": 90})
+    meta = _wait_done(client, r.json()["project_id"])["meta"]
+    assert meta["channel"] == ch["id"] and meta["duration"] == 90  # chủ đề: giữ độ dài đã chọn
+
+
+def test_approve_script_then_video(client, fake_postiz):
+    ch = client.post("/api/channels", headers=H, json={"name": "Chine", "postiz": ["tt1"]}).json()
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"channel": ch["id"]}).json()["project_id"]
+    _wait_done(client, pid)
+    assert client.post(f"/api/projects/{pid}/approve", headers=H).status_code == 409  # không chờ duyệt
+
+    db.update_project(pid, status="review", step="Chờ duyệt kịch bản", meta={"review": "script"})
+    r = client.post(f"/api/projects/{pid}/approve", headers=H)
+    assert r.status_code == 202 and r.json()["review"] == "script"
+    p = _wait_done(client, pid)
+    assert p["meta"]["review"] is None and "Đã duyệt kịch bản" in p["log"] and "từ voice" in p["log"]
+
+    db.update_project(pid, status="review", step="Chờ duyệt video", meta={"review": "video"})
+    assert client.post(f"/api/projects/{pid}/approve", headers=H, json={"send": True}).status_code == 202
+    p = _wait_done(client, pid)
+    assert p["status"] == "done" and [e["profile"] for e in p["meta"]["postiz"]] == [ch["id"]]

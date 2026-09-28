@@ -5,11 +5,12 @@ POSTIZ_API_KEY: Postiz → Settings → Developers → Public API.
 Postiz lo OAuth, lịch đăng và gọi API từng nền tảng; Motio chỉ tải video lên và tạo bài.
 """
 import datetime as dt
+import time
 from pathlib import Path
 
 import httpx
 
-from . import config
+from . import config, db
 
 MODES = ("draft", "schedule", "now")
 _transport: httpx.BaseTransport | None = None  # test thay bằng httpx.MockTransport
@@ -111,3 +112,24 @@ def publish(video: Path, text: str, title: str, hashtags: list[str], channel_ids
         posts = _json(c.post("/posts", json=body))
     return {"mode": mode, "date": date, "media": media, "posts": posts,
             "channels": [{"id": c["id"], "name": c["name"], "provider": c["provider"]} for c in chosen]}
+
+
+def publish_project(pid: int, channel_ids: list[str], mode: str = "draft", when: str | None = None,
+                    profile: int | None = None) -> dict:
+    """Gửi video đã dựng của dự án (tiêu đề + mô tả bài đăng) và ghi vào lịch sử `meta.postiz`.
+    profile: id kênh Motio khi gửi tự động (để biết giờ đăng nào của kênh đã dùng). LookupError nếu chưa có video."""
+    p = db.get_project(pid)
+    meta = p["meta"]
+    video = config.DATA / meta["video"] if meta.get("video") else None
+    if not video or not video.is_file():
+        raise LookupError("Dự án chưa có video hoàn chỉnh")
+    title = meta.get("title") or p["title"]
+    text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
+    res = publish(video, text, title, meta.get("hashtags") or [], channel_ids, mode, when)
+    entry = {"at": time.time(), **{k: res[k] for k in ("mode", "date", "channels", "posts")}}
+    if profile:
+        entry["profile"] = profile
+    names = ", ".join(c["name"] for c in res["channels"])
+    db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
+                      meta={"postiz": [*(db.get_project(pid)["meta"].get("postiz") or []), entry]})
+    return res

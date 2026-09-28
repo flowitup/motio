@@ -21,6 +21,8 @@ as authoritative for scope and milestones.
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("Video mới")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
+  - `channels.py` "Kênh" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
+    auto-send after approval (draft / next posting time / now); projects point to one with `meta.channel`
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
     project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
@@ -45,6 +47,7 @@ uv run python -m motio rerender <project>   # voice + render again from script.j
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
+uv run python -m motio approve <project> [nosend]  # approve a script / video waiting at a channel's gate
 uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice|render (render keeps the voice)
 uv run python -m motio delete <project>     # delete a project and its folder (source cache kept)
 uv run python -m motio serve                # legacy dashboard on :8765

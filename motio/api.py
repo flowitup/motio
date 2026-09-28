@@ -19,10 +19,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, asr, config, db, delogo, edit, newsnow, pipeline, postiz, search, settings, topic, tts, watch
+from . import (
+    __version__,
+    asr,
+    channels,
+    config,
+    db,
+    delogo,
+    edit,
+    newsnow,
+    pipeline,
+    postiz,
+    search,
+    settings,
+    topic,
+    tts,
+    watch,
+)
 
 CORS_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
-FINAL = ("done", "failed")
+FINAL = ("done", "failed", "review")  # SSE dừng: xong, lỗi, hoặc chờ duyệt
 SCHED_TICK = 15.0  # giây giữa hai lần bộ hẹn giờ kiểm tra lịch cập nhật tin
 FIRST_DELAY = 60.0  # lần tự cập nhật đầu tiên: 1 phút sau khi engine khởi động
 PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "meta", "created_at", "updated_at")
@@ -31,6 +47,7 @@ PROJECT_FIELDS = ("id", "trend_id", "mode", "title", "status", "step", "pct", "m
 class ProduceIn(BaseModel):
     links: list[str] = []  # link video dán tay (Douyin, X, …), luôn được dùng
     links_only: bool = False  # chỉ dùng các link này, không tự tìm
+    channel: int | None = None  # hồ sơ kênh: None = kênh mặc định (nếu có), 0 = không dùng kênh
 
 
 class TopicIn(BaseModel):
@@ -39,6 +56,7 @@ class TopicIn(BaseModel):
     links_only: bool = False
     duration: int = 80  # 70 | 80 | 90 giây
     rights: str = "unknown"  # unknown | owned | licensed | cc
+    channel: int | None = None  # như ProduceIn
 
 
 class ProjectPatch(BaseModel):
@@ -64,6 +82,7 @@ class ClipPatch(BaseModel):
 class ClipProduceIn(BaseModel):
     duration: int = 80
     links_only: bool | None = None  # None = chỉ dùng video này khi nguồn có quyền rõ ràng
+    channel: int | None = None  # như ProduceIn
 
 
 class ScriptIn(BaseModel):
@@ -91,6 +110,25 @@ class DelogoRunIn(BaseModel):
     scope: str | None = None  # nguồn dự án: used (mặc định); file tải lên: all (mặc định) | range (start–end, giây)
     start: float | None = None
     end: float | None = None
+
+
+class ChannelIn(BaseModel):
+    name: str
+    badge: str = ""  # nhãn đỏ trên tiêu đề video, rỗng = không nhãn
+    style: str = ""  # ghi chú giọng văn thêm vào prompt kịch bản
+    voice_id: str = ""  # giọng ElevenLabs, rỗng = theo Cài đặt
+    duration: int = 80  # độ dài mặc định cho video tin nóng
+    hashtags: list[str] = []
+    gate_script: bool = True  # dừng chờ duyệt kịch bản
+    gate_video: bool = True  # dừng chờ duyệt video cuối
+    postiz: list[str] = []  # id kênh Postiz để gửi khi video được duyệt
+    send_mode: str = "draft"  # draft | schedule | now
+    send_times: list[str] = []  # giờ đăng "HH:MM" (giờ máy chạy engine) khi send_mode = schedule
+    default: bool = False
+
+
+class ApproveIn(BaseModel):
+    send: bool = True  # duyệt video: gửi sang Postiz theo kênh; False = chỉ duyệt
 
 
 class PublishIn(BaseModel):
@@ -258,6 +296,12 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
+    def _channel_for(channel: int | None) -> dict | None:
+        try:
+            return channels.pick(channel)
+        except LookupError as e:
+            raise HTTPException(400, str(e)) from e
+
     @app.post("/api/trends/{tid}/produce", status_code=202, dependencies=[Depends(auth)])
     def produce(tid: str, body: ProduceIn | None = None):
         t = db.get_trend(tid)
@@ -266,9 +310,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         links = _links(body.links) if body else []
         if body and body.links_only and not links:
             raise HTTPException(400, "Chọn “chỉ dùng link” thì cần ít nhất một link")
+        ch = _channel_for(body.channel if body else None)
         if pipeline.quota_left() == 0:
             raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
+        channels.attach(pid, ch, news=True)
         if links:
             db.update_project(pid, log=f"{len(links)} link nguồn dán tay",
                               meta={"links": links, "links_only": bool(body.links_only)})
@@ -342,13 +388,15 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def produce_clip(cid: str, body: ClipProduceIn | None = None):
         """Video giải thích từ một video mới (dự án chủ đề: link của video + tiêu đề làm chủ đề)."""
         _clip(cid)
+        body = body or ClipProduceIn()
+        ch = _channel_for(body.channel)
         if pipeline.quota_left() == 0:
             raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
-        body = body or ClipProduceIn()
         try:
             pid = watch.produce(cid, body.duration, body.links_only)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+        channels.attach(pid, ch)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -370,12 +418,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.post("/api/projects", status_code=202, dependencies=[Depends(auth)])
     def create_topic(body: TopicIn):
         """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
+        ch = _channel_for(body.channel)
         if pipeline.quota_left() == 0:
             raise HTTPException(429, f"Đã đủ {config.max_videos_per_day()} video hôm nay (MAX_VIDEOS_PER_DAY)")
         try:
             pid = topic.create(body.topic, body.links, body.links_only, body.duration, body.rights)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+        channels.attach(pid, ch)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -465,6 +515,24 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         jobs.submit(_run_job, lambda i: pipeline.resume(i, start), pid)
         return {"project_id": pid, "start": start}
 
+    @app.post("/api/projects/{pid}/approve", status_code=202, dependencies=[Depends(auth)])
+    def approve(pid: int, body: ApproveIn | None = None):
+        """Duyệt dự án đang chờ: kịch bản → đọc giọng và dựng; video → gửi Postiz theo kênh (send=False: không gửi)."""
+        p = _get(pid)
+        review = p["meta"].get("review")
+        if p["status"] != "review" or review not in pipeline.REVIEW_STEPS:
+            raise HTTPException(409, "Dự án không chờ duyệt")
+        if review == "script":
+            db.update_project(pid, status="queued", step="Chờ đọc giọng và dựng", pct=0, log="Đã duyệt kịch bản",
+                              meta={"review": None})
+            jobs.submit(_run_job, lambda i: pipeline.produce(i, start="voice"), pid)
+        else:
+            send = body.send if body else True
+            db.update_project(pid, status="running", step="Gửi Postiz" if send else "Xong", pct=100)
+            threading.Thread(target=_run_job, args=(lambda i: pipeline.approve_video(i, send), pid),
+                             daemon=True).start()  # tải video lên Postiz không chờ hàng đợi làm video
+        return {"project_id": pid, "review": review}
+
     @app.get("/api/projects/{pid}/events", dependencies=[Depends(auth_or_query)])
     async def events(pid: int, request: Request):
         _get(pid)
@@ -492,6 +560,38 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    # ---------- kênh (hồ sơ đăng) ----------
+    def _channel_data(body: ChannelIn) -> dict:
+        return body.model_dump(exclude={"default"})
+
+    @app.get("/api/channels", dependencies=[Depends(auth)])
+    def list_channels():
+        return db.list_channels()
+
+    @app.post("/api/channels", status_code=201, dependencies=[Depends(auth)])
+    def create_channel(body: ChannelIn):
+        try:
+            return channels.create(_channel_data(body), body.default)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.put("/api/channels/{cid}", dependencies=[Depends(auth)])
+    def update_channel(cid: int, body: ChannelIn):
+        try:
+            return channels.update(cid, _channel_data(body), body.default)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/channels/{cid}", dependencies=[Depends(auth)])
+    def delete_channel(cid: int):
+        """Xoá hồ sơ; dự án đã gắn với nó chạy tiếp như không có kênh."""
+        if not db.get_channel(cid):
+            raise HTTPException(404, "Không có kênh này")
+        db.delete_channel(cid)
+        return {"deleted": cid}
+
     # ---------- đăng bài qua Postiz ----------
     def _need_postiz() -> None:
         if not postiz.configured():
@@ -513,19 +613,12 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if p["status"] != "done" or not video or not video.is_file():
             raise HTTPException(409, "Dự án chưa có video hoàn chỉnh")
         _need_postiz()
-        title = meta.get("title") or p["title"]
-        text = f"{title}\n\n{meta['description']}" if meta.get("description") else title
         try:
-            res = postiz.publish(video, text, title, meta.get("hashtags") or [], body.channels, body.mode, body.date)
+            return postiz.publish_project(pid, body.channels, body.mode, body.date)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:
             raise HTTPException(502, f"Postiz lỗi: {str(e)[:300]}") from e
-        entry = {"at": time.time(), **{k: res[k] for k in ("mode", "date", "channels", "posts")}}
-        names = ", ".join(c["name"] for c in res["channels"])
-        db.update_project(pid, log=f"Postiz ({res['mode']}): {names}",
-                          meta={"postiz": [*meta.get("postiz", []), entry]})
-        return res
 
     # ---------- xoá logo (video người dùng chọn) ----------
     def _dl(fn, *args):

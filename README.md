@@ -30,6 +30,16 @@ its latest 10 videos, then only videos it hasn't seen. Claude gives each one a F
 "Làm video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
 single videos there): paste those links into "Tạo video". Bilibili spaces often need the browser-cookie setting.
 
+**Kênh** (channels) holds one profile per channel you post to: the red badge on the video ("ACTU CHINE", "INSOLITE",
+or none), style notes Claude follows when it writes the script, the ElevenLabs voice, the default length for hot-news
+videos, hashtags that always go first, and two approval gates. With the script gate on, a project stops at **Chờ duyệt
+kịch bản** (script awaiting approval) until you read it, edit it if needed, and press **Duyệt và làm tiếp**; with the
+video gate on, a finished video stops at **Chờ duyệt video** until you press **Duyệt và gửi**. A profile can also send
+the approved video to its Postiz channels by itself, as a draft, at the channel's next free posting time, or right
+away (once per project; later re-renders don't post again). Pick the channel when you make a video (Tin hot, Video
+mới, Tạo video); the default channel is preselected, and videos without a channel run straight through as before.
+Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
+
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
@@ -50,7 +60,9 @@ in the pipelines.
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... delete <project>`.
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... approve <project> [nosend]`
+(approve a script or video waiting at a channel's gate), `... delete <project>`. `produce` and `topic` use the default
+channel.
 
 ## Desktop app (Tauri)
 
@@ -108,7 +120,7 @@ Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and `/api/pro
 `deploy/` holds the Docker Compose stack for the engine + [Postiz](https://postiz.com) (automatic posting) behind
 Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the server. Steps:
 [docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
-defaults to `LLM_PROVIDER=anthropic`.
+defaults to `LLM_PROVIDER=anthropic`. Channel posting times use the server's `TZ` (default `Europe/Paris`).
 
 ## Configuration (.env)
 
@@ -149,6 +161,7 @@ motio/watch.py     followed channels, playlists and searches → "Video mới", 
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
 motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
+motio/channels.py  channel profiles: badge, script style, voice, hashtags, approval gates, Postiz auto-send, posting times
 motio/delogo.py    "Xoá logo": remove a static logo from a video you own (drawn or auto-found boxes)
 motio/inpaint.py   LaMa AI fill for "Xoá logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/web.py       legacy dashboard (to be removed)

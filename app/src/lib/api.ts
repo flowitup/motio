@@ -83,7 +83,31 @@ export type ProjectMeta = {
   voice?: string;
   elapsed?: number;
   postiz?: PublishRecord[];
+  channel?: number; // hồ sơ kênh (Kênh), không có = chạy như trước
+  review?: Review | null; // đang chờ duyệt gì (status = "review")
+  send_error?: string | null; // lần tự gửi Postiz gần nhất bị lỗi
+  approved_at?: number;
 };
+
+export type Review = "script" | "video";
+export type SendMode = PublishMode;
+
+/** Hồ sơ một kênh đăng: nhãn, giọng văn, giọng đọc, cổng duyệt, kênh Postiz để tự gửi. */
+export type ChannelInput = {
+  name: string;
+  badge: string; // nhãn đỏ trên tiêu đề video, rỗng = không nhãn
+  style: string; // ghi chú giọng văn thêm vào prompt kịch bản
+  voice_id: string; // rỗng = giọng trong Cài đặt
+  duration: number; // 70 | 80 | 90, cho video tin nóng
+  hashtags: string[];
+  gate_script: boolean;
+  gate_video: boolean;
+  postiz: string[]; // id kênh Postiz
+  send_mode: SendMode;
+  send_times: string[]; // "HH:MM", giờ máy chạy engine
+  default: boolean;
+};
+export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
 
 export type PublishMode = "draft" | "schedule" | "now";
 export type PostizChannel = {
@@ -100,9 +124,10 @@ export type PublishRecord = {
   date: string;
   channels: { id: string; name: string; provider: string }[];
   posts: { postId: string; integration: string }[];
+  profile?: number; // gửi tự động theo hồ sơ kênh này
 };
 
-export type ProjectStatus = "queued" | "running" | "done" | "failed";
+export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 
 export type Project = {
   id: number;
@@ -285,10 +310,18 @@ export function makeApi(url: string, token: string) {
     trends: (source?: string) =>
       call<Trend[]>("GET", `/api/trends?hours=24${source ? `&source=${encodeURIComponent(source)}` : ""}`),
     refresh: () => call<{ started: boolean }>("POST", "/api/trends/refresh"),
-    produce: (id: string, opts?: { links: string[]; links_only: boolean }) =>
+    /** channel: id hồ sơ kênh, 0 = không dùng kênh, bỏ trống = kênh mặc định. */
+    produce: (id: string, opts?: { links?: string[]; links_only?: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`, opts),
     /** Video giải thích từ chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…). */
-    createTopic: (body: { topic: string; links: string[]; links_only: boolean; duration: number; rights: Rights }) =>
+    createTopic: (body: {
+      topic: string;
+      links: string[];
+      links_only: boolean;
+      duration: number;
+      rights: Rights;
+      channel?: number;
+    }) =>
       call<{ project_id: number }>("POST", "/api/projects", body),
     setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
@@ -305,7 +338,7 @@ export function makeApi(url: string, token: string) {
     setClipStatus: (id: string, status: "new" | "hidden") =>
       call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
     /** Video giải thích từ một video mới; links_only bỏ trống = chỉ dùng video này khi nguồn có quyền rõ ràng. */
-    produceClip: (id: string, body: { duration: number; links_only: boolean }) =>
+    produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
@@ -318,6 +351,13 @@ export function makeApi(url: string, token: string) {
     /** Chạy lại từ `start`; bỏ trống = chạy tiếp từ bước bị lỗi, giữ kết quả đã có. */
     retry: (id: number, start?: RetryStep) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/retry`, start ? { start } : {}),
+    /** Duyệt dự án đang chờ: kịch bản → đọc giọng và dựng; video → gửi Postiz theo kênh (send=false: không gửi). */
+    approve: (id: number, send = true) =>
+      call<{ project_id: number; review: Review }>("POST", `/api/projects/${id}/approve`, { send }),
+    channels: () => call<Channel[]>("GET", "/api/channels"),
+    createChannel: (body: ChannelInput) => call<Channel>("POST", "/api/channels", body),
+    updateChannel: (id: number, body: ChannelInput) => call<Channel>("PUT", `/api/channels/${id}`, body),
+    deleteChannel: (id: number) => call<{ deleted: number }>("DELETE", `/api/channels/${id}`),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string }) =>

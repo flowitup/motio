@@ -51,21 +51,24 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
     return lines
 
 
-def overlay_png(path: Path, *, title: str, credit: str, badge: str = "ACTU CHINE") -> Path:
-    """Lớp tĩnh 1080×1920: băng tiêu đề và nhãn nguồn (tuỳ chọn). Công bố giọng AI nằm trong bài đăng."""
+def overlay_png(path: Path, *, title: str, credit: str, badge: str = "") -> Path:
+    """Lớp tĩnh 1080×1920: băng tiêu đề (nhãn đỏ phía trên nếu có `badge`) và nhãn nguồn (tuỳ chọn).
+    Công bố giọng AI nằm trong bài đăng."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     # Băng tiêu đề phía trên
     f_badge, f_title = _font(FONT_BOLD, 34), _font(FONT_BOLD, 58)
     tl = _wrap(d, title, f_title, W - 140)[:3]
     y0 = 150
-    box_h = 70 + len(tl) * 70 + 30
+    top = 92 if badge else 30  # không có nhãn: tiêu đề lên sát mép trên của băng
+    box_h = top + len(tl) * 70 + 8
     d.rounded_rectangle((40, y0, W - 40, y0 + box_h), radius=22, fill=(12, 16, 22, 205))
-    bw = d.textlength(badge, font=f_badge) + 36
-    d.rounded_rectangle((70, y0 + 24, 70 + bw, y0 + 76), radius=10, fill=(222, 45, 38, 255))
-    d.text((88, y0 + 30), badge, font=f_badge, fill="white")
+    if badge:
+        bw = d.textlength(badge, font=f_badge) + 36
+        d.rounded_rectangle((70, y0 + 24, 70 + bw, y0 + 76), radius=10, fill=(222, 45, 38, 255))
+        d.text((88, y0 + 30), badge, font=f_badge, fill="white")
     for i, ln in enumerate(tl):
-        d.text((70, y0 + 92 + i * 70), ln, font=f_title, fill="white")
+        d.text((70, y0 + top + i * 70), ln, font=f_title, fill="white")
     # Nhãn nguồn (tuỳ chọn), ngay dưới clip. Chủ dự án bỏ nhãn "Voix de synthèse (IA)" trên video (26/09/2026).
     if credit:
         f_cr = _font(FONT_CJK, 30)
@@ -233,8 +236,9 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path) -> None:
 
 
 def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
-           min_total: float = 0.0) -> dict:
-    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây."""
+           min_total: float = 0.0, badge: str = "") -> dict:
+    """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây.
+    badge: nhãn đỏ trên tiêu đề (vd. "ACTU CHINE" cho tin nóng), rỗng = không có."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
@@ -260,7 +264,8 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
         src = sources[p.src]
         credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.flag("CREDIT_ON_VIDEO") else ""
         if credit not in overlays:
-            overlays[credit] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=title, credit=credit)
+            overlays[credit] = overlay_png(work / f"ov_{len(overlays):03d}.png", title=title, credit=credit,
+                                          badge=badge)
         f = work / f"p_{j:03d}.mp4"
         render_piece(p, src, overlays[credit], f)
         files.append(f)

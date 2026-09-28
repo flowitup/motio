@@ -27,15 +27,16 @@ def probe_duration(path: Path) -> float:
     return float(r.stdout.strip() or 0)
 
 
-def synthesize(lines: list[str], out_dir: Path) -> dict:
+def synthesize(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:
     """Đọc cả kịch bản một lượt. Trả {audio, duration, lines: [{start, end}], provider, voice, alignment}.
 
+    voice: id giọng ElevenLabs (hồ sơ kênh), bỏ trống = giọng trong Cài đặt hoặc tự chọn.
     alignment: mốc từng ký tự của ElevenLabs cho cả đoạn (các dòng nối bằng một dấu cách), None nếu không có.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     p = provider()
     if p == "elevenlabs":
-        return _elevenlabs(lines, out_dir)
+        return _elevenlabs(lines, out_dir, voice)
     if p == "macos_say":
         return _macos_say(lines, out_dir)
     raise TTSUnavailable("Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY "
@@ -53,8 +54,8 @@ def list_voices() -> list[dict]:
     return r.json().get("voices", [])
 
 
-def pick_voice() -> tuple[str, str]:
-    vid = config.env("ELEVENLABS_VOICE_ID")
+def pick_voice(voice: str | None = None) -> tuple[str, str]:
+    vid = voice or config.env("ELEVENLABS_VOICE_ID")
     if vid:
         return vid, vid
     voices = list_voices()
@@ -71,8 +72,8 @@ def pick_voice() -> tuple[str, str]:
     raise RuntimeError("Tài khoản ElevenLabs không có giọng nào")
 
 
-def _elevenlabs(lines: list[str], out_dir: Path) -> dict:
-    voice_id, voice_name = pick_voice()
+def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:
+    voice_id, voice_name = pick_voice(voice)
     model = config.env("ELEVENLABS_MODEL", "eleven_multilingual_v2")
     text, offsets = "", []
     for ln in lines:

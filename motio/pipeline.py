@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import asr, config, db, delogo, llm, render, scenes, search, topic, tts
+from . import asr, channels, config, db, delogo, llm, postiz, render, scenes, search, topic, tts
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
 PICK_PROMPT = """Sujet : {title_zh} / {title_fr}
@@ -170,6 +170,8 @@ STEP_LABELS = {"search": "Tìm nguồn", "download": "Tải video", "transcribe"
                "voice": "Giọng đọc", "render": "Dựng"}
 STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64, "render": 70}
 NARRATION = "narration.json"  # trong audio/: giọng đọc lần dựng trước + các câu đã đọc
+# Cổng duyệt của hồ sơ kênh: dự án dừng ở trạng thái "review" (meta.review = script | video) và nhả hàng đợi.
+REVIEW_STEPS = {"script": "Chờ duyệt kịch bản", "video": "Chờ duyệt video"}
 
 
 def _subject(proj: dict) -> dict:
@@ -259,6 +261,8 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
                  duration_sec: int) -> dict:
     step("Kịch bản", 55, "Claude viết lời bình tiếng Pháp")
     subj = _subject(proj)
+    ch = channels.for_project(proj)
+    note = channels.style_note(ch)  # giọng văn của kênh, nếu có
     words = int(duration_sec * WORDS_PER_SEC)
     n_min, n_max = topic.lines_for(duration_sec)
     size = {"n_min": n_min, "n_max": n_max, "w_min": words - 15, "w_max": words + 10, "sec": duration_sec,
@@ -266,11 +270,11 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
     if subj["mode"] == topic.MODE:
         title = " / ".join(x for x in (subj["topic"], subj.get("title_fr")) if x) or topic.NO_TOPIC
         plan = llm.ask_json(topic.SCRIPT_PROMPT.format(title=title, angle=subj.get("angle") or "", **size),
-                            topic.SCRIPT_SYSTEM)
+                            topic.SCRIPT_SYSTEM + note)
     else:
         plan = llm.ask_json(SCRIPT_PROMPT.format(
             source=subj["source"], date=time.strftime("%d/%m/%Y"), title_zh=subj["title_zh"],
-            title_fr=subj["title_fr"], angle=subj.get("angle") or "", **size), SCRIPT_SYSTEM)
+            title_fr=subj["title_fr"], angle=subj.get("angle") or "", **size), SCRIPT_SYSTEM + note)
     plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
     if len(plan["lines"]) < 3:
         raise RuntimeError("Kịch bản quá ngắn")
@@ -278,6 +282,8 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
         step("Kịch bản", 58, f"Kịch bản {_words(plan)} từ, quá ngắn cho video ≥ {MIN_SECONDS} s: viết dài thêm")
         plan = _fit(plan, words)
     plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
+    if ch:
+        plan["hashtags"] = channels.merge_tags(ch, plan.get("hashtags") or [])
     _save_script(out, plan)
     step("Kịch bản", 62, f"{len(plan['lines'])} dòng, {sum(len(l['text'].split()) for l in plan['lines'])} từ",
          title=plan["title_fr"])
@@ -372,6 +378,8 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
     t_begin = time.time()
     at = STEPS.index(start)
     try:
+        if db.get_project(pid)["meta"].get("review"):  # chạy lại / làm tiếp: bỏ trạng thái chờ duyệt cũ
+            db.update_project(pid, meta={"review": None})
         if at == 0:  # chạy lại từ bước sau không làm thêm video mới trong ngày
             check_quota(exclude=pid)
         else:
@@ -385,6 +393,10 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
         if at <= 3:
             transcripts = _step_transcribe(sources, step)
             plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
+            ch = channels.for_project(db.get_project(pid))
+            if ch and ch["gate_script"]:
+                _await_review(pid, "script", f"Kênh {ch['name']}: chờ bạn duyệt kịch bản rồi mới đọc giọng và dựng")
+                return
         else:
             plan = json.loads((out / "script.json").read_text())
         nar = None
@@ -423,11 +435,12 @@ def resume(pid: int, start: str | None = None) -> None:
     produce(pid, start=start)
 
 
-def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
-    """Đọc kịch bản. Video (giọng + đuôi) ngoài [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần,
-    theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá MAX_SECONDS thì bỏ câu gần cuối và đọc lại. Trả (plan, narration)."""
+def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = None) -> tuple[dict, dict]:
+    """Đọc kịch bản (voice: giọng ElevenLabs của kênh, None = theo Cài đặt). Video (giọng + đuôi) ngoài
+    [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần, theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá
+    MAX_SECONDS thì bỏ câu gần cuối và đọc lại. Trả (plan, narration)."""
     step("Giọng đọc", 64, "Tạo giọng đọc tiếng Pháp")
-    nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
+    nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
     length = nar["duration"] + render.TAIL
     step("Giọng đọc", 67, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
     if nar["duration"] <= 0:
@@ -439,7 +452,7 @@ def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
         if fitted is not plan:
             plan = fitted
             _save_script(out, plan)
-            nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
+            nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
             step("Giọng đọc", 68, f"Đọc lại: {nar['duration']:.1f} s", title=plan["title_fr"])
     for _ in range(2):  # trần cứng: Facebook Reels (API) không nhận video quá 90 s
         length = nar["duration"] + render.TAIL
@@ -451,7 +464,7 @@ def _voice(plan: dict, out: Path, step, duration_sec: int) -> tuple[dict, dict]:
         step("Giọng đọc", 69, f"Video {length:.0f} s, tối đa {MAX_SECONDS} s: bỏ {n} câu gần cuối rồi đọc lại")
         plan = cut
         _save_script(out, plan)
-        nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio")
+        nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
         step("Giọng đọc", 69, f"Đọc lại: {nar['duration']:.1f} s")
     return plan, nar
 
@@ -471,9 +484,11 @@ def write_post(plan: dict, sources: list[dict], out: Path) -> str:
 
 def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float,
                        duration_sec: int = DEFAULT_SECONDS, nar: dict | None = None) -> None:
+    proj = db.get_project(pid)
+    ch = channels.for_project(proj)
     # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ
     if nar is None:
-        plan, nar = _voice(plan, out, step, duration_sec)
+        plan, nar = _voice(plan, out, step, duration_sec, voice=(ch["voice_id"] or None) if ch else None)
         (out / "audio").mkdir(parents=True, exist_ok=True)
         (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
                                                           ensure_ascii=False), encoding="utf-8")
@@ -489,7 +504,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     def prog(done, total):
         step("Dựng", 70 + int(26 * done / total), None)
 
-    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS)
+    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS, badge=channels.badge_for(proj))
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
         spans = ", ".join(f"{delogo.clock(a)}–{delogo.clock(b)}" for a, b in miss[:4]) + ("…" if len(miss) > 4 else "")
         step("Dựng", 96, f"Nguồn #{i + 1}: video mới dùng cả đoạn chưa xoá logo ({spans}). Mở Xoá logo, bấm Xoá "
@@ -497,13 +512,59 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)
-    db.update_project(pid, status="done", step="Xong", pct=100,
-                      log=f"Xong trong {time.time() - t_begin:.0f} s · {res['pieces']} đoạn · "
-                          f"{res['duration']:.1f} s video",
+    db.update_project(pid, log=f"Dựng xong trong {time.time() - t_begin:.0f} s · {res['pieces']} đoạn · "
+                               f"{res['duration']:.1f} s video",
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg",
                             "title": plan["title_fr"], "description": desc,
                             "hashtags": plan.get("hashtags", []), "tts": nar["provider"],
                             "voice": nar["voice"], "elapsed": round(time.time() - t_begin)})
+    # 8. Chờ duyệt video, tự gửi Postiz, hoặc xong (theo hồ sơ kênh)
+    _deliver(pid, ch)
+
+
+def _await_review(pid: int, what: str, log: str) -> None:
+    db.update_project(pid, status="review", step=REVIEW_STEPS[what], pct=62 if what == "script" else 100, log=log,
+                      meta={"review": what})
+
+
+def _deliver(pid: int, ch: dict | None) -> None:
+    """Video vừa dựng xong. Kênh có cổng duyệt video: dừng chờ duyệt. Không có cổng mà có kênh Postiz: tự gửi. Dự án
+    đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app."""
+    sent = bool(db.get_project(pid)["meta"].get("postiz"))
+    if ch and not sent and ch["gate_video"]:
+        _await_review(pid, "video", f"Kênh {ch['name']}: chờ bạn duyệt video"
+                                    + (" rồi gửi sang Postiz" if ch["postiz"] else ""))
+        return
+    if ch and not sent and ch["postiz"]:
+        send_to_postiz(pid, ch)
+    db.update_project(pid, status="done", step="Xong", pct=100)
+
+
+def send_to_postiz(pid: int, ch: dict) -> bool:
+    """Gửi video sang các kênh Postiz của hồ sơ: nháp, giờ đăng kế tiếp của kênh, hoặc đăng ngay. Lỗi chỉ ghi vào
+    nhật ký (video vẫn xong, gửi lại bằng tay được). Trả True nếu đã gửi."""
+    Step(pid)("Gửi Postiz", 99, f"Gửi sang Postiz ({ch['send_mode']}) cho kênh {ch['name']}")
+    try:
+        when = channels.next_slot(ch, channels.taken_slots(ch["id"])) if ch["send_mode"] == "schedule" else None
+        postiz.publish_project(pid, ch["postiz"], ch["send_mode"], when, profile=ch["id"])
+    except Exception as e:  # Postiz chưa cấu hình, mất mạng, kênh đã bị gỡ…
+        db.update_project(pid, log=f"Chưa gửi được sang Postiz: {str(e)[:300]}", meta={"send_error": str(e)[:300]})
+        return False
+    db.update_project(pid, meta={"send_error": None})
+    return True
+
+
+def approve_video(pid: int, send: bool = True) -> None:
+    """Duyệt video đang chờ: gửi sang Postiz theo hồ sơ kênh (send=False: chỉ duyệt, không gửi), rồi xong."""
+    p = db.get_project(pid)
+    if p["meta"].get("review") != "video":  # API đã đổi trạng thái sang running để khoá dự án trong lúc gửi
+        raise ValueError("Dự án không chờ duyệt video")
+    ch = channels.for_project(p)
+    db.update_project(pid, log="Đã duyệt video" + ("" if send else ", không gửi Postiz"),
+                      meta={"review": None, "approved_at": time.time()})
+    if send and ch and ch["postiz"]:
+        send_to_postiz(pid, ch)
+    db.update_project(pid, status="done", step="Xong", pct=100)
 
 
 def rerender(pid: int) -> None:

@@ -477,12 +477,12 @@ def test_pipeline_warns_about_uncleaned_parts(monkeypatch):
     db.update_project(pid, meta={"sources": s})
     logs = []
 
-    def render(plan, sources, nar, out, progress=None, min_total=0):
+    def render(plan, sources, nar, out, progress=None, min_total=0, badge=""):
         _timeline(pid, [(0, 2.0, 2.0), (0, 70.0, 5.0)])
         return {"pieces": 2, "duration": 70.0}
 
-    monkeypatch.setattr(pipeline, "_voice", lambda plan, out, step, d: (plan, {"duration": 66.0, "provider": "x",
-                                                                                "voice": "v"}))
+    monkeypatch.setattr(pipeline, "_voice", lambda plan, out, step, d, voice=None: (
+        plan, {"duration": 66.0, "provider": "x", "voice": "v"}))
     monkeypatch.setattr(pipeline.render, "render", render)
     monkeypatch.setattr(pipeline, "write_post", lambda plan, sources, out: "desc")
     pipeline._voice_render_post(pid, {"title_fr": "t", "lines": []}, s, config.PROJECTS / str(pid),

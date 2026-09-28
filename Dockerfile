@@ -13,9 +13,10 @@ ENV PYTHONUNBUFFERED=1 \
     MOTIO_DATA=/data \
     HF_HOME=/data/cache/huggingface
 
-# ffmpeg for render/ASR, DejaVu (Latin) + Noto CJK fonts for the Linux entries in config._FONTS
+# ffmpeg for render/ASR, DejaVu (Latin) + Noto CJK fonts for the Linux entries in config._FONTS,
+# tzdata so TZ applies to channel posting times
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-noto-cjk ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-noto-cjk ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /usr/local/bin/uv

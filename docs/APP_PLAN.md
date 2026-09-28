@@ -11,7 +11,8 @@ Motio app (Tauri + React)                    Motio engine (Python, FastAPI)
 ```
 
 Stack decisions: Tauri 2, React 19 + Vite + TypeScript, Tailwind + shadcn/ui, TanStack Query.
-Engine: FastAPI, SQLite, uv. No auto-publishing to social platforms in this plan.
+Engine: FastAPI, SQLite, uv. Posting goes only through Postiz (see "Server + Postiz" and "GĐ1"), never the platforms'
+APIs directly.
 
 ---
 
@@ -228,8 +229,31 @@ pipeline step.
   voice step when the script's lines changed), and
   "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.
 
+## GĐ1: channel profiles, approval gates, auto-send (added 28/09/2026)
+
+The owner asked to build the rest of the blueprint in phase order; for GĐ1 they picked "Kênh profiles" (brainstorm
+28/09) over global switches or YAML files. Shipped in two PRs: (1) profiles, gates, auto-send and the badge fix;
+(2) the 16:9 copy and auto-make above a trend score.
+
+- **Kênh page** (`motio/channels.py`, `/api/channels`): one profile per channel: name, red badge on the video
+  (empty = none), style notes appended to the script prompt, ElevenLabs voice, default length for hot-news videos,
+  hashtags that go first, a script gate, a video gate, Postiz channels and a send mode (draft / schedule at the
+  channel's next free posting time, `send_times` in the engine's local time / now). One profile can be the default.
+- Tin hot, Video mới and Tạo video take a `channel` (none = the default profile, 0 = no profile); the project keeps it
+  in `meta.channel`. Without a profile a project runs as before: no gates, no auto-send; the badge is "ACTU CHINE" for
+  news and none for topic explainers (before, every video got "ACTU CHINE").
+- **Gates**: after the script step, a project with the script gate stops as status `review` (`meta.review = script`)
+  and frees the worker; "Duyệt và làm tiếp" (`POST /api/projects/{id}/approve`) runs the voice step. After the render,
+  the video gate stops it again (`meta.review = video`); approving sends it to the profile's Postiz channels (or not,
+  `send: false`). Retrying or re-rendering clears a pending review.
+- **Auto-send**: with the video gate off, a finished video goes to Postiz at once. Each project is sent automatically
+  once; later re-renders finish without posting again (sending again stays manual). A Postiz error is logged
+  (`meta.send_error`) and the video still finishes.
+- Next (PR 2): the 16:9 copy for channels marked for it, and auto-make: after each scheduled refresh, trends at or above
+  a profile's score are made for that profile, within `MAX_VIDEOS_PER_DAY` and a per-profile daily cap, and still stop
+  at its gates. Slack notifications wait for a Slack app from the owner.
+
 ## Out of scope for now
 
-Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending every finished video to
-Postiz (belongs with the M4 scheduler) · AI clips (fal H3 Max) and Qwen images
-(Modal) inside the pipeline.
+Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel
+profile · AI clips (fal H3 Max) and Qwen images (Modal) inside the pipeline.
