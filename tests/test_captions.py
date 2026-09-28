@@ -94,3 +94,14 @@ def test_srt_and_ass():
     ass = captions.to_ass(cues)
     assert "PlayResX: 1080" in ass and "PlayResY: 1920" in ass
     assert "Dialogue: 0,0:00:00.15,0:00:01.20,Karaoke,,0,0,0,,{\\kf55}Bonjour\\N{\\kf50}France" in ass
+
+
+def test_hold_clears_a_cue_in_a_long_silence():
+    words = word_times(["Bonjour à tous.", "Merci."], [{"start": 0.0, "end": 2.0}, {"start": 20.0, "end": 21.0}])
+    always = build_cues(words, total=22.0)
+    assert always[0].end == pytest.approx(20.0)  # sans hold: le cue reste jusqu'au suivant
+    held = build_cues(words, total=22.0, hold=1.2)
+    assert held[0].end == pytest.approx(2.0 + 1.2) and held[1].start == pytest.approx(20.0)
+    assert held[1].end == pytest.approx(min(22.0, 21.0 + 1.2))
+    frames = karaoke_frames(held)
+    assert any(c is None and a == pytest.approx(3.2) and b == pytest.approx(20.0) for a, b, c, _ in frames)

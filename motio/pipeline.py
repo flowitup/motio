@@ -1,10 +1,11 @@
-"""Pipeline: một tin NewsNow (mode news) hoặc một chủ đề / link video (mode topic) → một video 9:16 tiếng Pháp."""
+"""Pipeline: một tin NewsNow (mode news), một chủ đề / link video (mode topic) hoặc một video cần lồng tiếng (mode dub,
+xem dub.py) → một video 9:16 tiếng Pháp."""
 import json
 import time
 import traceback
 from pathlib import Path
 
-from . import asr, channels, config, db, delogo, llm, postiz, render, scenes, search, topic, tts
+from . import asr, channels, config, db, delogo, dub, llm, postiz, render, scenes, search, topic, tts
 from .i18n import tr, tr_n
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
@@ -187,6 +188,12 @@ def _subject(proj: dict) -> dict:
 def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
     """Link dán tay (meta.links) luôn được dùng; tự tìm trên YouTube / Bilibili lấp chỗ còn lại."""
     pid, meta = proj["id"], proj["meta"]
+    if proj.get("mode") == dub.MODE:  # bản lồng tiếng: đúng một video, không tìm thêm
+        pinned = [search.link_candidate(u) for u in meta.get("links") or []][:1]
+        if not pinned:
+            raise RuntimeError(tr("No video link to dub"))
+        step("Find sources", 12, tr("Video to dub: {url}", url=pinned[0]["url"]), chosen=pinned)
+        return pinned
     subj = _subject(proj)
     is_topic = subj["mode"] == topic.MODE
     if is_topic and subj["topic"] and not subj.get("keywords"):
@@ -250,15 +257,16 @@ def _step_download(chosen: list[dict], step) -> list[dict]:
     return sources
 
 
-def _step_transcribe(sources: list[dict], step) -> list[dict]:
+def _step_transcribe(sources: list[dict], step, cuts: bool = True) -> list[dict]:
+    """Whisper cho từng nguồn, kèm mốc cắt cảnh (cuts=False: bản lồng tiếng giữ nguyên đoạn, không cần)."""
     transcripts, n_cuts = [], []
     for i, s in enumerate(sources):
         step("Transcribe", 32 + int(20 * i / len(sources)),
-             tr("Whisper + scene cuts: {name}", name=Path(s["path"]).name))
+             tr("Whisper + scene cuts: {name}" if cuts else "Whisper: {name}", name=Path(s["path"]).name))
         transcripts.append(asr.transcribe(Path(s["path"])))
-        n_cuts.append(len(scenes.detect(Path(s["path"]))))
-    done = [f"{t.get('language') or '-'}: {tr_n(len(t['segments']), 'segment')}, {tr_n(n, 'scene')}"
-            for t, n in zip(transcripts, n_cuts, strict=False)]
+        n_cuts.append(len(scenes.detect(Path(s["path"]))) if cuts else None)
+    done = [f"{t.get('language') or '-'}: {tr_n(len(t['segments']), 'segment')}"
+            + (f", {tr_n(n, 'scene')}" if n is not None else "") for t, n in zip(transcripts, n_cuts, strict=False)]
     step("Transcribe", 52, tr("Transcribed: {done}", done=" · ".join(done)))
     return transcripts
 
@@ -398,8 +406,13 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
         else:
             sources = _load_sources(pid)
         if at <= 3:
-            transcripts = _step_transcribe(sources, step)
-            plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
+            proj = db.get_project(pid)
+            if proj.get("mode") == dub.MODE:
+                transcripts = _step_transcribe(sources[:1], step, cuts=False)
+                plan = dub.script(proj, sources[0], transcripts[0], out, step)
+            else:
+                transcripts = _step_transcribe(sources, step)
+                plan = _step_script(proj, sources, transcripts, out, step, duration_sec)
             ch = channels.for_project(db.get_project(pid))
             if ch and ch["gate_script"]:
                 _await_review(pid, "script", tr("Channel {name}: awaiting your script approval before voice and "
@@ -497,9 +510,14 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                        duration_sec: int = DEFAULT_SECONDS, nar: dict | None = None) -> None:
     proj = db.get_project(pid)
     ch = channels.for_project(proj)
-    # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ
+    is_dub = proj.get("mode") == dub.MODE
+    voice = (ch["voice_id"] or None) if ch else None
+    # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ. Bản lồng tiếng: câu đặt theo câu gốc, trộn nền.
     if nar is None:
-        plan, nar = _voice(plan, out, step, duration_sec, voice=(ch["voice_id"] or None) if ch else None)
+        if is_dub:
+            nar = dub.voice(plan, sources[0], out, step, voice)
+        else:
+            plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
         (out / "audio").mkdir(parents=True, exist_ok=True)
         (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
                                                           ensure_ascii=False), encoding="utf-8")
@@ -507,7 +525,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         step("Render", 70, tr("Keeping the previous voice ({voice})",
                               voice=f"{nar.get('provider')} · {nar.get('voice')} · {nar['duration']:.1f} s"))
     length = nar["duration"] + render.TAIL
-    if length < MIN_SECONDS:
+    if is_dub:  # độ dài đã định ở bước giọng (dub.voice): đoạn gốc + phần mở / kết
+        pass
+    elif length < MIN_SECONDS:
         step("Voice", 70, tr("Voice is {length} s: extending the ending with source footage to {min} s",
                              length=f"{length:.1f}", min=MIN_SECONDS))
     elif length > MAX_SECONDS:
@@ -519,8 +539,12 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         step("Render", 70 + int(26 * done / total), None)
 
     wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
-    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS, badge=channels.badge_for(proj),
-                        wide=wide)
+    if is_dub:
+        res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
+                            badge=channels.badge_for(proj), wide=wide)
+    else:
+        res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
+                            badge=channels.badge_for(proj), wide=wide)
     if not res.get("wide"):
         (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
@@ -530,9 +554,12 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)
+    bg = nar.get("background") if is_dub else None
+    how = (tr(" · original music and sound kept") if bg == "separated"
+           else tr(" · original sound turned down") if bg == "original" else "")
     db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
                                   clips=tr_n(res["pieces"], "clip"), rest=f"{res['duration']:.1f} s video")
-                      + (tr(" + 16:9 copy") if res.get("wide") else ""),
+                      + (tr(" + 16:9 copy") if res.get("wide") else "") + how,
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg",
                             "wide": f"projects/{pid}/final_wide.mp4" if res.get("wide") else None,
                             "title": plan["title_fr"], "description": desc,
@@ -549,12 +576,17 @@ def _await_review(pid: int, what: str, log: str) -> None:
 
 def _deliver(pid: int, ch: dict | None) -> None:
     """Video vừa dựng xong. Kênh có cổng duyệt video: dừng chờ duyệt. Không có cổng mà có kênh Postiz: tự gửi. Dự án
-    đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app."""
-    sent = bool(db.get_project(pid)["meta"].get("postiz"))
-    if ch and not sent and ch["gate_video"]:
+    đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app.
+    Bản lồng tiếng mà quyền nguồn chưa rõ không bao giờ tự gửi: luôn dừng chờ duyệt video."""
+    proj = db.get_project(pid)
+    sent = bool(proj["meta"].get("postiz"))
+    held = bool(ch and ch["postiz"] and dub.needs_review(proj))
+    if ch and not sent and (ch["gate_video"] or held):
+        why = tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it without "
+                 "approval)") if held and not ch["gate_video"] else ""
         _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"
                                        if ch["postiz"] else "Channel {name}: awaiting your video approval",
-                                       name=ch["name"]))
+                                       name=ch["name"]) + why)
         return
     if ch and not sent and ch["postiz"]:
         send_to_postiz(pid, ch)

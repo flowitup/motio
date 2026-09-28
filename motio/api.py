@@ -27,6 +27,7 @@ from . import (
     config,
     db,
     delogo,
+    dub,
     edit,
     newsnow,
     pipeline,
@@ -59,6 +60,25 @@ class TopicIn(BaseModel):
     duration: int = 80  # 70 | 80 | 90 giây
     rights: str = "unknown"  # unknown | owned | licensed | cc
     channel: int | None = None  # như ProduceIn
+
+
+class DubIn(BaseModel):
+    link: str  # video cần lồng tiếng (Douyin, Bilibili, YouTube…)
+    start: float | None = None  # đoạn lồng tiếng (giây); bỏ trống = tự chọn (cả video nếu ≤ 88 s)
+    end: float | None = None
+    rights: str = "unknown"  # unknown | owned | licensed | cc; chỉ tự gửi Postiz khi không phải unknown
+    channel: int | None = None  # như ProduceIn
+
+
+class ClipDubIn(BaseModel):
+    channel: int | None = None
+
+
+class DubPatch(BaseModel):
+    """Chỉ các trường gửi lên mới đổi. blur: [x, y, w, h] theo tỉ lệ khung, null = tắt làm mờ."""
+    start: float | None = None
+    end: float | None = None
+    blur: list[float] | None = None
 
 
 class ProjectPatch(BaseModel):
@@ -118,6 +138,7 @@ class ChannelIn(BaseModel):
     name: str
     badge: str = ""  # nhãn đỏ trên tiêu đề video, rỗng = không nhãn
     style: str = ""  # ghi chú giọng văn thêm vào prompt kịch bản
+    glossary: str = ""  # bảng thuật ngữ (tên riêng, từ chuyên môn) cho kịch bản và bản dịch lồng tiếng
     voice_id: str = ""  # giọng ElevenLabs, rỗng = theo Cài đặt
     duration: int = 80  # độ dài mặc định cho video tin nóng
     hashtags: list[str] = []
@@ -155,6 +176,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["trend"] = db.get_trend(p["trend_id"]) if p.get("trend_id") else None
         out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
+        out["dub"] = dub.view(p)
     return out
 
 
@@ -423,6 +445,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
+    @app.post("/api/clips/{cid}/dub", status_code=202, dependencies=[Depends(auth)])
+    def dub_clip(cid: str, body: ClipDubIn | None = None):
+        """Bản lồng tiếng Pháp của một video mới (quyền nguồn theo nguồn theo dõi)."""
+        _clip(cid)
+        ch = _channel_for(body.channel if body else None)
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
+        try:
+            pid = dub.from_clip(cid)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        channels.attach(pid, ch)
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
     # ---------- dự án ----------
     @app.get("/api/projects", dependencies=[Depends(auth)])
     def projects(limit: int = 50):
@@ -452,6 +490,38 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         channels.attach(pid, ch)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
+
+    @app.post("/api/dubs", status_code=202, dependencies=[Depends(auth)])
+    def create_dub(body: DubIn):
+        """Lồng tiếng Pháp cho một video: dịch từng câu, giữ nhạc nền gốc, làm mờ phụ đề cũ."""
+        ch = _channel_for(body.channel)
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
+        try:
+            pid = dub.create(body.link, body.start, body.end, body.rights)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        channels.attach(pid, ch)
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
+    @app.put("/api/projects/{pid}/dub", dependencies=[Depends(auth)])
+    def put_dub(pid: int, body: DubPatch):
+        """Đổi đoạn lồng tiếng / khung làm mờ. Trả rerun: bước nên chạy lại (script, render) hoặc null, app gọi
+        /retry với bước đó."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        try:
+            rerun = dub.update(pid, body.model_dump(exclude_unset=True))
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        if rerun and rerun not in pipeline.available_steps(pid):
+            rerun = pipeline.resume_point(pid)
+        return {"project": _project_out(_get(pid), full=True), "rerun": rerun}
 
     @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
     def patch_project(pid: int, body: ProjectPatch):

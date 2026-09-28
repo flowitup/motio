@@ -173,8 +173,10 @@ def _rebalance_tail(groups: list[list[Word]], fits, max_lines: int, min_tail: in
 
 
 def build_cues(line_words: list[list[Word]], total: float, fits: Callable[[str], bool] = default_fits,
-               max_lines: int = MAX_LINES, min_phrase: int = 28, shift: float = 0.0) -> list[Cue]:
-    """Chia từng dòng kịch bản thành các cue ≤ max_lines dòng. Mỗi cue kéo tới lúc cue sau bắt đầu (liền mạch).
+               max_lines: int = MAX_LINES, min_phrase: int = 28, shift: float = 0.0,
+               hold: float | None = None) -> list[Cue]:
+    """Chia từng dòng kịch bản thành các cue ≤ max_lines dòng. Mỗi cue kéo tới lúc cue sau bắt đầu (liền mạch);
+    `hold` (giây): cue tắt sau từ cuối chừng này nếu cue sau còn xa (bản lồng tiếng có khoảng lặng giữa các câu).
 
     Ngắt ưu tiên sau dấu câu khi cue đã đủ dài (min_phrase ký tự); cue cuối quá ngắn được gộp hoặc chia lại.
     `shift` dời mọi mốc (giọng đọc được chèn trễ trong bản dựng).
@@ -199,6 +201,8 @@ def build_cues(line_words: list[list[Word]], total: float, fits: Callable[[str],
     for i, g in enumerate(groups):
         start = g[0].start + shift
         end = groups[i + 1][0].start + shift if i + 1 < len(groups) else total
+        if hold is not None:
+            end = min(end, g[-1].end + shift + hold)
         lines = split_lines(g, fits, max_lines) or [g]
         cues.append(Cue(start, max(end, start + 0.05),
                         [[Word(w.text, w.start + shift, w.end + shift) for w in ln] for ln in lines]))
