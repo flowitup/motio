@@ -265,7 +265,7 @@ function SettingsForm({ api }: { api: Api }) {
           <CardTitle>{t.settings.voice}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Voice">
+          <Field label={t.settings.voiceLabel}>
             <VoicePicker
               api={api}
               hasKey={hasElKey}

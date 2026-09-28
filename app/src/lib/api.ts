@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useEngine } from "./engine";
+import { t } from "@/i18n";
 
 export type Trend = {
   id: string;
@@ -298,7 +299,7 @@ export function makeApi(url: string, token: string) {
         if (x.status >= 200 && x.status < 300) resolve(body as DelogoTarget);
         else reject(new ApiError(x.status, body.detail ?? x.statusText));
       };
-      x.onerror = () => reject(new ApiError(0, "Không kết nối được engine"));
+      x.onerror = () => reject(new ApiError(0, t.common.noEngine));
       const form = new FormData();
       form.append("file", file);
       x.send(form);

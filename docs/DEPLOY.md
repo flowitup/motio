@@ -12,7 +12,7 @@ engine ── http://newsnow:4444 (mạng nội bộ) ──▶ NewsNow tự hos
 
 Engine tự cập nhật tin mỗi `REFRESH_EVERY_MIN` phút (mặc định 30 trên server, 0 = tắt) từ NewsNow tự host
 (dịch vụ `newsnow`, ảnh `ghcr.io/ourongxing/newsnow`, không mở ra Internet), và cùng nhịp đó kiểm tra các nguồn
-theo dõi của trang "Video mới". Không gian Bilibili hay chặn khi không có cookie trình duyệt, mà server không có
+theo dõi của trang "New videos". Không gian Bilibili hay chặn khi không có cookie trình duyệt, mà server không có
 trình duyệt: theo dõi Bilibili bằng engine trên Mac, hoặc dùng tìm kiếm Bilibili.
 
 | File | Vai trò |
@@ -96,20 +96,20 @@ Kiểm tra: `curl -H "Authorization: Bearer <MOTIO_TOKEN>" https://motio.<domain
    ID / Secret vào `.env` rồi chạy lại workflow (hoặc `docker compose up -d postiz` trên server).
 3. Trong Postiz bấm **Add Channel** cho từng kênh.
 4. Postiz → Settings → Developers → **Public API** → copy key. Điền `POSTIZ_API_KEY` vào `.env` rồi
-   `docker compose up -d engine`, hoặc nhập trong app Motio → Cài đặt → Đăng bài (Postiz).
+   `docker compose up -d engine`, hoặc nhập trong app Motio → Settings → Posting (Postiz).
 
 Lưu ý khi app developer chưa được duyệt:
 - **TikTok**: app chưa qua audit chỉ đăng được ở chế độ riêng tư. Motio gửi `PUBLIC_TO_EVERYONE`, nên trước khi
-  có audit hãy gửi **Nháp** rồi đổi quyền trong Postiz. Nộp audit sớm.
+  có audit hãy gửi **Draft** rồi đổi quyền trong Postiz. Nộp audit sớm.
 - **YouTube**: project Google Cloud chưa qua audit thì video tải lên bị để private.
 - Motio luôn giữ dòng "Voix off générée par IA." trong bài và bật nhãn AI của TikTok (`video_made_with_ai`). Video
   không còn nhãn AI trên hình, nên khi đăng Facebook hãy bật nhãn "AI info" của Meta (Motio chưa bật nhãn này qua Postiz).
 
 ## 7. App desktop
 
-Cài đặt → Engine → chế độ **Engine từ xa**, URL `https://motio.<domain>`, Token = `MOTIO_TOKEN`.
-Trang một dự án đã xong có thẻ **Đăng bài (Postiz)**: chọn kênh, rồi **Nháp** (duyệt trong Postiz),
-**Lên lịch** (Postiz tự đăng đúng giờ) hoặc **Đăng ngay**. Các lần gửi được ghi vào nhật ký dự án.
+Settings → Engine → chế độ **Remote engine**, URL `https://motio.<domain>`, Token = `MOTIO_TOKEN`.
+Trang một dự án đã xong có thẻ **Posting (Postiz)**: chọn kênh, rồi **Draft** (duyệt trong Postiz),
+**Schedule** (Postiz tự đăng đúng giờ) hoặc **Post now**. Các lần gửi được ghi vào nhật ký dự án.
 
 API tương ứng: `GET /api/postiz/channels`, `POST /api/projects/{id}/publish`
 `{"channels": ["<id>"], "mode": "draft" | "schedule" | "now", "date": "<ISO 8601 có múi giờ>"}`.

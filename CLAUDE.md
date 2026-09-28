@@ -19,12 +19,12 @@ as authoritative for scope and milestones.
   - `render.py` 9:16 composition · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
-  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("Video mới")
+  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
-  - `channels.py` "Kênh" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
+  - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now); projects point to one with `meta.channel`
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
-  - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
+  - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
     project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
@@ -64,7 +64,8 @@ on every PR; keep them green.
 
 ## Conventions
 
-- UI text is Vietnamese (keep strings in one dictionary so FR/EN can be added). Video content is French.
+- UI text is English (owner, 2026-09-28; it was Vietnamese before), all of it in `app/src/i18n.ts` so other
+  languages can be added; engine messages the app shows (steps, logs, errors) are English too. Video content is French.
 - Code, identifiers and commit messages in English; short comments may be Vietnamese.
 - The engine must stay cross-platform: guard OS-specific code with `platform.system()`, use `pathlib`,
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
@@ -77,7 +78,7 @@ on every PR; keep them green.
   unless they ask.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
-- Logo/watermark removal exists only as the manual "Xoá logo" tool (`motio/delogo.py`): the user picks one video and
+- Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /
   Content ID detection.

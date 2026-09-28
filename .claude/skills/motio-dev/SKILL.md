@@ -18,7 +18,7 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 1. `CLAUDE.md` (repo root): conventions and non-negotiables. Read it every session.
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
    the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
-   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 Kênh profiles + gates + auto-send ✓ → GĐ1 16:9 +
+   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓ → GĐ1 16:9 +
    auto-make next, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
@@ -101,8 +101,8 @@ cd app && pnpm install && cd ..              # only if touching the app
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
 | Postiz posting | `motio/postiz.py` (`publish`, `publish_project`), `app/src/components/publish-card.tsx` |
-| "Kênh" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
-| "Xoá logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
+| "Channels" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
+| "Remove logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
 | Engine connection (local/remote) | `app/src/lib/engine.tsx`, `app/src-tauri/src/engine.rs` |
@@ -127,14 +127,15 @@ live in `data/tools/delogo/<hex>/`.
   `MOTIO_CLAUDE`, bundled `bin/`). No `/opt/homebrew` or `C:\` outside that lookup helper.
 - **All LLM calls through `motio/llm.py`.** The `claude_cli` provider strips `ANTHROPIC_API_KEY` from the
   `claude -p` subprocess env so it bills the Claude plan, not the API account. Keep that.
-- **Language.** UI text is Vietnamese, all of it in `app/src/i18n.ts` so FR/EN can be added. Video content
-  and post text are French. Code, identifiers, commits and the README in English (since PR #10;
+- **Language.** UI text is English (owner, 2026-09-28; Vietnamese before), all of it in `app/src/i18n.ts` so
+  other languages can be added. Engine text the app shows (step labels, log lines, API errors, CLI output) is
+  English too. Video content and post text are French. Code, identifiers, commits and the README in English (since PR #10;
   `docs/DEPLOY.md` is still Vietnamese); short comments may be Vietnamese.
 - **Content rules.** Keep "Voix off générée par IA." in the post and the platforms' AI flags (AI Act art. 50).
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
   Always write `sources.txt`; on-video / in-post credits stay optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`,
   default off). News videos carry an original French script; source clips only illustrate, in short segments.
-- **Logo removal stays manual.** The only watermark / logo removal is the "Xoá logo" tool (`motio/delogo.py`,
+- **Logo removal stays manual.** The only watermark / logo removal is the "Remove logo" tool (`motio/delogo.py`,
   owner's ask 2026-09-27): the user picks one video (a project source or an upload) and starts it; the owner removed
   the rights confirmation (PR #19) and the per-source rights field (PR #21). A rights value sent through the API is
   still recorded on the source (`meta.sources[i].delogo`) and, once every source is declared, on `meta.rights`: keep
@@ -153,7 +154,7 @@ live in `data/tools/delogo/<hex>/`.
   `/api/*` needs `Authorization: Bearer`; only `/media/*` and the SSE `/events` route accept `?token=`.
   A non-loopback `--host` requires `--token` (on the server it comes from `MOTIO_TOKEN`).
 - **Posting** goes only through Postiz's Public API (`POST /api/projects/{id}/publish`, draft by default).
-  Never call TikTok / YouTube / Meta / X APIs directly. Automatic sending happens only for a project whose "Kênh"
+  Never call TikTok / YouTube / Meta / X APIs directly. Automatic sending happens only for a project whose channel
   profile lists Postiz channels, after its gates (`pipeline._deliver`), once per project; later re-renders don't post
   again. A Postiz failure is logged (`meta.send_error`), never fails the video.
 - **Approval gates.** A profile's script gate stops `produce` after the script step with status `review`
@@ -276,9 +277,9 @@ Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <
 3. The workflow leaves a **draft** Release with installers and `latest.json`. Installed apps only see an
    update once the owner **publishes** the draft.
 4. Installers are unsigned (Gatekeeper "Open Anyway" / SmartScreen "Run anyway") and **bundle the engine**
-   (PyInstaller onedir + static ffmpeg, ~460 MB, since PR #3 / 0.3.1). Cài đặt → "Engine từ xa" (URL + token)
+   (PyInstaller onedir + static ffmpeg, ~460 MB, since PR #3 / 0.3.1). Settings → "Remote engine" (URL + token)
    points the app at an engine on another machine, such as the Hetzner server.
-5. Updater: the app checks the latest published release on launch and from Cài đặt → "Cập nhật ứng dụng".
+5. Updater: the app checks the latest published release on launch and from Settings → "Update app".
    From 0.3.1 (PR #8, repo public) it reads `releases/latest/download/latest.json` with no token, and
    `latest.json` points at the tag's public download links. Publish a release only while the repo is public.
    (0.3.0 used a per-machine read-only token and API asset URLs; it still updates without one once public.)
@@ -302,12 +303,12 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - `mlx-whisper` only installs on macOS arm64; Linux/Windows use `faster-whisper` (CPU int8, CUDA if present).
 - `claude -p` is not available on the server or in CI: tests must mock the LLM, TTS, ASR, yt-dlp and Postiz.
 - macOS `say` fallback exists for dev only; without an ElevenLabs key on Windows/Linux, `tts.py` raises
-  `TTSUnavailable` with a Vietnamese message the UI shows. Keep it that way, never a silent fallback.
+  `TTSUnavailable` with an English message the UI shows. Keep it that way, never a silent fallback.
 - YouTube often blocks downloads from datacenter IPs ("Sign in to confirm you're not a bot"); Bilibili
   usually works. Expect fewer sources on the server.
 - `uv` is not on PATH when the app is launched from Finder / Explorer; `engine.rs` searches common
   locations. Keep that list in sync if you change how uv is found.
-- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`. "Xoá logo"
+- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`. "Remove logo"
   jobs have their own one-at-a-time queue (`tools` in `api.py`) so a long LaMa run doesn't hold up production.
 - Stale `running` projects are marked `failed` on engine start; don't rely on resuming them.
 - Release asset names feed `tools/updater_manifest.py`: renaming bundles or changing `bundles:` in
