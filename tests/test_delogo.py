@@ -97,7 +97,8 @@ def client():
         yield c
 
 
-def _source_project(n=1, status="done") -> tuple[int, list[Path]]:
+def _source_project(n=1, status="done", rendered=True) -> tuple[int, list[Path]]:
+    """Dự án có n nguồn; rendered: đã dựng video final dùng mỗi nguồn một đoạn 2–5 s."""
     src_dir = config.CACHE / "sources"
     src_dir.mkdir(parents=True, exist_ok=True)
     files, sources = [], []
@@ -110,6 +111,8 @@ def _source_project(n=1, status="done") -> tuple[int, list[Path]]:
                         "platform": "Douyin", "uploader": "chaîne", "title": "t", "duration": 12})
     pid = db.create_project(None, "Clip", mode="topic")
     db.update_project(pid, status=status, meta={"sources": sources, "rights": "unknown"})
+    if rendered:
+        _timeline(pid, [(i, 2.0, 3.0) for i in range(n)])
     return pid, files
 
 
@@ -414,18 +417,20 @@ def test_merge_pads_joins_and_clamps():
 
 
 def test_only_used_parts_of_a_project_source(client, fake_ffmpeg):
-    pid, _ = _source_project(n=2)
+    pid, _ = _source_project(n=2, rendered=False)
     key = f"p{pid}-0"
     v = client.get(f"/api/delogo/targets/{key}", headers=H).json()
     assert v["used"] is None  # chưa dựng
-    r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, "scope": "used"})
-    assert r.status_code == 400 and "chưa dựng" in r.json()["detail"] and not fake_ffmpeg
+    r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX})
+    assert r.status_code == 400 and "dựng video trước" in r.json()["detail"] and not fake_ffmpeg
 
     _timeline(pid, [(0, 2.0, 1.5), (1, 4.0, 3.0), (0, 3.5, 1.0), (0, 11.0, 0.5)])
     v = client.get(f"/api/delogo/targets/{key}", headers=H).json()
     assert v["used"] == [[1.0, 7.5], [10.0, 12.0]] and v["uncovered"] == []
-    assert client.post(f"/api/delogo/targets/{key}/run", headers=H,
-                       json={"boxes": BOX, "scope": "used"}).status_code == 202
+    for body in ({"scope": "all"}, {"scope": "range", "start": 0, "end": 5}):  # nguồn dự án: chỉ đoạn final dùng
+        r = client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX, **body})
+        assert r.status_code == 400 and "video final" in r.json()["detail"]
+    assert client.post(f"/api/delogo/targets/{key}/run", headers=H, json={"boxes": BOX}).status_code == 202
     v = _wait(client, key)
     assert v["status"] == "done" and v["ranges"] == [[1.0, 7.5], [10.0, 12.0]] and v["scope"] == "used"
     assert fake_ffmpeg[-1][2] == [[1.0, 7.5], [10.0, 12.0]]

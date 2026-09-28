@@ -275,9 +275,9 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const shown = boxes ?? v?.boxes ?? [];
-  // nguồn dự án đã dựng: mặc định chỉ xoá các đoạn video thành phẩm dùng tới (nhanh hơn nhiều so với cả video)
-  const saved = v?.scope === "used" && !v?.used ? null : v?.scope;
-  const chosenScope: DelogoScope = scope ?? saved ?? (v?.used ? "used" : "all");
+  // nguồn dự án: chỉ xoá các đoạn video final dùng; file tải lên: cả video hoặc một đoạn
+  const saved = v?.scope === "all" || v?.scope === "range" ? v.scope : null;
+  const chosenScope: DelogoScope = v?.kind === "source" ? "used" : (scope ?? saved ?? "all");
   const fromText = from ?? clock(v?.span?.[0] ?? 0);
   const toText = to ?? clock(Math.ceil(v?.span?.[1] ?? v?.duration ?? 0));
   const span: Span = [parseClock(fromText), parseClock(toText)];
@@ -308,8 +308,15 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
       qc.invalidateQueries({ queryKey: ["delogo-uploads"] });
     },
   });
+  // dựng lại với giọng đọc cũ khi còn (không tốn lượt ElevenLabs), không thì đọc lại
+  const project = useQuery({
+    queryKey: ["project", v?.project_id],
+    queryFn: () => api.project(v!.project_id!),
+    enabled: v?.project_id != null,
+  });
+  const keepVoice = !!project.data?.retry.steps.includes("render");
   const rerender = useMutation({
-    mutationFn: () => api.retry(v!.project_id!, "voice"),
+    mutationFn: () => api.retry(v!.project_id!, keepVoice ? "render" : "voice"),
     onSuccess: () => navigate(`/projects/${v!.project_id}`),
   });
 
@@ -421,14 +428,14 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
 
           <div className="grid gap-2">
             <span className="text-sm font-medium">{t.delogo.scope}</span>
-            <Choice
-              value={chosenScope}
-              onChange={(x) => setScope(x as DelogoScope)}
-              options={(v.kind === "source" ? (["used", "all", "range"] as const) : (["all", "range"] as const)).map(
-                (x) => [x, t.delogo.scopes[x]],
-              )}
-              className="w-full sm:w-64"
-            />
+            {v.kind === "upload" && (
+              <Choice
+                value={chosenScope}
+                onChange={(x) => setScope(x as DelogoScope)}
+                options={(["all", "range"] as const).map((x) => [x, t.delogo.scopes[x]])}
+                className="w-full sm:w-64"
+              />
+            )}
             {chosenScope === "used" && (
               <p className={cn("text-xs", v.used ? "text-muted-foreground" : "text-destructive")}>
                 {v.used ? t.delogo.usedHint(v.used.length, total(v.used), v.duration) : t.delogo.notRendered}
@@ -532,13 +539,17 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
             {v.uncovered.length > 0 && (
               <p className="text-sm text-destructive">{t.delogo.uncovered(spansText(v.uncovered))}</p>
             )}
-            {v.kind === "source" && <p className="text-sm text-muted-foreground">{t.delogo.resultSource}</p>}
+            {v.kind === "source" && (
+              <p className="text-sm text-muted-foreground">
+                {keepVoice ? t.delogo.resultSourceKeepVoice : t.delogo.resultSource}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {v.kind === "source" ? (
                 <>
-                  <Button onClick={() => rerender.mutate()} disabled={rerender.isPending}>
+                  <Button onClick={() => rerender.mutate()} disabled={rerender.isPending || project.isPending}>
                     {rerender.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-                    {t.delogo.rerender}
+                    {keepVoice ? t.delogo.rerenderKeepVoice : t.delogo.rerender}
                   </Button>
                   <Button variant="outline" onClick={() => restore.mutate()} disabled={restore.isPending}>
                     <Undo2 />

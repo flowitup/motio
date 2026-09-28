@@ -164,10 +164,12 @@ def _fmt_sources(sources: list[dict], transcripts: list[dict], max_chars: int = 
 
 
 # Các bước chạy lại được, theo thứ tự. Mỗi bước chỉ cần dữ liệu các bước trước đã lưu trong meta / thư mục dự án.
-STEPS = ("search", "download", "transcribe", "script", "voice")
+# "render": dựng lại hình với giọng đọc đã có (vd. sau khi xoá logo nguồn), không đọc lại.
+STEPS = ("search", "download", "transcribe", "script", "voice", "render")
 STEP_LABELS = {"search": "Tìm nguồn", "download": "Tải video", "transcribe": "Bóc lời", "script": "Kịch bản",
-               "voice": "Giọng đọc"}
-STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64}
+               "voice": "Giọng đọc", "render": "Dựng"}
+STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64, "render": 70}
+NARRATION = "narration.json"  # trong audio/: giọng đọc lần dựng trước + các câu đã đọc
 
 
 def _subject(proj: dict) -> dict:
@@ -301,6 +303,19 @@ def _transcript_cached(src: dict) -> bool:
     return Path(src["path"]).with_suffix(".transcript.json").exists()
 
 
+def saved_narration(pid: int) -> dict | None:
+    """Giọng đọc của lần dựng trước, nếu file còn và kịch bản chưa đổi câu nào kể từ đó."""
+    out = config.PROJECTS / str(pid)
+    try:
+        nar = json.loads((out / "audio" / NARRATION).read_text(encoding="utf-8"))
+        plan = json.loads((out / "script.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if nar.get("texts") != [ln["text"] for ln in plan.get("lines") or []] or not Path(nar.get("audio", "")).is_file():
+        return None
+    return nar
+
+
 def available_steps(pid: int) -> list[str]:
     """Các bước có thể chạy lại từ đó, theo dữ liệu dự án đã lưu."""
     meta = db.get_project(pid)["meta"]
@@ -311,6 +326,8 @@ def available_steps(pid: int) -> list[str]:
         steps += ["transcribe", "script"]
         if (config.PROJECTS / str(pid) / "script.json").exists():
             steps.append("voice")
+            if saved_narration(pid):
+                steps.append("render")
     return steps
 
 
@@ -318,7 +335,7 @@ def resume_point(pid: int) -> str:
     """Bước sớm nhất còn thiếu kết quả: chỗ một dự án lỗi nên chạy tiếp."""
     steps = available_steps(pid)
     last = steps[-1]
-    if last in ("script", "voice"):
+    if last in ("script", "voice", "render"):
         try:
             sources = _load_sources(pid)
         except FileNotFoundError:  # file nguồn đã bị xoá khỏi cache: tải lại
@@ -340,7 +357,7 @@ def _invalidate(pid: int, start: str, redo: bool) -> None:
     if start == "transcribe" and redo:
         for s in _load_sources(pid):
             Path(s["path"]).with_suffix(".transcript.json").unlink(missing_ok=True)
-    if start != "voice":
+    if start not in ("voice", "render"):
         (out / "script.json").unlink(missing_ok=True)
 
 
@@ -370,7 +387,10 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
             plan = _step_script(db.get_project(pid), sources, transcripts, out, step, duration_sec)
         else:
             plan = json.loads((out / "script.json").read_text())
-        _voice_render_post(pid, plan, sources, out, step, t_begin, duration_sec)
+        nar = None
+        if start == "render" and not (nar := saved_narration(pid)):
+            raise RuntimeError("Giọng đọc cũ không còn hoặc kịch bản đã đổi: chạy lại từ bước Giọng đọc")
+        _voice_render_post(pid, plan, sources, out, step, t_begin, duration_sec, nar)
     except Exception as e:
         db.update_project(pid, status="failed", log=f"LỖI: {e}\n{traceback.format_exc()[-1200:]}")
         raise
@@ -450,9 +470,15 @@ def write_post(plan: dict, sources: list[dict], out: Path) -> str:
 
 
 def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float,
-                       duration_sec: int = DEFAULT_SECONDS) -> None:
-    # 5. Giọng đọc (đủ độ dài)
-    plan, nar = _voice(plan, out, step, duration_sec)
+                       duration_sec: int = DEFAULT_SECONDS, nar: dict | None = None) -> None:
+    # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ
+    if nar is None:
+        plan, nar = _voice(plan, out, step, duration_sec)
+        (out / "audio").mkdir(parents=True, exist_ok=True)
+        (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
+                                                          ensure_ascii=False), encoding="utf-8")
+    else:
+        step("Dựng", 70, f"Giữ giọng đọc cũ ({nar.get('provider')} · {nar.get('voice')} · {nar['duration']:.1f} s)")
     length = nar["duration"] + render.TAIL
     if length < MIN_SECONDS:
         step("Giọng đọc", 70, f"Giọng đọc {length:.1f} s: kéo dài phần cuối bằng hình nguồn tới {MIN_SECONDS} s")
@@ -466,8 +492,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS)
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
         spans = ", ".join(f"{delogo.clock(a)}–{delogo.clock(b)}" for a, b in miss[:4]) + ("…" if len(miss) > 4 else "")
-        step("Dựng", 96, f"Nguồn #{i + 1} mới xoá logo một phần, video này còn dùng đoạn chưa xoá ({spans}): mở "
-                         "Xoá logo, chọn Đoạn video đang dùng rồi xoá lại")
+        step("Dựng", 96, f"Nguồn #{i + 1}: video mới dùng cả đoạn chưa xoá logo ({spans}). Mở Xoá logo, bấm Xoá "
+                         "logo lần nữa rồi Dựng lại video")
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)

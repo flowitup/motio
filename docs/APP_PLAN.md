@@ -113,6 +113,8 @@ The rest of the blueprint's GĐ0 (news MVP), agreed with the owner on 26/09:
 
 - **Retry a failed step**: `produce` runs as steps (search → download → transcribe → script → voice + render), each
   saving what the next needs, so a failed project continues where it broke (`POST /api/projects/{id}/retry`).
+  Since 28/09 there is also a `render` step: it renders again with the voice saved at `audio/narration.json`, offered
+  while the script's lines are unchanged since that voice (after a logo clean, a title edit, or a failed render).
 - **French karaoke captions**: word timings from the ElevenLabs alignment, cues of ≤ 2 lines of ≤ 42 characters that
   also fit the frame, French typography (non-breaking space before `: ; ! ?`, « » quotes, ’). Still drawn with Pillow;
   the caption layer is one timed PNG stream overlaid in the final pass. Each project also gets `captions.srt` and
@@ -209,11 +211,12 @@ pipeline step.
   logo on a moving one; the Mac should be faster (not measured yet). Logo jobs run on their own queue so they don't
   hold up video production; the page shows time left and a Stop button. Video inpainters (ProPainter, E2FGVI) stay
   out: non-commercial licenses.
-- Where to clean ("Xoá ở đâu", added 28/09 after a 14-minute news clip with 2 logos showed 235 min left on the Mac):
-  **Đoạn video đang dùng** (default for a project source that has been rendered: the pieces of this source in the
-  last render's `timeline.json`, which now records each piece's source URL, widened 1 s before / 3 s after and
-  merged when less than 2 s apart), **Cả video**, or **Một đoạn** (from–to). Frames outside are re-encoded untouched,
-  so the clean file keeps the source's length and timestamps; the record keeps `ranges`. After each render the
+- Where to clean (added 28/09 after a 14-minute news clip with 2 logos showed 235 min left on the Mac; owner: "Chỉ
+  xoá logo cho các video final"): a project source is cleaned only in the parts its final video uses (the pieces of
+  this source in the last render's `timeline.json`, which now records each piece's source URL, widened 1 s before /
+  3 s after and merged when less than 2 s apart); it needs a render first. An upload is cleaned whole (**Cả video**)
+  or in one part (**Một đoạn**, from–to). Frames outside are re-encoded untouched, so the clean file keeps the
+  source's length and timestamps; the record keeps `ranges`. After each render the
   pipeline logs any piece of a partly cleaned source that falls outside those ranges and the page shows it; it never
   cleans by itself. The model's int8 weights are now unpacked once when it loads, not on every frame (~28 % faster,
   same output).
@@ -221,7 +224,8 @@ pipeline step.
   the API is still stored on the source (`meta.sources[i].delogo`) and, once every source is declared, in
   `meta.rights`.
 - A cleaned project clip replaces the source for the next render (`path` → `delogo/<i>/clean.mp4`, `orig_path`
-  keeps the original; transcript and scene caches are copied), "Dựng lại video" reruns from the voice step, and
+  keeps the original; transcript and scene caches are copied), "Dựng lại video (giữ giọng)" reruns the `render` step with the saved voice (the
+  voice step when the script's lines changed), and
   "Dùng lại video gốc" restores it. An upload gives a cleaned copy to download.
 
 ## Out of scope for now

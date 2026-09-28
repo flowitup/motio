@@ -23,7 +23,7 @@ as authoritative for scope and milestones.
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Xoá logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
-    project source defaults to only the parts its last render used (`timeline.json`), or the whole video / one part
+    project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
@@ -45,7 +45,7 @@ uv run python -m motio rerender <project>   # voice + render again from script.j
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
-uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice
+uv run python -m motio retry <project> [step]  # continue from the failed step, or redo from search|download|transcribe|script|voice|render (render keeps the voice)
 uv run python -m motio delete <project>     # delete a project and its folder (source cache kept)
 uv run python -m motio serve                # legacy dashboard on :8765
 # after M1:

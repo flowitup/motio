@@ -117,7 +117,7 @@ export type Project = {
   updated_at: number;
 };
 
-export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice";
+export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice" | "render";
 
 export type ProjectDetail = Project & {
   log: string;
@@ -328,7 +328,8 @@ export function makeApi(url: string, token: string) {
     /** Lấy khung hình ở giây `at` (bỏ trống = 10 % độ dài) để vẽ khung. */
     delogoFrame: (key: string, at?: number) => call<DelogoTarget>("POST", `${dl(key)}/frame`, { at: at ?? null }),
     delogoDetect: (key: string) => call<{ boxes: DelogoBox[]; note: string | null }>("POST", `${dl(key)}/detect`),
-    delogoRun: (key: string, boxes: DelogoBox[], scope: DelogoScope = "all", span?: Span) =>
+    /** scope bỏ trống: nguồn dự án = đoạn video final dùng, file tải lên = cả video. */
+    delogoRun: (key: string, boxes: DelogoBox[], scope?: DelogoScope, span?: Span) =>
       call<DelogoTarget>("POST", `${dl(key)}/run`, { boxes, scope, start: span?.[0], end: span?.[1] }),
     /** Bỏ bản đã xoá logo: nguồn dự án quay về video gốc. */
     delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),

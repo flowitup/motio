@@ -117,6 +117,7 @@ const vi = {
       transcribe: "Bóc lời",
       script: "Viết kịch bản",
       voice: "Giọng đọc và dựng",
+      render: "Dựng (giữ giọng đọc)",
     } as Record<string, string>,
     openFolder: "Mở thư mục",
     source: "Tin gốc",
@@ -186,10 +187,10 @@ const vi = {
     removeBox: "Bỏ khung này",
     run: "Xoá logo",
     scope: "Xoá ở đâu",
-    scopes: { used: "Đoạn video đang dùng", all: "Cả video", range: "Một đoạn" } as Record<string, string>,
+    scopes: { used: "Đoạn video final dùng", all: "Cả video", range: "Một đoạn" } as Record<string, string>,
     usedHint: (n: number, sec: number, total: number) =>
-      `${n} đoạn mà video của dự án dùng (thêm vài giây mỗi bên), tổng ${seconds(sec)} trên ${seconds(total)}. Dựng lại với kịch bản khác mà dùng đoạn mới thì xoá lại.`,
-    notRendered: "Dự án chưa dựng video từ nguồn này: chọn Cả video hoặc Một đoạn.",
+      `Chỉ xoá ${n} đoạn mà video final dùng (thêm vài giây mỗi bên): ${seconds(sec)} trên ${seconds(total)} của clip nguồn.`,
+    notRendered: "Video final của dự án chưa dùng nguồn này: dựng video trước rồi xoá logo.",
     allHint: "AI vẽ lại mọi khung hình: video dài có thể mất hàng giờ. Chỉ cần một phần thì chọn Một đoạn.",
     from: "Từ",
     to: "đến",
@@ -198,7 +199,7 @@ const vi = {
     badSpan: "Điểm cuối phải sau điểm đầu ít nhất nửa giây",
     cleanedParts: (n: number, sec: number) => `Đã xoá logo ở ${n} đoạn (${seconds(sec)}), phần còn lại giữ nguyên.`,
     uncovered: (spans: string) =>
-      `Video vừa dựng dùng cả đoạn chưa xoá logo (${spans}). Chọn “Đoạn video đang dùng” rồi bấm Xoá logo lần nữa.`,
+      `Video final mới dùng cả đoạn chưa xoá logo (${spans}). Bấm Xoá logo lần nữa rồi dựng lại video.`,
     modelHint:
       "Lần đầu, Motio tải mô hình AI (92 MB) về máy. Cảnh đứng yên xử lý nhanh; cảnh chuyển động có thể mất vài phút cho mỗi phút video.",
     queued: "Đang chờ video khác xoá logo xong…",
@@ -211,6 +212,9 @@ const vi = {
     resultSource:
       "Bản đã xoá logo thay video gốc khi dựng lại dự án. “Dựng lại video” đọc lại giọng và dựng video, như “Lưu và dựng lại”.",
     rerender: "Dựng lại video",
+    rerenderKeepVoice: "Dựng lại video (giữ giọng)",
+    resultSourceKeepVoice:
+      "Bản đã xoá logo thay video gốc khi dựng lại dự án. “Dựng lại video (giữ giọng)” dựng lại hình với giọng đọc cũ, không đọc lại.",
     openProject: "Mở dự án",
     restore: "Dùng lại video gốc",
     download: "Tải về",

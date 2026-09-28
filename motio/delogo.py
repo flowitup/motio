@@ -39,7 +39,8 @@ EDGE = 24  # độ chênh sáng (0–255) giữa hai điểm ảnh liền nhau �
 PERSIST = 0.6  # biên có mặt ở cùng chỗ trong ≥ 60 % khung hình
 MIN_MOTION = 0.2  # ít nhất 20 % điểm ảnh phải thay đổi, không thì không phân biệt được logo với hình
 
-# Phạm vi xoá (scope): cả video, một đoạn người dùng chọn, hoặc (nguồn dự án) chỉ các đoạn video thành phẩm dùng.
+# Phạm vi xoá (scope): nguồn dự án chỉ xoá các đoạn mà video final dùng ("used", chủ dự án 28/09); file tải lên xoá
+# cả video ("all") hoặc một đoạn người dùng chọn ("range").
 PAD_BEFORE, PAD_AFTER = 1.0, 3.0  # giây thêm quanh mỗi đoạn đang dùng: dựng lại (giọng mới) có thể xê dịch chút ít
 MERGE_GAP = 2.0  # hai đoạn cách nhau ít hơn chừng này thì xoá luôn phần giữa
 MIN_SPAN = 0.5
@@ -409,14 +410,14 @@ def _try_clamp(b: dict, info: dict) -> dict | None:
 def scope_ranges(t: Target, info: dict, scope: str, span: tuple[float, float] | None) -> list[list[float]] | None:
     """Phạm vi người dùng chọn → các khoảng (giây) cần vá; None = cả video."""
     duration = info["duration"]
+    if t.pid is not None:
+        if scope != "used":
+            raise ValueError("Nguồn của dự án chỉ xoá logo ở các đoạn video final dùng")
+        if not (used := _used(t, duration)):
+            raise ValueError("Video final của dự án chưa dùng nguồn này: dựng video trước rồi xoá logo")
+        return used
     if scope == "all":
         return None
-    if scope == "used":
-        if t.pid is None:
-            raise ValueError("Chỉ video nguồn của dự án mới có đoạn đang dùng")
-        if not (used := _used(t, duration)):
-            raise ValueError("Dự án chưa dựng video nào dùng nguồn này: chọn Cả video hoặc Một đoạn")
-        return used
     if scope == "range":
         a, b = span or (0.0, 0.0)
         a, b = max(0.0, float(a)), min(duration, float(b))
@@ -427,16 +428,18 @@ def scope_ranges(t: Target, info: dict, scope: str, span: tuple[float, float] | 
 
 
 def start(key: str, boxes: list[dict], rights: str | None, submit: Callable[[Callable[[], None]], object],
-          scope: str = "all", span: tuple[float, float] | None = None) -> dict:
+          scope: str | None = None, span: tuple[float, float] | None = None) -> dict:
     """Xếp hàng xoá logo; quyền khai báo là tuỳ chọn, giữ quyền đã lưu khi bỏ qua.
 
-    scope: "all" cả video, "range" đoạn span=(đầu, cuối) giây, "used" các đoạn video thành phẩm của dự án đang dùng.
+    scope: nguồn dự án chỉ có "used" (các đoạn video final dùng, mặc định); file tải lên "all" (mặc định) hoặc
+    "range" đoạn span=(đầu, cuối) giây.
     """
     if rights is not None and rights not in RIGHTS:
         raise ValueError("Quyền nguồn không hợp lệ")
     t = resolve(key)
     info = probe(t.src)
     boxes = clamp_boxes(boxes, info["width"], info["height"])
+    scope = scope or ("used" if t.pid is not None else "all")
     ranges = scope_ranges(t, info, scope, span)
     if t.pid is not None and db.get_project(t.pid)["status"] in BUSY:
         raise Busy("Dự án đang chạy, chờ xong rồi thử lại")
@@ -539,7 +542,7 @@ def _apply_to_source(t: Target, out: Path, record: dict, *, update_rights: bool 
     declared = [(x.get("delogo") or {}).get("rights") for x in sources]
     if update_rights and all(declared):  # mọi nguồn đều đã được xác nhận: quyền của cả dự án theo lời xác nhận
         meta["rights"] = "licensed" if "licensed" in declared else "owned"
-    db.update_project(t.pid, log=f"Đã xoá logo nguồn #{t.index + 1}: bấm Chạy lại từ Giọng đọc để dựng lại video",
+    db.update_project(t.pid, log=f"Đã xoá logo nguồn #{t.index + 1}: chạy lại từ bước Dựng để dựng lại video",
                       meta=meta)
 
 

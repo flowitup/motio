@@ -78,7 +78,7 @@ class LinksIn(BaseModel):
 
 
 class RetryIn(BaseModel):
-    start: str | None = None  # search | download | transcribe | script | voice; None = từ bước bị lỗi
+    start: str | None = None  # search | download | transcribe | script | voice | render; None = từ bước lỗi
 
 
 class DelogoFrameIn(BaseModel):
@@ -88,7 +88,7 @@ class DelogoFrameIn(BaseModel):
 class DelogoRunIn(BaseModel):
     boxes: list[dict]  # [{x, y, w, h}] theo pixel của khung hình
     rights: str | None = None  # optional existing-client declaration: owned | licensed
-    scope: str = "all"  # all | range (start–end, giây) | used (đoạn video thành phẩm của dự án đang dùng)
+    scope: str | None = None  # nguồn dự án: used (mặc định); file tải lên: all (mặc định) | range (start–end, giây)
     start: float | None = None
     end: float | None = None
 
