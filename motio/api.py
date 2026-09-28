@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from . import (
     __version__,
     asr,
+    automake,
     channels,
     config,
     db,
@@ -125,6 +126,9 @@ class ChannelIn(BaseModel):
     postiz: list[str] = []  # id kênh Postiz để gửi khi video được duyệt
     send_mode: str = "draft"  # draft | schedule | now
     send_times: list[str] = []  # giờ đăng "HH:MM" (giờ máy chạy engine) khi send_mode = schedule
+    wide_postiz: list[str] = []  # trong `postiz`: kênh nhận bản 16:9 (có thì dựng thêm bản 16:9)
+    auto_score: int = 0  # tự làm video khi tin hot đạt điểm này sau lượt tự cập nhật; 0 = tắt
+    auto_daily: int = 2  # tối đa số video tự làm mỗi ngày cho kênh này
     default: bool = False
 
 
@@ -136,6 +140,7 @@ class PublishIn(BaseModel):
     channels: list[str]
     mode: str = "draft"  # draft | schedule | now
     date: str | None = None  # ISO 8601 có múi giờ, bắt buộc khi mode=schedule
+    version: str = "vertical"  # vertical (9:16) | wide (bản 16:9 nếu kênh đã dựng)
 
 
 def _log_tail(log: str, n: int = 30) -> list[str]:
@@ -159,7 +164,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
     tools = ThreadPoolExecutor(max_workers=1, thread_name_prefix="delogo")  # xoá logo (lâu) không chặn việc làm video
     state = {"refreshing": False, "last_refresh": None, "last_result": None,
-             "watching": False, "last_watch": None, "last_watch_result": None}
+             "watching": False, "last_watch": None, "last_watch_result": None, "last_auto": None}
     refresh_lock = threading.Lock()
     watch_lock = threading.Lock()
     started = time.time()
@@ -183,7 +188,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         while not stop.wait(SCHED_TICK):
             due = next_refresh()
             if due is not None and time.time() >= due and not state["refreshing"]:
-                _refresh()
+                _refresh(auto=True)
             due = next_watch()
             if due is not None and time.time() >= due and not state["watching"]:
                 _check_watches()
@@ -222,7 +227,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except Exception as e:  # pipeline đã ghi lỗi vào dự án; chỉ log ra stderr
             print(f"motio: project #{pid} failed: {e}", file=sys.stderr)
 
-    def _refresh() -> None:
+    def _refresh(auto: bool = False) -> None:
+        """Cập nhật tin. auto (lượt theo lịch): xong thì tự làm các tin đạt điểm của hồ sơ kênh."""
         if not refresh_lock.acquire(blocking=False):
             return
         state["refreshing"] = True
@@ -234,6 +240,20 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             state["refreshing"] = False
             state["last_refresh"] = time.time()
             refresh_lock.release()
+        if auto:
+            _automake()
+
+    def _automake() -> None:
+        try:
+            made = []
+            for t, ch in automake.picks():
+                pid = automake.start(t, ch)
+                jobs.submit(_run_job, pipeline.produce, pid)
+                made.append(pid)
+            if made:
+                state["last_auto"] = {"at": time.time(), "projects": made}
+        except Exception as e:  # không để lỗi tự làm dừng bộ hẹn giờ
+            print(f"motio: auto-make failed: {e}", file=sys.stderr)
 
     def _check_watches(ids: list[int] | None = None) -> None:
         """Kiểm tra nguồn theo dõi (tất cả, hoặc `ids` vừa thêm). Lượt sau chờ lượt trước xong."""
@@ -571,7 +591,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.get("/api/channels", dependencies=[Depends(auth)])
     def list_channels():
-        return db.list_channels()
+        return channels.listing()
 
     @app.post("/api/channels", status_code=201, dependencies=[Depends(auth)])
     def create_channel(body: ChannelIn):
@@ -613,13 +633,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.post("/api/projects/{pid}/publish", dependencies=[Depends(auth)])
     def publish(pid: int, body: PublishIn):
         p = _get(pid)
-        meta = p["meta"]
-        video = config.DATA / meta["video"] if meta.get("video") else None
-        if p["status"] != "done" or not video or not video.is_file():
-            raise HTTPException(409, tr("Project has no finished video yet"))
+        if body.version not in postiz.VERSIONS:
+            raise HTTPException(400, tr("version must be one of {choices}", choices=", ".join(postiz.VERSIONS)))
+        if p["status"] != "done" or not postiz.project_video(p["meta"], body.version):
+            raise HTTPException(409, tr("Project has no 16:9 copy yet") if body.version == "wide"
+                                else tr("Project has no finished video yet"))
         _need_postiz()
         try:
-            return postiz.publish_project(pid, body.channels, body.mode, body.date)
+            return postiz.publish_project(pid, body.channels, body.mode, body.date, version=body.version)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:

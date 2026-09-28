@@ -11,7 +11,8 @@ H = {"Authorization": f"Bearer {TOKEN}"}
 
 
 @pytest.fixture
-def client(monkeypatch):
+def seeded(monkeypatch):
+    """Hai tin (80 và 40 điểm) và pipeline giả, chưa tạo app."""
     with db.conn() as c:
         c.execute("DELETE FROM project")
         c.execute("DELETE FROM trend")
@@ -34,6 +35,10 @@ def client(monkeypatch):
     monkeypatch.setattr(pipeline, "produce", fake_produce)
     monkeypatch.setattr(pipeline, "rerender", fake_produce)
     monkeypatch.setattr(pipeline, "resume", lambda pid, start=None: fake_produce(pid))
+
+
+@pytest.fixture
+def client(seeded):
     with TestClient(api.create_app(TOKEN)) as c:
         yield c
 
@@ -246,6 +251,21 @@ def test_publish_to_postiz(client, fake_postiz):
     assert bad.status_code == 400
 
 
+def test_publish_the_16_9_copy(client, fake_postiz):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    body = {"channels": ["yt1"], "mode": "draft", "version": "wide"}
+    assert client.post(f"/api/projects/{pid}/publish", headers=H, json=body).status_code == 409  # chưa có bản 16:9
+    (config.PROJECTS / str(pid) / "final_wide.mp4").write_bytes(b"w")
+    db.update_project(pid, meta={"wide": f"projects/{pid}/final_wide.mp4"})
+    r = client.post(f"/api/projects/{pid}/publish", headers=H, json=body)
+    assert r.status_code == 200
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert p["meta"]["postiz"][-1]["version"] == "wide" and "Postiz (draft, 16:9): Motio YouTube" in p["log"]
+    bad = client.post(f"/api/projects/{pid}/publish", headers=H, json={**body, "version": "square"})
+    assert bad.status_code == 400
+
+
 def test_publish_needs_config_and_finished_video(client):
     assert client.get("/api/postiz/channels", headers=H).status_code == 409
     pid = db.create_project("douyin:1", "x")
@@ -278,6 +298,25 @@ def test_scheduled_refresh(monkeypatch):
         assert st["next_watch"] == pytest.approx(st["last_watch"] + 1800)
         time.sleep(0.1)
         assert len(calls) == 1 and len(checks) == 1  # lần sau là 30 phút nữa
+
+
+def test_scheduled_refresh_auto_makes_trends_above_a_channel_score(seeded, monkeypatch):
+    monkeypatch.setattr(newsnow, "refresh", lambda: {"new": 0, "scored": 0, "errors": {}})
+    monkeypatch.setattr(watch, "check_all", lambda ids=None: {"checked": 0, "new": 0})
+    monkeypatch.setattr(api, "SCHED_TICK", 0.01)
+    monkeypatch.setattr(api, "FIRST_DELAY", 0.0)
+    with TestClient(api.create_app(TOKEN)) as c:
+        ch = c.post("/api/channels", headers=H, json={"name": "Chine", "auto_score": 75, "auto_daily": 1,
+                                                       "gate_script": False, "gate_video": False}).json()
+        assert ch["auto_score"] == 75 and ch["wide_postiz"] == []
+        settings.update({"REFRESH_EVERY_MIN": 30})
+        end = time.time() + 3
+        while not c.get("/api/state", headers=H).json()["last_auto"] and time.time() < end:
+            time.sleep(0.02)
+        auto = c.get("/api/state", headers=H).json()["last_auto"]
+        assert auto and len(auto["projects"]) == 1  # douyin:1 (80) đạt 75; weibo:2 (40) thì không
+        p = _wait_done(c, auto["projects"][0])
+        assert p["trend_id"] == "douyin:1" and p["meta"]["auto"] is True and p["meta"]["channel"] == ch["id"]
 
 
 def test_channels_crud(client):

@@ -176,6 +176,13 @@ def count_projects_since(ts: float, exclude: int | None = None) -> int:
                          (ts, exclude or -1)).fetchone()[0]
 
 
+def count_auto_since(ts: float, channel: int) -> int:
+    """Số dự án tự làm (meta.auto) cho một hồ sơ kênh từ mốc ts."""
+    with conn() as c:
+        return c.execute("SELECT COUNT(*) FROM project WHERE created_at >= ? AND json_extract(meta, '$.auto') = 1 "
+                         "AND json_extract(meta, '$.channel') = ?", (ts, channel)).fetchone()[0]
+
+
 def fail_stale() -> list[int]:
     """Khi engine khởi động: dự án đang queued/running từ lần chạy trước sẽ không bao giờ xong."""
     with conn() as c:

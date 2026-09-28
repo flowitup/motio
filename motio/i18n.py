@@ -100,6 +100,10 @@ VI = {
     "Rendered in {seconds} s · {clips} · {rest}": "Dựng xong trong {seconds} s · {clips} · {rest}",
     "Sending to Postiz ({mode}) for channel {name}": "Gửi sang Postiz ({mode}) cho kênh {name}",
     "Could not send to Postiz: {error}": "Chưa gửi được sang Postiz: {error}",
+    " + 16:9 copy": " + bản 16:9",
+    "16:9 copy missing: sending the 9:16 video to every channel": "Thiếu bản 16:9: gửi video 9:16 cho mọi kênh",
+    "Made automatically: score {score} (channel {name} makes {min}+)":
+        "Tự làm: điểm {score} (kênh {name} tự làm từ {min} điểm)",
     "Video approved": "Đã duyệt video",
     "Video approved, not sent to Postiz": "Đã duyệt video, không gửi Postiz",
     "Script approved": "Đã duyệt kịch bản",
@@ -149,6 +153,7 @@ VI = {
     "Postiz is not configured (POSTIZ_URL, POSTIZ_API_KEY)": "Chưa cấu hình Postiz (POSTIZ_URL, POSTIZ_API_KEY)",
     "Postiz error: {error}": "Postiz lỗi: {error}",
     "Project has no finished video yet": "Dự án chưa có video hoàn chỉnh",
+    "Project has no 16:9 copy yet": "Dự án chưa có bản 16:9",
     "ELEVENLABS_API_KEY is not set": "Chưa có ELEVENLABS_API_KEY",
     "ElevenLabs error: {error}": "ElevenLabs lỗi: {error}",
     "File not found": "Không có file",
@@ -159,6 +164,9 @@ VI = {
     "Invalid posting time: {time} (format 18:30)": "Giờ đăng không hợp lệ: {time} (dạng 18:30)",
     "Scheduling needs at least one posting time": "Lên lịch cần ít nhất một giờ đăng",
     "No free posting time in the next 60 days": "Hết khung giờ đăng trong 60 ngày tới",
+    "Auto-make score and videos per day must be numbers": "Điểm tự làm và số video mỗi ngày phải là số",
+    "Auto-make score must be between 1 and 100 (0 = off)": "Điểm tự làm phải từ 1 đến 100 (0 = tắt)",
+    "Auto-made videos per day must be between 1 and {n}": "Số video tự làm mỗi ngày phải từ 1 đến {n}",
     # config
     "{name} not found": "Không tìm thấy {name}",
     # edit
@@ -250,6 +258,7 @@ VI = {
         "Thời điểm cần có múi giờ, vd. 2026-10-01T18:00:00+02:00",
     "The posting time must be in the future": "Thời điểm đăng phải ở tương lai",
     "mode must be one of {choices}": "mode phải là một trong {choices}",
+    "version must be one of {choices}": "version phải là một trong {choices}",
     "Pick at least one channel": "Chọn ít nhất một kênh",
     "Channels not found in Postiz: {names}": "Kênh không có trong Postiz: {names}",
     # render, search, settings, topic, tts, watch

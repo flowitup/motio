@@ -117,7 +117,7 @@ class QuotaExceeded(RuntimeError):
     pass
 
 
-def _today_start() -> float:
+def today_start() -> float:
     t = time.localtime()
     return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
 
@@ -127,7 +127,7 @@ def quota_left(exclude: int | None = None) -> int | None:
     cap = config.max_videos_per_day()
     if not cap:
         return None
-    return max(cap - db.count_projects_since(_today_start(), exclude), 0)
+    return max(cap - db.count_projects_since(today_start(), exclude), 0)
 
 
 def check_quota(exclude: int | None = None) -> None:
@@ -518,7 +518,11 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     def prog(done, total):
         step("Render", 70 + int(26 * done / total), None)
 
-    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS, badge=channels.badge_for(proj))
+    wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
+    res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS, badge=channels.badge_for(proj),
+                        wide=wide)
+    if not res.get("wide"):
+        (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm
         spans = ", ".join(f"{delogo.clock(a)}–{delogo.clock(b)}" for a, b in miss[:4]) + ("…" if len(miss) > 4 else "")
         step("Render", 96, tr("Source #{n}: the new video also uses parts where the logo was not removed ({spans}). "
@@ -527,8 +531,10 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     # 7. Mô tả bài đăng
     desc = write_post(plan, sources, out)
     db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
-                                  clips=tr_n(res["pieces"], "clip"), rest=f"{res['duration']:.1f} s video"),
+                                  clips=tr_n(res["pieces"], "clip"), rest=f"{res['duration']:.1f} s video")
+                      + (tr(" + 16:9 copy") if res.get("wide") else ""),
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg",
+                            "wide": f"projects/{pid}/final_wide.mp4" if res.get("wide") else None,
                             "title": plan["title_fr"], "description": desc,
                             "hashtags": plan.get("hashtags", []), "tts": nar["provider"],
                             "voice": nar["voice"], "elapsed": round(time.time() - t_begin)})
@@ -556,16 +562,32 @@ def _deliver(pid: int, ch: dict | None) -> None:
 
 
 def send_to_postiz(pid: int, ch: dict) -> bool:
-    """Gửi video sang các kênh Postiz của hồ sơ: nháp, giờ đăng kế tiếp của kênh, hoặc đăng ngay. Lỗi chỉ ghi vào
-    nhật ký (video vẫn xong, gửi lại bằng tay được). Trả True nếu đã gửi."""
+    """Gửi video sang các kênh Postiz của hồ sơ: nháp, giờ đăng kế tiếp của kênh, hoặc đăng ngay. Kênh Postiz đánh
+    dấu 16:9 nhận bản 16:9 (thiếu bản này thì nhận bản 9:16). Lỗi chỉ ghi vào nhật ký (video vẫn xong, gửi lại bằng
+    tay được). Trả True nếu mọi kênh đã được gửi."""
     Step(pid)("Send to Postiz", 99, tr("Sending to Postiz ({mode}) for channel {name}", mode=ch["send_mode"],
                                          name=ch["name"]))
+    meta = db.get_project(pid)["meta"]
+    wide_ids = [i for i in ch["postiz"] if i in ch["wide_postiz"]]
+    tall_ids = [i for i in ch["postiz"] if i not in wide_ids]
+    if wide_ids and not (meta.get("wide") and (config.DATA / meta["wide"]).is_file()):
+        db.update_project(pid, log=tr("16:9 copy missing: sending the 9:16 video to every channel"))
+        tall_ids, wide_ids = list(ch["postiz"]), []
+    errors: list[str] = []
     try:
         when = channels.next_slot(ch, channels.taken_slots(ch["id"])) if ch["send_mode"] == "schedule" else None
-        postiz.publish_project(pid, ch["postiz"], ch["send_mode"], when, profile=ch["id"])
-    except Exception as e:  # Postiz chưa cấu hình, mất mạng, kênh đã bị gỡ…
-        db.update_project(pid, log=tr("Could not send to Postiz: {error}", error=str(e)[:300]),
-                          meta={"send_error": str(e)[:300]})
+    except Exception as e:  # hết giờ đăng trống…: không gửi gì
+        when, errors, tall_ids, wide_ids = None, [str(e)], [], []
+    for ids, version in ((tall_ids, "vertical"), (wide_ids, "wide")):
+        if not ids:
+            continue
+        try:
+            postiz.publish_project(pid, ids, ch["send_mode"], when, profile=ch["id"], version=version)
+        except Exception as e:  # Postiz chưa cấu hình, mất mạng, kênh đã bị gỡ…
+            errors.append(str(e))
+    if errors:
+        err = " · ".join(errors)[:300]
+        db.update_project(pid, log=tr("Could not send to Postiz: {error}", error=err), meta={"send_error": err})
         return False
     db.update_project(pid, meta={"send_error": None})
     return True

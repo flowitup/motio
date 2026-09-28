@@ -18,8 +18,8 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 1. `CLAUDE.md` (repo root): conventions and non-negotiables. Read it every session.
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
    the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
-   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓ → GĐ1 16:9 +
-   auto-make next, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
+   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
+   auto-make ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
 4. Project memory (feature list with status, publishing rules, infra). It goes stale: re-check the code
@@ -100,7 +100,9 @@ cd app && pnpm install && cd ..              # only if touching the app
 | JSON API, refresh scheduler | `motio/api.py` (`create_app(token, headless)`; `REFRESH_EVERY_MIN`) |
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
-| Postiz posting | `motio/postiz.py` (`publish`, `publish_project`), `app/src/components/publish-card.tsx` |
+| Postiz posting | `motio/postiz.py` (`publish`, `publish_project`, `project_video`: vertical / wide), `app/src/components/publish-card.tsx` |
+| 16:9 copy of a video | `motio/render.py` (`Layout`, `VERTICAL` / `WIDE`, `_compose`, `render(..., wide=True)` → `final_wide.mp4`), `pipeline._voice_render_post` / `send_to_postiz`, profile `wide_postiz`; tests `tests/test_render.py` (needs FFmpeg), `tests/test_pipeline.py` |
+| Auto-make above a channel's score | `motio/automake.py` (`profiles`, `picks`, `start`), `api._refresh(auto=True)` / `_automake` (scheduled refresh only), `db.count_auto_since`, profile `auto_score` / `auto_daily`, CLI `automake`; tests `tests/test_automake.py` |
 | "Channels" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
 | "Remove logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
@@ -216,7 +218,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 189 passed, 5 skipped without FFmpeg (language switch, 28/09)
+uv run pytest                          # 205 passed, 6 skipped without FFmpeg (language switch + 16:9 copy, 28/09)
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)

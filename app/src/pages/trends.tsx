@@ -105,6 +105,7 @@ export default function TrendsPage() {
           </>
         )}
         {last?.new !== undefined && ` · ${t.trends.newScored(last.new)}`}
+        {state.data?.last_auto && ` · ${t.trends.autoMade(state.data.last_auto.projects.length, t.clock(state.data.last_auto.at))}`}
         {last?.error && <span className="text-destructive"> · {t.trends.refreshError}: {last.error}</span>}
         {last?.errors && Object.keys(last.errors).length > 0 && (
           <span className="text-destructive"> · {t.trends.refreshError}: {Object.keys(last.errors).join(", ")}</span>
