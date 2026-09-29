@@ -37,6 +37,7 @@ from . import (
     toolbox,
     topic,
     tts,
+    usage,
     watch,
 )
 from .i18n import tr
@@ -181,6 +182,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
         out["dub"] = dub.view(p)
+        out["usage"] = usage.for_project(p["id"])
     return out
 
 
@@ -320,6 +322,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),
         }
+
+    @app.get("/api/stats", dependencies=[Depends(auth)])
+    def stats():
+        """Trang Stats: chi phí ElevenLabs ước lượng (tháng này, 30 ngày, theo kênh), số video, ngân sách."""
+        return usage.summary()
 
     @app.get("/api/state", dependencies=[Depends(auth)])
     def get_state():

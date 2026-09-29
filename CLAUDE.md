@@ -40,6 +40,8 @@ as authoritative for scope and milestones.
   - `toolbox.py` Tools page: one-off jobs (download / transcribe / translate subtitles / read text aloud / burn subtitles), each a
     `data/tools/jobs/<id>/` (state.json, in/, out/); a job's output feeds another (`file_job`, `subs_job`); burn draws the
     subtitles with the Pillow overlay (`render.write_caption_track(plain=True)`), never FFmpeg libass
+  - `usage.py` Stats page: every successful ElevenLabs call is a `usage` row (characters, estimated USD, project /
+    channel / tool job from a ContextVar); price and monthly budget in Settings; over budget pauses `automake` only
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI

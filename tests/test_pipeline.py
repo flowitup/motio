@@ -573,3 +573,25 @@ def test_missing_16_9_copy_sends_the_9_16_video_everywhere(fake, fake_postiz):
     p = db.get_project(pid)
     assert _posted_media(fake_postiz) == [(["tt1", "yt1"], "final.mp4")]
     assert "16:9 copy missing" in p["log"] and not p["meta"]["send_error"]
+
+
+def test_voice_characters_are_charged_to_the_project_and_its_channel(fake, monkeypatch):
+    from motio import usage
+    real = tts.synthesize
+
+    def charging(lines, out_dir, voice=None):
+        usage.record_tts(sum(len(t) for t in lines), "eleven_multilingual_v2", voice or "auto")
+        return real(lines, out_dir, voice=voice)
+
+    monkeypatch.setattr(tts, "synthesize", charging)
+    with db.conn() as c:
+        c.execute("DELETE FROM usage")
+    cid = db.save_channel(None, {**channels.DEFAULTS, "name": "Chine Info", "voice_id": "v1",
+                                    "gate_script": False, "gate_video": False}, False)
+    pid = _new()
+    channels.attach(pid, channels.pick(cid))
+    pipeline.produce(pid)
+    with db.conn() as c:
+        rows = [dict(r) for r in c.execute("SELECT project_id, channel_id, chars FROM usage")]
+    assert rows and all(r["project_id"] == pid and r["channel_id"] == cid for r in rows)
+    assert usage.for_project(pid)["tts_chars"] == sum(r["chars"] for r in rows) > 0

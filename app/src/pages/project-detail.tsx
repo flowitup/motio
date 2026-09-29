@@ -226,6 +226,7 @@ export default function ProjectDetailPage() {
             {channel && `${t.projects.channel(channel.name)} · `}
             {p.meta.auto && `${t.projects.auto} · `}
             {t.age(p.updated_at)}
+            {p.usage?.tts_chars > 0 && ` · ${t.projects.voiceCost(p.usage.tts_chars, p.usage.usd)}`}
           </div>
         </div>
         <div className="flex items-center gap-2">

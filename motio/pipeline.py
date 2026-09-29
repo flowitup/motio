@@ -5,7 +5,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import asr, channels, config, db, delogo, dub, llm, postiz, render, scenes, search, topic, tts
+from . import asr, channels, config, db, delogo, dub, llm, postiz, render, scenes, search, topic, tts, usage
 from .i18n import tr, tr_n
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
@@ -514,12 +514,13 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     voice = (ch["voice_id"] or None) if ch else None
     # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ. Bản lồng tiếng: câu đặt theo câu gốc, trộn nền.
     if nar is None:
-        if is_dub:
-            nar = dub.voice(plan, sources[0], out, step, voice, pool=ch["dub_voices"] if ch else [],
-                            picks=(proj["meta"].get("dub") or {}).get("voices"))
-            dub.remember_voices(pid, nar)
-        else:
-            plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
+        with usage.context(project_id=pid, channel_id=ch["id"] if ch else None):  # ký tự đọc tính vào dự án này
+            if is_dub:
+                nar = dub.voice(plan, sources[0], out, step, voice, pool=ch["dub_voices"] if ch else [],
+                                picks=(proj["meta"].get("dub") or {}).get("voices"))
+                dub.remember_voices(pid, nar)
+            else:
+                plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
         (out / "audio").mkdir(parents=True, exist_ok=True)
         (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
                                                           ensure_ascii=False), encoding="utf-8")

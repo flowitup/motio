@@ -48,6 +48,15 @@ CREATE TABLE IF NOT EXISTS channel (
   is_default INTEGER DEFAULT 0,
   created_at REAL, updated_at REAL
 );
+CREATE TABLE IF NOT EXISTS usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at REAL, kind TEXT,             -- tts (ElevenLabs); motio/usage.py
+  chars INTEGER, usd REAL,        -- số ký tự đã gửi, tiền ước lượng lúc gọi
+  project_id INTEGER, channel_id INTEGER, ref TEXT,  -- dự án / kênh đang chạy; ref: công cụ lẻ ("tool:<job>")
+  model TEXT, voice TEXT
+);
+CREATE INDEX IF NOT EXISTS usage_at ON usage (at);
+CREATE INDEX IF NOT EXISTS usage_project ON usage (project_id);
 """
 
 
@@ -174,6 +183,38 @@ def count_projects_since(ts: float, exclude: int | None = None) -> int:
     with conn() as c:
         return c.execute("SELECT COUNT(*) FROM project WHERE created_at >= ? AND status != 'failed' AND id != ?",
                          (ts, exclude or -1)).fetchone()[0]
+
+
+def projects_since(ts: float) -> list[dict]:
+    """Dự án tạo từ `ts` (trang Stats), không kèm log."""
+    with conn() as c:
+        rows = c.execute("SELECT id, status, mode, meta, created_at FROM project WHERE created_at >= ?",
+                         (ts,)).fetchall()
+    return [_row(r) for r in rows]
+
+
+def add_usage(kind: str, chars: int, usd: float, project_id: int | None, channel_id: int | None, ref: str | None,
+              model: str, voice: str) -> None:
+    with _lock, conn() as c:
+        c.execute("INSERT INTO usage (at, kind, chars, usd, project_id, channel_id, ref, model, voice) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  (time.time(), kind, chars, usd, project_id, channel_id, ref, model, voice))
+
+
+def usage_sum(since: float, project_id: int | None = None) -> tuple[int, float]:
+    """(ký tự, USD ước lượng) từ `since`, của một dự án nếu có project_id."""
+    sql, args = "SELECT COALESCE(SUM(chars), 0), COALESCE(SUM(usd), 0) FROM usage WHERE at >= ?", [since]
+    if project_id is not None:
+        sql += " AND project_id = ?"
+        args.append(project_id)
+    with conn() as c:
+        chars, usd = c.execute(sql, args).fetchone()
+    return int(chars), float(usd)
+
+
+def usage_since(ts: float) -> list[dict]:
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT at, chars, usd, channel_id FROM usage WHERE at >= ?", (ts,))]
 
 
 def count_auto_since(ts: float, channel: int) -> int:

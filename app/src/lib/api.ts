@@ -68,6 +68,27 @@ export type DelogoUpload = { target: string; name: string; created_at: number | 
 
 export type Rights = "unknown" | "owned" | "licensed" | "cc";
 
+/** Trang Stats: chi phí ElevenLabs ước lượng (USD) và số video. Claude chạy trên gói Claude nên không tính. */
+export type StatsChannel = {
+  channel: number | null; // null = không kênh (và các công cụ lẻ)
+  name: string;
+  videos: number;
+  failed: number;
+  sent: number; // video đã gửi Postiz
+  chars: number;
+  usd: number;
+  usd_per_video: number | null;
+};
+export type StatsDay = { date: string; videos: number; chars: number; usd: number };
+export type Stats = {
+  price_per_1k: number;
+  month: { since: string; chars: number; usd: number; videos: number };
+  budget: { usd: number; ratio: number; state: "none" | "ok" | "warn" | "over"; auto_paused: boolean };
+  total: { chars: number; usd: number };
+  days: StatsDay[];
+  channels: StatsChannel[];
+};
+
 /** Công cụ lẻ: mỗi lần chạy là một job; kết quả của job này dùng làm đầu vào của job khác. */
 export type ToolKind = "download" | "transcribe" | "translate" | "speak" | "burn";
 export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
@@ -202,6 +223,7 @@ export type ProjectDetail = Project & {
   retry: { auto: RetryStep; steps: RetryStep[] };
   has_script: boolean;
   dub: DubView | null;
+  usage: { tts_chars: number; usd: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
 
 export type ScriptClip = { src: number; start: number; end: number };
@@ -472,6 +494,7 @@ export function makeApi(url: string, token: string) {
     delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),
     delogoRestore: (key: string) => call<DelogoTarget>("DELETE", `${dl(key)}/result`),
     delogoDelete: (key: string) => call<{ deleted: string }>("DELETE", dl(key)),
+    stats: () => call<Stats>("GET", "/api/stats"),
     toolJobs: () => call<ToolJob[]>("GET", "/api/tools/jobs"),
     /** fields: ô chữ của công cụ; files: file tải lên (`file` video / âm thanh, `subs` .srt / .vtt). */
     startTool: (

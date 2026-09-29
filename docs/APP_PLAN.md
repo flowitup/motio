@@ -368,6 +368,25 @@ building blocks, usable on their own: one page (**Tools**, `app/src/pages/tools.
   UTF-8 (on Windows the default encoding could not hold Chinese text).
 - Not verified: real yt-dlp, Whisper, Claude and ElevenLabs runs from this page, and the page on the Mac / Windows apps.
 
+## Stats page (added 29/09/2026)
+
+Built in auto mode right after the Tools page. It answers "what does a video cost me?" for the one paid API Motio
+calls per use.
+
+- `motio/usage.py` + the `usage` table (`db.add_usage`, `usage_sum`, `usage_since`): `tts.synthesize` records one row per
+  successful ElevenLabs call (characters actually sent, estimated USD, model, voice). Who it belongs to comes from a
+  ContextVar (`usage.context(project_id=…, channel_id=…, ref=…)`): `pipeline._voice_render_post` sets the project (the
+  channel is read from its meta), the Tools "Read aloud" job sets `ref="tool:<job>"`. A failed call, or a DB error while
+  recording, never fails the work.
+- Price: `ELEVENLABS_USD_PER_1K_CHARS` in Settings (default 0.22, Creator plan); `flash` / `turbo` models count half. It
+  is an estimate: credits on the owner's real plan may differ. `MONTHLY_BUDGET_USD` (0 = none): `summary()["budget"]`
+  is `ok` / `warn` (≥ 80%) / `over` (≥ 100%); `over` makes `automake.picks` return nothing, manual makes are never blocked.
+- API: `GET /api/stats` (`price_per_1k`, `month`, `budget`, `total`, `days` × 30, `channels`); a project's detail gets
+  `usage: {tts_chars, usd}`. The page is `app/src/pages/stats.tsx` (cards, CSS bar chart, per-channel table).
+- Not tracked: Claude (`claude -p` bills the owner's plan, not per call), platform views and earnings (need each
+  platform's account and API), other providers' credits. Usage from before this version isn't there.
+- Not verified: the estimate against a real ElevenLabs invoice; the page on the Mac / Windows apps.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

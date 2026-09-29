@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Eraser, FolderKanban, Flame, Loader2, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import DelogoPage from "@/pages/delogo";
 import ProjectDetailPage from "@/pages/project-detail";
 import ProjectsPage from "@/pages/projects";
 import SettingsPage from "@/pages/settings";
+import StatsPage from "@/pages/stats";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 
@@ -25,6 +26,7 @@ const NAV: { to: string; label: keyof Messages["nav"]; icon: typeof Flame }[] = 
   { to: "/channels", label: "channels", icon: Tv },
   { to: "/delogo", label: "delogo", icon: Eraser },
   { to: "/tools", label: "tools", icon: Wrench },
+  { to: "/stats", label: "stats", icon: ChartColumn },
   { to: "/settings", label: "settings", icon: SettingsIcon },
 ];
 
@@ -144,6 +146,7 @@ export default function App() {
           <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />
           <Route path="/tools" element={<EngineGate><ToolsPage /></EngineGate>} />
+          <Route path="/stats" element={<EngineGate><StatsPage /></EngineGate>} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
