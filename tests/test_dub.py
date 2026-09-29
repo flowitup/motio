@@ -212,8 +212,8 @@ def test_full_dub_run(fake):
     assert r["pieces"][0].still and r["pieces"][-1].still and 62 <= r["total"] <= 90
     assert fake["mix"]["how"] == "original" and fake["mix"]["pad_in"] == 6.25
     assert p["meta"]["dub"]["excerpt"] == [0.0, 50.0] and p["meta"]["dub"]["blur_auto"] is True
-    assert "Motio" not in (config.PROJECTS / str(pid) / "post.txt").read_text()
-    assert "Voix off générée par IA." in (config.PROJECTS / str(pid) / "post.txt").read_text()
+    post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")  # pipeline ghi bằng utf-8
+    assert "Motio" not in post and "Voix off générée par IA." in post
     # dựng lại (vd. sau khi đổi khung làm mờ) giữ giọng và độ dài
     assert "render" in pipeline.available_steps(pid)
     dub.update(pid, {"blur": [0.1, 0.7, 0.8, 0.12]})
@@ -300,15 +300,20 @@ def client(monkeypatch):
         yield c
 
 
+def _wait_done(client, pid) -> dict:
+    for _ in range(500):
+        p = client.get(f"/api/projects/{pid}", headers=H).json()
+        if p["status"] == "done":
+            return p
+        time.sleep(0.02)
+    return p
+
+
 def test_dub_routes(client):
     r = client.post("/api/dubs", headers=H, json={"link": "https://www.douyin.com/video/9", "rights": "cc"})
     assert r.status_code == 202
     pid = r.json()["project_id"]
-    for _ in range(100):
-        p = client.get(f"/api/projects/{pid}", headers=H).json()
-        if p["status"] == "done":
-            break
-        time.sleep(0.02)
+    p = _wait_done(client, pid)
     assert p["mode"] == "dub" and p["dub"]["needs_review"] is False and p["dub"]["blur"] is None
     r = client.put(f"/api/projects/{pid}/dub", headers=H, json={"blur": [0.05, 0.75, 0.9, 0.12]})
     assert r.status_code == 200 and r.json()["project"]["dub"]["blur"] == [0.05, 0.75, 0.9, 0.12]
@@ -317,6 +322,7 @@ def test_dub_routes(client):
     assert client.post("/api/dubs", headers=H, json={"link": "nope"}).status_code == 400
     assert client.post("/api/dubs", headers=H, json={"link": "https://x.com/a", "rights": "mine"}).status_code == 400
     topic_pid = client.post("/api/projects", headers=H, json={"topic": "panda"}).json()["project_id"]
+    _wait_done(client, topic_pid)  # đang chạy thì trả 409 trước khi kiểm tra loại dự án
     assert client.put(f"/api/projects/{topic_pid}/dub", headers=H, json={"blur": None}).status_code == 404
 
 
