@@ -311,7 +311,8 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
             "dub": {"start": a, "end": b, "pad_in": pad_in, "pad_out": pad_out, "why": why,
                     "language": transcript.get("language"), "register": _one(res.get("register"))[:200],
                     "speakers": {_one(k)[:40]: _one(v)[:120] for k, v in speakers.items()}}}
-    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+    # JSON thuần ASCII (\uXXXX): dòng gốc tiếng Trung không ghi được bằng mã hoá mặc định của Windows (cp1252)
+    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=True, indent=1))
     empty = sum(1 for ln in lines if not ln["text"])
     step("Script", 62, tr_n(len(spoken(lines)), "French line") + (tr(" ({n} left silent)", n=empty) if empty else "")
          + (f" · {plan['dub']['register']}" if plan["dub"]["register"] else ""), title=plan["title_fr"])

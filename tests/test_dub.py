@@ -199,7 +199,9 @@ def test_full_dub_run(fake):
     prompt, system = fake["prompts"][-1]
     assert "tu ;" in prompt and "place" in prompt and "« intro »" in prompt
     assert "熊猫 = panda géant" in system and "Glossaire" in system
-    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    raw = (config.PROJECTS / str(pid) / "script.json").read_bytes()
+    assert raw.isascii()  # Windows ghi / đọc bằng cp1252: dòng tiếng Trung phải nằm ở dạng \uXXXX
+    plan = json.loads(raw)
     assert [ln["kind"] for ln in plan["lines"]] == ["intro", "dub", "dub", "dub", "dub", "outro"]
     assert plan["lines"][1]["zh"].startswith("你好") and plan["lines"][1]["at"] == 7.25  # 6,25 s mở + 1 s
     assert plan["dub"]["pad_in"] == 6.25 and plan["dub"]["register"].startswith("vous")
