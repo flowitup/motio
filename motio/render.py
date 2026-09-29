@@ -169,6 +169,7 @@ class Piece:
     src_start: float
     dur: float
     t0: float
+    still: bool = False  # giữ nguyên khung hình ở src_start suốt dur giây (mở / kết của bản lồng tiếng)
 
 
 CUT_EDGE = 0.8  # cú cắt cách mép mảnh ít hơn chừng này thì dời mép về cú cắt
@@ -259,29 +260,48 @@ def _run(cmd: list[str]) -> None:
         raise RuntimeError(tr("ffmpeg failed: {error}", error=r.stderr[-1500:]))
 
 
-def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout = VERTICAL) -> None:
+def blur_filter(box: list[float] | None) -> str:
+    """Bộ lọc làm mờ một vùng của hình nguồn (phụ đề cũ in sẵn): box [x, y, w, h] theo tỉ lệ khung (0..1).
+    Rỗng khi không có vùng. Nhận một luồng hình, trả một luồng hình."""
+    if not box:
+        return ""
+    x, y, w, h = (f"{float(v):.4f}" for v in box)
+    return (f"split[o][c];[c]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},gblur=sigma=22[bl];"
+            f"[o][bl]overlay=W*{x}:H*{y}")
+
+
+def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout = VERTICAL,
+                 volume: float = 0.10) -> None:
+    """Một mảnh: nền mờ + hình nguồn + lớp chữ tĩnh. volume: âm lượng tiếng của nguồn (0 = im).
+    src["blur"]: vùng làm mờ trên hình nguồn (phụ đề cũ), xem blur_filter."""
     fw, fh = layout.w, layout.h
     src_path = src["path"]
-    audio_in = ["-i", src_path] if src.get("has_audio") else ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
-    a_map = "[0:a]" if src.get("has_audio") else "[2:a]"
-    inputs = ["-ss", f"{p.src_start:.3f}", "-t", f"{p.dur + 0.1:.3f}", "-i", src_path,
+    sound = bool(src.get("has_audio")) and not p.still and volume > 0
+    span = 0.5 if p.still else p.dur + 0.1
+    inputs = ["-ss", f"{p.src_start:.3f}", "-t", f"{span:.3f}", "-i", src_path,
               "-loop", "1", "-t", f"{p.dur + 0.1:.3f}", "-i", str(overlay)]
-    if not src.get("has_audio"):
-        inputs += audio_in
-    fc = (f"[0:v]split[a][b];"
+    if not sound:
+        inputs += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+    a_map = "[0:a]" if sound else "[2:a]"
+    head = [f"trim=end_frame=1,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={p.dur + 0.2:.3f}"] \
+        if p.still else []
+    if blur := blur_filter(src.get("blur")):
+        head.append(blur)
+    fc = (f"[0:v]{','.join([*head, 'split[a][b]'])};"
           f"[a]scale={fw}:{fh}:force_original_aspect_ratio=increase,crop={fw}:{fh},gblur=sigma=36,"
           f"eq=brightness=-0.10:saturation=0.9[bg];"
           f"[b]scale={fw}:{fh}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v1];[v1][1:v]overlay=0:0:shortest=1,fps={FPS},format=yuv420p,"
           f"setsar=1,tpad=stop_mode=clone:stop_duration=3[v];"
-          f"{a_map}volume=0.10,aresample=48000,aformat=channel_layouts=stereo,apad[aud]")
+          f"{a_map}volume={volume if sound else 0:.3f},aresample=48000,aformat=channel_layouts=stereo,apad[aud]")
     _run([config.ffmpeg(), "-y", "-v", "error", *inputs, "-filter_complex", fc, "-map", "[v]", "-map", "[aud]",
           "-t", f"{p.dur:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
           "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", str(out)])
 
 
 def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: list[captions.Cue], narration: dict,
-             title: str, badge: str, out_dir: Path, work: Path, tick: Callable[[], None]) -> Path:
+             title: str, badge: str, out_dir: Path, work: Path, tick: Callable[[], None], volume: float = 0.10,
+             delay: float = NARRATION_DELAY) -> Path:
     """Dựng một khổ từ các mảnh đã chọn: mảnh clip + lớp chữ, nối lại, trộn giọng đọc và phụ đề."""
     pre = layout.prefix
     cap_list = write_caption_track(cues, work, layout)
@@ -294,7 +314,7 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
             overlays[credit] = overlay_png(work / f"{pre}ov_{len(overlays):03d}.png", title=title, credit=credit,
                                           badge=badge, layout=layout)
         f = work / f"{pre}p_{j:03d}.mp4"
-        render_piece(p, src, overlays[credit], f, layout)
+        render_piece(p, src, overlays[credit], f, layout, volume)
         files.append(f)
         tick()
     lst = work / f"{pre}list.txt"
@@ -305,8 +325,7 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"],
           "-f", "concat", "-safe", "0", "-i", str(cap_list), "-filter_complex",
           f"[2:v]format=rgba[cap];[0:v][cap]overlay=0:{layout.cap_top}:eof_action=pass,format=yuv420p[v];"
-          f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(NARRATION_DELAY * 1000)}|"
-          f"{int(NARRATION_DELAY * 1000)}[nar];"
+          f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(delay * 1000)}|{int(delay * 1000)}[nar];"
           "[0:a][nar]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
           "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final)])
@@ -314,27 +333,35 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
 
 
 def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
-           min_total: float = 0.0, badge: str = "", wide: bool = False) -> dict:
+           min_total: float = 0.0, badge: str = "", wide: bool = False, pieces: list[Piece] | None = None,
+           total: float | None = None, src_volume: float = 0.10, delay: float = NARRATION_DELAY,
+           caption_hold: float | None = None) -> dict:
     """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây.
     badge: nhãn đỏ trên tiêu đề (vd. "ACTU CHINE" cho tin nóng), rỗng = không có.
-    wide: dựng thêm bản 16:9 (final_wide.mp4) từ cùng các mảnh, giọng đọc và phụ đề."""
+    wide: dựng thêm bản 16:9 (final_wide.mp4) từ cùng các mảnh, giọng đọc và phụ đề.
+    pieces / total: các mảnh và độ dài đã định sẵn (bản lồng tiếng), không thì chọn theo kịch bản.
+    src_volume: âm lượng tiếng nguồn dưới giọng đọc; delay: giọng đọc vào trễ bao nhiêu giây;
+    caption_hold: phụ đề tắt sau từ cuối chừng này giây (None = giữ tới phụ đề sau)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
     for s in sources:
         s["has_audio"] = has_audio(Path(s["path"]))
-        s["cuts"] = scenes.detect(Path(s["path"]))  # đã có cache nếu pipeline chạy bước cắt cảnh
+        if pieces is None:
+            s["cuts"] = scenes.detect(Path(s["path"]))  # đã có cache nếu pipeline chạy bước cắt cảnh
     lines = [{**ln, **sp} for ln, sp in zip(plan["lines"], narration["lines"], strict=False)]
-    total = max(narration["duration"] + TAIL, min_total)  # thiếu thì kéo dài phần cuối bằng hình nguồn
+    if total is None:
+        total = max(narration["duration"] + TAIL, min_total)  # thiếu thì kéo dài phần cuối bằng hình nguồn
 
     # Phụ đề karaoke theo mốc từng từ của giọng đọc
     words = captions.word_times([ln["text"] for ln in plan["lines"]], narration["lines"], narration.get("alignment"))
     spoken = narration["duration"] + TAIL  # câu cuối không ở lại suốt phần đuôi kéo dài
-    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(), shift=NARRATION_DELAY)
+    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(), shift=delay, hold=caption_hold)
     (out_dir / "captions.srt").write_text(captions.to_srt(cues), encoding="utf-8")
     (out_dir / "captions.ass").write_text(captions.to_ass(cues), encoding="utf-8")
 
-    pieces = build_timeline(lines, sources, total)
+    if pieces is None:
+        pieces = build_timeline(lines, sources, total)
     title = captions.fr_typography(plan["title_fr"])
     layouts = [VERTICAL, WIDE] if wide else [VERTICAL]
     done, steps = 0, len(pieces) * len(layouts)
@@ -345,13 +372,15 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
         if progress:
             progress(done, steps)
 
-    final, *rest = [_compose(lay, pieces, sources, cues, narration, title, badge, out_dir, work, tick)
-                    for lay in layouts]
+    final, *rest = [_compose(lay, pieces, sources, cues, narration, title, badge, out_dir, work, tick, src_volume,
+                             delay) for lay in layouts]
     thumb = out_dir / "thumb.jpg"
     _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])
-    # đoạn nào của nguồn nào (url để Xoá logo biết nguồn chưa đổi): Xoá logo chỉ cần xoá những đoạn này
-    (out_dir / "timeline.json").write_text(json.dumps([{**p.__dict__, "url": sources[p.src].get("url")}
-                                                       for p in pieces], ensure_ascii=False, indent=1))
+    # đoạn nào của nguồn nào (url để Xoá logo biết nguồn chưa đổi): Xoá logo chỉ cần xoá những đoạn này. Mảnh giữ
+    # nguyên khung hình chỉ dùng một khung.
+    (out_dir / "timeline.json").write_text(json.dumps([{**p.__dict__, "dur": 0.2 if p.still else p.dur,
+                                                        "url": sources[p.src].get("url")} for p in pieces],
+                                                      ensure_ascii=False, indent=1))
     return {"video": str(final), "thumb": str(thumb), "wide": str(rest[0]) if rest else None, "duration": total,
             "pieces": len(pieces), "captions": len(cues)}

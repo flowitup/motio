@@ -1,8 +1,9 @@
 """CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
-rerender <id> | retry <id> [step] | approve <id> [nosend] | delete <id> | watch "<channel link | keywords>" [bilibili] |
-check | clips | serve | engine ...]
+dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] | delete <id> |
+watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
 
-produce / topic use the default channel (if any): with an approval gate, the project waits for `approve`.
+produce / topic / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
+dub: French dub of one video (start / end in seconds; left out = whole video if short, else Claude picks 62–85 s).
 automake makes, one after another, the trends that reach a channel's auto-make score (the engine does it by itself
 after each scheduled refresh)."""
 import argparse
@@ -55,6 +56,16 @@ def main(argv: list[str]) -> None:
         from . import channels, pipeline, topic
         try:
             pid = topic.create(argv[1] if len(argv) > 1 else "", argv[2:])
+        except ValueError as e:
+            sys.exit(str(e))
+        channels.attach(pid, channels.pick(None))
+        print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
+        pipeline.produce(pid)
+        print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "dub":  # dub <link> [đầu cuối]: lồng tiếng Pháp một video
+        from . import channels, dub, pipeline
+        try:
+            pid = dub.create(argv[1] if len(argv) > 1 else "", *(argv[2:4]))
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))

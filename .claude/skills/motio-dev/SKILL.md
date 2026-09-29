@@ -18,7 +18,7 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 1. `CLAUDE.md` (repo root): conventions and non-negotiables. Read it every session.
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
    the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
-   B watchlist ✓ → C French dub, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
+   B watchlist ✓ → C French dub (GĐ2 part 1 ✓, one voice per speaker next), Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
    auto-make ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
@@ -104,6 +104,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | 16:9 copy of a video | `motio/render.py` (`Layout`, `VERTICAL` / `WIDE`, `_compose`, `render(..., wide=True)` → `final_wide.mp4`), `pipeline._voice_render_post` / `send_to_postiz`, profile `wide_postiz`; tests `tests/test_render.py` (needs FFmpeg), `tests/test_pipeline.py` |
 | Auto-make above a channel's score | `motio/automake.py` (`profiles`, `picks`, `start`), `api._refresh(auto=True)` / `_automake` (scheduled refresh only), `db.count_auto_since`, profile `auto_score` / `auto_daily`, CLI `automake`; tests `tests/test_automake.py` |
 | "Channels" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
+| French dub mode (excerpt, translation to fit, voice placement, subtitle blur, compare) | `motio/dub.py` (`create`, `from_clip`, `pick_excerpt`, `script`, `voice`, `detect_band`, `render_args`, `needs_review`, `view`, `update`), `motio/separate.py` (MDX-Net `ensure_model`, `demix`, `instrumental`), `render.Piece(still=…)` / `blur_filter`, `captions.build_cues(hold=…)`, profile `glossary`, `POST /api/dubs`, `POST /api/clips/{id}/dub`, `PUT /api/projects/{id}/dub`, CLI `dub`, `app/src/components/dub-cards.tsx`; tests `tests/test_dub.py`, `tests/test_separate.py` |
 | "Remove logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
@@ -147,6 +148,11 @@ live in `data/tools/delogo/<hex>/`.
   still recorded on the source (`meta.sources[i].delogo`) and, once every source is declared, on `meta.rights`: keep
   that. Never apply it automatically in the pipelines or in batch, and **never build** anything that evades
   duplicate / Content ID detection.
+- **French dubs keep other people's pictures and words.** `dub.needs_review(proj)` (mode dub and `meta.rights` not
+  owned / licensed / cc; `unknown` counts as not owned) makes `pipeline._deliver` stop at the video gate even when the
+  channel has none (when it would send to Postiz), so a dub is never auto-sent without a person. The subtitle blur (`dub.detect_band`, the user's box)
+  covers the subtitle band only, never a logo; nothing in the dub is built to evade duplicate / Content ID detection.
+  The 67 MB separation model is fetched once and sha256-checked (`separate.ensure_model`); dubs must still land in 62–90 s.
 - **Rights flag.** Every project carries `meta.rights` = `unknown` | `owned` | `licensed` | `cc`
   (`topic.RIGHTS`; set on `POST /api/projects`, changed with `PATCH /api/projects/{id}`). New features that
   treat footage differently by rights (watermark handling, longer clips, remakes) must read this flag and

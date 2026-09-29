@@ -13,13 +13,104 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { parseClock } from "@/components/dub-cards";
 import { useApi, type Api, type Project, type Rights } from "@/lib/api";
 import { t } from "@/i18n";
 
 const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
 
-/** Video giải thích từ một chủ đề bất kỳ và / hoặc link video, không cần tin hot. */
+/** Video mới: giải thích một chủ đề / link video, hoặc lồng tiếng Pháp một video. */
 function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
+  const [kind, setKind] = useState<"topic" | "dub">("topic");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.projects.create}</CardTitle>
+        <CardAction className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {(["topic", "dub"] as const).map((k) => (
+              <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} onClick={() => setKind(k)}>
+                {t.dub.kinds[k]}
+              </Button>
+            ))}
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t.projects.cancel}>
+            <X />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      {kind === "topic" ? <TopicForm api={api} /> : <DubForm api={api} />}
+    </Card>
+  );
+}
+
+/** Lồng tiếng Pháp một video (Douyin, Bilibili, YouTube…), tuỳ chọn đặt đoạn cần lồng. */
+function DubForm({ api }: { api: Api }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [link, setLink] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [rights, setRights] = useState<Rights>("unknown");
+  const choice = useChannelChoice(api);
+  const start = parseClock(from);
+  const end = parseClock(to);
+  const badTime = Number.isNaN(start) || Number.isNaN(end);
+  const create = useMutation({
+    mutationFn: () =>
+      api.createDub({
+        link: link.trim(),
+        ...(start != null ? { start } : {}),
+        ...(end != null ? { end } : {}),
+        rights,
+        channel: choice.channel,
+      }),
+    onSuccess: ({ project_id }) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      navigate(`/projects/${project_id}`);
+    },
+  });
+  return (
+    <CardContent className="grid gap-4">
+      <Field label={t.dub.link} hint={t.dub.linkHint}>
+        <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
+      </Field>
+      <Field
+        label={t.dub.part}
+        hint={<span className={badTime ? "text-destructive" : undefined}>{badTime ? t.dub.badTime : t.dub.partHint}</span>}
+      >
+        <div className="grid grid-cols-2 gap-3 sm:max-w-xs">
+          <Input aria-label={t.dub.from} value={from} onChange={(e) => setFrom(e.target.value)} placeholder={`${t.dub.from} 0:40`} />
+          <Input aria-label={t.dub.to} value={to} onChange={(e) => setTo(e.target.value)} placeholder={`${t.dub.to} 1:50`} />
+        </div>
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        <Field label={t.projects.rights} hint={t.projects.rightsHint}>
+          <Choice
+            value={rights}
+            onChange={(v) => setRights(v as Rights)}
+            options={RIGHTS.map((r) => [r, t.projects.rightsOptions[r]])}
+          />
+        </Field>
+        {choice.channels.length > 0 && (
+          <Field label={t.channels.pick}>
+            <ChannelChoice choice={choice} className="w-full sm:w-56" />
+          </Field>
+        )}
+      </div>
+      <div className="flex items-center justify-end gap-3">
+        {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
+        <Button onClick={() => create.mutate()} disabled={!link.trim() || badTime || create.isPending}>
+          {create.isPending ? <Loader2 className="animate-spin" /> : <Film />}
+          {t.dub.make}
+        </Button>
+      </div>
+    </CardContent>
+  );
+}
+
+/** Video giải thích từ một chủ đề bất kỳ và / hoặc link video, không cần tin hot. */
+function TopicForm({ api }: { api: Api }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
@@ -48,15 +139,7 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
     },
   });
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.projects.create}</CardTitle>
-        <CardAction>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t.projects.cancel}>
-            <X />
-          </Button>
-        </CardAction>
-      </CardHeader>
+    <>
       <CardContent className="grid gap-4">
         <Field label={t.projects.topic} hint={t.projects.topicHint}>
           <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.projects.topicPlaceholder} />
@@ -104,7 +187,7 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
           </Button>
         </div>
       </CardContent>
-    </Card>
+    </>
   );
 }
 

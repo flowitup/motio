@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Loader2, Plus, RefreshCw, Trash2, Video } from "lucide-react";
+import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Languages, Loader2, Plus, RefreshCw, Trash2, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
@@ -136,6 +136,15 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
       navigate(`/projects/${project_id}`);
     },
   });
+  const dub = useMutation({
+    mutationFn: () => api.dubClip(clip.id, choice.channel),
+    onSuccess: ({ project_id }) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["clips"] });
+      qc.invalidateQueries({ queryKey: ["watches"] });
+      navigate(`/projects/${project_id}`);
+    },
+  });
   const status = useMutation({
     mutationFn: (s: "new" | "hidden") => api.setClipStatus(clip.id, s),
     onSuccess: () => {
@@ -144,7 +153,7 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
     },
   });
   const title = clip.title_fr || clip.title || clip.url;
-  const error = produce.error ?? status.error;
+  const error = produce.error ?? dub.error ?? status.error;
 
   return (
     <Card className="gap-3 p-4">
@@ -237,10 +246,16 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
               {!only && ` · ${t.clips.onlyHint}`}
             </p>
           </div>
-          <Button className="ml-auto" onClick={() => produce.mutate()} disabled={produce.isPending}>
-            {produce.isPending ? <Loader2 className="animate-spin" /> : <Video />}
-            {t.clips.create}
-          </Button>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => dub.mutate()} disabled={produce.isPending || dub.isPending} title={t.clips.dubHint}>
+              {dub.isPending ? <Loader2 className="animate-spin" /> : <Languages />}
+              {t.clips.dub}
+            </Button>
+            <Button onClick={() => produce.mutate()} disabled={produce.isPending || dub.isPending}>
+              {produce.isPending ? <Loader2 className="animate-spin" /> : <Video />}
+              {t.clips.create}
+            </Button>
+          </div>
         </div>
       )}
       {error && <p className="text-sm text-destructive">{error.message}</p>}

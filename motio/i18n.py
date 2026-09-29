@@ -286,4 +286,74 @@ VI = {
         "Chỉ tìm được trên YouTube hoặc Bilibili, không phải {site}",
     "This source is already in the list": "Nguồn này đã có trong danh sách",
     "At most {n} sources": "Tối đa {n} nguồn",
+    # French dub (dub.py, separate.py)
+    "French line": "dòng tiếng Pháp",
+    "Dub: {site}": "Lồng tiếng: {site}",
+    " · part {a}–{b}": " · đoạn {a}–{b}",
+    "end": "cuối",
+    "auto": "tự chọn",
+    "Dub in French: {url}{part}": "Lồng tiếng Pháp: {url}{part}",
+    "Enter the link of the video to dub": "Nhập link video cần lồng tiếng",
+    "Dub project not found": "Không có dự án lồng tiếng này",
+    "The part to dub must start at 0 s or later": "Đoạn lồng tiếng phải bắt đầu từ giây 0 trở đi",
+    "The part to dub can be at most {max} s (videos last up to {video_max} s)":
+        "Đoạn lồng tiếng dài tối đa {max} s (video dài tối đa {video_max} s)",
+    "The part to dub must be at least {min} s": "Đoạn lồng tiếng dài ít nhất {min} s",
+    "The part to dub is {n} s: at most {max} s": "Đoạn lồng tiếng dài {n} s: tối đa {max} s",
+    "The part to dub is only {n} s: a dub needs at least {min} s of video (videos last {lo}–{hi} s)":
+        "Đoạn lồng tiếng chỉ dài {n} s: cần ít nhất {min} s hình (video dài {lo}–{hi} s)",
+    "your choice": "bạn chọn",
+    "picked by Claude": "Claude chọn",
+    "the start of the video (Claude's pick was unusable)": "đầu video (đoạn Claude chọn không dùng được)",
+    "Choosing the part to dub": "Chọn đoạn để lồng tiếng",
+    "No speech found in this video: there is nothing to dub": "Video không có lời nói: không có gì để lồng tiếng",
+    "No speech between {a} and {b}: pick another part to dub":
+        "Không có lời nói từ {a} đến {b}: chọn đoạn khác để lồng tiếng",
+    "Part {a}–{b} ({length} s, {why}) + {pad} s of French intro and outro":
+        "Đoạn {a}–{b} ({length} s, {why}) + {pad} s mở và kết tiếng Pháp",
+    "Part {a}–{b} ({length} s, {why})": "Đoạn {a}–{b} ({length} s, {why})",
+    "Old subtitles found: blurring them (move or turn off the box on the project page)":
+        "Thấy phụ đề cũ: làm mờ (dời hoặc tắt khung trên trang dự án)",
+    "No burned-in subtitles found (add a blur box on the project page if there are some)":
+        "Không thấy phụ đề in sẵn (nếu có, thêm khung làm mờ trên trang dự án)",
+    "Claude is translating {lines} into French": "Claude dịch {lines} sang tiếng Pháp",
+    "Claude returned no French lines": "Claude không trả dòng tiếng Pháp nào",
+    " ({n} left silent)": " ({n} dòng để im)",
+    "The blur box needs x, y, width and height": "Khung làm mờ cần x, y, rộng và cao",
+    "The blur box is too small": "Khung làm mờ quá nhỏ",
+    "Blur box set at {a}–{b} % of the height": "Khung làm mờ ở {a}–{b} % chiều cao",
+    "Blur box turned off": "Đã tắt khung làm mờ",
+    "Part to dub: {a}–{b}": "Đoạn lồng tiếng: {a}–{b}",
+    "Part to dub: automatic": "Đoạn lồng tiếng: tự chọn",
+    "The dub has no French line to read": "Bản lồng tiếng không có dòng tiếng Pháp nào để đọc",
+    "Generating the French voice ({lines})": "Tạo giọng tiếng Pháp ({lines})",
+    "{voice} · {lines} placed": "{voice} · đã đặt {lines}",
+    ", {n} read up to {pct} % faster": ", {n} dòng đọc nhanh hơn tới {pct} %",
+    ", {n} start late (French longer than the original)": ", {n} dòng vào trễ (tiếng Pháp dài hơn bản gốc)",
+    "The dub would last {n} s, over {max} s: shorten the French lines or pick a shorter part":
+        "Bản lồng tiếng sẽ dài {n} s, quá {max} s: rút ngắn lời Pháp hoặc chọn đoạn ngắn hơn",
+    "Downloading the voice separation AI model (67 MB, first dub only)":
+        "Tải mô hình AI tách giọng (67 MB, chỉ lần lồng tiếng đầu tiên)",
+    "Separating the original voices from the music and sound effects": "Tách giọng gốc khỏi nhạc nền và tiếng động",
+    "Could not separate the original voices ({error}): keeping the original sound quietly under the French voice":
+        "Không tách được giọng gốc ({error}): giữ tiếng gốc nhỏ dưới giọng Pháp",
+    "ffmpeg could not mix the dub: {error}": "ffmpeg không trộn được bản lồng tiếng: {error}",
+    "A dub keeps one French line per original line: lines can't be added or removed":
+        "Bản lồng tiếng giữ mỗi câu gốc một dòng Pháp: không thêm hay xoá dòng được",
+    "The dub needs at least one French line": "Bản lồng tiếng cần ít nhất một dòng tiếng Pháp",
+    " · original music and sound kept": " · giữ nhạc nền và tiếng động gốc",
+    " · original sound turned down": " · tiếng gốc được hạ nhỏ",
+    "No video link to dub": "Chưa có link video để lồng tiếng",
+    "Video to dub: {url}": "Video lồng tiếng: {url}",
+    "Whisper: {name}": "Whisper: {name}",
+    " (a dub of someone else's video: set the source rights to owned, licensed or CC to send it without approval)":
+        " (bản lồng tiếng video của người khác: đặt quyền nguồn là của bạn, có giấy phép hoặc CC để gửi mà không "
+        "cần duyệt)",
+    "ffmpeg could not read the audio: {error}": "ffmpeg không đọc được âm thanh: {error}",
+    "The source has no audio in this part": "Đoạn nguồn này không có âm thanh",
+    "The downloaded voice separation model is not the version Motio needs (sha256 mismatch)":
+        "Mô hình tách giọng tải về không đúng phiên bản Motio cần (sha256 không khớp)",
+    "Could not download the voice separation AI model ({error})": "Không tải được mô hình AI tách giọng ({error})",
+    "The voice separation model was corrupt and has been deleted: {error}":
+        "Mô hình tách giọng bị hỏng và đã bị xoá: {error}",
 }

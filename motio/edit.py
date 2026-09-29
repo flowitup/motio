@@ -1,11 +1,12 @@
-"""Sửa và xoá dự án từ app: đọc / lưu kịch bản (script.json) rồi dựng lại, xoá dự án cùng thư mục của nó."""
+"""Sửa và xoá dự án từ app: đọc / lưu kịch bản (script.json) rồi dựng lại, xoá dự án cùng thư mục của nó.
+Bản lồng tiếng (dub.py) chỉ sửa được lời từng câu: mỗi câu Pháp gắn với một câu gốc, không thêm / bớt câu."""
 import json
 import re
 import shutil
 import time
 from pathlib import Path
 
-from . import config, db, pipeline, render, tts
+from . import config, db, dub, pipeline, render, tts
 from .i18n import tr, tr_n
 
 BUSY = ("queued", "running")
@@ -16,6 +17,7 @@ MAX_LINE_CHARS = 400
 MAX_DESC = 1500
 MAX_TAGS = 10  # bài đăng chỉ dùng 6 hashtag đầu
 MAX_CLIPS = 4
+DUB_FIELDS = ("kind", "speaker", "zh", "at", "until", "max_chars")  # trường riêng của mỗi câu lồng tiếng
 
 
 class Busy(RuntimeError):
@@ -92,13 +94,22 @@ def _tags(raw) -> list[str]:
     return tags[:MAX_TAGS]
 
 
-def clean(raw: dict) -> dict:
-    """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
+def _post_fields(raw: dict) -> dict:
+    """Tiêu đề, mô tả, hashtag gửi từ app. ValueError nếu không dùng được."""
     title = _one_line(raw.get("title_fr"))
     if not title:
         raise ValueError(tr("Title can't be empty"))
     if len(title) > MAX_TITLE:
         raise ValueError(tr("Title can be at most {n} characters", n=MAX_TITLE))
+    desc = str(raw.get("description") or "").strip()
+    if len(desc) > MAX_DESC:
+        raise ValueError(tr("Description can be at most {n} characters", n=MAX_DESC))
+    return {"title_fr": title, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
+
+
+def clean(raw: dict) -> dict:
+    """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
+    post = _post_fields(raw)
     lines = []
     for ln in raw.get("lines") or []:
         ln = ln if isinstance(ln, dict) else {"text": ln}
@@ -112,10 +123,25 @@ def clean(raw: dict) -> dict:
         raise ValueError(tr("The script needs at least {n} narration lines", n=MIN_LINES))
     if len(lines) > MAX_LINES:
         raise ValueError(tr("The script can have at most {n} lines", n=MAX_LINES))
-    desc = str(raw.get("description") or "").strip()
-    if len(desc) > MAX_DESC:
-        raise ValueError(tr("Description can be at most {n} characters", n=MAX_DESC))
-    return {"title_fr": title, "lines": lines, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
+    return {**post, "lines": lines}
+
+
+def clean_dub(raw: dict, old: dict) -> dict:
+    """Bản lồng tiếng: lời mới của từng câu (cùng số câu; lúc vào, câu gốc… giữ nguyên), tiêu đề, mô tả, hashtag.
+    Câu để trống thì không đọc. ValueError nếu không dùng được."""
+    post = _post_fields(raw)
+    new = raw.get("lines") or []
+    if len(new) != len(old["lines"]):
+        raise ValueError(tr("A dub keeps one French line per original line: lines can't be added or removed"))
+    lines = []
+    for i, (o, n) in enumerate(zip(old["lines"], new, strict=True)):
+        text = _one_line(n.get("text") if isinstance(n, dict) else n)
+        if len(text) > MAX_LINE_CHARS:
+            raise ValueError(tr("Line {line} is longer than {n} characters", line=i + 1, n=MAX_LINE_CHARS))
+        lines.append({**(o if isinstance(o, dict) else {}), "text": text, "clips": []})
+    if not any(ln["text"] for ln in lines):
+        raise ValueError(tr("The dub needs at least one French line"))
+    return {**post, "lines": lines}
 
 
 def _narration(pid: int) -> Path | None:
@@ -140,6 +166,7 @@ def script_view(pid: int) -> dict:
     """Kịch bản cho trình sửa trong app, kèm số liệu để ước lượng độ dài video (62–90 s)."""
     p = _project(pid)
     plan = _read(pid)
+    is_dub = p.get("mode") == dub.MODE
     rate = _measured_rate(pid, plan) or p["meta"].get("speech_rate") or pipeline.WORDS_PER_SEC
     final = _dir(pid) / "final.mp4"
     edited = p["meta"].get("edited_at")
@@ -147,7 +174,9 @@ def script_view(pid: int) -> dict:
         "script": {
             "title_fr": str(plan.get("title_fr") or ""),
             "lines": [{"text": str(ln.get("text") or "") if isinstance(ln, dict) else str(ln),
-                       "clips": _clips(ln.get("clips")) if isinstance(ln, dict) else []} for ln in plan["lines"]],
+                       "clips": _clips(ln.get("clips")) if isinstance(ln, dict) else [],
+                       **({k: ln.get(k) for k in DUB_FIELDS} if is_dub and isinstance(ln, dict) else {})}
+                      for ln in plan["lines"]],
             "description": str(plan.get("description") or ""),
             "hashtags": _tags(plan.get("hashtags")),
         },
@@ -159,6 +188,8 @@ def script_view(pid: int) -> dict:
         "max_seconds": pipeline.MAX_SECONDS,
         "tail": render.TAIL,
         "version": (_dir(pid) / "script.json").stat().st_mtime,
+        # bản lồng tiếng: ai nói, tu / vous; mỗi dòng kèm câu gốc (zh), lúc vào / hạn (giây) và số ký tự vừa chỗ
+        "dub": {k: (plan.get("dub") or {}).get(k) for k in ("register", "speakers", "language")} if is_dub else None,
     }
 
 
@@ -168,7 +199,7 @@ def save_script(pid: int, raw: dict) -> dict:
     p = _project(pid)
     _idle(p)
     old = _read(pid)
-    new = clean(raw)
+    new = clean_dub(raw, old) if p.get("mode") == dub.MODE else clean(raw)
     old_lines = [ln if isinstance(ln, dict) else {"text": ln} for ln in old["lines"]]
     parts = []
     if new["title_fr"] != _one_line(old.get("title_fr")):

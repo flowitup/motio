@@ -28,6 +28,7 @@ const BLANK: ChannelInput = {
   name: "",
   badge: "",
   style: "",
+  glossary: "",
   voice_id: "",
   duration: 80,
   hashtags: [],
@@ -201,6 +202,15 @@ function ChannelForm({
             onChange={(e) => set("style", e.target.value)}
             placeholder={t.channels.stylePlaceholder}
             className="min-h-24 text-sm"
+          />
+        </Field>
+        <Field label={t.channels.glossary} hint={t.channels.glossaryHint}>
+          <Textarea
+            value={d.glossary}
+            maxLength={2000}
+            onChange={(e) => set("glossary", e.target.value)}
+            placeholder={t.channels.glossaryPlaceholder}
+            className="min-h-20 font-mono text-xs"
           />
         </Field>
         <div className="grid items-start gap-4 sm:grid-cols-[1fr_180px]">

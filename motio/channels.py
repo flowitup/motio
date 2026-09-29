@@ -1,6 +1,7 @@
 """Kênh: hồ sơ của một kênh đăng ("bộ não" trong blueprint GĐ1).
 
-Mỗi hồ sơ giữ: nhãn đỏ trên video, ghi chú giọng văn thêm vào prompt kịch bản, giọng ElevenLabs, độ dài mặc định,
+Mỗi hồ sơ giữ: nhãn đỏ trên video, ghi chú giọng văn và bảng thuật ngữ thêm vào prompt kịch bản / bản dịch lồng
+tiếng, giọng ElevenLabs, độ dài mặc định,
 hashtag luôn có, hai cổng duyệt (kịch bản, video cuối), các kênh Postiz để tự gửi khi video được duyệt (kênh nào
 nhận bản 16:9), và tự làm video khi tin hot đạt điểm (automake.py).
 Dự án trỏ tới hồ sơ bằng `meta.channel`; không có hồ sơ thì chạy như trước (không dừng duyệt, không tự gửi).
@@ -13,13 +14,13 @@ from .i18n import tr
 
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
 SEND_MODES = ("draft", "schedule", "now")  # như postiz.MODES
-MAX_NAME, MAX_BADGE, MAX_STYLE, MAX_TAGS, MAX_TIMES = 60, 24, 1500, 6, 6
+MAX_NAME, MAX_BADGE, MAX_STYLE, MAX_GLOSSARY, MAX_TAGS, MAX_TIMES = 60, 24, 1500, 2000, 6, 6
 AUTO_SCORE = 85  # điểm tối thiểu gợi ý khi bật tự làm (app đặt sẵn)
 MAX_AUTO_DAILY = 20
 SLOT_LEAD = dt.timedelta(minutes=10)  # khung đăng sớm nhất: ít nhất 10 phút sau lúc gửi
 _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
-DEFAULTS = {"name": "", "badge": "", "style": "", "voice_id": "", "duration": 80, "hashtags": [],
+DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "duration": 80, "hashtags": [],
             "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft", "send_times": [],
             "wide_postiz": [], "auto_score": 0, "auto_daily": 2}
 
@@ -42,6 +43,7 @@ def clean(data: dict) -> dict:
         raise ValueError(tr("The channel needs a name"))
     d["badge"] = " ".join(str(d["badge"]).split())[:MAX_BADGE]
     d["style"] = str(d["style"]).strip()[:MAX_STYLE]
+    d["glossary"] = "\n".join(ln.strip() for ln in str(d["glossary"]).strip().splitlines())[:MAX_GLOSSARY]
     d["voice_id"] = str(d["voice_id"]).strip()
     if int(d["duration"]) not in topic.DURATIONS:
         raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, topic.DURATIONS))))
@@ -125,15 +127,21 @@ def badge_for(proj: dict) -> str:
     ch = for_project(proj)
     if ch is not None:
         return ch["badge"]
-    return "" if proj.get("mode") == topic.MODE else NEWS_BADGE
+    return NEWS_BADGE if proj.get("mode", "news") == "news" else ""
 
 
 def style_note(ch: dict | None) -> str:
-    """Phần thêm vào system prompt của kịch bản theo ghi chú giọng văn của kênh."""
-    if not ch or not ch["style"]:
+    """Phần thêm vào system prompt của kịch bản / bản dịch: ghi chú giọng văn và bảng thuật ngữ của kênh."""
+    if not ch:
         return ""
-    return (f"\n\nConsignes de la chaîne « {ch['name']} » (à suivre en priorité pour le ton et le contenu) :\n"
-            f"{ch['style']}")
+    note = ""
+    if ch["style"]:
+        note += (f"\n\nConsignes de la chaîne « {ch['name']} » (à suivre en priorité pour le ton et le contenu) :\n"
+                 f"{ch['style']}")
+    if ch.get("glossary"):
+        note += ("\n\nGlossaire de la chaîne (noms et termes : utilise exactement ces traductions et graphies) :\n"
+                 f"{ch['glossary']}")
+    return note
 
 
 def merge_tags(ch: dict | None, tags: list[str]) -> list[str]:
