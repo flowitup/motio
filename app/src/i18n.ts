@@ -200,6 +200,10 @@ const en = {
     glossaryHint: "Names and terms Claude must translate or spell your way, one per line. Used for scripts and for dubs.",
     voice: "Voice",
     voiceDefault: "Same as Settings",
+    dubVoices: "Other voices for dubs",
+    dubVoicesHint:
+      "When a dub has several speakers, each one gets a different voice: the voice above first, then these (up to 3), matched to the speaker's gender when the voice says which it is. You can also pick each speaker's voice on the project page.",
+    dubVoiceNone: "Add a voice",
     duration: "Length of trending videos",
     durationHint: "New video and New videos still choose their own length.",
     hashtags: "Fixed hashtags",
@@ -320,6 +324,14 @@ const en = {
       "This is a dub of someone else's video, so Motio doesn't send it on its own. Set “Rights to the source videos” to Mine, Licensed or Creative Commons (Source videos card) to let it send without stopping here.",
     register: "Tu / vous",
     speakers: "Speakers",
+    voices: "Voices",
+    voicesHint:
+      "Each speaker has their own French voice, chosen from the channel's voices. Pick a different one here and Motio voices the video again (the script stays as it is).",
+    voicesNeedKey: "Enter an ElevenLabs API key in Settings to choose voices.",
+    voiceAuto: "Chosen by Motio",
+    voiceUsed: "Voice used",
+    voicesSave: "Save and re-voice",
+    gender: { f: "woman", m: "man" } as Record<string, string>,
   },
   delogo: {
     title: "Remove logo",
@@ -677,6 +689,10 @@ const vi: Messages = {
     glossaryHint: "Tên riêng và thuật ngữ Claude phải dịch hoặc viết theo ý bạn, mỗi dòng một mục. Dùng cho kịch bản và bản lồng tiếng.",
     voice: "Giọng đọc",
     voiceDefault: "Theo Cài đặt",
+    dubVoices: "Giọng khác cho bản lồng tiếng",
+    dubVoicesHint:
+      "Khi bản lồng tiếng có nhiều người nói, mỗi người một giọng: giọng ở trên trước, rồi các giọng này (tối đa 3), ghép theo giới tính của người nói nếu giọng có ghi. Bạn cũng chọn được giọng từng người nói ở trang dự án.",
+    dubVoiceNone: "Thêm một giọng",
     duration: "Độ dài video tin nóng",
     durationHint: "Tạo video và Video mới vẫn tự chọn độ dài.",
     hashtags: "Hashtag luôn có",
@@ -796,6 +812,14 @@ const vi: Messages = {
       "Đây là bản lồng tiếng video của người khác nên Motio không tự gửi. Đặt “Quyền với video nguồn” là Của tôi, Có giấy phép hoặc Creative Commons (thẻ Video nguồn) để bản lồng tiếng được gửi mà không dừng ở đây.",
     register: "Tu / vous",
     speakers: "Người nói",
+    voices: "Giọng đọc",
+    voicesHint:
+      "Mỗi người nói có một giọng tiếng Pháp riêng, chọn từ các giọng của kênh. Chọn giọng khác ở đây, Motio đọc lại video (kịch bản giữ nguyên).",
+    voicesNeedKey: "Nhập khoá ElevenLabs trong Cài đặt để chọn giọng.",
+    voiceAuto: "Motio tự chọn",
+    voiceUsed: "Giọng đã dùng",
+    voicesSave: "Lưu và đọc lại",
+    gender: { f: "nữ", m: "nam" } as Record<string, string>,
   },
   delogo: {
     title: "Xoá logo",

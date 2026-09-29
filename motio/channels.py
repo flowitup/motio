@@ -15,14 +15,15 @@ from .i18n import tr
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
 SEND_MODES = ("draft", "schedule", "now")  # như postiz.MODES
 MAX_NAME, MAX_BADGE, MAX_STYLE, MAX_GLOSSARY, MAX_TAGS, MAX_TIMES = 60, 24, 1500, 2000, 6, 6
+MAX_DUB_VOICES = 3  # giọng thêm cho các người nói khác trong bản lồng tiếng (giọng chính + 3 = 4 giọng)
 AUTO_SCORE = 85  # điểm tối thiểu gợi ý khi bật tự làm (app đặt sẵn)
 MAX_AUTO_DAILY = 20
 SLOT_LEAD = dt.timedelta(minutes=10)  # khung đăng sớm nhất: ít nhất 10 phút sau lúc gửi
 _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
-DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "duration": 80, "hashtags": [],
-            "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft", "send_times": [],
-            "wide_postiz": [], "auto_score": 0, "auto_daily": 2}
+DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
+            "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
+            "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -45,6 +46,8 @@ def clean(data: dict) -> dict:
     d["style"] = str(d["style"]).strip()[:MAX_STYLE]
     d["glossary"] = "\n".join(ln.strip() for ln in str(d["glossary"]).strip().splitlines())[:MAX_GLOSSARY]
     d["voice_id"] = str(d["voice_id"]).strip()
+    d["dub_voices"] = [v for v in dict.fromkeys(str(v).strip() for v in d["dub_voices"])
+                       if v and v != d["voice_id"]][:MAX_DUB_VOICES]
     if int(d["duration"]) not in topic.DURATIONS:
         raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, topic.DURATIONS))))
     d["duration"] = int(d["duration"])

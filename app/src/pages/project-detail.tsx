@@ -17,7 +17,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
-import { DubBlurCard, DubCompareCard } from "@/components/dub-cards";
+import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { PublishCard } from "@/components/publish-card";
@@ -368,6 +368,13 @@ export default function ProjectDetailPage() {
           {p.dub && (
             <>
               <DubCompareCard api={api} p={p} dubVideo={dubVideo} active={active} onQueued={() => refetch()} />
+              <DubVoicesCard
+                key={p.dub.speakers.map((s) => `${s.label}:${s.voice_id}`).join("|")}
+                api={api}
+                p={p}
+                active={active}
+                onQueued={() => refetch()}
+              />
               <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
             </>
           )}
