@@ -153,6 +153,7 @@ def fake(monkeypatch, tmp_path):
 
     def synthesize(lines, out_dir, voice=None):
         seen["texts"].append(lines)
+        seen.setdefault("voices", []).append(voice)
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "narration.mp3").write_bytes(b"mp3")
         spans = [{"start": 2.0 * i, "end": 2.0 * i + 1.8} for i in range(len(lines))]
@@ -169,7 +170,7 @@ def fake(monkeypatch, tmp_path):
                 "wide": None}
 
     def mix(voice_audio, placed, bg, how, src, a, length, pad_in, total, dst):
-        seen["mix"] = {"placed": placed, "how": how, "pad_in": pad_in, "total": total}
+        seen["mix"] = {"placed": placed, "how": how, "pad_in": pad_in, "total": total, "audio": voice_audio}
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(b"wav")
         return dst
@@ -220,6 +221,70 @@ def test_full_dub_run(fake):
     pipeline.resume(pid, "render")
     assert len(fake["texts"]) == 1 and fake["render"][-1]["sources"][0]["blur"] == [0.1, 0.7, 0.8, 0.12]
     assert fake["render"][-1]["total"] == r["total"]
+
+
+def _two_speakers(seen, monkeypatch):
+    def ask_json(prompt, system, **kw):
+        seen["prompts"].append((prompt, system))
+        return {"title_fr": "Les pandas", "speakers": {"A": {"who": "la guide", "gender": "f"},
+                                                       "B": {"who": "le client", "gender": "m"}},
+                "register": "vous", "intro": "Direction la Chine.", "outro": "Et vous ?", "description": "D.",
+                "lines": [{"i": 0, "speaker": "A", "text": "Bonjour !"}, {"i": 1, "speaker": "B", "text": "Salut."},
+                          {"i": 2, "speaker": "A", "text": "On y va ?"}, {"i": 3, "speaker": "B", "text": "Merci."}]}
+
+    monkeypatch.setattr(llm, "ask_json", ask_json)
+    monkeypatch.setattr(dub, "voice_genders", lambda: {"main": "m", "second": "f"})
+
+
+def test_each_speaker_gets_a_voice_from_the_channel(fake, monkeypatch):
+    _two_speakers(fake, monkeypatch)
+    ch = _profile(voice_id="main", dub_voices=["second"])
+    pid = dub.create("https://www.douyin.com/video/21")
+    channels.attach(pid, ch)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert fake["voices"][-2:] == ["second", "main"] or sorted(fake["voices"][-2:], key=str) == ["main", "second"]
+    by_voice = dict(zip(fake["voices"][-2:], fake["texts"][-2:], strict=True))
+    assert by_voice["second"] == ["Bonjour !", "On y va ?"]  # la guide (f) prend la voix féminine
+    assert by_voice["main"] == ["Direction la Chine.", "Salut.", "Merci.", "Et vous ?"]  # dẫn chuyện + người nói m
+    mix = fake["mix"]
+    assert isinstance(mix["audio"], list) and len(mix["audio"]) == 2
+    assert sorted(p_["v"] for p_ in mix["placed"]) == [0, 0, 0, 0, 1, 1]
+    assert [d["label"] for d in p["meta"]["dub"]["speakers"]] == ["A", "B"]
+    assert p["meta"]["dub"]["assigned"]["A"]["id"] == "second" and p["meta"]["dub"]["assigned"]["B"]["id"] == "main"
+    view = dub.view(p)
+    assert [(s_["label"], s_["gender"], s_["voice_name"]) for s_ in view["speakers"]] == \
+        [("A", "f", "second"), ("B", "m", "main")]
+    assert "voix féminine" in fake["prompts"][-1][0]
+
+
+def test_one_speaker_or_no_extra_voices_reads_in_one_go(fake, monkeypatch):
+    _two_speakers(fake, monkeypatch)
+    pid = dub.create("https://www.douyin.com/video/22")
+    channels.attach(pid, _profile(voice_id="main"))
+    pipeline.produce(pid)
+    assert len(fake["texts"]) == 1 and isinstance(fake["mix"]["audio"], str)
+    assert dub.view(db.get_project(pid))["speakers"][0]["voice_name"] == ""
+
+
+def test_picking_a_voice_for_a_speaker_reruns_from_the_voice(fake, monkeypatch):
+    _two_speakers(fake, monkeypatch)
+    pid = dub.create("https://www.douyin.com/video/23")
+    channels.attach(pid, _profile(voice_id="main", dub_voices=["second"]))
+    pipeline.produce(pid)
+    assert dub.update(pid, {"voices": {"B": "custom"}}) == "voice"
+    assert dub.update(pid, {"voices": {"B": "custom"}}) is None
+    with pytest.raises(ValueError, match="Unknown speaker"):
+        dub.update(pid, {"voices": {"Z": "x"}})
+    n = len(fake["texts"])
+    pipeline.resume(pid, "voice")
+    assert db.get_project(pid)["status"] == "done"
+    used = dict(zip(fake["voices"][-3:], fake["texts"][-3:], strict=True))
+    assert used["custom"] == ["Salut.", "Merci."] and used["second"] == ["Bonjour !", "On y va ?"]
+    assert used["main"] == ["Direction la Chine.", "Et vous ?"] and len(fake["texts"]) == n + 3  # 3 giọng, 3 lượt đọc
+    assert dub.update(pid, {"voices": {"B": ""}}) == "voice"
+    assert dub.view(db.get_project(pid))["speakers"][1]["voice_id"] == ""
 
 
 def test_video_over_90_seconds_is_refused(fake, monkeypatch):
@@ -289,6 +354,58 @@ def test_update_part_and_blur():
         dub.create("douyin.com/1")
 
 
+def test_parse_speakers_takes_both_shapes():
+    who, gender = dub.parse_speakers({"A": {"who": "la guide", "gender": "F"}, "B": "le client", "C": {"gender": "x"},
+                                      "": "personne"})
+    assert who == {"A": "la guide", "B": "le client", "C": ""} and gender == {"A": "f", "B": "", "C": ""}
+    assert dub.parse_speakers(None) == ({}, {})
+
+
+def test_speaker_order_skips_intro_outro_and_silent_lines():
+    lines = [{"kind": "intro", "text": "Hop.", "speaker": ""}, {"kind": "dub", "text": "a", "speaker": "B"},
+             {"kind": "dub", "text": "", "speaker": "C"}, {"kind": "dub", "text": "b", "speaker": "A"},
+             {"kind": "dub", "text": "c", "speaker": "B"}]
+    assert dub.speaker_order(lines) == ["B", "A"]
+
+
+def test_assign_voices_matches_gender_keeps_picks_and_reuses_the_main_voice():
+    sp = [{"label": "A", "gender": "f"}, {"label": "B", "gender": "m"}, {"label": "C", "gender": ""}]
+    genders = {"main": "m", "two": "f", "three": "m"}
+    got = dub.assign_voices(sp, "main", ["two", "three"], None, genders)
+    assert got == {"A": "two", "B": "main", "C": "three"}
+    assert dub.assign_voices(sp, "main", ["two"], {"B": "custom"}, genders) == {"A": "two", "B": "custom", "C": "main"}
+    # hết giọng thì dùng lại giọng chính; giới tính không rõ thì khớp với ai cũng được
+    assert dub.assign_voices(sp, "main", [], None, {}) == {"A": "main", "B": "main", "C": "main"}
+    assert dub.assign_voices(sp[:2], "", ["x"], None, {}) == {"A": "", "B": "x"}
+    assert len(set(dub.assign_voices([{"label": str(i), "gender": ""} for i in range(9)], "m", list("abcdef"),
+                                     None, {}).values())) == dub.MAX_VOICES
+
+
+def test_channel_keeps_up_to_three_extra_dub_voices():
+    d = channels.clean({"name": "X", "voice_id": "main", "dub_voices": ["a", " a ", "main", "", "b", "c", "d"]})
+    assert d["dub_voices"] == ["a", "b", "c"]
+    assert channels.clean({"name": "X"})["dub_voices"] == []
+
+
+def test_two_voice_alignment_is_merged_in_video_order():
+    texts = ["Salut.", "Oui.", "Bien."]
+    placed = [{"at": 1.0, "rate": 1.0, "src_start": 0.0}, {"at": 5.0, "rate": 1.0, "src_start": 0.0},
+              {"at": 9.0, "rate": 1.0, "src_start": 0.5}]
+
+    def al(text):
+        return {"characters": list(text), "character_start_times_seconds": [0.1 * i for i in range(len(text))],
+                "character_end_times_seconds": [0.1 * i + 0.05 for i in range(len(text))]}
+
+    groups = {"": [0, 2], "vb": [1]}
+    raws = [{"alignment": al("Salut. Bien.")}, {"alignment": al("Oui.")}]
+    got = dub._alignment(texts, raws, groups, placed)
+    assert "".join(got["characters"]) == "Salut. Oui. Bien."
+    starts = got["character_start_times_seconds"]
+    assert starts[0] == 1.0 and starts[7] == 5.0 and len(starts) == len(got["characters"])
+    assert starts[12] == pytest.approx(9.0 + 0.7 - 0.5)  # « Bien. » commence à 0,7 s dans le fichier du 1er giọng
+    assert dub._alignment(texts, [{"alignment": al("Salut. Bien.")}, {"alignment": None}], groups, placed) is None
+
+
 # ---------- API ----------
 @pytest.fixture
 def client(monkeypatch):
@@ -348,6 +465,25 @@ def _probe(path) -> dict:
     r = subprocess.run([config.ffprobe(), "-v", "error", "-show_entries", "stream=codec_type,width,height:"
                         "format=duration", "-of", "json", str(path)], capture_output=True, text=True, check=True)
     return json.loads(r.stdout)
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+def test_real_mix_with_two_voice_files(tmp_path):
+    ff = config.ffmpeg()
+    a, b = tmp_path / "a.wav", tmp_path / "b.wav"
+    for f, hz in ((a, 300), (b, 700)):
+        subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", f"sine=f={hz}:d=6", str(f)], check=True)
+    placed = [{"at": 0.5, "end": 2.5, "rate": 1.0, "src_start": 0.0, "src_end": 2.0, "v": 0},
+              {"at": 3.0, "end": 4.5, "rate": 1.1, "src_start": 0.0, "src_end": 1.6, "v": 1},
+              {"at": 5.0, "end": 6.0, "rate": 1.0, "src_start": 2.0, "src_end": 3.0, "v": 0}]
+    dst = dub.mix([str(a), str(b)], placed, None, "none", "", 0.0, 8.0, 0.0, 8.0, tmp_path / "mix.wav")
+    with wave.open(str(dst)) as w:
+        assert abs(w.getnframes() / w.getframerate() - 8.0) < 0.05
+        pcm = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, w.getnchannels())[:, 0]
+    rate = 44100
+    loud = lambda t0, t1: np.abs(pcm[int(t0 * rate):int(t1 * rate)]).mean()  # noqa: E731
+    assert loud(1.0, 2.0) > 1000 and loud(3.2, 4.2) > 1000 and loud(2.6, 2.9) < 50 and loud(6.5, 7.5) < 50
 
 
 @pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")

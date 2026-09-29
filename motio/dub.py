@@ -38,6 +38,7 @@ PIECE = 15.0  # giây mỗi mảnh hình của đoạn gốc (để báo tiến 
 CAPTION_HOLD = 1.2  # phụ đề Pháp tắt sau từ cuối chừng này giây (giữa hai câu có khoảng lặng)
 BG_VOLUME = 0.8  # nhạc nền đã tách giọng
 ORIG_VOLUME = 0.12  # không tách được giọng: tiếng gốc nhỏ dưới giọng Pháp
+MAX_VOICES = 4  # số giọng Pháp khác nhau tối đa trong một bản (giọng chính của kênh + tối đa 3 giọng thêm)
 BAND_EDGE = 60  # chênh sáng giữa hai điểm ảnh liền nhau coi là nét chữ (thang 0–255)
 BAND_MIN = 0.05  # tỉ lệ điểm nét chữ tối thiểu của một hàng phụ đề
 BAND_W = 320  # bề ngang khung hình thu nhỏ để tìm dải phụ đề
@@ -65,13 +66,14 @@ Pour chaque réplique, écris la réplique française lue à sa place :
   Raccourcis plutôt que d'allonger. Une réplique inutile (« euh », rire) peut rester vide "".
 - Tutoiement ou vouvoiement selon qui parle à qui : amis, famille, enfants → tu ; inconnus, clients, supérieurs → vous ;
   une personne qui parle à la caméra ou au public → vous. Reste cohérent d'une réplique à l'autre.
-- Indique qui parle, d'après le contexte : « A », « B »… ou un rôle court (« la mère », « le vendeur »).
+- Indique qui parle, d'après le contexte : « A », « B »… ou un rôle court (« la mère », « le vendeur »), et si la
+  personne a une voix féminine (f) ou masculine (m). Une même personne garde toujours la même étiquette.
 - Garde les noms propres ; un nom chinois s'écrit en pinyin.
 - N'ajoute aucun fait absent de la vidéo.{pads}
 
 Réponds :
 {{"title_fr": "titre français (max 80 caractères)",
-  "speakers": {{"A": "qui c'est, en quelques mots"}},
+  "speakers": {{"A": {{"who": "qui c'est, en quelques mots", "gender": "f ou m"}}}},
   "register": "tu, vous ou les deux, et pourquoi, en une phrase",
   "lines": [{{"i": 0, "speaker": "A", "text": "..."}}],{pad_keys}
   "description": "2 phrases pour la description du post, sans hashtags",
@@ -304,15 +306,19 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
                       "clips": []})
     if not spoken(lines):
         raise RuntimeError(tr("Claude returned no French lines"))
-    speakers = res.get("speakers") if isinstance(res.get("speakers"), dict) else {}
+    who, gender = parse_speakers(res.get("speakers"))
     plan = {"title_fr": _one(res.get("title_fr"))[:120] or src.get("title") or proj["title"], "lines": lines,
             "description": _one(res.get("description")),
             "hashtags": channels.merge_tags(ch, [str(t) for t in res.get("hashtags") or []]),
             "dub": {"start": a, "end": b, "pad_in": pad_in, "pad_out": pad_out, "why": why,
                     "language": transcript.get("language"), "register": _one(res.get("register"))[:200],
-                    "speakers": {_one(k)[:40]: _one(v)[:120] for k, v in speakers.items()}}}
+                    "speakers": who, "genders": gender}}
     # JSON thuần ASCII (\uXXXX): dòng gốc tiếng Trung không ghi được bằng mã hoá mặc định của Windows (cp1252)
     (out / "script.json").write_text(json.dumps(plan, ensure_ascii=True, indent=1))
+    opts["speakers"] = speaker_list(plan)  # trang dự án: chọn giọng cho từng người nói
+    labels = {sp["label"] for sp in opts["speakers"]}
+    opts["voices"] = {k: v for k, v in (opts.get("voices") or {}).items() if k in labels}  # người nói có thể đã đổi
+    db.update_project(pid, meta={"dub": opts})
     empty = sum(1 for ln in lines if not ln["text"])
     step("Script", 62, tr_n(len(spoken(lines)), "French line") + (tr(" ({n} left silent)", n=empty) if empty else "")
          + (f" · {plan['dub']['register']}" if plan["dub"]["register"] else ""), title=plan["title_fr"])
@@ -321,6 +327,71 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
 
 def spoken(lines: list[dict]) -> list[dict]:
     return [ln for ln in lines if _one(ln.get("text"))]
+
+
+def parse_speakers(raw) -> tuple[dict[str, str], dict[str, str]]:
+    """Người nói do Claude gắn nhãn: {nhãn: "ai"} và {nhãn: "f" | "m" | ""}. Nhận cả dạng cũ {nhãn: "ai"}."""
+    who, gender = {}, {}
+    for k, v in (raw.items() if isinstance(raw, dict) else []):
+        label = _one(k)[:40]
+        if not label:
+            continue
+        info = v if isinstance(v, dict) else {"who": v}
+        who[label] = _one(info.get("who"))[:120]
+        g = _one(info.get("gender")).lower()[:1]
+        gender[label] = g if g in ("f", "m") else ""
+    return who, gender
+
+
+def speaker_order(lines: list[dict]) -> list[str]:
+    """Các nhãn người nói có câu được đọc, theo thứ tự xuất hiện (câu mở / kết không tính: do người dẫn đọc)."""
+    seen: list[str] = []
+    for ln in spoken(lines):
+        s = _one(ln.get("speaker"))
+        if ln.get("kind", "dub") == "dub" and s and s not in seen:
+            seen.append(s)
+    return seen
+
+
+def speaker_list(plan: dict) -> list[dict]:
+    info = plan.get("dub") or {}
+    who, gender = info.get("speakers") or {}, info.get("genders") or {}
+    return [{"label": s, "who": who.get(s, ""), "gender": gender.get(s, "")} for s in speaker_order(plan["lines"])]
+
+
+def voice_genders() -> dict[str, str]:
+    """{id giọng: "f" | "m"} từ danh sách giọng ElevenLabs; rỗng nếu không lấy được (không có key, lỗi mạng)."""
+    try:
+        return {v["voice_id"]: str((v.get("labels") or {}).get("gender") or "").lower()[:1]
+                for v in tts.list_voices() if v.get("voice_id")}
+    except Exception:  # noqa: BLE001 — chỉ để chọn giọng cho khớp giới tính, không có thì bỏ qua
+        return {}
+
+
+def assign_voices(speakers: list[dict], main: str, pool: list[str], picks: dict[str, str] | None = None,
+                  genders: dict[str, str] | None = None) -> dict[str, str]:
+    """Giọng cho từng người nói: {nhãn: id giọng}, "" = giọng chính (của kênh, hoặc theo Cài đặt).
+
+    Người dùng chọn (picks) được giữ. Còn lại, theo thứ tự xuất hiện, mỗi người lấy giọng chưa dùng đầu tiên trong
+    [giọng chính] + pool khớp giới tính (giới tính giọng không rõ thì khớp với ai cũng được); hết giọng thì dùng lại
+    giọng chính. Giọng chính cũng đọc phần mở / kết."""
+    picks = {k: v for k, v in (picks or {}).items() if v}
+    genders = genders or {}
+    cands = list(dict.fromkeys([main, *[v for v in pool if v and v != main]]))[:MAX_VOICES]
+    used = set(picks.values())
+    out: dict[str, str] = {}
+    for sp in speakers:
+        label = sp["label"]
+        if label in picks:
+            out[label] = picks[label]
+            continue
+        free = [c for c in cands if c not in used]
+        want = sp.get("gender") or ""
+        fit = [c for c in free if not want or not genders.get(c) or genders[c] == want]
+        choice = (fit or free or [main])[0]
+        out[label] = choice
+        used.add(choice)
+    return out
 
 
 # ---------- dải phụ đề cũ ----------
@@ -439,8 +510,9 @@ def place(slots: list[tuple[float, float]], spans: list[tuple[float, float]]) ->
     return out
 
 
-def shift_alignment(texts: list[str], al: dict | None, placed: list[dict]) -> dict | None:
-    """Mốc từng ký tự của file giọng → mốc trên video sau khi đặt từng câu (dời và nén theo tốc độ đọc)."""
+def _shift_lines(texts: list[str], al: dict | None, placed: list[dict]) -> list[tuple[list, list, list]] | None:
+    """Mốc từng ký tự của file giọng, tách theo câu (kèm dấu cách sau câu) và dời về chỗ câu được đặt (nén theo tốc độ
+    đọc). None nếu mốc không khớp văn bản."""
     al = al or {}
     text = " ".join(t.strip() for t in texts)
     chars = al.get("characters") or []
@@ -448,14 +520,41 @@ def shift_alignment(texts: list[str], al: dict | None, placed: list[dict]) -> di
     ends = al.get("character_end_times_seconds") or []
     if not (len(chars) == len(text) == len(starts) == len(ends)) or not text:
         return None
-    ns, ne, off = list(map(float, starts)), list(map(float, ends)), 0
+    out, off = [], 0
     for t, p in zip(texts, placed, strict=True):
         n = len(t.strip())
-        for j in range(off, min(off + n + 1, len(text))):  # kèm dấu cách sau câu
-            ns[j] = round(p["at"] + max(float(starts[j]) - p["src_start"], 0.0) / p["rate"], 3)
-            ne[j] = round(p["at"] + max(float(ends[j]) - p["src_start"], 0.0) / p["rate"], 3)
+        end = min(off + n + 1, len(text))
+        out.append((list(chars[off:end]),
+                    [round(p["at"] + max(float(x) - p["src_start"], 0.0) / p["rate"], 3) for x in starts[off:end]],
+                    [round(p["at"] + max(float(x) - p["src_start"], 0.0) / p["rate"], 3) for x in ends[off:end]]))
         off += n + 1
+    return out
+
+
+def _join_alignment(pieces: list[tuple[list, list, list]]) -> dict:
+    """Ghép mốc của từng câu (theo thứ tự trên video) thành một bản, các câu cách nhau đúng một dấu cách."""
+    chars: list = []
+    ns: list = []
+    ne: list = []
+    for k, (c, a, b) in enumerate(pieces):
+        c, a, b = list(c), list(a), list(b)
+        if c and c[-1] == " ":
+            c, a, b = c[:-1], a[:-1], b[:-1]
+        chars += c
+        ns += a
+        ne += b
+        if k + 1 < len(pieces):
+            last = ne[-1] if ne else 0.0
+            chars.append(" ")
+            ns.append(last)
+            ne.append(last)
     return {"characters": chars, "character_start_times_seconds": ns, "character_end_times_seconds": ne}
+
+
+def shift_alignment(texts: list[str], al: dict | None, placed: list[dict]) -> dict | None:
+    """Mốc từng ký tự của file giọng → mốc trên video sau khi đặt từng câu (dời và nén theo tốc độ đọc)."""
+    pieces = _shift_lines(texts, al, placed)
+    return _join_alignment(pieces) if pieces else None
 
 
 def background(src: dict, out: Path, a: float, length: float, step) -> tuple[Path | None, str]:
@@ -484,12 +583,20 @@ def background(src: dict, out: Path, a: float, length: float, step) -> tuple[Pat
         return None, "original"
 
 
-def mix(voice_audio: str, placed: list[dict], bg: Path | None, how: str, src: str, a: float, length: float,
-        pad_in: float, total: float, dst: Path) -> Path:
-    """Trộn các câu Pháp (đặt đúng chỗ, nén khi cần) với nền gốc (bắt đầu sau phần mở) → WAV dài đúng total."""
+def mix(voice_audio: str | list[str], placed: list[dict], bg: Path | None, how: str, src: str, a: float,
+        length: float, pad_in: float, total: float, dst: Path) -> Path:
+    """Trộn các câu Pháp (đặt đúng chỗ, nén khi cần) với nền gốc (bắt đầu sau phần mở) → WAV dài đúng total.
+
+    voice_audio: một file giọng, hoặc danh sách (mỗi giọng một file; câu nào lấy file nào ghi ở placed[i]["v"])."""
     n = len(placed)
-    inputs = ["-i", voice_audio]
-    fc = [f"[0:a]aresample=44100,aformat=channel_layouts=stereo,asplit={n}" + "".join(f"[s{k}]" for k in range(n))]
+    audios = [voice_audio] if isinstance(voice_audio, str) else list(voice_audio)
+    inputs = [x for f in audios for x in ("-i", f)]
+    fc = []
+    for v in range(len(audios)):
+        ks = [k for k, p in enumerate(placed) if p.get("v", 0) == v]
+        if ks:
+            fc.append(f"[{v}:a]aresample=44100,aformat=channel_layouts=stereo,asplit={len(ks)}"
+                      + "".join(f"[s{k}]" for k in ks))
     for k, p in enumerate(placed):
         ms = round(p["at"] * 1000)
         tempo = f",atempo={p['rate']:.4f}" if p["rate"] > 1.001 else ""
@@ -504,7 +611,7 @@ def mix(voice_audio: str, placed: list[dict], bg: Path | None, how: str, src: st
             inputs += ["-ss", f"{a:.3f}", "-t", f"{length:.3f}", "-i", src]
             vol = ORIG_VOLUME
         ms = round(pad_in * 1000)
-        fc.append(f"[1:a]aresample=44100,aformat=channel_layouts=stereo,volume={vol},adelay={ms}|{ms}[bg]")
+        fc.append(f"[{len(audios)}:a]aresample=44100,aformat=channel_layouts=stereo,volume={vol},adelay={ms}|{ms}[bg]")
         fc.append("[voice][bg]amix=inputs=2:duration=longest:normalize=0,apad[out]")
     else:
         fc.append("[voice]apad[out]")
@@ -517,9 +624,13 @@ def mix(voice_audio: str, placed: list[dict], bg: Path | None, how: str, src: st
     return dst
 
 
-def voice(plan: dict, src: dict, out: Path, step, voice_id: str | None = None) -> dict:
+def voice(plan: dict, src: dict, out: Path, step, voice_id: str | None = None, pool: list[str] | None = None,
+          picks: dict[str, str] | None = None) -> dict:
     """Đọc các câu Pháp, đặt vào chỗ, trộn với nền gốc. Trả narration cho render (audio = bản trộn), kèm độ dài video
-    (total), đoạn gốc (excerpt) và phần mở / kết (pad). RuntimeError nếu video vượt MAX_SECONDS."""
+    (total), đoạn gốc (excerpt) và phần mở / kết (pad). RuntimeError nếu video vượt MAX_SECONDS.
+
+    voice_id: giọng chính (kênh). Nhiều người nói: mỗi người một giọng lấy từ giọng chính + pool (giọng thêm của kênh),
+    trừ khi người dùng đã chọn (picks: {nhãn: id giọng}); mỗi giọng đọc một lượt các câu của mình."""
     from . import pipeline
     d = plan["dub"]
     a, b = float(d["start"]), float(d["end"])
@@ -529,12 +640,33 @@ def voice(plan: dict, src: dict, out: Path, step, voice_id: str | None = None) -
     if not lines:
         raise RuntimeError(tr("The dub has no French line to read"))
     texts = [_one(ln["text"]) for ln in lines]
-    step("Voice", 64, tr("Generating the French voice ({lines})", lines=tr_n(len(texts), "line")))
-    raw = tts.synthesize(texts, out / "audio", voice=voice_id)
+    speakers = [{"label": s, "who": "", "gender": (d.get("genders") or {}).get(s, "")}
+                for s in speaker_order(lines)]
+    who: dict[str, str] = {}  # nhãn → id giọng ("" = giọng chính)
+    if len(speakers) > 1 and (pool or picks):
+        who = assign_voices(speakers, voice_id or "", list(pool or []), picks,
+                            voice_genders() if pool and len(pool) else {})
+    ids = [who.get(_one(ln.get("speaker")), voice_id or "") if ln.get("kind", "dub") == "dub" else voice_id or ""
+           for ln in lines]  # câu mở / kết và câu không rõ ai nói: giọng chính
+    groups: dict[str, list[int]] = {}
+    for i, vid in enumerate(ids):
+        groups.setdefault(vid, []).append(i)
+    step("Voice", 64, tr("Generating the French voice ({lines})", lines=tr_n(len(texts), "line"))
+         if len(groups) == 1 else
+         tr("Generating {voices} French voices ({lines})", voices=len(groups), lines=tr_n(len(texts), "line")))
+    raws = []
+    for k, (vid, idx) in enumerate(groups.items()):
+        raws.append(tts.synthesize([texts[i] for i in idx], out / "audio" if len(groups) == 1 else
+                                   out / "audio" / f"voice{k}", voice=vid or None))
+    where = {i: (k, j) for k, idx in enumerate(groups.values()) for j, i in enumerate(idx)}
+    span_of = [tight_spans([texts[i] for i in idx], raw) for idx, raw in zip(groups.values(), raws, strict=True)]
+    spans = [span_of[where[i][0]][where[i][1]] for i in range(len(lines))]
     total = pad_in + length + pad_out
     slots = [(float(ln["at"]), float(lines[i + 1]["at"]) if i + 1 < len(lines) else total)
              for i, ln in enumerate(lines)]
-    placed = place(slots, tight_spans(texts, raw))
+    placed = place(slots, spans)
+    for i, p in enumerate(placed):
+        p["v"] = where[i][0]
     end = placed[-1]["end"] + 0.4
     if end > total:  # câu cuối đọc lố: giữ khung hình cuối thêm một chút
         pad_out, total = round(pad_out + end - total, 2), end
@@ -545,17 +677,45 @@ def voice(plan: dict, src: dict, out: Path, step, voice_id: str | None = None) -
                               "part", n=f"{total:.0f}", max=pipeline.MAX_SECONDS))
     fast = sum(1 for p in placed if p["rate"] > 1.001)
     late = sum(1 for p, (at, _) in zip(placed, slots, strict=True) if p["at"] > at + 0.3)
-    step("Voice", 65, tr("{voice} · {lines} placed", voice=f"{raw['provider']} · {raw['voice']}",
+    names = " + ".join(dict.fromkeys(str(r["voice"]) for r in raws))
+    step("Voice", 65, tr("{voice} · {lines} placed", voice=f"{raws[0]['provider']} · {names}",
                          lines=tr_n(len(placed), "line"))
          + (tr(", {n} read up to {pct} % faster", n=fast, pct=round((MAX_RATE - 1) * 100)) if fast else "")
          + (tr(", {n} start late (French longer than the original)", n=late) if late else ""))
     bg, how = background(src, out, a, length, step)
-    audio = mix(raw["audio"], placed, bg, how, src["path"], a, length, pad_in, total, out / "audio" / "dub_mix.wav")
+    audio = mix(raws[0]["audio"] if len(raws) == 1 else [r["audio"] for r in raws], placed, bg, how, src["path"], a,
+                length, pad_in, total, out / "audio" / "dub_mix.wav")
     return {"audio": str(audio), "duration": placed[-1]["end"],
             "lines": [{"start": p["at"], "end": p["end"]} for p in placed],
-            "alignment": shift_alignment(texts, raw.get("alignment"), placed), "provider": raw["provider"],
-            "voice": raw["voice"], "model": raw.get("model"), "total": round(total, 3), "excerpt": [a, b],
-            "pad": [pad_in, pad_out], "background": how}
+            "alignment": _alignment(texts, raws, groups, placed), "provider": raws[0]["provider"],
+            "voice": names, "model": raws[0].get("model"), "total": round(total, 3), "excerpt": [a, b],
+            "pad": [pad_in, pad_out], "background": how,
+            "assigned": {label: {"id": vid, "name": str(raws[list(groups).index(vid)]["voice"])}
+                         for label, vid in who.items() if vid in groups}}
+
+
+def remember_voices(pid: int, nar: dict) -> None:
+    """Giọng đã gán cho từng người nói, để trang dự án hiện tên giọng."""
+    p = db.get_project(pid)
+    opts = dict((p["meta"].get("dub") or {}) if p else {})
+    if opts.get("assigned", {}) != nar.get("assigned", {}):
+        opts["assigned"] = nar.get("assigned", {})
+        db.update_project(pid, meta={"dub": opts})
+
+
+def _alignment(texts: list[str], raws: list[dict], groups: dict[str, list[int]], placed: list[dict]) -> dict | None:
+    """Mốc ký tự cho phụ đề: một giọng thì dời như trước; nhiều giọng thì dời mốc của từng giọng rồi ghép theo
+    thứ tự câu trên video (thiếu mốc ở một giọng thì phụ đề chia đều theo thời gian câu)."""
+    if len(raws) == 1:
+        return shift_alignment(texts, raws[0].get("alignment"), placed)
+    pieces: list = [None] * len(texts)
+    for idx, raw in zip(groups.values(), raws, strict=True):
+        got = _shift_lines([texts[i] for i in idx], raw.get("alignment"), [placed[i] for i in idx])
+        if got is None:
+            return None
+        for i, piece in zip(idx, got, strict=True):
+            pieces[i] = piece
+    return _join_alignment(pieces)
 
 
 # ---------- dựng ----------
@@ -601,26 +761,50 @@ def view(proj: dict) -> dict | None:
             media = Path(src["path"]).resolve().relative_to(config.DATA.resolve()).as_posix()
         except ValueError:
             media = None
+    picks = opts.get("voices") or {}
+    assigned = opts.get("assigned") or {}
+    speakers = [{**sp, "voice_id": picks.get(sp["label"], ""),
+                 "voice_name": (assigned.get(sp["label"]) or {}).get("name", "")}
+                for sp in opts.get("speakers") or []]
     return {"start": opts.get("start"), "end": opts.get("end"), "excerpt": opts.get("excerpt"),
             "pad": opts.get("pad"), "blur": opts.get("blur"), "blur_auto": bool(opts.get("blur_auto")),
-            "source": media, "needs_review": needs_review(proj)}
+            "source": media, "needs_review": needs_review(proj), "speakers": speakers}
 
 
 def update(pid: int, data: dict) -> str | None:
-    """Đổi đoạn lồng tiếng hoặc khung làm mờ từ app. Trả bước nên chạy lại (script / render) hoặc None nếu không đổi.
-    ValueError nếu sai."""
+    """Đổi đoạn lồng tiếng, giọng từng người nói hoặc khung làm mờ từ app. Trả bước nên chạy lại (script / voice /
+    render) hoặc None nếu không đổi. ValueError nếu sai."""
     p = db.get_project(pid)
     if not p or p.get("mode") != MODE:
         raise LookupError(tr("Dub project not found"))
     opts = dict(p["meta"].get("dub") or {})
     logs, rerun = [], None
+    if "voices" in data:
+        labels = {sp["label"] for sp in opts.get("speakers") or []}
+        raw = data.get("voices")
+        if not isinstance(raw, dict):
+            raise ValueError(tr("Voices must map each speaker to a voice"))
+        picks = dict(opts.get("voices") or {})
+        for label, vid in raw.items():
+            if label not in labels:
+                raise ValueError(tr("Unknown speaker: {label}", label=label))
+            vid = str(vid or "").strip()[:80]
+            if vid:
+                picks[label] = vid
+            else:
+                picks.pop(label, None)
+        if picks != (opts.get("voices") or {}):
+            opts["voices"] = picks
+            logs.append(tr("Voices chosen for {speakers}", speakers=", ".join(sorted(picks))) if picks
+                        else tr("Voices back to automatic"))
+            rerun = "voice"
     if "blur" in data:
         box = clean_blur(data["blur"])
         if box != opts.get("blur"):
             opts.update(blur=box, blur_auto=False)
             logs.append(tr("Blur box set at {a}–{b} % of the height", a=round(box[1] * 100),
                            b=round((box[1] + box[3]) * 100)) if box else tr("Blur box turned off"))
-            rerun = "render"
+            rerun = rerun or "render"  # chạy lại từ giọng cũng dựng lại
     if "start" in data or "end" in data:
         a, b = clean_excerpt(data.get("start", opts.get("start")), data.get("end", opts.get("end")))
         if (a, b) != (opts.get("start"), opts.get("end")):

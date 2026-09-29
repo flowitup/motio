@@ -50,7 +50,10 @@ Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explai
 it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
 on a sentence, or you type from–to), and Claude translates every line so it fits the time of the line it replaces: *tu*
 or *vous* depending on who talks to whom, the channel's glossary (Channels → Glossary) for names and terms, and the
-speaker of each line. One ElevenLabs voice reads the lines, each one placed where the original line started. An AI
+speaker and gender of each line. ElevenLabs reads the lines, each one placed where the original line started, with
+one French voice per speaker: the channel's voice first, then the extra voices of the channel profile (Channels →
+Other voices for dubs, up to 3), matched to the speaker's gender when the voice says which it is; you can pick each
+speaker's voice on the project page (**Voices**, then **Save and re-voice**). An AI
 model (UVR MDX-Net, MIT, run on the CPU) separates the original voice from the music and sounds, and the music and
 sounds stay under the French voice; the first dub downloads this model once (67 MB) into `data/models/`, and if it
 cannot run the original sound is kept quietly instead. A video shorter than 62 s gets a French intro and outro on a
@@ -60,7 +63,7 @@ separate, manual tool). French karaoke captions go on top as in every video, and
 part next to the dub (**Play both**), lets you change the part and edit each French line. The post keeps "Voix off
 générée par IA." and the AI flags. A dub reuses someone else's pictures and words, so it is sent to Postiz by itself
 only when the source rights are *owned*, *licensed* or *cc*; otherwise, even if the channel has no video gate, it stops
-at **Awaiting video approval** before anything is sent. One voice per speaker comes next.
+at **Awaiting video approval** before anything is sent.
 
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.

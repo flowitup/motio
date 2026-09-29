@@ -1,10 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
-import { Clapperboard, Eraser, Loader2, Pause, Play, RotateCcw } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Clapperboard, Eraser, Loader2, Mic, Pause, Play, RotateCcw } from "lucide-react";
 import { type PointerEvent, type RefObject, useRef, useState } from "react";
 import { Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { VoicePicker } from "@/components/voice-picker";
 import type { Api, BlurBox, ProjectDetail } from "@/lib/api";
 import { t } from "@/i18n";
 
@@ -233,6 +234,77 @@ export function DubBlurCard({
           <Button onClick={() => save.mutate()} disabled={active || save.isPending || !dirty || tooSmall}>
             {save.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
             {t.dub.blurSave}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Giọng cho từng người nói (khi có nhiều hơn một): Motio tự chọn từ giọng của kênh, ở đây chọn lại từng người. */
+export function DubVoicesCard({
+  api,
+  p,
+  active,
+  onQueued,
+}: {
+  api: Api;
+  p: ProjectDetail;
+  active: boolean;
+  onQueued: () => void;
+}) {
+  const speakers = p.dub?.speakers ?? [];
+  const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
+  const hasKey = health?.providers.tts === "elevenlabs";
+  const saved = Object.fromEntries(speakers.map((s) => [s.label, s.voice_id]));
+  const [picks, setPicks] = useState<Record<string, string>>(saved);
+  const changed = speakers.some((s) => (picks[s.label] ?? "") !== s.voice_id);
+  const save = useMutation({
+    mutationFn: async () => {
+      const r = await api.updateDub(p.id, { voices: picks });
+      if (r.rerun) await api.retry(p.id, r.rerun);
+      return r;
+    },
+    onSuccess: onQueued,
+  });
+  if (speakers.length < 2) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.dub.voices}</CardTitle>
+        <CardDescription>{hasKey ? t.dub.voicesHint : t.dub.voicesNeedKey}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm">
+        {speakers.map((s) => (
+          <div key={s.label} className="grid items-center gap-2 sm:grid-cols-[1fr_1fr]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <Mic className="size-3.5 self-center text-muted-foreground" />
+                <span className="font-medium">{s.label}</span>
+                {s.gender && <span className="text-xs text-muted-foreground">{t.dub.gender[s.gender]}</span>}
+              </div>
+              {s.who && <div className="truncate text-xs text-muted-foreground">{s.who}</div>}
+              {s.voice_name && (
+                <div className="text-xs text-muted-foreground">
+                  {t.dub.voiceUsed}: {s.voice_name}
+                </div>
+              )}
+            </div>
+            <VoicePicker
+              api={api}
+              value={picks[s.label] ?? ""}
+              onChange={(v) => setPicks((x) => ({ ...x, [s.label]: v }))}
+              hasKey={hasKey}
+              autoLabel={t.dub.voiceAuto}
+            />
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {save.error && <p className="mr-auto text-destructive">{save.error.message}</p>}
+          <Button onClick={() => save.mutate()} disabled={active || save.isPending || !changed}>
+            {save.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+            {t.dub.voicesSave}
           </Button>
         </div>
       </CardContent>

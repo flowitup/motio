@@ -515,7 +515,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ. Bản lồng tiếng: câu đặt theo câu gốc, trộn nền.
     if nar is None:
         if is_dub:
-            nar = dub.voice(plan, sources[0], out, step, voice)
+            nar = dub.voice(plan, sources[0], out, step, voice, pool=ch["dub_voices"] if ch else [],
+                            picks=(proj["meta"].get("dub") or {}).get("voices"))
+            dub.remember_voices(pid, nar)
         else:
             plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
         (out / "audio").mkdir(parents=True, exist_ok=True)

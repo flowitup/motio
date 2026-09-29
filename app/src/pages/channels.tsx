@@ -30,6 +30,7 @@ const BLANK: ChannelInput = {
   style: "",
   glossary: "",
   voice_id: "",
+  dub_voices: [],
   duration: 80,
   hashtags: [],
   gate_script: true,
@@ -225,6 +226,24 @@ function ChannelForm({
             />
           </Field>
         </div>
+        <Field label={t.channels.dubVoices} hint={t.channels.dubVoicesHint}>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {Array.from({ length: Math.min(d.dub_voices.length + 1, 3) }, (_, i) => (
+              <VoicePicker
+                key={i}
+                api={api}
+                value={d.dub_voices[i] ?? ""}
+                onChange={(v) => {
+                  const next = [...d.dub_voices];
+                  next[i] = v;
+                  set("dub_voices", next.filter(Boolean));
+                }}
+                hasKey={hasKey}
+                autoLabel={t.channels.dubVoiceNone}
+              />
+            ))}
+          </div>
+        </Field>
         <Field label={t.channels.hashtags} hint={t.channels.hashtagsHint}>
           <Input value={d.hashtags} onChange={(e) => set("hashtags", e.target.value)} placeholder="#Chine #ActuChine" />
         </Field>

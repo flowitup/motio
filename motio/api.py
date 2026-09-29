@@ -75,10 +75,12 @@ class ClipDubIn(BaseModel):
 
 
 class DubPatch(BaseModel):
-    """Chỉ các trường gửi lên mới đổi. blur: [x, y, w, h] theo tỉ lệ khung, null = tắt làm mờ."""
+    """Chỉ các trường gửi lên mới đổi. blur: [x, y, w, h] theo tỉ lệ khung, null = tắt làm mờ. voices: {nhãn người
+    nói: id giọng ElevenLabs}, id rỗng = để Motio tự chọn."""
     start: float | None = None
     end: float | None = None
     blur: list[float] | None = None
+    voices: dict[str, str] | None = None
 
 
 class ProjectPatch(BaseModel):
@@ -140,6 +142,7 @@ class ChannelIn(BaseModel):
     style: str = ""  # ghi chú giọng văn thêm vào prompt kịch bản
     glossary: str = ""  # bảng thuật ngữ (tên riêng, từ chuyên môn) cho kịch bản và bản dịch lồng tiếng
     voice_id: str = ""  # giọng ElevenLabs, rỗng = theo Cài đặt
+    dub_voices: list[str] = []  # giọng thêm cho các người nói khác trong bản lồng tiếng (tối đa 3)
     duration: int = 80  # độ dài mặc định cho video tin nóng
     hashtags: list[str] = []
     gate_script: bool = True  # dừng chờ duyệt kịch bản
@@ -508,8 +511,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.put("/api/projects/{pid}/dub", dependencies=[Depends(auth)])
     def put_dub(pid: int, body: DubPatch):
-        """Đổi đoạn lồng tiếng / khung làm mờ. Trả rerun: bước nên chạy lại (script, render) hoặc null, app gọi
-        /retry với bước đó."""
+        """Đổi đoạn lồng tiếng / giọng từng người nói / khung làm mờ. Trả rerun: bước nên chạy lại (script, voice,
+        render) hoặc null, app gọi /retry với bước đó."""
         p = _get(pid)
         if p["status"] in ("queued", "running"):
             raise HTTPException(409, tr("Project is running"))

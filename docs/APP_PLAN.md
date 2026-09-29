@@ -265,11 +265,11 @@ The owner asked to build the rest of the blueprint in phase order; for GĐ1 they
   read the new fields as their defaults (no 16:9, auto-make off).
 - Slack notifications wait for a Slack app from the owner.
 
-## GĐ2: French dub (added 28/09/2026, part 1)
+## GĐ2: French dub (added 28/09/2026)
 
 The owner picked "Motio's own dub" (option B of the 28/09 brainstorm; ElevenLabs Dubbing and a plain voice-over were the
 others). Two PRs: (1) one French voice with tu/vous, glossary, background separation, subtitle blur, captions and a
-side-by-side compare (this section); (2) one voice per speaker, voices chosen in the channel profile (later).
+side-by-side compare; (2) one voice per speaker, voices chosen in the channel profile ("Part 2" below).
 
 - **Mode `dub`** (`motio/dub.py`): a new project kind next to news and topic. `POST /api/dubs` `{link, start?, end?,
   rights}` (New video → *French dub*), `POST /api/clips/{id}/dub` (New videos → *Dub in French*), CLI `dub <link>
@@ -309,6 +309,24 @@ side-by-side compare (this section); (2) one voice per speaker, voices chosen in
 - Posts keep "Voix off générée par IA." and the platforms' AI flags. Nothing here removes logos or dodges duplicate /
   Content ID detection.
 - Not verified in the build environment: real ElevenLabs / Claude / yt-dlp runs (faked in tests), Mac and Windows.
+
+**Part 2: one voice per speaker** (owner asleep, so the defaults below were chosen without a card).
+
+- Claude's translation now labels each speaker with `who` and `gender` (f | m); `meta.dub.speakers` lists the speakers
+  that have lines, in order of appearance (`dub.speaker_list`); older projects with the `{label: text}` shape still load.
+- **Voices**: the channel profile gets `dub_voices` (up to 3 extra ElevenLabs voice ids; the profile's `voice_id` stays
+  the main voice, which also reads the intro and outro). `dub.assign_voices` gives each speaker, in order of appearance,
+  the first unused voice among the main voice and the extra ones whose gender label (from the ElevenLabs voice list,
+  best effort) matches the speaker's; when voices run out it reuses the main voice; at most 4 distinct voices. A single
+  speaker, or a profile without extra voices, reads in one call exactly as in part 1.
+- **Reading**: one ElevenLabs call per distinct voice (the cost per character is unchanged), each line placed as before;
+  `dub.mix` takes one audio file per voice and every placed line says which one (`v`); the caption timings of the voices
+  are shifted separately and joined in video order (`dub._alignment`), and fall back to even timing when a voice has no
+  timings.
+- **Override**: on the project page a *Voices* card (shown when there are 2+ speakers) picks a voice per speaker
+  (`PUT /api/projects/{id}/dub {voices: {label: voice_id}}` → rerun from the voice step, script untouched;
+  `meta.dub.voices`, dropped for labels that a new script no longer has). `meta.dub.assigned` records which voice each
+  speaker got so the card can show it.
 
 ## English UI (added 28/09/2026)
 

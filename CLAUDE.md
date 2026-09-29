@@ -20,7 +20,8 @@ as authoritative for scope and milestones.
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
-    time (tu/vous, channel glossary, speakers) → one voice placed line by line → original music/sounds kept
+    time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
+    user's pick) placed line by line → original music/sounds kept
     (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions; rights gate
     (`needs_review`)
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
