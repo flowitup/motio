@@ -20,7 +20,7 @@ def _project(status="done", trend="douyin:e", plan=None) -> int:
     pid = db.create_project(trend, "Titre")
     out = config.PROJECTS / str(pid)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "script.json").write_text(json.dumps(plan or _plan(), ensure_ascii=False))
+    (out / "script.json").write_text(json.dumps(plan or _plan(), ensure_ascii=False), encoding="utf-8")
     (out / "final.mp4").write_bytes(b"v")
     old = time.time() - 60  # video dựng một phút trước
     os.utime(out / "final.mp4", (old, old))
@@ -66,7 +66,7 @@ def test_edit_lines_marks_video_stale_and_updates_post():
     raw["hashtags"] = ["#Nouveau"]
     v = edit.save_script(pid, raw)
     assert v["stale"] is True and v["edited_at"]
-    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
     assert [ln["text"] for ln in saved["lines"]][1:3] == ["Une phrase réécrite à la main", "Ligne ajoutée"]
     assert saved["lines"][3]["clips"] == [{"src": 0, "start": 7.0, "end": 11.0}]  # dòng giữ đoạn hình của nó
     p = db.get_project(pid)
@@ -131,7 +131,7 @@ def test_missing_or_broken_script():
     with pytest.raises(FileNotFoundError):
         edit.script_view(pid)
     (config.PROJECTS / str(pid)).mkdir(parents=True)
-    (config.PROJECTS / str(pid) / "script.json").write_text("{oops")
+    (config.PROJECTS / str(pid) / "script.json").write_text("{oops", encoding="utf-8")
     with pytest.raises(ValueError):
         edit.script_view(pid)
 

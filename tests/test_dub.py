@@ -525,6 +525,6 @@ def test_real_dub_voice_mix_and_render(tmp_path, monkeypatch):
     info = _probe(res["video"])
     kinds = {s["codec_type"] for s in info["streams"]}
     assert kinds == {"video", "audio"} and abs(float(info["format"]["duration"]) - nar["total"]) < 0.3
-    tl = json.loads((out / "timeline.json").read_text())
+    tl = json.loads((out / "timeline.json").read_text(encoding="utf-8"))
     assert tl[0]["still"] and tl[0]["dur"] == 0.2 and not tl[1]["still"]
-    assert Path(res["thumb"]).is_file() and (out / "captions.srt").read_text().count("-->") >= 3
+    assert Path(res["thumb"]).is_file() and (out / "captions.srt").read_text(encoding="utf-8").count("-->") >= 3

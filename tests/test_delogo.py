@@ -105,7 +105,7 @@ def _source_project(n=1, status="done", rendered=True) -> tuple[int, list[Path]]
     for i in range(n):
         f = src_dir / f"Douyin_{time.time_ns()}{i}.mp4"
         f.write_bytes(b"orig")
-        f.with_suffix(".transcript.json").write_text(json.dumps({"segments": [], "language": "zh"}))
+        f.with_suffix(".transcript.json").write_text(json.dumps({"segments": [], "language": "zh"}), encoding="utf-8")
         files.append(f)
         sources.append({"path": str(f), "url": f"https://v.douyin.com/{f.stem}", "id": f.stem.split("_")[1],
                         "platform": "Douyin", "uploader": "chaîne", "title": "t", "duration": 12})
@@ -406,7 +406,7 @@ def _timeline(pid: int, pieces: list[tuple[int, float, float]], url: str | None 
     out.mkdir(parents=True, exist_ok=True)
     rows = [{"src": i, "src_start": a, "dur": d, "t0": 0.0, **({"url": sources[i]["url"] if url == "same" else url}
                                                               if url is not None else {})} for i, a, d in pieces]
-    (out / "timeline.json").write_text(json.dumps(rows))
+    (out / "timeline.json").write_text(json.dumps(rows), encoding="utf-8")
 
 
 def test_merge_pads_joins_and_clamps():
