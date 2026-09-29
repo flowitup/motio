@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from . import asr, captions, channels, config, delogo, llm, render, search, tts
+from . import asr, captions, channels, config, delogo, llm, render, search, tts, usage
 from .i18n import tr, tr_n
 
 JOBS = config.DATA / "tools" / "jobs"
@@ -539,7 +539,8 @@ def _translate(job: Job) -> tuple[list[dict], str]:
 def _speak(job: Job) -> tuple[list[dict], str]:
     job.progress(10, tr("Reading the text…"))
     work = job.dir / "work"
-    r = tts.synthesize([job.params["text"]], work, job.params.get("voice") or None)
+    with usage.context(ref=f"tool:{job.dir.name}"):
+        r = tts.synthesize([job.params["text"]], work, job.params.get("voice") or None)
     dest = job.out / f"speech{Path(r['audio']).suffix}"
     shutil.move(r["audio"], dest)
     return [job.output(dest, "audio")], tr("Read by {voice}", voice=r.get("voice") or r.get("provider") or "?")

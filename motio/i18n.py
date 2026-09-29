@@ -267,6 +267,7 @@ VI = {
     "At most {n} links": "Tối đa {n} link",
     "yt-dlp did not create a file for {url}": "yt-dlp không tạo file cho {url}",
     "Unknown settings: {keys}": "Khoá không hợp lệ: {keys}",
+    "{key} must be a number ≥ 0": "{key} phải là số ≥ 0",
     "{key} must be an integer ≥ 0": "{key} phải là số nguyên ≥ 0",
     "UI_LANG must be one of {choices}": "UI_LANG phải là một trong {choices}",
     "Enter a topic or at least one video link": "Nhập chủ đề hoặc ít nhất một link video",

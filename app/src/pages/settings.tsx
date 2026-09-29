@@ -337,6 +337,26 @@ function SettingsForm({ api }: { api: Api }) {
               onChange={(e) => set("MAX_VIDEOS_PER_DAY", e.target.value)}
             />
           </Field>
+          <Field label={t.settings.voicePrice} hint={t.settings.voicePriceHint}>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              className="w-32"
+              value={val("ELEVENLABS_USD_PER_1K_CHARS") || "0.22"}
+              onChange={(e) => set("ELEVENLABS_USD_PER_1K_CHARS", e.target.value)}
+            />
+          </Field>
+          <Field label={t.settings.monthlyBudget} hint={t.settings.monthlyBudgetHint}>
+            <Input
+              type="number"
+              min={0}
+              step="1"
+              className="w-32"
+              value={val("MONTHLY_BUDGET_USD") || "0"}
+              onChange={(e) => set("MONTHLY_BUDGET_USD", e.target.value)}
+            />
+          </Field>
           <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
             {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}
           </Field>

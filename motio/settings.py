@@ -10,7 +10,8 @@ from pathlib import Path
 KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "NEWS_SOURCES", "REFRESH_EVERY_MIN", "CREDIT_ON_VIDEO",
         "CREDIT_IN_POST",
-        "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "UI_LANG")
+        "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "UI_LANG",
+        "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD")
 SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY")
 MASK = "••••"
 
@@ -94,6 +95,13 @@ def update(changes: dict) -> dict[str, dict]:
                     raise ValueError
             except (TypeError, ValueError):
                 raise ValueError(tr("{key} must be an integer ≥ 0", key=k)) from None
+    for k in ("ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD"):
+        if k in changes and changes[k] not in (None, ""):
+            try:
+                if float(changes[k]) < 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                raise ValueError(tr("{key} must be a number ≥ 0", key=k)) from None
     data = load()
     for k, v in changes.items():
         v = _normalize(v)

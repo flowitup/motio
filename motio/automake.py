@@ -6,7 +6,7 @@ duyệt của kênh như dự án bấm tay.
 """
 import time
 
-from . import channels, db, pipeline
+from . import channels, db, pipeline, usage
 from .i18n import tr
 
 HOURS = 6  # tin còn trên bảng tin trong 6 giờ qua
@@ -22,7 +22,7 @@ def picks(now: float | None = None) -> list[tuple[dict, dict]]:
     """[(tin, hồ sơ)] sẽ tự làm lúc này. Tin đi tới hồ sơ đầu tiên có ngưỡng điểm ≤ điểm tin và còn lượt hôm nay."""
     now = now or time.time()
     chans = profiles()
-    if not chans:
+    if not chans or usage.over_budget(now):  # hết ngân sách tháng: tự làm dừng (bấm tay vẫn được)
         return []
     left = pipeline.quota_left()  # None = không giới hạn
     start = pipeline.today_start()

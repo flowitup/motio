@@ -90,6 +90,8 @@ def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> di
                    params={"output_format": "mp3_44100_128"}, headers=_headers(), json=body, timeout=300)
     if r.status_code >= 400:
         raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:300]}")
+    from . import usage  # nhập muộn: usage → channels → db, tránh vòng lặp import
+    usage.record_tts(len(text), model, voice_id)
     data = r.json()
     audio = out_dir / "narration.mp3"
     audio.write_bytes(base64.b64decode(data["audio_base64"]))

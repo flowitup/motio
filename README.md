@@ -92,6 +92,14 @@ an uploaded file or the result of a finished job, so download → transcribe →
 the page; every job shows its progress, can be stopped and keeps its files under `data/tools/jobs/<id>/out/` until you
 delete it.
 
+**Stats** shows what the videos cost: each successful ElevenLabs call is recorded (characters, an estimated price,
+and the project, channel or tool job it belonged to), so the page adds up this month's voice cost and videos, the last
+30 days day by day, and every channel's videos, sends, failures and cost per video. Each project also shows its own
+voice cost. The price per 1,000 characters (default $0.22, the Creator plan; Flash / Turbo models count half) and an
+optional monthly budget are in Settings: at 80% the page warns, at 100% the videos made automatically pause until next
+month (videos you start yourself still run). Claude runs on your Claude plan and isn't counted, and views or earnings
+per platform aren't tracked (they need each platform's account).
+
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
@@ -205,6 +213,7 @@ motio/automake.py  make videos by themselves for trends above a channel's score,
 motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)
 motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/toolbox.py   Tools: download, transcribe, translate subtitles, read text aloud, burn subtitles (jobs chain)
+motio/usage.py     Stats: ElevenLabs characters and estimated cost per project / channel / tool, monthly budget
 motio/web.py       legacy dashboard (to be removed)
 ```
 
