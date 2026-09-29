@@ -52,7 +52,7 @@ def transcribe(src: Path) -> dict:
     src = Path(src)
     cache = src.with_suffix(".transcript.json")
     if cache.exists():
-        return json.loads(cache.read_text())
+        return json.loads(cache.read_text(encoding="utf-8"))
     if not has_audio(src):
         result = {"language": None, "segments": []}
     else:
@@ -73,5 +73,5 @@ def transcribe(src: Path) -> dict:
             segs = [{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip()} for s in it]
             lang = info.language
         result = {"language": lang, "segments": [s for s in segs if s["text"]]}
-    cache.write_text(json.dumps(result, ensure_ascii=False, indent=1))
+    cache.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     return result

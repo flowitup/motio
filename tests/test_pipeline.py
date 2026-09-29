@@ -38,10 +38,10 @@ def fake(monkeypatch, tmp_path):
     def transcribe(path):  # như asr.transcribe: có cache thì không bóc lời lại
         cache = Path(path).with_suffix(".transcript.json")
         if cache.exists():
-            return json.loads(cache.read_text())
+            return json.loads(cache.read_text(encoding="utf-8"))
         boom("transcribe")
         res = {"language": "zh", "segments": [{"start": 0, "end": 2, "text": "你好"}]}
-        cache.write_text(json.dumps(res))
+        cache.write_text(json.dumps(res), encoding="utf-8")
         return res
 
     def ask_json(prompt, system, **kw):
@@ -125,15 +125,15 @@ def test_render_again_keeps_the_voice(fake):
     pid = _new()
     pipeline.produce(pid)
     out = config.PROJECTS / str(pid)
-    plan = json.loads((out / "script.json").read_text())
+    plan = json.loads((out / "script.json").read_text(encoding="utf-8"))
     plan["title_fr"] = "Nouveau titre"  # đổi tiêu đề: vẫn dựng lại được với giọng cũ
-    (out / "script.json").write_text(json.dumps(plan))
+    (out / "script.json").write_text(json.dumps(plan), encoding="utf-8")
     calls.clear()
     pipeline.resume(pid, "render")
     p = db.get_project(pid)
     assert calls == ["render"] and p["status"] == "done" and "Keeping the previous voice" in p["log"]
     plan["lines"][0]["text"] += " encore"  # đổi câu đọc: phải đọc lại
-    (out / "script.json").write_text(json.dumps(plan))
+    (out / "script.json").write_text(json.dumps(plan), encoding="utf-8")
     assert "render" not in pipeline.available_steps(pid) and (out / "script.json").exists()
     with pytest.raises(ValueError):
         pipeline.resume(pid, "render")
@@ -210,7 +210,7 @@ def test_edited_script_is_what_gets_voiced_on_rerun(fake):
     calls.clear()
     pipeline.resume(pid, "voice")
     assert calls == ["voice", "render"]  # pas de nouveau script
-    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
     assert plan["lines"][0]["text"].startswith("main main") and plan["title_fr"] == "Titre corrigé"
     p = db.get_project(pid)
     assert p["status"] == "done" and p["meta"]["title"] == "Titre corrigé"
@@ -352,7 +352,7 @@ def test_short_narration_is_rewritten_then_read_again(fake):
     assert calls[-4:] == ["voice", "fit", "voice", "render"]
     # nhắm 80 s theo tốc độ đo được: (80 - 0.6) / 0.25 ≈ 318 từ → 4 dòng × 79 từ → 79 s
     assert calls.rendered[-1]["words"] == 316 and 62 <= calls.rendered[-1]["total"] <= 90
-    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
     assert pipeline._words(saved) == 316  # rerender đọc bản đã chỉnh
 
 
@@ -423,7 +423,7 @@ def test_video_still_over_90_seconds_is_trimmed(fake, monkeypatch):
     pipeline.produce(pid)
     assert calls[-3:] == ["voice", "voice", "render"]
     assert calls.rendered[-1]["total"] == pytest.approx(88.6)  # bỏ 1 câu (8 s)
-    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text())
+    saved = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
     tags = [ln["text"].split()[0] for ln in saved["lines"]]
     assert tags == ["debut", *"abcdefghi", "fin"]  # giữ câu mở đầu và câu kết, bỏ câu gần cuối
     assert "dropping 1 sentence near the end" in db.get_project(pid)["log"]

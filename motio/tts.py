@@ -93,7 +93,8 @@ def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> di
     data = r.json()
     audio = out_dir / "narration.mp3"
     audio.write_bytes(base64.b64decode(data["audio_base64"]))
-    (out_dir / "narration.alignment.json").write_text(json.dumps(data.get("alignment"), ensure_ascii=False))
+    (out_dir / "narration.alignment.json").write_text(json.dumps(data.get("alignment"), ensure_ascii=False),
+                                                             encoding="utf-8")
     total = probe_duration(audio)
     al = data.get("alignment") or {}
     starts = al.get("character_start_times_seconds") or []

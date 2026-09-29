@@ -84,7 +84,7 @@ def _words(plan: dict) -> int:
 
 
 def _save_script(out: Path, plan: dict) -> None:
-    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+    (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _trim(plan: dict, nar: dict) -> tuple[dict, int]:
@@ -419,7 +419,7 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
                                                 "render", name=ch["name"]))
                 return
         else:
-            plan = json.loads((out / "script.json").read_text())
+            plan = json.loads((out / "script.json").read_text(encoding="utf-8"))
         nar = None
         if start == "render" and not (nar := saved_narration(pid)):
             raise RuntimeError(tr("The previous voice is gone or the script has changed: rerun from step Voice"))

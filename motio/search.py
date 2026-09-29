@@ -93,8 +93,10 @@ def _cookie_opts() -> dict:
     return {"cookiesfrombrowser": (browser,)} if browser in BROWSERS else {}
 
 
-def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False) -> dict:
-    """Tải 1 video (≤ 720p, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay."""
+def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False, hooks: list | None = None) -> dict:
+    """Tải 1 video (≤ max_height, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay.
+    hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
+    ném lỗi trong hàm thì dừng tải."""
     out_dir.mkdir(parents=True, exist_ok=True)
     opts = {**_base(),
             "format": f"bv*[height<={max_height}][ext=mp4]+ba[ext=m4a]/bv*[height<={max_height}]+ba/"
@@ -102,7 +104,8 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
             "merge_output_format": "mp4",
             "outtmpl": str(out_dir / "%(extractor_key)s_%(id)s.%(ext)s"),
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,
-            "ffmpeg_location": config.ffmpeg(), **(_cookie_opts() if cookies else {})}
+            "ffmpeg_location": config.ffmpeg(), **(_cookie_opts() if cookies else {}),
+            **({"progress_hooks": hooks} if hooks else {})}
     with YoutubeDL(opts) as y:
         info = y.extract_info(url, download=True)
         path = Path(y.prepare_filename(info)).with_suffix(".mp4")

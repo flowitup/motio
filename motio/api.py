@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
@@ -34,6 +34,7 @@ from . import (
     postiz,
     search,
     settings,
+    toolbox,
     topic,
     tts,
     watch,
@@ -188,6 +189,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         raise ValueError("token is required")
     jobs = ThreadPoolExecutor(max_workers=1, thread_name_prefix="produce")  # một video mỗi lúc
     tools = ThreadPoolExecutor(max_workers=1, thread_name_prefix="delogo")  # xoá logo (lâu) không chặn việc làm video
+    fetch = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fetch")  # tải video lẻ: không chờ việc nặng
     state = {"refreshing": False, "last_refresh": None, "last_result": None,
              "watching": False, "last_watch": None, "last_watch_result": None, "last_auto": None}
     refresh_lock = threading.Lock()
@@ -223,12 +225,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         stale = db.fail_stale()
         if stale:
             print(f"motio: marked unfinished projects as failed {stale}", file=sys.stderr)
+        toolbox.recover()
         threading.Thread(target=scheduler, name="refresh-scheduler", daemon=True).start()
         yield
         stop.set()
         jobs.shutdown(wait=False, cancel_futures=True)
         delogo.stop_all()  # FFmpeg + mô hình dừng ở khung hình kế tiếp, engine thoát được ngay
         tools.shutdown(wait=False, cancel_futures=True)
+        fetch.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Motio engine", version=__version__, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"],
@@ -776,6 +780,55 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def delogo_delete(key: str):
         _dl(delogo.delete_upload, key)
         return {"deleted": key}
+
+    # ---------- công cụ lẻ: tải, bóc lời, dịch phụ đề, đọc, ghi phụ đề ----------
+    def _tb(fn, *args):
+        try:
+            return fn(*args)
+        except toolbox.NotFound as e:
+            raise HTTPException(404, str(e)) from e
+        except (toolbox.Busy, tts.TTSUnavailable) as e:
+            raise HTTPException(409, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except (RuntimeError, OSError) as e:
+            raise HTTPException(500, str(e)[:500]) from e
+
+    def _tool_bg(fn) -> None:
+        try:
+            fn()
+        except Exception as e:  # lỗi đã ghi vào job
+            print(f"motio: tool job failed: {e}", file=sys.stderr)
+
+    @app.get("/api/tools/jobs", dependencies=[Depends(auth)])
+    def tool_jobs():
+        return toolbox.list_jobs()
+
+    @app.get("/api/tools/jobs/{job_id}", dependencies=[Depends(auth)])
+    def tool_job(job_id: str):
+        return _tb(toolbox.get, job_id)
+
+    @app.post("/api/tools/jobs/{job_id}/cancel", dependencies=[Depends(auth)])
+    def tool_cancel(job_id: str):
+        return _tb(toolbox.cancel, job_id)
+
+    @app.delete("/api/tools/jobs/{job_id}", dependencies=[Depends(auth)])
+    def tool_delete(job_id: str):
+        _tb(toolbox.delete, job_id)
+        return {"deleted": job_id}
+
+    @app.post("/api/tools/{kind}", status_code=202, dependencies=[Depends(auth)])
+    def tool_start(kind: str, url: str = Form(""), text: str = Form(""), voice: str = Form(""),
+                   language: str = Form(""), height: int = Form(0), size: str = Form(""),
+                   channel: int | None = Form(None), file_job: str = Form(""), subs_job: str = Form(""),
+                   file: UploadFile | None = None, subs: UploadFile | None = None):
+        """Multipart: các ô chữ tuỳ công cụ, file tải lên (`file`: video / âm thanh, `subs`: .srt / .vtt) hoặc
+        `file_job` / `subs_job` = kết quả của một job đã xong."""
+        pool = fetch if kind == "download" else tools
+        params = {"url": url, "text": text, "voice": voice, "language": language, "height": height,
+                  "size": size, "channel": channel, "file_job": file_job, "subs_job": subs_job}
+        files = {k: (f.filename or "", f.file) for k, f in (("file", file), ("subs", subs)) if f and f.filename}
+        return _tb(toolbox.start, kind, params, files, lambda fn: pool.submit(_tool_bg, fn))
 
     # ---------- giọng, cài đặt ----------
     @app.get("/api/voices", dependencies=[Depends(auth)])

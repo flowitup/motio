@@ -68,6 +68,24 @@ export type DelogoUpload = { target: string; name: string; created_at: number | 
 
 export type Rights = "unknown" | "owned" | "licensed" | "cc";
 
+/** Công cụ lẻ: mỗi lần chạy là một job; kết quả của job này dùng làm đầu vào của job khác. */
+export type ToolKind = "download" | "transcribe" | "translate" | "speak" | "burn";
+export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+export type ToolOutput = { name: string; path: string; kind: "video" | "audio" | "subtitles" | "text" };
+export type ToolJob = {
+  id: string;
+  kind: ToolKind;
+  title: string;
+  status: ToolJobStatus;
+  pct: number;
+  message: string | null;
+  error: string | null;
+  outputs: ToolOutput[];
+  created_at: number;
+  finished_at: number | null;
+  folder: string; // thư mục kết quả trên máy chạy engine
+};
+
 export type ProjectMeta = {
   topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
   subject?: { title_fr: string; angle: string };
@@ -350,6 +368,27 @@ export function makeApi(url: string, token: string) {
       x.send(form);
     });
   }
+  /** Gửi form multipart (công cụ lẻ) bằng XHR để có tiến trình tải file lên. */
+  function postForm<T>(path: string, form: FormData, onProgress?: (pct: number) => void): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", url + path);
+      x.setRequestHeader("Authorization", `Bearer ${token}`);
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((100 * e.loaded) / e.total));
+      x.onload = () => {
+        let body: { detail?: string } = {};
+        try {
+          body = JSON.parse(x.responseText);
+        } catch {
+          /* không phải JSON */
+        }
+        if (x.status >= 200 && x.status < 300) resolve(body as T);
+        else reject(new ApiError(x.status, body.detail ?? x.statusText));
+      };
+      x.onerror = () => reject(new ApiError(0, t.common.noEngine));
+      x.send(form);
+    });
+  }
   return {
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),
@@ -433,6 +472,22 @@ export function makeApi(url: string, token: string) {
     delogoCancel: (key: string) => call<DelogoTarget>("POST", `${dl(key)}/cancel`),
     delogoRestore: (key: string) => call<DelogoTarget>("DELETE", `${dl(key)}/result`),
     delogoDelete: (key: string) => call<{ deleted: string }>("DELETE", dl(key)),
+    toolJobs: () => call<ToolJob[]>("GET", "/api/tools/jobs"),
+    /** fields: ô chữ của công cụ; files: file tải lên (`file` video / âm thanh, `subs` .srt / .vtt). */
+    startTool: (
+      kind: ToolKind,
+      fields: Record<string, string>,
+      files: { file?: File; subs?: File } = {},
+      onProgress?: (pct: number) => void,
+    ) => {
+      const form = new FormData();
+      for (const [k, v] of Object.entries(fields)) if (v !== "") form.append(k, v);
+      if (files.file) form.append("file", files.file);
+      if (files.subs) form.append("subs", files.subs);
+      return postForm<ToolJob>(`/api/tools/${kind}`, form, onProgress);
+    },
+    cancelTool: (id: string) => call<ToolJob>("POST", `/api/tools/jobs/${id}/cancel`),
+    deleteToolJob: (id: string) => call<{ deleted: string }>("DELETE", `/api/tools/jobs/${id}`),
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,

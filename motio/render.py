@@ -48,6 +48,7 @@ class Layout:
     cap_top: int
     cap_size: int
     cap_line: int
+    cjk: bool = False  # phụ đề có chữ Trung / Nhật / Hàn: dùng font CJK
 
     def k(self, v: float) -> int:
         return round(v * self.scale)
@@ -134,7 +135,7 @@ def caption_png(path: Path, cue: captions.Cue | None, lit: int, layout: Layout =
     img = Image.new("RGBA", (L.w, L.cap_h), (0, 0, 0, 0))
     if cue:
         d = ImageDraw.Draw(img)
-        f = _font(FONT_BOLD, L.cap_size)
+        f = _font(FONT_CJK if L.cjk else FONT_BOLD, L.cap_size)
         space = d.textlength(" ", font=f)
         n = 0
         for i, ln in enumerate(cue.lines):
@@ -148,10 +149,11 @@ def caption_png(path: Path, cue: captions.Cue | None, lit: int, layout: Layout =
     return path
 
 
-def write_caption_track(cues: list[captions.Cue], work: Path, layout: Layout = VERTICAL) -> Path:
-    """Vẽ mọi khung karaoke và ghi danh sách concat (mỗi PNG kèm thời lượng)."""
+def write_caption_track(cues: list[captions.Cue], work: Path, layout: Layout = VERTICAL, plain: bool = False) -> Path:
+    """Vẽ mọi khung karaoke và ghi danh sách concat (mỗi PNG kèm thời lượng).
+    plain: phụ đề thường, mỗi cue một khung."""
     pre = layout.prefix
-    frames = captions.karaoke_frames(cues)
+    frames = captions.plain_frames(cues) if plain else captions.karaoke_frames(cues)
     blank = caption_png(work / f"{pre}cap_blank.png", None, 0, layout)
     rows = ["ffconcat version 1.0"]
     for i, (a, b, cue, lit) in enumerate(frames):
@@ -159,7 +161,7 @@ def write_caption_track(cues: list[captions.Cue], work: Path, layout: Layout = V
         rows += [f"file '{f.name}'", f"duration {b - a:.3f}"]
     rows.append(f"file '{blank.name}'")  # concat bỏ qua thời lượng của file cuối
     lst = work / f"{pre}captions.ffconcat"
-    lst.write_text("\n".join(rows) + "\n")
+    lst.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return lst
 
 
@@ -381,6 +383,6 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     # nguyên khung hình chỉ dùng một khung.
     (out_dir / "timeline.json").write_text(json.dumps([{**p.__dict__, "dur": 0.2 if p.still else p.dur,
                                                         "url": sources[p.src].get("url")} for p in pieces],
-                                                      ensure_ascii=False, indent=1))
+                                                      ensure_ascii=False, indent=1), encoding="utf-8")
     return {"video": str(final), "thumb": str(thumb), "wide": str(rest[0]) if rest else None, "duration": total,
             "pieces": len(pieces), "captions": len(cues)}

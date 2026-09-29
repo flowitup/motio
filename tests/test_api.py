@@ -27,7 +27,7 @@ def seeded(monkeypatch):
                           log="rendering" + (f" from {kw['start']}" if kw else ""))
         out = config.PROJECTS / str(pid)
         out.mkdir(parents=True, exist_ok=True)
-        (out / "script.json").write_text("{}")
+        (out / "script.json").write_text("{}", encoding="utf-8")
         (out / "final.mp4").write_bytes(b"0123456789" * 10)
         db.update_project(pid, status="done", step="Done", pct=100, log="finished",
                           meta={"video": f"projects/{pid}/final.mp4"})
@@ -165,7 +165,7 @@ def test_edit_script(client):
     _wait_done(client, pid)
     plan = {"title_fr": "Titre", "description": "D.", "hashtags": ["#Chine"],
             "lines": [{"text": f"ligne {i}", "clips": [{"src": 0, "start": 5, "end": 9}]} for i in range(4)]}
-    (config.PROJECTS / str(pid) / "script.json").write_text(json.dumps(plan))
+    (config.PROJECTS / str(pid) / "script.json").write_text(json.dumps(plan), encoding="utf-8")
     assert client.get(f"/api/projects/{pid}", headers=H).json()["has_script"] is True
     v = client.get(f"/api/projects/{pid}/script", headers=H).json()
     assert v["script"]["lines"][0]["text"] == "ligne 0" and v["max_seconds"] == pipeline.MAX_SECONDS

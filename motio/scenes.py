@@ -15,7 +15,7 @@ def detect(src: Path, threshold: float = THRESHOLD) -> list[float]:
     cache = src.with_suffix(".scenes.json")
     if cache.exists():
         try:
-            data = json.loads(cache.read_text())
+            data = json.loads(cache.read_text(encoding="utf-8"))
             if data.get("threshold") == threshold:
                 return data["cuts"]
         except (OSError, ValueError, KeyError):
@@ -26,5 +26,5 @@ def detect(src: Path, threshold: float = THRESHOLD) -> list[float]:
     if r.returncode != 0:
         return []
     cuts = sorted({round(float(t), 3) for t in re.findall(r"pts_time:\s*([0-9.]+)", r.stderr)})
-    cache.write_text(json.dumps({"threshold": threshold, "cuts": cuts}))
+    cache.write_text(json.dumps({"threshold": threshold, "cuts": cuts}), encoding="utf-8")
     return cuts
