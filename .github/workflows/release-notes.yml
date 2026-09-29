@@ -1,0 +1,23 @@
+name: Release notes
+
+# Manual: sets each GitHub Release's title and notes from docs/releases/<tag>.md.
+# Only text changes; tags, installers and latest.json are not touched.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply the notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for f in docs/releases/v*.md; do
+            tag="$(basename "$f" .md)"
+            gh release edit "$tag" --title "Motio $tag" --notes-file "$f"
+          done

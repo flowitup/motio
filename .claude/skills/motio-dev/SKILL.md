@@ -297,7 +297,10 @@ Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <
    From 0.3.1 (PR #8, repo public) it reads `releases/latest/download/latest.json` with no token, and
    `latest.json` points at the tag's public download links. Publish a release only while the repo is public.
    (0.3.0 used a per-machine read-only token and API asset URLs; it still updates without one once public.)
-6. Signing key (one time, owner): `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`,
+6. Release notes: the title is `Motio vX.Y.Z` and the notes live in `docs/releases/vX.Y.Z.md` (Changes, Verification,
+   Downloads, Full Changelog). After a release exists, the manual **Release notes** workflow (`release-notes.yml`, run it
+   from Actions) applies every file there to its GitHub Release; it changes text only, never tags or assets.
+7. Signing key (one time, owner): `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`,
    `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key`, set the password secret; the
    public key sits in `plugins.updater.pubkey`. Losing the private key means installed apps can't update.
 
