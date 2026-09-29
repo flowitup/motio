@@ -82,6 +82,16 @@ already has (no new ElevenLabs call); if a later render uses a part that wasn't 
 say so. The original is kept and can be restored. An uploaded file gives you a cleaned copy. It never runs by itself
 in the pipelines.
 
+**Tools** are one-off jobs that need no project, each run on its own: **Download video** (any link yt-dlp can fetch,
+480 / 720 / 1080p, an MP4), **Transcribe** (Whisper → `.srt` + plain text, from a video or audio file), **Translate
+subtitles** (Claude, `.srt` or `.vtt` → French, English or Vietnamese, timings kept, optionally with a channel's
+glossary and style; French gets French typography), **Read text aloud** (ElevenLabs, up to 5,000 characters, any of
+your voices) and **Burn subtitles** (draws an `.srt` / `.vtt` at the bottom of a video with the same Pillow overlay as the
+videos Motio makes, so it needs no FFmpeg libass; Chinese / Japanese / Korean subtitles use a CJK font). Each input is
+an uploaded file or the result of a finished job, so download → transcribe → translate → burn chains without leaving
+the page; every job shows its progress, can be stopped and keeps its files under `data/tools/jobs/<id>/out/` until you
+delete it.
+
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
 `... topic "giant pandas" [link …]`, `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
@@ -194,6 +204,7 @@ motio/channels.py  channel profiles: badge, script style, voice, hashtags, appro
 motio/automake.py  make videos by themselves for trends above a channel's score, after each scheduled refresh
 motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)
 motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
+motio/toolbox.py   Tools: download, transcribe, translate subtitles, read text aloud, burn subtitles (jobs chain)
 motio/web.py       legacy dashboard (to be removed)
 ```
 

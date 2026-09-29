@@ -37,6 +37,9 @@ as authoritative for scope and milestones.
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
     project source is cleaned only where its final video uses it (`timeline.json`), an upload whole or one part
+  - `toolbox.py` Tools page: one-off jobs (download / transcribe / translate subtitles / read text aloud / burn subtitles), each a
+    `data/tools/jobs/<id>/` (state.json, in/, out/); a job's output feeds another (`file_job`, `subs_job`); burn draws the
+    subtitles with the Pillow overlay (`render.write_caption_track(plain=True)`), never FFmpeg libass
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI

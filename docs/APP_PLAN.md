@@ -345,6 +345,29 @@ The app also saves `UI_LANG` in the engine's settings, so new step labels, log l
 language (`motio/i18n.py`); lines already in a project's log stay as written. Messages from the Tauri shell are
 matched to Vietnamese in the app. CLI help, the legacy dashboard, video content and post text are unchanged.
 
+## Tools page (added 29/09/2026)
+
+From the "implement everything on the comparison page" ask; built in auto mode while the owner slept. The pipeline's
+building blocks, usable on their own: one page (**Tools**, `app/src/pages/tools.tsx`) with five tools.
+
+- `motio/toolbox.py`: a job is `data/tools/jobs/<id>/` with `state.json` (kind, title, status queued / running / done /
+  failed / cancelled, pct, message, error, outputs `[{name, path, kind}]`), `in/` (uploads), `out/` (results). Jobs left
+  running when the engine stops are failed at the next start (`recover`). Downloads run on their own executor so they
+  don't wait behind a long logo removal; the other tools share the logo tool's single worker.
+- API: `GET /api/tools/jobs`, `POST /api/tools/{kind}` (multipart: `url`, `height`, `text`, `voice`, `language`,
+  `channel`, `size`, `file_job`, `subs_job`, files `file` / `subs`; 202), `GET` / `DELETE /api/tools/jobs/{id}`,
+  `POST /api/tools/jobs/{id}/cancel`. Results are served by `/media/tools/jobs/<id>/out/<name>`.
+- Download: `search.download` with a progress hook, the same options as source downloads (`cookies=True`, a pasted
+  link). Transcribe: `asr.transcribe`; Whisper segments are cut into ≤ 2-line subtitles. Translate: Claude in batches of
+  40 with 3 previous subtitles as context; a batch that comes back with the wrong count is halved and retried; French
+  output goes through `captions.fr_typography`. Read aloud: `tts.synthesize` (the voice in Settings unless one is
+  picked). Burn: `render.Layout` sized to the video, `render.write_caption_track(..., plain=True)` and an FFmpeg overlay
+  (no libass: Homebrew's FFmpeg lacks it), `-progress` gives the percentage; the size (small / medium / large) is
+  relative to the shorter side.
+- Also in this change: the transcript cache, script.json and the ElevenLabs alignment file are read and written as
+  UTF-8 (on Windows the default encoding could not hold Chinese text).
+- Not verified: real yt-dlp, Whisper, Claude and ElevenLabs runs from this page, and the page on the Mac / Windows apps.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

@@ -45,7 +45,7 @@ def _read(pid: int) -> dict:
     if not f.exists():
         raise FileNotFoundError(tr("Project has no script yet"))
     try:
-        plan = json.loads(f.read_text())  # cùng mã hoá với pipeline
+        plan = json.loads(f.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise ValueError(tr("script.json is corrupt: {error}", error=e)) from e
     if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
@@ -55,10 +55,7 @@ def _read(pid: int) -> dict:
 
 def _write(pid: int, plan: dict) -> None:
     f = _dir(pid) / "script.json"
-    try:
-        f.write_text(json.dumps(plan, ensure_ascii=False, indent=1))  # cùng mã hoá mặc định với pipeline
-    except UnicodeEncodeError:  # Windows (cp1252) + emoji…: JSON thuần ASCII đọc được với mọi mã hoá
-        f.write_text(json.dumps(plan, ensure_ascii=True, indent=1))
+    f.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _words(lines: list[dict]) -> int:

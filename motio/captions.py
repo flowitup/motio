@@ -227,6 +227,19 @@ def karaoke_frames(cues: list[Cue]) -> list[tuple[float, float, Cue | None, int]
     return frames
 
 
+def plain_frames(cues: list[Cue]) -> list[tuple[float, float, Cue | None, int]]:
+    """Như karaoke_frames nhưng mỗi cue một khung, chữ trắng cả cue (phụ đề thường, không tô từng từ)."""
+    frames = []
+    t = 0.0
+    for c in cues:
+        if c.start > t + 0.01:
+            frames.append((t, c.start, None, 0))
+        if c.end - c.start > 0.001:
+            frames.append((c.start, c.end, c, 0))
+        t = max(t, c.end)
+    return frames
+
+
 # ---------- xuất file ----------
 def _ts(t: float, sep: str = ",") -> str:
     ms = max(int(round(t * 1000)), 0)
