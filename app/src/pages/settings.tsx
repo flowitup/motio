@@ -220,6 +220,8 @@ function SettingsForm({ api }: { api: Api }) {
     },
   });
 
+  const testSlack = useMutation({ mutationFn: () => api.testSlack() });
+
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!s) return null;
 
@@ -312,6 +314,36 @@ function SettingsForm({ api }: { api: Api }) {
           <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
             {secret("POSTIZ_API_KEY")}
           </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.settings.slack}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <Field label="SLACK_WEBHOOK_URL" hint={src("SLACK_WEBHOOK_URL") ?? t.settings.slackHint}>
+            {secret("SLACK_WEBHOOK_URL")}
+          </Field>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testSlack.mutate()}
+              disabled={dirty || !s.SLACK_WEBHOOK_URL?.value || testSlack.isPending}
+            >
+              {testSlack.isPending && <Loader2 className="animate-spin" />}
+              {t.settings.slackTest}
+            </Button>
+            {dirty && <span className="text-xs text-muted-foreground">{t.settings.slackSaveFirst}</span>}
+            {testSlack.isSuccess && !dirty && (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Check className="size-4" />
+                {t.settings.slackSent}
+              </span>
+            )}
+            {testSlack.error && <span className="text-sm text-destructive">{testSlack.error.message}</span>}
+          </div>
         </CardContent>
       </Card>
 

@@ -30,6 +30,7 @@ from . import (
     dub,
     edit,
     newsnow,
+    notify,
     pipeline,
     postiz,
     search,
@@ -729,6 +730,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:
             raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
+
+    # ---------- thông báo Slack ----------
+    @app.post("/api/notify/test", dependencies=[Depends(auth)])
+    def notify_test():
+        """Gửi một tin thử tới webhook Slack đã lưu, để Cài đặt biết link có dùng được không."""
+        try:
+            notify.send(tr("Motio test message: Slack alerts are working."))
+        except notify.NotifyError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"sent": True}
 
     # ---------- xoá logo (video người dùng chọn) ----------
     def _dl(fn, *args):

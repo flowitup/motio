@@ -108,6 +108,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | "Remove logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Tools page (download, transcribe, translate subtitles, read aloud, burn subtitles; jobs chain) | `motio/toolbox.py` (`start`, `run`, `recover`, `parse_subs`, `segment_entries`, `translate`, `burn_cues`, `burn_layout`, `RUNNERS`), `/api/tools/*`, `render.write_caption_track(plain=True)`, `app/src/pages/tools.tsx`; tests `tests/test_toolbox.py` |
 | Stats page (ElevenLabs characters and estimated cost per project / channel / tool, monthly budget) | `motio/usage.py` (`context`, `record_tts`, `cost`, `for_project`, `summary`, `over_budget`), `tts.synthesize` records, `db.usage` table, `GET /api/stats`, `app/src/pages/stats.tsx`; tests `tests/test_usage.py` |
+| Slack alerts (review / done / failed, one-way Incoming Webhook) | `motio/notify.py` (`valid`, `send`, `project`, `escape`), hooks in `pipeline._await_review` / `_deliver` / `approve_video` / failure handlers, `SLACK_WEBHOOK_URL` (secret), `POST /api/notify/test`, Settings card in `app/src/pages/settings.tsx`; tests `tests/test_notify.py`, `fake_slack` fixture |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
 | Engine connection (local/remote) | `app/src/lib/engine.tsx`, `app/src-tauri/src/engine.rs` |
@@ -226,7 +227,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 205 passed, 6 skipped without FFmpeg (language switch + 16:9 copy, 28/09)
+uv run pytest                          # 321 passed with FFmpeg on PATH (30/09); some FFmpeg tests skip without it
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)

@@ -28,6 +28,7 @@ as authoritative for scope and milestones.
     `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
+  - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`

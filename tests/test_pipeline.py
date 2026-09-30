@@ -595,3 +595,46 @@ def test_voice_characters_are_charged_to_the_project_and_its_channel(fake, monke
         rows = [dict(r) for r in c.execute("SELECT project_id, channel_id, chars FROM usage")]
     assert rows and all(r["project_id"] == pid and r["channel_id"] == cid for r in rows)
     assert usage.for_project(pid)["tts_chars"] == sum(r["chars"] for r in rows) > 0
+
+
+# ---------- thông báo Slack khi dự án chờ duyệt / xong / lỗi ----------
+def test_slack_hears_review_done_with_send_and_failure(fake, fake_postiz, fake_slack):
+    calls, fail = fake
+    ch = _profile(gate_script=True, gate_video=True, postiz=["tt1"])
+    pid = _with(ch, _new())
+    pipeline.produce(pid)
+    pipeline.produce(pid, start="voice")
+    pipeline.approve_video(pid)
+    assert fake_slack == [
+        ":eyes: Script ready for your approval: Titre · Chine Express",
+        ":eyes: Video ready for your approval: Titre · Chine Express",
+        ":white_check_mark: Video ready: Titre · Chine Express\nSent to Postiz (draft)",
+    ]
+    fake_slack.clear()
+    pid2 = _new()
+    fail.add("script")
+    with pytest.raises(RuntimeError):
+        pipeline.produce(pid2)
+    assert fake_slack == [":x: Video failed: Titre\nscript broke"]
+
+
+def test_slack_says_when_postiz_did_not_take_the_video(fake, fake_slack):
+    pid = _with(_profile(postiz=["tt1"]), _new())  # Postiz chưa cấu hình
+    pipeline.produce(pid)
+    assert fake_slack[-1].startswith(":white_check_mark: Video ready: Titre · Chine Express\nNot sent to Postiz: ")
+    assert "POSTIZ_URL" in fake_slack[-1]
+
+
+def test_slack_down_does_not_fail_the_video(fake, monkeypatch):
+    import httpx
+
+    from motio import notify, settings
+
+    def down(req):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr(notify, "_transport", httpx.MockTransport(down))
+    settings.update({"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T0/B0/xyz"})
+    pid = _new()
+    pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "done"

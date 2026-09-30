@@ -513,6 +513,7 @@ export function makeApi(url: string, token: string) {
     deleteToolJob: (id: string) => call<{ deleted: string }>("DELETE", `/api/tools/jobs/${id}`),
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
+    testSlack: () => call<{ sent: boolean }>("POST", "/api/notify/test"),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
     eventsUrl: (id: number) => `${url}/api/projects/${id}/events?${q}`,
   };

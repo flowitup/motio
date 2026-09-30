@@ -5,7 +5,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import asr, channels, config, db, delogo, dub, llm, postiz, render, scenes, search, topic, tts, usage
+from . import asr, channels, config, db, delogo, dub, llm, notify, postiz, render, scenes, search, topic, tts, usage
 from .i18n import tr, tr_n
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
@@ -427,6 +427,7 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
     except Exception as e:
         db.update_project(pid, status="failed",
                           log=tr("ERROR: {error}", error=e) + f"\n{traceback.format_exc()[-1200:]}")
+        notify.project(pid, "failed", error=str(e))
         raise
 
 
@@ -453,6 +454,7 @@ def resume(pid: int, start: str | None = None) -> None:
         _invalidate(pid, start, redo)
     except Exception as e:
         db.update_project(pid, status="failed", log=tr("ERROR: {error}", error=e))
+        notify.project(pid, "failed", error=str(e))
         raise
     produce(pid, start=start)
 
@@ -575,6 +577,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 def _await_review(pid: int, what: str, log: str) -> None:
     db.update_project(pid, status="review", step=tr(REVIEW_STEPS[what]), pct=62 if what == "script" else 100, log=log,
                       meta={"review": what})
+    notify.project(pid, "review")
 
 
 def _deliver(pid: int, ch: dict | None) -> None:
@@ -591,9 +594,9 @@ def _deliver(pid: int, ch: dict | None) -> None:
                                        if ch["postiz"] else "Channel {name}: awaiting your video approval",
                                        name=ch["name"]) + why)
         return
-    if ch and not sent and ch["postiz"]:
-        send_to_postiz(pid, ch)
+    ok = send_to_postiz(pid, ch) if ch and not sent and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
+    notify.project(pid, "done", sent=ok)
 
 
 def send_to_postiz(pid: int, ch: dict) -> bool:
@@ -636,9 +639,9 @@ def approve_video(pid: int, send: bool = True) -> None:
     ch = channels.for_project(p)
     db.update_project(pid, log=tr("Video approved") if send else tr("Video approved, not sent to Postiz"),
                       meta={"review": None, "approved_at": time.time()})
-    if send and ch and ch["postiz"]:
-        send_to_postiz(pid, ch)
+    ok = send_to_postiz(pid, ch) if send and ch and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
+    notify.project(pid, "done", sent=ok)
 
 
 def rerender(pid: int) -> None:
