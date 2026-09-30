@@ -270,6 +270,20 @@ VI = {
     "{key} must be a number ≥ 0": "{key} phải là số ≥ 0",
     "{key} must be an integer ≥ 0": "{key} phải là số nguyên ≥ 0",
     "UI_LANG must be one of {choices}": "UI_LANG phải là một trong {choices}",
+    "SLACK_WEBHOOK_URL must be a https://hooks.slack.com/… link":
+        "SLACK_WEBHOOK_URL phải là link dạng https://hooks.slack.com/…",
+    # Slack notifications (notify.py)
+    "Slack webhook is not set, or is not a https://hooks.slack.com/… link":
+        "Chưa đặt webhook Slack, hoặc không phải link https://hooks.slack.com/…",
+    "Could not reach Slack: {error}": "Không kết nối được Slack: {error}",
+    "Slack refused the message: {error}": "Slack từ chối tin nhắn: {error}",
+    "Script ready for your approval: {title}": "Kịch bản chờ bạn duyệt: {title}",
+    "Video ready for your approval: {title}": "Video chờ bạn duyệt: {title}",
+    "Video failed: {title}": "Video lỗi: {title}",
+    "Video ready: {title}": "Video đã xong: {title}",
+    "Sent to Postiz ({mode})": "Đã gửi sang Postiz ({mode})",
+    "Not sent to Postiz: {error}": "Chưa gửi được sang Postiz: {error}",
+    "Motio test message: Slack alerts are working.": "Tin thử của Motio: thông báo Slack đang hoạt động.",
     "Enter a topic or at least one video link": "Nhập chủ đề hoặc ít nhất một link video",
     "No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY (the macOS voice only works on a Mac).":
         "Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY (giọng macOS chỉ có trên Mac).",

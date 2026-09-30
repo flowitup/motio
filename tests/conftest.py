@@ -57,3 +57,23 @@ def fake_postiz(monkeypatch):
     monkeypatch.setenv("POSTIZ_URL", "http://postiz.test/api/")
     monkeypatch.setenv("POSTIZ_API_KEY", "pz-key")
     return calls
+
+
+@pytest.fixture
+def fake_slack(monkeypatch):
+    """Slack giả qua httpx.MockTransport. Trả danh sách nội dung các tin đã nhận."""
+    import json
+
+    import httpx
+
+    from motio import notify
+
+    texts: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        texts.append(json.loads(req.content)["text"])
+        return httpx.Response(200, text="ok")
+
+    monkeypatch.setattr(notify, "_transport", httpx.MockTransport(handler))
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T0/B0/xyz")
+    return texts

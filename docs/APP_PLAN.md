@@ -263,7 +263,7 @@ The owner asked to build the rest of the blueprint in phase order; for GĐ1 they
   within `MAX_VIDEOS_PER_DAY`. The project gets `meta.auto`, runs like a click on "Make video" for that channel and
   still stops at its gates. `uv run python -m motio automake` runs the same pick by hand. Profiles saved before PR 2
   read the new fields as their defaults (no 16:9, auto-make off).
-- Slack notifications wait for a Slack app from the owner.
+- Slack notifications: see "Slack alerts" below (an Incoming Webhook; the interactive Slack app with buttons is still M4).
 
 ## GĐ2: French dub (added 28/09/2026)
 
@@ -386,6 +386,24 @@ calls per use.
 - Not tracked: Claude (`claude -p` bills the owner's plan, not per call), platform views and earnings (need each
   platform's account and API), other providers' credits. Usage from before this version isn't there.
 - Not verified: the estimate against a real ElevenLabs invoice; the page on the Mac / Windows apps.
+
+## Slack alerts (added 30/09/2026)
+
+Next item from the left-over list after v0.7.0 that needs nothing but a webhook link (no token-holding Slack app).
+
+- `motio/notify.py`: one-way messages to a Slack Incoming Webhook (`SLACK_WEBHOOK_URL` in Settings → Slack alerts, stored
+  masked like the API keys). Only `https://hooks.slack.com/…` links are accepted (Settings rejects anything else), so
+  the engine can't be pointed at another address. It runs in the engine, so it also works while the app is closed
+  (engine on the server).
+- Events, sent from `pipeline.py` right after the status changes: a script or video waits for approval (`review`), a video
+  is done (with "Sent to Postiz (draft / schedule / now)" or "Not sent to Postiz: …" when a channel profile sends it), a
+  project failed (first line of the error). The text follows the UI language (`tr()`), shows the project title and the
+  channel name, and is escaped (`& < >`) because titles come from outside.
+- A failure to send (offline, link revoked) is logged and never fails or delays a video beyond the 10 s timeout. Settings has
+  "Send a test message" (`POST /api/notify/test`) that shows the real error.
+- Not included: buttons (Approve / Make video; needs the Slack app in Socket Mode, M4), budget alerts (the Stats page still
+  shows those), notices for Tools and Remove logo jobs, a per-event switch.
+- Not verified: a real delivery to Slack (the build sandbox can't reach hooks.slack.com); tested against a fake transport.
 
 ## Out of scope for now
 
