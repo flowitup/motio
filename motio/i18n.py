@@ -417,4 +417,42 @@ VI = {
     "Drawing the subtitles…": "Đang vẽ phụ đề…",
     "No subtitles fall inside the video": "Không có phụ đề nào nằm trong thời lượng video",
     "Subtitles added ({n})": "Đã ghi phụ đề lên video ({n})",
+    # AI video (creator.py, images.py)
+    "Pictures": "Ảnh",
+    "Enter a topic for the AI video": "Hãy nhập chủ đề cho video AI",
+    "AI video: {topic} · {duration} s · pictures from {provider}":
+        "Video AI: {topic} · {duration} giây · ảnh từ {provider}",
+    "Picture {n} of {total} ({provider})": "Ảnh {n} / {total} ({provider})",
+    "Picture {n} failed: {error}": "Ảnh {n} bị lỗi: {error}",
+    "Made {fresh} of {total} pictures · about ${cost}": "Đã làm {fresh} / {total} ảnh · khoảng ${cost}",
+    "All {total} pictures were already made": "Cả {total} ảnh đã có sẵn",
+    "Claude is writing the French narration and the picture prompts":
+        "Claude đang viết lời bình tiếng Pháp và prompt ảnh",
+    "Voice is {length} s: holding the last picture until {min} s":
+        "Giọng đọc dài {length} s: giữ ảnh cuối tới {min} s",
+    " (pictures from a provider that isn't cleared for monetized channels: approve the video yourself before it "
+    "goes out)":
+        " (ảnh của nhà cung cấp chưa được phép cho kênh kiếm tiền: bạn phải tự duyệt video trước khi đăng)",
+    "The picture prompt of line {line} is longer than {n} characters":
+        "Prompt ảnh của dòng {line} dài quá {n} ký tự",
+    "Only AI videos have pictures to redo": "Chỉ video AI mới có ảnh để làm lại",
+    "Scene {n} does not exist": "Không có cảnh {n}",
+    "New picture asked for scene {n} · re-render to make it": "Đã xin ảnh mới cho cảnh {n} · dựng lại để làm ảnh đó",
+    "pictures": "ảnh",
+    "camera moves": "chuyển động máy quay",
+    "IMAGE_PROVIDER must be one of {choices}": "IMAGE_PROVIDER phải là một trong: {choices}",
+    "Add your fal key in Settings → Image provider (or choose the Placeholder provider to try the flow)":
+        "Hãy nhập khoá fal trong Cài đặt → Nhà cung cấp ảnh (hoặc chọn Ảnh giữ chỗ để thử luồng này)",
+    "The Modal provider needs the `modal` Python package and a Modal login: it runs from the dev engine or the server, "
+    "not the packaged app":
+        "Nhà cung cấp Modal cần gói Python `modal` và đã đăng nhập Modal: chỉ chạy được từ engine dev hoặc server, "
+        "không chạy trong app đóng gói",
+    "Could not reach the image provider: {error}": "Không kết nối được nhà cung cấp ảnh: {error}",
+    "fal refused the request ({error}): check the key and the credit on your fal account":
+        "fal từ chối yêu cầu ({error}): kiểm tra khoá và số dư trong tài khoản fal",
+    "fal could not make the picture: {error}": "fal không làm được ảnh: {error}",
+    "fal returned no picture (the prompt may have been filtered)": "fal không trả ảnh nào (prompt có thể bị lọc)",
+    "Could not download the picture from fal: {error}": "Không tải được ảnh từ fal: {error}",
+    "Modal could not make the picture: {error}": "Modal không làm được ảnh: {error}",
+    "The provider did not return a picture": "Nhà cung cấp không trả về ảnh",
 }

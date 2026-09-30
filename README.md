@@ -65,6 +65,21 @@ générée par IA." and the AI flags. A dub reuses someone else's pictures and w
 only when the source rights are *owned*, *licensed* or *cc*; otherwise, even if the channel has no video gate, it stops
 at **Awaiting video approval** before anything is sent.
 
+**AI video** (Projects → New video → *AI video*) makes a French explainer from a topic with no source footage at all:
+Claude writes the voice-over as scenes (the spoken line, an English picture prompt and a slow camera move: zoom in,
+zoom out, pan left, pan right), an image model draws one 9:16 picture per scene, and the usual voice and render steps
+put each picture under its line with a Ken Burns move, karaoke captions and the channel's badge. The pictures come
+from the provider picked in Settings → AI pictures: **fal** (Qwen-Image-2512, Apache 2.0, about $0.04 per picture,
+so about $0.40–0.60 per video; needs a fal key and credit) is the default and the only one cleared for a monetized
+channel; **Modal** (your own `qwen21-uc` app, about $0.01 per picture) runs under the Qwen Research Licence, so its videos
+always stop at **Awaiting video approval**, and it needs the `modal` Python package and a Modal login, so it works from
+the dev engine or the server, not the packaged app; **Placeholder** draws gradient cards that show the prompt (free,
+no network, to try the flow, also stops at the approval gate). The script gate stops before any picture is paid for.
+On the project page each scene shows its picture, prompt and camera move: edit a prompt or a move and only that
+scene's picture is made again, press **New picture** to draw the same scene again, then re-render (the voice is kept
+when only pictures changed). The post keeps "Voix off générée par IA." and adds "Images générées par IA."; the
+estimated cost of the pictures is in the project log and on the project page. Stats does not include it yet.
+
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
@@ -101,9 +116,9 @@ month (videos you start yourself still run). Claude runs on your Claude plan and
 per platform aren't tracked (they need each platform's account).
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
+`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds]` (a video made only of AI pictures, 70 / 80 / 90 s), `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice`), `... approve <project> [nosend]`
+step, or redo from `search` / `download` / `transcribe` / `script` / `voice` / `render`), `... approve <project> [nosend]`
 (approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's
 auto-make score now), `... delete <project>`. `produce` and `topic` use the default
 channel.
@@ -186,6 +201,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
+| `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.
@@ -203,6 +219,8 @@ motio/captions.py  French karaoke captions (≤ 42 characters per line), exports
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
+motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
+motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
 motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
 motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores

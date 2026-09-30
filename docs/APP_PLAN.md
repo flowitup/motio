@@ -405,7 +405,49 @@ Next item from the left-over list after v0.7.0 that needs nothing but a webhook 
   shows those), notices for Tools and Remove logo jobs, a per-event switch.
 - Not verified: a real delivery to Slack (the build sandbox can't reach hooks.slack.com); tested against a fake transport.
 
+## GĐ3 part 1: AI video (added 30/09/2026)
+
+The owner picked "AI images" on the next-feature card (30/09) and then "continue with AI video". Brainstorm:
+`/mnt/project-files/motio/plans/brainstorm-260930-gd3-ai-images.md`. This is the first part of the comparison page's GĐ3
+row; AI clips (fal H3 Max), consistent characters (reference images) and the Recap variant (a video link as input) come
+later, each as its own change.
+
+- **Mode `ai`** (`motio/creator.py`): a project kind next to news, topic and dub, with no source footage. `POST /api/ai`
+  `{topic, duration}` (New video → *AI video*), CLI `ai "<topic>" [seconds]`. Steps shown: script, voice, render
+  (`available_steps`); `produce` skips search / download / transcribe; `STEPS` itself is unchanged.
+- **Script** (`creator.SCRIPT_PROMPT`, one `llm` call): French narration as scenes `{text, image, motion}` plus one
+  plan-level `style` sentence and the usual title / description / hashtags. `image` is an English prompt for one concrete
+  scene (no text, logos or recognizable real people); `motion` is `zoom_in`, `zoom_out`, `pan_left` or `pan_right`.
+  Voice fitting (`pipeline._fit`, with `FIT_LONGER_AI` when it has to add lines) gets the scenes as they are and returns
+  them through `creator.tidy`, which keeps each line's prompt, move and seed and fills in a missing move.
+  The script editor shows each scene with its picture, prompt and move (`edit.script_view`, `edit.save_script`).
+- **Pictures** (`motio/images.py`, `creator.pictures`): one 1088×1920 picture per scene in `out/scenes/`, cached by
+  sha1 of provider | size | seed | prompt, so a retry or an edit makes only the missing or changed scenes (one retry per
+  picture, then the step stops with the ones already made kept). They are made right before the voice
+  (`pipeline._voice_render_post`), after the script gate, so nothing is paid for before approval. **New picture** on a
+  scene bumps its `seed` (`edit.reroll_picture`, `POST /api/projects/{id}/scenes/{index}/redo`); re-rendering from the
+  render step keeps the saved voice and makes only the pictures that are missing. The project log and `meta.ai`
+  (`provider`, `scenes`, `cost`) record the estimated cost; the Stats page doesn't include it yet.
+- **Providers**, one adapter, `IMAGE_PROVIDER` in Settings → AI pictures (the decision card only sets the default):
+  `fal` (`fal-ai/qwen-image-2512`, Apache 2.0, about $0.042 per picture, `FAL_KEY` stored masked) is the default and the
+  only one cleared for a monetized channel; `modal` (the owner's deployed `qwen21-uc`, `Qwen21UC.generate`, about $0.009;
+  Qwen Research Licence, no safety filter, needs the `modal` package and a login, so not in the installers); `placeholder`
+  (gradient cards with the prompt, free, no network). `IMAGE_STYLE` is added to every picture prompt.
+- **Render**: one `render.Piece` per scene, from where its line starts to where the next one starts, each with
+  `motion`. `render.kenburns()` makes the move with `zoompan` on a 2× scaled input (fill when the picture is ≈9:16, fit
+  over a blurred background otherwise); credits are skipped for these pieces. Captions, badge, 16:9 copy, gates, Postiz
+  and Slack are the existing ones.
+- **Rights and disclosure**: pictures from `images.REVIEW_PROVIDERS` (`modal`, `placeholder`) always stop at
+  **Awaiting video approval** (`creator.needs_review`, `pipeline._deliver`), even when the channel has no video gate.
+  The post text keeps "Voix off générée par IA." and adds "Images générées par IA."; the platforms' AI flags stay on.
+- Not included: AI clips, reference images for consistent characters, Recap, a per-channel provider, image cost on the
+  Stats page, a check for each picture's content before sending (the owner's look at the video gate is it).
+- Not verified: real generation from fal or Modal (the build sandbox has no keys or network for them; tests use a mock
+  HTTP transport and the placeholder); the picture quality and prompts from Claude on real topics; the Mac / Windows apps.
+  Verified in the sandbox with real FFmpeg: the four camera moves in both layouts, and a full 80 s video through the real
+  API, renderer and placeholder provider, including one scene redone and the voice kept.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel
-profile · AI clips (fal H3 Max) and Qwen images (Modal) inside the pipeline.
+profile · AI clips (fal H3 Max) inside the pipeline (AI pictures are in: GĐ3 part 1).

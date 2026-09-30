@@ -1,8 +1,9 @@
 """CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
-dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] | delete <id> |
-watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
+ai "<topic>" [seconds] | dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] |
+delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
 
-produce / topic / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
+produce / topic / ai / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
+ai: a video made only of AI pictures (Settings → Image provider; `IMAGE_PROVIDER=placeholder` to try it for free).
 dub: French dub of one video (start / end in seconds; left out = whole video if short, else Claude picks 62–85 s).
 automake makes, one after another, the trends that reach a channel's auto-make score (the engine does it by itself
 after each scheduled refresh)."""
@@ -56,6 +57,16 @@ def main(argv: list[str]) -> None:
         from . import channels, pipeline, topic
         try:
             pid = topic.create(argv[1] if len(argv) > 1 else "", argv[2:])
+        except ValueError as e:
+            sys.exit(str(e))
+        channels.attach(pid, channels.pick(None))
+        print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
+        pipeline.produce(pid)
+        print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "ai":  # ai "<chủ đề>" [giây]: video làm hoàn toàn bằng ảnh AI
+        from . import channels, creator, pipeline
+        try:
+            pid = creator.create(argv[1] if len(argv) > 1 else "", int(argv[2]) if len(argv) > 2 else 80)
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))

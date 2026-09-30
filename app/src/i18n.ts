@@ -130,7 +130,7 @@ const en = {
     } as Record<string, string>,
     make: "Make video",
     cancel: "Close",
-    modes: { news: "Trending", topic: "Topic", dub: "French dub" } as Record<string, string>,
+    modes: { news: "Trending", topic: "Topic", dub: "French dub", ai: "AI video" } as Record<string, string>,
     back: "Projects",
     log: "Log",
     post: "Post text",
@@ -293,7 +293,7 @@ const en = {
     chars: (n: number, max: number) => `${n} / ${max} characters`,
   },
   dub: {
-    kinds: { topic: "Explainer", dub: "French dub" } as Record<string, string>,
+    kinds: { topic: "Explainer", dub: "French dub", ai: "AI video" } as Record<string, string>,
     link: "Video link",
     linkHint:
       "Douyin, Bilibili, YouTube, Facebook… Motio transcribes the speech, translates it line by line, speaks it in French where each original line starts, keeps the music and sound, blurs the old subtitles and adds French captions.",
@@ -394,6 +394,43 @@ const en = {
     openFolder: "Open folder",
     deleteResult: "Delete result",
     deleteUpload: "Delete uploaded video",
+  },
+  ai: {
+    topic: "Topic",
+    topicHint:
+      "Any subject, in any language. Claude writes the French narration and one picture prompt per line, an image model makes every picture, and Motio adds a slow camera move, the voice and the captions.",
+    topicPlaceholder: "e.g. Why giant pandas only live in Sichuan",
+    providerHint: (name: string, usd: string) =>
+      `Pictures come from ${name} (Settings → AI pictures): about $${usd} for a 12-scene video.`,
+    needsKey: "Add your fal key in Settings → AI pictures first (or choose the placeholder there to try the flow).",
+    make: "Make AI video",
+    card: "AI video",
+    provider: "Pictures from",
+    providers: {
+      fal: "fal (Qwen-Image 2512)",
+      modal: "Modal (your Qwen 2.1 app)",
+      placeholder: "Placeholder cards",
+    } as Record<string, string>,
+    scenes: (n: number) => plural(n, "scene"),
+    cost: (usd: number) => `Pictures so far: about $${usd.toFixed(2)}`,
+    reviewNote:
+      "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself, or choose fal in Settings → AI pictures and remake the pictures.",
+    scriptHint:
+      "Each line is a scene: what the voice says, the English prompt of its picture and a slow camera move. Edit what you like, then click “Save and re-render”: only scenes whose prompt changed get a new picture.",
+    style: "Visual style",
+    styleHint: "Added to every picture prompt so the whole video looks consistent (English).",
+    image: "Picture prompt",
+    imagePlaceholder: "Describe the picture in English",
+    motion: "Camera",
+    motions: { zoom_in: "Zoom in", zoom_out: "Zoom out", pan_left: "Pan left", pan_right: "Pan right" } as Record<
+      string,
+      string
+    >,
+    newPicture: "New picture",
+    newPictureTitle: "Make another picture for this scene at the next render",
+    saveFirst: "Save your edits first",
+    pending: "new picture at the next render",
+    noPicture: "No picture yet",
   },
   stats: {
     title: "Stats",
@@ -547,6 +584,13 @@ const en = {
     postizHint: "E.g. https://postiz.example.com/api. An engine running on the server is already set up.",
     slack: "Slack alerts",
     slackHint: "Incoming Webhook link (https://hooks.slack.com/…). Motio posts when a script or video waits for approval, when a video is ready (and whether Postiz took it) and when one fails. It works while the app is closed if the engine runs on a server.",
+    images: "AI pictures",
+    imageProvider: "Picture provider",
+    imageProviderHint:
+      "Used by AI videos. fal (Qwen-Image 2512, about $0.04 a picture) is fine for monetized channels. Modal (your Qwen 2.1 app) runs only from the dev engine or a server and isn't licensed for monetized channels; the placeholder draws gradient cards to try the flow. Videos from those two stop at the video approval.",
+    imageStyle: "Picture style",
+    imageStyleHint: "Added to every picture prompt (English). Leave empty for the default photographic style.",
+    falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
     slackTest: "Send a test message",
     slackSaveFirst: "Save first",
     slackSent: "Sent, check Slack",
@@ -714,7 +758,7 @@ const vi: Messages = {
     } as Record<string, string>,
     make: "Làm video",
     cancel: "Đóng",
-    modes: { news: "Tin hot", topic: "Chủ đề", dub: "Lồng tiếng Pháp" } as Record<string, string>,
+    modes: { news: "Tin hot", topic: "Chủ đề", dub: "Lồng tiếng Pháp", ai: "Video AI" } as Record<string, string>,
     back: "Dự án",
     log: "Nhật ký",
     post: "Nội dung bài đăng",
@@ -876,7 +920,7 @@ const vi: Messages = {
     chars: (n: number, max: number) => `${n} / ${max} ký tự`,
   },
   dub: {
-    kinds: { topic: "Giải thích", dub: "Lồng tiếng Pháp" } as Record<string, string>,
+    kinds: { topic: "Giải thích", dub: "Lồng tiếng Pháp", ai: "Video AI" } as Record<string, string>,
     link: "Link video",
     linkHint:
       "Douyin, Bilibili, YouTube, Facebook… Motio bóc lời, dịch từng câu, đọc bằng tiếng Pháp đúng lúc câu gốc bắt đầu, giữ nhạc nền và tiếng động, làm mờ phụ đề cũ và thêm phụ đề tiếng Pháp.",
@@ -977,6 +1021,43 @@ const vi: Messages = {
     openFolder: "Mở thư mục",
     deleteResult: "Xoá kết quả",
     deleteUpload: "Xoá video đã tải lên",
+  },
+  ai: {
+    topic: "Chủ đề",
+    topicHint:
+      "Chủ đề bất kỳ, bằng ngôn ngữ nào cũng được. Claude viết lời bình tiếng Pháp và một prompt ảnh cho mỗi dòng, mô hình ảnh làm từng ảnh, rồi Motio thêm chuyển động máy quay chậm, giọng đọc và phụ đề.",
+    topicPlaceholder: "vd. Vì sao gấu trúc chỉ sống ở Tứ Xuyên",
+    providerHint: (name: string, usd: string) =>
+      `Ảnh lấy từ ${name} (Cài đặt → Ảnh AI): khoảng $${usd} cho video 12 cảnh.`,
+    needsKey: "Hãy nhập khoá fal ở Cài đặt → Ảnh AI trước (hoặc chọn ảnh giữ chỗ ở đó để thử luồng này).",
+    make: "Làm video AI",
+    card: "Video AI",
+    provider: "Ảnh từ",
+    providers: {
+      fal: "fal (Qwen-Image 2512)",
+      modal: "Modal (app Qwen 2.1 của bạn)",
+      placeholder: "Ảnh giữ chỗ",
+    } as Record<string, string>,
+    scenes: (n: number) => `${n} cảnh`,
+    cost: (usd: number) => `Tiền ảnh đến giờ: khoảng $${usd.toFixed(2)}`,
+    reviewNote:
+      "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal trong Cài đặt → Ảnh AI rồi làm lại ảnh.",
+    scriptHint:
+      "Mỗi dòng là một cảnh: lời đọc, prompt ảnh tiếng Anh và chuyển động máy quay chậm. Sửa tuỳ ý rồi bấm “Lưu và dựng lại”: chỉ cảnh nào đổi prompt mới được làm ảnh mới.",
+    style: "Phong cách hình",
+    styleHint: "Được thêm vào mọi prompt ảnh để cả video đồng nhất (tiếng Anh).",
+    image: "Prompt ảnh",
+    imagePlaceholder: "Mô tả ảnh bằng tiếng Anh",
+    motion: "Máy quay",
+    motions: { zoom_in: "Phóng vào", zoom_out: "Thu ra", pan_left: "Lia trái", pan_right: "Lia phải" } as Record<
+      string,
+      string
+    >,
+    newPicture: "Ảnh mới",
+    newPictureTitle: "Làm ảnh khác cho cảnh này ở lần dựng tới",
+    saveFirst: "Hãy lưu phần đã sửa trước",
+    pending: "ảnh mới ở lần dựng tới",
+    noPicture: "Chưa có ảnh",
   },
   stats: {
     title: "Thống kê",
@@ -1130,6 +1211,13 @@ const vi: Messages = {
     postizHint: "Vd. https://postiz.example.com/api. Engine chạy trên server đã được cấu hình sẵn.",
     slack: "Thông báo Slack",
     slackHint: "Link Incoming Webhook (https://hooks.slack.com/…). Motio báo khi kịch bản hoặc video chờ duyệt, khi video xong (kèm Postiz đã nhận chưa) và khi có video lỗi. Engine chạy trên server thì vẫn báo lúc app đóng.",
+    images: "Ảnh AI",
+    imageProvider: "Nhà cung cấp ảnh",
+    imageProviderHint:
+      "Dùng cho video AI. fal (Qwen-Image 2512, khoảng $0,04 một ảnh) dùng được cho kênh kiếm tiền. Modal (app Qwen 2.1 của bạn) chỉ chạy từ engine dev hoặc server và không có giấy phép cho kênh kiếm tiền; ảnh giữ chỗ vẽ thẻ chuyển màu để thử luồng này. Video từ hai loại đó dừng ở bước duyệt video.",
+    imageStyle: "Phong cách ảnh",
+    imageStyleHint: "Được thêm vào mọi prompt ảnh (tiếng Anh). Để trống thì dùng phong cách ảnh chụp mặc định.",
+    falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
     slackTest: "Gửi tin thử",
     slackSaveFirst: "Lưu trước",
     slackSent: "Đã gửi, xem Slack",

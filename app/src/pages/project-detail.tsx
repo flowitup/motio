@@ -132,6 +132,7 @@ function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; c
           {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
         </p>
         {video && targets > 0 && p.dub?.needs_review && <p className="text-muted-foreground">{t.dub.reviewNote}</p>}
+        {video && targets > 0 && p.ai?.needs_review && <p className="text-muted-foreground">{t.ai.reviewNote}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {video ? (
             <>
@@ -380,7 +381,7 @@ export default function ProjectDetailPage() {
             </>
           )}
 
-          {p.has_script && <ScriptCard api={api} id={p.id} active={active} />}
+          {p.has_script && <ScriptCard api={api} id={p.id} active={active} canRender={p.retry.steps.includes("render")} />}
 
           <Card>
             <CardHeader>
@@ -396,7 +397,24 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
-          <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />
+          {p.mode !== "ai" && <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />}
+
+          {p.ai && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.ai.card}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {p.ai.topic && <div>{p.ai.topic}</div>}
+                <div className="text-muted-foreground">
+                  {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
+                  {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
+                  {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost)}`}
+                </div>
+                {p.ai.needs_review && <div className="text-amber-700 dark:text-amber-400">{t.ai.reviewNote}</div>}
+              </CardContent>
+            </Card>
+          )}
 
           {p.mode === "topic" && (p.meta.topic || p.meta.subject) && (
             <Card>

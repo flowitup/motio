@@ -1,12 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Check, Clapperboard, ListPlus, Loader2, Plus, Save, Trash2, Undo2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Clapperboard,
+  ListPlus,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
-import { Field } from "@/components/form";
+import { Choice, Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Api, Script, ScriptLine, ScriptView } from "@/lib/api";
+import type { Api, Motion, Script, ScriptLine, ScriptView } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -14,11 +26,18 @@ const MIN_LINES = 3; // như engine (edit.MIN_LINES)
 
 const clockOf = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
-type Row = ScriptLine & { key: number };
+type Row = ScriptLine & { key: number; was?: string }; // was: prompt ảnh đã lưu (ảnh hiện có ứng với prompt này)
+
+const MOTIONS: Motion[] = ["zoom_in", "zoom_out", "pan_left", "pan_right"];
 
 const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
-/** Chỉ phần gửi lên engine: bản lồng tiếng còn giữ thêm ai nói, câu gốc… để hiện, không gửi. */
-const plain = (l: ScriptLine): ScriptLine => ({ text: l.text, clips: l.clips });
+/** Chỉ phần gửi lên engine: bản lồng tiếng còn giữ thêm ai nói, câu gốc… để hiện, không gửi. Video AI gửi thêm
+ * prompt ảnh, chuyển động và hạt giống của từng cảnh. */
+const plain = (l: ScriptLine): ScriptLine => ({
+  text: l.text,
+  clips: l.clips,
+  ...(l.image !== undefined ? { image: l.image, motion: l.motion, seed: l.seed } : {}),
+});
 const parseTags = (text: string) => text.split(/[\s,]+/).filter((w) => w.replace(/^#+/, ""));
 
 function IconAction({
@@ -50,7 +69,17 @@ function IconAction({
 }
 
 /** Sửa kịch bản của dự án: tiêu đề trên video, từng dòng lời bình, mô tả, hashtag; rồi đọc và dựng lại. */
-export function ScriptCard({ api, id, active }: { api: Api; id: number; active: boolean }) {
+export function ScriptCard({
+  api,
+  id,
+  active,
+  canRender,
+}: {
+  api: Api;
+  id: number;
+  active: boolean;
+  canRender: boolean; // engine: giọng đã đọc còn khớp kịch bản đã lưu (chạy lại được từ bước dựng)
+}) {
   const { data, error } = useQuery({ queryKey: ["script", id], queryFn: () => api.script(id) });
   const [justSaved, setJustSaved] = useState(false); // ở ngoài form: form được dựng lại sau mỗi lần lưu
   const onSaved = () => {
@@ -70,7 +99,16 @@ export function ScriptCard({ api, id, active }: { api: Api; id: number; active: 
   if (!data) return null;
   // Lưu xong (script.json đổi) thì dựng lại form từ bản engine trả về.
   return (
-    <ScriptForm key={data.version} api={api} id={id} view={data} active={active} justSaved={justSaved} onSaved={onSaved} />
+    <ScriptForm
+      key={data.version}
+      api={api}
+      id={id}
+      view={data}
+      active={active}
+      canRender={canRender}
+      justSaved={justSaved}
+      onSaved={onSaved}
+    />
   );
 }
 
@@ -79,6 +117,7 @@ function ScriptForm({
   id,
   view,
   active,
+  canRender,
   justSaved,
   onSaved,
 }: {
@@ -86,15 +125,18 @@ function ScriptForm({
   id: number;
   view: ScriptView;
   active: boolean;
+  canRender: boolean;
   justSaved: boolean;
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
   const saved = view.script;
   const isDub = view.dub != null; // bản lồng tiếng: mỗi dòng gắn với một câu gốc, không thêm / dời / xoá
+  const isAi = view.ai != null; // video AI: mỗi dòng là một cảnh (lời + prompt ảnh + chuyển động)
   const nextKey = useRef(saved.lines.length);
   const [title, setTitle] = useState(saved.title_fr);
-  const [rows, setRows] = useState<Row[]>(() => saved.lines.map((l, i) => ({ ...l, key: i })));
+  const [style, setStyle] = useState(saved.style ?? "");
+  const [rows, setRows] = useState<Row[]>(() => saved.lines.map((l, i) => ({ ...l, key: i, was: l.image })));
   const [description, setDescription] = useState(saved.description);
   const [tags, setTags] = useState(saved.hashtags.join(" "));
 
@@ -103,6 +145,7 @@ function ScriptForm({
     lines: rows.map(plain),
     description,
     hashtags: parseTags(tags),
+    ...(isAi ? { style } : {}),
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify({ ...saved, lines: saved.lines.map(plain) });
   const filled = rows.filter((r) => r.text.trim());
@@ -123,18 +166,23 @@ function ScriptForm({
       refresh(v);
     },
   });
-  // Lưu (nếu có sửa) rồi chạy lại từ bước Giọng đọc và dựng, giữ kịch bản này.
+  // Lưu (nếu có sửa) rồi chạy lại từ bước Giọng đọc và dựng, giữ kịch bản này. Video AI mà lời đọc không đổi thì
+  // chỉ dựng lại (không đọc lại giọng): ảnh đổi prompt được làm lúc dựng.
+  const sameText = rows.length === saved.lines.length && rows.every((r, i) => r.text.trim() === saved.lines[i].text.trim());
   const render = useMutation({
     mutationFn: async () => {
       const v = dirty ? await api.saveScript(id, draft) : undefined;
-      await api.retry(id, "voice");
+      await api.retry(id, isAi && canRender && sameText ? "render" : "voice");
       return v;
     },
     onSuccess: (v) => refresh(v),
   });
-  const busy = active || save.isPending || render.isPending;
+  // Video AI: xin ảnh mới cho một cảnh (hạt giống mới); ảnh được làm ở lần dựng tới.
+  const redo = useMutation({ mutationFn: (i: number) => api.redoScene(id, i), onSuccess: (v) => refresh(v) });
+  const busy = active || save.isPending || render.isPending || redo.isPending;
 
   const edit = (i: number, text: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, text } : r)));
+  const patch = (i: number, p: Partial<ScriptLine>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const move = (i: number, d: -1 | 1) =>
     setRows((rs) => {
       const out = [...rs];
@@ -142,11 +190,16 @@ function ScriptForm({
       return out;
     });
   const insert = (at: number) =>
-    setRows((rs) => [...rs.slice(0, at), { text: "", clips: [], key: nextKey.current++ }, ...rs.slice(at)]);
+    setRows((rs) => [
+      ...rs.slice(0, at),
+      { text: "", clips: [], ...(isAi ? { image: "", motion: "zoom_in" as Motion, seed: 0 } : {}), key: nextKey.current++ },
+      ...rs.slice(at),
+    ]);
   const remove = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
   const reset = () => {
     setTitle(saved.title_fr);
-    setRows(saved.lines.map((l, i) => ({ ...l, key: nextKey.current + i })));
+    setStyle(saved.style ?? "");
+    setRows(saved.lines.map((l, i) => ({ ...l, key: nextKey.current + i, was: l.image })));
     nextKey.current += saved.lines.length;
     setDescription(saved.description);
     setTags(saved.hashtags.join(" "));
@@ -156,7 +209,7 @@ function ScriptForm({
     <Card>
       <CardHeader>
         <CardTitle>{t.script.title}</CardTitle>
-        <CardDescription>{isDub ? t.script.dubHint : t.script.hint}</CardDescription>
+        <CardDescription>{isAi ? t.ai.scriptHint : isDub ? t.script.dubHint : t.script.hint}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 text-sm">
         <Field label={t.script.videoTitle}>
@@ -168,6 +221,12 @@ function ScriptForm({
             aria-label={t.script.videoTitle}
           />
         </Field>
+
+        {isAi && (
+          <Field label={t.ai.style} hint={t.ai.styleHint}>
+            <Input value={style} onChange={(e) => setStyle(e.target.value)} maxLength={300} disabled={busy} aria-label={t.ai.style} />
+          </Field>
+        )}
 
         <div className="grid gap-2">
           <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
@@ -182,6 +241,22 @@ function ScriptForm({
             {rows.map((r, i) => (
               <li key={r.key} className="flex items-start gap-2">
                 <span className="w-5 shrink-0 pt-2 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</span>
+                {isAi && (
+                  <div className="aspect-[9/16] w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+                    {r.picture ? (
+                      <img
+                        src={api.mediaUrl(r.picture, view.version)}
+                        alt=""
+                        loading="lazy"
+                        className={cn("size-full object-cover", r.image !== r.was && "opacity-40")}
+                      />
+                    ) : (
+                      <span className="grid size-full place-items-center p-1 text-center text-[10px] leading-tight text-muted-foreground">
+                        {t.ai.noPicture}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1 space-y-1">
                   {isDub && (
                     <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
@@ -206,6 +281,38 @@ function ScriptForm({
                     disabled={busy}
                     aria-label={`${t.script.lines} ${i + 1}`}
                   />
+                  {isAi && (
+                    <>
+                      <Textarea
+                        value={r.image ?? ""}
+                        onChange={(e) => patch(i, { image: e.target.value })}
+                        className="min-h-0 text-xs text-muted-foreground"
+                        rows={2}
+                        disabled={busy}
+                        placeholder={t.ai.imagePlaceholder}
+                        aria-label={`${t.ai.image} ${i + 1}`}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Choice
+                          value={r.motion ?? "zoom_in"}
+                          onChange={(v) => patch(i, { motion: v as Motion })}
+                          options={MOTIONS.map((m) => [m, t.ai.motions[m]])}
+                          className="h-7 w-32 text-xs"
+                        />
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => redo.mutate(i)}
+                          disabled={busy || dirty}
+                          title={dirty ? t.ai.saveFirst : t.ai.newPictureTitle}
+                        >
+                          <RefreshCw />
+                          {t.ai.newPicture}
+                        </Button>
+                        {!r.picture && !!r.seed && <span className="text-xs text-muted-foreground">{t.ai.pending}</span>}
+                      </div>
+                    </>
+                  )}
                   <div
                     className={cn(
                       "text-xs text-muted-foreground",
@@ -214,7 +321,9 @@ function ScriptForm({
                   >
                     {isDub && r.max_chars != null
                       ? t.script.chars(r.text.length, r.max_chars)
-                      : `${t.script.words(countWords(r.text))} · ${t.script.clips(r.clips.length)}`}
+                      : isAi
+                        ? t.script.words(countWords(r.text))
+                        : `${t.script.words(countWords(r.text))} · ${t.script.clips(r.clips.length)}`}
                   </div>
                 </div>
                 {!isDub && (
@@ -275,8 +384,8 @@ function ScriptForm({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {(save.error || render.error) && (
-            <p className="mr-auto text-destructive">{(save.error ?? render.error)?.message}</p>
+          {(save.error || render.error || redo.error) && (
+            <p className="mr-auto text-destructive">{(save.error ?? render.error ?? redo.error)?.message}</p>
           )}
           {dirty && (
             <Button variant="ghost" onClick={reset} disabled={busy}>
