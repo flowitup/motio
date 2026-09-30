@@ -51,12 +51,21 @@ function AiForm({ api }: { api: Api }) {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
   const [duration, setDuration] = useState("80");
+  const [clips, setClips] = useState(""); // trống = theo kênh
   const choice = useChannelChoice(api);
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
   const provider = settings?.IMAGE_PROVIDER?.value || "fal";
   const needsKey = !!settings && provider === "fal" && !settings.FAL_KEY?.value;
+  const needsClipKey = !!settings && Number(clips) > 0 && !settings.FAL_KEY?.value;
+  const clipUsd = (5 * Number(settings?.AI_CLIP_USD_PER_SEC?.value || "0.08")).toFixed(2);
   const create = useMutation({
-    mutationFn: () => api.createAi({ topic: topic.trim(), duration: Number(duration), channel: choice.channel }),
+    mutationFn: () =>
+      api.createAi({
+        topic: topic.trim(),
+        duration: Number(duration),
+        channel: choice.channel,
+        ...(clips !== "" ? { clips: Number(clips) } : {}),
+      }),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project_id}`);
@@ -81,12 +90,26 @@ function AiForm({ api }: { api: Api }) {
           </Field>
         )}
       </div>
-      <p className={needsKey ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>
-        {needsKey ? t.ai.needsKey : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
+      <Field label={t.ai.clips} hint={t.ai.clipsHint(clipUsd)}>
+        <Input
+          type="number"
+          min={0}
+          max={6}
+          className="w-28"
+          value={clips}
+          onChange={(e) => setClips(e.target.value === "" ? "" : String(Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0)))))}
+          placeholder={t.ai.clipsPlaceholder}
+          aria-label={t.ai.clips}
+        />
+      </Field>
+      <p className={needsKey || needsClipKey ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>
+        {needsKey || needsClipKey
+          ? t.ai.needsKey
+          : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
       </p>
       <div className="flex items-center justify-end gap-3">
         {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
-        <Button onClick={() => create.mutate()} disabled={!topic.trim() || needsKey || create.isPending}>
+        <Button onClick={() => create.mutate()} disabled={!topic.trim() || needsKey || needsClipKey || create.isPending}>
           {create.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
           {t.ai.make}
         </Button>

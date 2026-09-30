@@ -152,6 +152,7 @@ export type ChannelInput = {
   wide_postiz: string[]; // trong `postiz`: kênh nhận bản 16:9
   auto_score: number; // tự làm video khi tin hot đạt điểm này; 0 = tắt
   auto_daily: number; // tối đa số video tự làm mỗi ngày
+  ai_clips: number; // video AI: số cảnh thành clip AI mỗi video (0–10); 0 = chỉ ảnh chuyển động
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
@@ -222,8 +223,10 @@ export type AiView = {
   topic: string | null;
   provider: ImageProvider;
   needs_review: boolean; // ảnh của nhà cung cấp chưa được phép cho kênh kiếm tiền: không tự gửi Postiz
-  cost: number | null;
+  cost: number | null; // ảnh + clip AI, ước lượng
   scenes: number | null;
+  clips: number | null; // số cảnh đang dùng clip AI ở lần dựng gần nhất
+  clip_limit: number | null; // số clip riêng của video này; null = theo kênh
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 
@@ -235,7 +238,7 @@ export type ProjectDetail = Project & {
   has_script: boolean;
   dub: DubView | null;
   ai: AiView | null;
-  usage: { tts_chars: number; usd: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
+  usage: { tts_chars: number; usd: number; clip_usd: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
 
 export type ScriptClip = { src: number; start: number; end: number };
@@ -452,7 +455,7 @@ export function makeApi(url: string, token: string) {
     createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
-    createAi: (body: { topic: string; duration: number; channel?: number }) =>
+    createAi: (body: { topic: string; duration: number; channel?: number; clips?: number }) =>
       call<{ project_id: number }>("POST", "/api/ai", body),
     /** Video AI: xin ảnh mới cho cảnh `index`; dựng lại bằng retry(id, "render") để làm ảnh đó. */
     redoScene: (id: number, index: number) => call<ScriptView>("POST", `/api/projects/${id}/scenes/${index}/redo`),

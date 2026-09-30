@@ -41,6 +41,7 @@ const BLANK: ChannelInput = {
   wide_postiz: [],
   auto_score: 0,
   auto_daily: 2,
+  ai_clips: 0,
   default: false,
 };
 const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
@@ -322,6 +323,19 @@ function ChannelForm({
           )}
         </div>
 
+        <div className="grid gap-3 border-t pt-4">
+          <Field label={t.channels.aiClips} hint={t.channels.aiClipsHint}>
+            <Input
+              type="number"
+              min={0}
+              max={6}
+              className="w-28"
+              value={d.ai_clips}
+              onChange={(e) => set("ai_clips", Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0))))}
+            />
+          </Field>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
           {initial && (
             <Button variant="outline" className="hover:text-destructive" onClick={() => setConfirming(true)}>
@@ -370,6 +384,7 @@ function Summary({ c: raw }: { c: Channel }) {
     t.channels.summaryPostiz(c.postiz.length, t.channels.sendModes[c.send_mode]),
     c.wide_postiz.length ? t.channels.summaryWide(c.wide_postiz.length) : "",
     c.auto_score ? t.channels.summaryAuto(c.auto_score, c.auto_daily) : "",
+    c.ai_clips ? t.channels.summaryClips(c.ai_clips) : "",
     t.projects.durations[String(c.duration)],
   ].filter(Boolean);
   return <div className="text-sm text-muted-foreground">{bits.join(" · ")}</div>;

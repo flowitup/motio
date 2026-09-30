@@ -332,6 +332,16 @@ function SettingsForm({ api }: { api: Api }) {
           <Field label="FAL_KEY" hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
             {secret("FAL_KEY")}
           </Field>
+          <Field label={t.settings.clipPrice} hint={t.settings.clipPriceHint}>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              className="w-32"
+              value={val("AI_CLIP_USD_PER_SEC") || "0.08"}
+              onChange={(e) => set("AI_CLIP_USD_PER_SEC", e.target.value)}
+            />
+          </Field>
           <div className="sm:col-span-2">
             <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
               {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
