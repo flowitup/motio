@@ -172,7 +172,12 @@ class Piece:
     dur: float
     t0: float
     still: bool = False  # giữ nguyên khung hình ở src_start suốt dur giây (mở / kết của bản lồng tiếng)
+    motion: str = ""  # ảnh tĩnh (video AI) chuyển động chậm kiểu Ken Burns: một trong MOTIONS; rỗng = nguồn là video
 
+
+MOTIONS = ("zoom_in", "zoom_out", "pan_left", "pan_right")  # chuyển động của một ảnh AI (Piece.motion)
+KB_ZOOM = 0.12  # Ken Burns: ảnh phóng thêm chừng này (12 %) trong suốt một cảnh
+FILL_TOL = 0.06  # tỉ lệ khung ảnh lệch khung video ít hơn chừng này: phủ kín (cắt vài điểm ảnh), không thì giữa nền mờ
 
 CUT_EDGE = 0.8  # cú cắt cách mép mảnh ít hơn chừng này thì dời mép về cú cắt
 CUT_PAD = 0.02  # lệch khỏi cú cắt một chút để không dính khung của cảnh bên kia
@@ -272,16 +277,40 @@ def blur_filter(box: list[float] | None) -> str:
             f"[o][bl]overlay=W*{x}:H*{y}")
 
 
+def kenburns(motion: str, dur: float, w: int, h: int) -> str:
+    """Bộ lọc zoompan: một ảnh tĩnh (đã phóng 2× so với khung ra) trôi chậm trong `dur` giây. Ảnh lớn gấp đôi khung ra
+    để bước dịch nhỏ hơn một điểm ảnh, không bị rung."""
+    n = max(round(dur * FPS), 1)
+    t = f"min(on/{n},1)"
+    z = {"zoom_in": f"1+{KB_ZOOM}*{t}", "zoom_out": f"1+{KB_ZOOM}-{KB_ZOOM}*{t}"}.get(motion, f"1+{KB_ZOOM}")
+    mid_x, mid_y = "iw/2-iw/zoom/2", "ih/2-ih/zoom/2"
+    x = {"pan_left": f"(iw-iw/zoom)*(1-{t})", "pan_right": f"(iw-iw/zoom)*{t}"}.get(motion, mid_x)
+    frames = n + round(0.3 * FPS)  # dư một chút: bước sau cắt đúng độ dài
+    return f"zoompan=z='{z}':x='{x}':y='{mid_y}':d={frames}:s={w}x{h}:fps={FPS}"
+
+
+def moving_size(src_path: str, layout: Layout) -> tuple[int, int]:
+    """Cỡ ảnh ra của một cảnh ảnh tĩnh: phủ kín khung khi tỉ lệ gần bằng (9:16), không thì vừa khung (16:9: ảnh đứng
+    giữa nền mờ). Số chẵn cho libx264."""
+    with Image.open(src_path) as im:
+        iw, ih = im.size
+    if abs((iw / ih) / (layout.w / layout.h) - 1) <= FILL_TOL:
+        return layout.w, layout.h
+    k = min(layout.w / iw, layout.h / ih)
+    return int(iw * k) // 2 * 2, int(ih * k) // 2 * 2
+
+
 def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout = VERTICAL,
                  volume: float = 0.10) -> None:
     """Một mảnh: nền mờ + hình nguồn + lớp chữ tĩnh. volume: âm lượng tiếng của nguồn (0 = im).
-    src["blur"]: vùng làm mờ trên hình nguồn (phụ đề cũ), xem blur_filter."""
+    src["blur"]: vùng làm mờ trên hình nguồn (phụ đề cũ), xem blur_filter.
+    p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video."""
     fw, fh = layout.w, layout.h
     src_path = src["path"]
-    sound = bool(src.get("has_audio")) and not p.still and volume > 0
+    sound = bool(src.get("has_audio")) and not p.still and not p.motion and volume > 0
     span = 0.5 if p.still else p.dur + 0.1
-    inputs = ["-ss", f"{p.src_start:.3f}", "-t", f"{span:.3f}", "-i", src_path,
-              "-loop", "1", "-t", f"{p.dur + 0.1:.3f}", "-i", str(overlay)]
+    inputs = (["-i", src_path] if p.motion else ["-ss", f"{p.src_start:.3f}", "-t", f"{span:.3f}", "-i", src_path]) \
+        + ["-loop", "1", "-t", f"{p.dur + 0.1:.3f}", "-i", str(overlay)]
     if not sound:
         inputs += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
     a_map = "[0:a]" if sound else "[2:a]"
@@ -289,10 +318,17 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
         if p.still else []
     if blur := blur_filter(src.get("blur")):
         head.append(blur)
+    bg_tail = f",tpad=stop_mode=clone:stop_duration={p.dur + 0.3:.3f}" if p.motion else ""  # ảnh chỉ có một khung
+    if p.motion:
+        ow, oh = moving_size(src_path, layout)
+        fg = (f"[b]scale={2 * ow}:{2 * oh}:force_original_aspect_ratio=increase:flags=lanczos,crop={2 * ow}:{2 * oh},"
+              f"{kenburns(p.motion, p.dur, ow, oh)}[fg];")
+    else:
+        fg = f"[b]scale={fw}:{fh}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
     fc = (f"[0:v]{','.join([*head, 'split[a][b]'])};"
           f"[a]scale={fw}:{fh}:force_original_aspect_ratio=increase,crop={fw}:{fh},gblur=sigma=36,"
-          f"eq=brightness=-0.10:saturation=0.9[bg];"
-          f"[b]scale={fw}:{fh}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
+          f"eq=brightness=-0.10:saturation=0.9{bg_tail}[bg];"
+          f"{fg}"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v1];[v1][1:v]overlay=0:0:shortest=1,fps={FPS},format=yuv420p,"
           f"setsar=1,tpad=stop_mode=clone:stop_duration=3[v];"
           f"{a_map}volume={volume if sound else 0:.3f},aresample=48000,aformat=channel_layouts=stereo,apad[aud]")
@@ -311,7 +347,8 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     files = []
     for j, p in enumerate(pieces):
         src = sources[p.src]
-        credit = f"Source : {src['platform']} / {src['uploader']}".strip(" /") if config.flag("CREDIT_ON_VIDEO") else ""
+        credit = (f"Source : {src['platform']} / {src['uploader']}".strip(" /")
+                  if config.flag("CREDIT_ON_VIDEO") and not p.motion else "")  # ảnh AI không có nguồn để ghi
         if credit not in overlays:
             overlays[credit] = overlay_png(work / f"{pre}ov_{len(overlays):03d}.png", title=title, credit=credit,
                                           badge=badge, layout=layout)

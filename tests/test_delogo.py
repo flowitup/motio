@@ -484,7 +484,7 @@ def test_pipeline_warns_about_uncleaned_parts(monkeypatch):
     monkeypatch.setattr(pipeline, "_voice", lambda plan, out, step, d, voice=None: (
         plan, {"duration": 66.0, "provider": "x", "voice": "v"}))
     monkeypatch.setattr(pipeline.render, "render", render)
-    monkeypatch.setattr(pipeline, "write_post", lambda plan, sources, out: "desc")
+    monkeypatch.setattr(pipeline, "write_post", lambda plan, sources, out, **kw: "desc")
     pipeline._voice_render_post(pid, {"title_fr": "t", "lines": []}, s, config.PROJECTS / str(pid),
                                 lambda *a, **k: logs.append(a), time.time())
     assert any("Source #1" in (a[2] or "") and "1:10–1:15" in a[2] for a in logs)

@@ -11,8 +11,9 @@ KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", 
         "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "NEWS_SOURCES", "REFRESH_EVERY_MIN", "CREDIT_ON_VIDEO",
         "CREDIT_IN_POST",
         "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "UI_LANG",
-        "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL")
-SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL")
+        "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
+        "IMAGE_STYLE")
+SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL", "FAL_KEY")
 MASK = "••••"
 
 _lock = threading.Lock()
@@ -81,7 +82,8 @@ def _normalize(v) -> str | None:
 
 def update(changes: dict) -> dict[str, dict]:
     """Ghi các khoá mới. Giá trị đã che (bắt đầu bằng ••••) bị bỏ qua; None xoá ghi đè (quay về .env)."""
-    from .i18n import LANGS, tr  # i18n và notify đọc settings: nhập muộn cho khỏi vòng lặp import
+    from .i18n import LANGS, tr  # i18n, notify và images đọc settings: nhập muộn cho khỏi vòng lặp import
+    from .images import PROVIDERS
     from .notify import valid
 
     unknown = [k for k in changes if k not in KEYS]
@@ -89,6 +91,8 @@ def update(changes: dict) -> dict[str, dict]:
         raise KeyError(tr("Unknown settings: {keys}", keys=", ".join(unknown)))
     if changes.get("UI_LANG") not in (None, "", *LANGS):
         raise ValueError(tr("UI_LANG must be one of {choices}", choices=", ".join(LANGS)))
+    if changes.get("IMAGE_PROVIDER") not in (None, "", *PROVIDERS):
+        raise ValueError(tr("IMAGE_PROVIDER must be one of {choices}", choices=", ".join(PROVIDERS)))
     hook = _normalize(changes.get("SLACK_WEBHOOK_URL"))
     if hook and not hook.startswith(MASK) and not valid(hook):
         raise ValueError(tr("SLACK_WEBHOOK_URL must be a https://hooks.slack.com/… link"))

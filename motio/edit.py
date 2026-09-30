@@ -6,7 +6,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import config, db, dub, pipeline, render, tts
+from . import config, creator, db, dub, images, pipeline, render, tts
 from .i18n import tr, tr_n
 
 BUSY = ("queued", "running")
@@ -18,6 +18,7 @@ MAX_DESC = 1500
 MAX_TAGS = 10  # bài đăng chỉ dùng 6 hashtag đầu
 MAX_CLIPS = 4
 DUB_FIELDS = ("kind", "speaker", "zh", "at", "until", "max_chars")  # trường riêng của mỗi câu lồng tiếng
+MAX_STYLE = 300  # phong cách ảnh chung của video AI
 
 
 class Busy(RuntimeError):
@@ -104,8 +105,20 @@ def _post_fields(raw: dict) -> dict:
     return {"title_fr": title, "description": desc, "hashtags": _tags(raw.get("hashtags"))}
 
 
-def clean(raw: dict) -> dict:
-    """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ValueError nếu không dùng được."""
+def _scene(ln: dict, index: int) -> dict:
+    """Video AI: prompt ảnh, chuyển động máy quay và hạt giống của một cảnh. ValueError nếu prompt quá dài."""
+    image = _one_line(ln.get("image"))
+    if len(image) > creator.MAX_PROMPT:
+        raise ValueError(tr("The picture prompt of line {line} is longer than {n} characters", line=index + 1,
+                            n=creator.MAX_PROMPT))
+    motion = ln.get("motion") if ln.get("motion") in render.MOTIONS else render.MOTIONS[index % len(render.MOTIONS)]
+    seed = ln.get("seed")
+    return {"image": image, "motion": motion, **({"seed": seed} if isinstance(seed, int) and seed > 0 else {})}
+
+
+def clean(raw: dict, ai: bool = False) -> dict:
+    """Kịch bản gửi từ app → {title_fr, lines, description, hashtags}. ai: video AI, mỗi dòng là một cảnh (thêm prompt
+    ảnh, chuyển động, hạt giống) và có thêm style chung. ValueError nếu không dùng được."""
     post = _post_fields(raw)
     lines = []
     for ln in raw.get("lines") or []:
@@ -115,12 +128,13 @@ def clean(raw: dict) -> dict:
             continue
         if len(text) > MAX_LINE_CHARS:
             raise ValueError(tr("Line {line} is longer than {n} characters", line=len(lines) + 1, n=MAX_LINE_CHARS))
-        lines.append({"text": text, "clips": _clips(ln.get("clips"))})
+        lines.append({"text": text, **(_scene(ln, len(lines)) if ai else {"clips": _clips(ln.get("clips"))})})
     if len(lines) < MIN_LINES:
         raise ValueError(tr("The script needs at least {n} narration lines", n=MIN_LINES))
     if len(lines) > MAX_LINES:
         raise ValueError(tr("The script can have at most {n} lines", n=MAX_LINES))
-    return {**post, "lines": lines}
+    style = _one_line(raw.get("style"))[:MAX_STYLE]
+    return {**post, **({"style": style} if ai else {}), "lines": lines}
 
 
 def clean_dub(raw: dict, old: dict) -> dict:
@@ -159,11 +173,19 @@ def _measured_rate(pid: int, plan: dict) -> float | None:
     return rate if 1.0 <= rate <= 5.0 else None
 
 
+def _scene_view(ln: dict, folder: Path, plan: dict, provider: str) -> dict:
+    """Video AI: the scene's picture prompt, camera move, seed and (when it exists) its picture as a /media path."""
+    return {"image": str(ln.get("image") or ""), "motion": ln.get("motion") or "", "seed": int(ln.get("seed") or 0),
+            "picture": creator.media(creator.picture_file(folder, plan, ln, provider))}
+
+
 def script_view(pid: int) -> dict:
     """Kịch bản cho trình sửa trong app, kèm số liệu để ước lượng độ dài video (62–90 s)."""
     p = _project(pid)
     plan = _read(pid)
     is_dub = p.get("mode") == dub.MODE
+    is_ai = creator.is_ai(p)
+    provider = ((p["meta"].get("ai") or {}).get("provider")) or images.provider()  # the one that made the pictures
     rate = _measured_rate(pid, plan) or p["meta"].get("speech_rate") or pipeline.WORDS_PER_SEC
     final = _dir(pid) / "final.mp4"
     edited = p["meta"].get("edited_at")
@@ -172,10 +194,12 @@ def script_view(pid: int) -> dict:
             "title_fr": str(plan.get("title_fr") or ""),
             "lines": [{"text": str(ln.get("text") or "") if isinstance(ln, dict) else str(ln),
                        "clips": _clips(ln.get("clips")) if isinstance(ln, dict) else [],
-                       **({k: ln.get(k) for k in DUB_FIELDS} if is_dub and isinstance(ln, dict) else {})}
+                       **({k: ln.get(k) for k in DUB_FIELDS} if is_dub and isinstance(ln, dict) else {}),
+                       **(_scene_view(ln, _dir(pid), plan, provider) if is_ai and isinstance(ln, dict) else {})}
                       for ln in plan["lines"]],
             "description": str(plan.get("description") or ""),
             "hashtags": _tags(plan.get("hashtags")),
+            **({"style": str(plan.get("style") or "")} if is_ai else {}),
         },
         "edited_at": edited,
         # video dựng trước lần sửa (lệch 1 s vì đồng hồ mtime của hệ thống file thô hơn time.time())
@@ -187,6 +211,7 @@ def script_view(pid: int) -> dict:
         "version": (_dir(pid) / "script.json").stat().st_mtime,
         # bản lồng tiếng: ai nói, tu / vous; mỗi dòng kèm câu gốc (zh), lúc vào / hạn (giây) và số ký tự vừa chỗ
         "dub": {k: (plan.get("dub") or {}).get(k) for k in ("register", "speakers", "language")} if is_dub else None,
+        "ai": creator.view(p),
     }
 
 
@@ -196,7 +221,8 @@ def save_script(pid: int, raw: dict) -> dict:
     p = _project(pid)
     _idle(p)
     old = _read(pid)
-    new = clean_dub(raw, old) if p.get("mode") == dub.MODE else clean(raw)
+    ai = creator.is_ai(p)
+    new = clean_dub(raw, old) if p.get("mode") == dub.MODE else clean(raw, ai=ai)
     old_lines = [ln if isinstance(ln, dict) else {"text": ln} for ln in old["lines"]]
     parts = []
     if new["title_fr"] != _one_line(old.get("title_fr")):
@@ -204,8 +230,15 @@ def save_script(pid: int, raw: dict) -> dict:
     if [ln["text"] for ln in new["lines"]] != [_one_line(ln.get("text")) for ln in old_lines]:
         parts.append(tr("narration ({lines}, {words})", lines=tr_n(len(new["lines"]), "line"),
                         words=tr_n(_words(new["lines"]), "word")))
-    elif [ln["clips"] for ln in new["lines"]] != [_clips(ln.get("clips")) for ln in old_lines]:
+    elif not ai and [ln["clips"] for ln in new["lines"]] != [_clips(ln.get("clips")) for ln in old_lines]:
         parts.append(tr("clips"))
+    if ai:
+        was = [(_one_line(ln.get("image")), int(ln.get("seed") or 0)) for ln in old_lines]
+        if was != [(ln["image"], ln.get("seed", 0)) for ln in new["lines"]] \
+                or new["style"] != _one_line(old.get("style")):
+            parts.append(tr("pictures"))
+        elif [ln.get("motion") for ln in old_lines] != [ln["motion"] for ln in new["lines"]]:
+            parts.append(tr("camera moves"))
     on_video = bool(parts)
     if new["description"] != str(old.get("description") or "").strip():
         parts.append(tr("description"))
@@ -222,11 +255,29 @@ def save_script(pid: int, raw: dict) -> dict:
         meta["edited_at"] = time.time()
     _write(pid, {**old, **new})
     if p["status"] == "done":
-        meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid))
+        meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid), ai_images=ai)
         meta["hashtags"] = new["hashtags"]
     stale = on_video and p["status"] == "done"
     db.update_project(pid, log=tr("Script edited: {parts} · re-render to update the video" if stale
                                   else "Script edited: {parts}", parts=", ".join(parts)), meta=meta)
+    return script_view(pid)
+
+
+def reroll_picture(pid: int, index: int) -> dict:
+    """Video AI: ask for a new picture of one scene (a new seed). The next render makes it; the other pictures and the
+    voice stay as they are."""
+    p = _project(pid)
+    _idle(p)
+    if not creator.is_ai(p):
+        raise ValueError(tr("Only AI videos have pictures to redo"))
+    plan = _read(pid)
+    lines = plan["lines"]
+    if not 0 <= index < len(lines) or not isinstance(lines[index], dict):
+        raise ValueError(tr("Scene {n} does not exist", n=index + 1))
+    lines[index] = {**lines[index], "seed": int(lines[index].get("seed") or 0) + 1}
+    _write(pid, plan)
+    db.update_project(pid, log=tr("New picture asked for scene {n} · re-render to make it", n=index + 1),
+                      meta={"edited_at": time.time()})
     return script_view(pid)
 
 

@@ -1,11 +1,28 @@
-"""Pipeline: một tin NewsNow (mode news), một chủ đề / link video (mode topic) hoặc một video cần lồng tiếng (mode dub,
-xem dub.py) → một video 9:16 tiếng Pháp."""
+"""Pipeline: một tin NewsNow (mode news), một chủ đề / link video (mode topic), một video cần lồng tiếng (mode dub,
+xem dub.py) hoặc một chủ đề làm hoàn toàn bằng ảnh AI (mode ai, xem creator.py) → một video 9:16 tiếng Pháp."""
 import json
 import time
 import traceback
 from pathlib import Path
 
-from . import asr, channels, config, db, delogo, dub, llm, notify, postiz, render, scenes, search, topic, tts, usage
+from . import (
+    asr,
+    channels,
+    config,
+    creator,
+    db,
+    delogo,
+    dub,
+    llm,
+    notify,
+    postiz,
+    render,
+    scenes,
+    search,
+    topic,
+    tts,
+    usage,
+)
 from .i18n import tr, tr_n
 
 PICK_SYSTEM = "Tu sélectionnes des vidéos sources pour un reportage court. Réponds uniquement en JSON."
@@ -63,13 +80,16 @@ FIT_SYSTEM = "Tu ajustes la longueur d'un script de voix off en français. Tu r�
 FIT_PROMPT = """Voici un script de voix off (JSON) de {now} mots. Il doit faire environ {want} mots au total
 ({lo}–{hi}) pour que la vidéo dure entre {min_s} et {max_s} secondes.
 {how}
-Garde le même style, la même accroche, la même structure JSON (title_fr, lines avec leurs clips, description,
-hashtags) et des lignes de 20 mots maximum. N'invente aucun fait précis (chiffre, nom, date) absent du script.
+Garde le même style, la même accroche, la même structure JSON (title_fr, style s'il existe, lines avec tous leurs
+champs : clips, image, motion…, description, hashtags) et des lignes de 20 mots maximum. N'invente aucun fait précis
+(chiffre, nom, date) absent du script.
 
 Script :
 {plan}"""
 FIT_LONGER = ("Allonge-le : ajoute du contexte, une explication ou une analyse, ou une ligne de plus avec ses "
               "clips (d'autres plages des mêmes vidéos, sans répéter un passage).")
+FIT_LONGER_AI = ("Allonge-le : ajoute du contexte, une explication ou une analyse, ou une ligne de plus avec son "
+                 "image (prompt anglais) et son motion, dans le même style visuel.")
 FIT_SHORTER = "Raccourcis-le : coupe ce qui est le moins important."
 
 
@@ -105,13 +125,17 @@ def _trim(plan: dict, nar: dict) -> tuple[dict, int]:
 def _fit(plan: dict, want: int) -> dict:
     """Claude viết lại kịch bản cho đủ khoảng `want` từ; lỗi hay trả về ít dòng quá thì giữ bản cũ."""
     now = _words(plan)
+    ai = any(isinstance(ln, dict) and ln.get("image") for ln in plan["lines"])  # video AI: lines carry picture prompts
     new = llm.ask_json(FIT_PROMPT.format(
         now=now, want=want, lo=want - 5, hi=want + 10, min_s=MIN_SECONDS, max_s=MAX_SECONDS,
-        how=FIT_LONGER if want > now else FIT_SHORTER, plan=json.dumps(plan, ensure_ascii=False)), FIT_SYSTEM)
+        how=(FIT_LONGER_AI if ai else FIT_LONGER) if want > now else FIT_SHORTER,
+        plan=json.dumps(plan, ensure_ascii=False)), FIT_SYSTEM)
     lines = [ln for ln in (new.get("lines") if isinstance(new, dict) else None) or [] if (ln.get("text") or "").strip()]
     if len(lines) < 3:
         return plan
-    return {**plan, **{k: new[k] for k in ("title_fr", "description", "hashtags") if new.get(k)}, "lines": lines}
+    fitted = {**plan, **{k: new[k] for k in ("title_fr", "description", "hashtags", "style") if new.get(k)},
+              "lines": lines}
+    return creator.tidy(fitted) if ai else fitted
 
 
 class QuotaExceeded(RuntimeError):
@@ -290,19 +314,38 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
             source=subj["source"], date=time.strftime("%d/%m/%Y"), title_zh=subj["title_zh"],
             title_fr=subj["title_fr"], angle=subj.get("angle") or "", **size), SCRIPT_SYSTEM + note)
     plan["lines"] = [ln for ln in plan.get("lines", []) if (ln.get("text") or "").strip()]
+    return _finish_script(proj, plan, ch, out, step, words, subj.get("title_fr") or proj["title"], (58, 62))
+
+
+def _finish_script(proj: dict, plan: dict, ch: dict | None, out: Path, step, words: int, title: str,
+                   pcts: tuple[int, int]) -> dict:
+    """Phần chung của bước kịch bản: đủ dòng, đủ dài (Claude viết thêm nếu ngắn), tiêu đề, hashtag kênh, lưu."""
     if len(plan["lines"]) < 3:
         raise RuntimeError(tr("Script too short"))
     if _words(plan) < (MIN_SECONDS - render.TAIL) * WORDS_PER_SEC:  # chắc chắn dưới 62 s: viết dài ra trước khi đọc
-        step("Script", 58, tr("Script has {words}, too short for a video ≥ {min} s: making it longer",
-                              words=tr_n(_words(plan), "word"), min=MIN_SECONDS))
+        step("Script", pcts[0], tr("Script has {words}, too short for a video ≥ {min} s: making it longer",
+                                   words=tr_n(_words(plan), "word"), min=MIN_SECONDS))
         plan = _fit(plan, words)
-    plan["title_fr"] = plan.get("title_fr") or subj.get("title_fr") or proj["title"]
+    plan["title_fr"] = plan.get("title_fr") or title
     if ch:
         plan["hashtags"] = channels.merge_tags(ch, plan.get("hashtags") or [])
     _save_script(out, plan)
-    step("Script", 62, f"{tr_n(len(plan['lines']), 'line')}, {tr_n(_words(plan), 'word')}",
+    step("Script", pcts[1], f"{tr_n(len(plan['lines']), 'line')}, {tr_n(_words(plan), 'word')}",
          title=plan["title_fr"])
     return plan
+
+
+def _step_ai_script(proj: dict, out: Path, step, duration_sec: int) -> dict:
+    """Video AI: Claude viết lời bình theo từng cảnh (lời + prompt ảnh tiếng Anh + chuyển động máy quay). Không có
+    nguồn video nên bước này là bước đầu tiên."""
+    step("Script", 5, tr("Claude is writing the French narration and the picture prompts"))
+    ch = channels.for_project(proj)
+    words = int(duration_sec * WORDS_PER_SEC)
+    n_min, n_max = topic.lines_for(duration_sec)
+    plan = creator.tidy(llm.ask_json(creator.SCRIPT_PROMPT.format(
+        topic=proj["meta"]["topic"], n_min=n_min, n_max=n_max, w_min=words - 15, w_max=words + 10, sec=duration_sec),
+        creator.SCRIPT_SYSTEM + channels.style_note(ch)))
+    return _finish_script(proj, plan, ch, out, step, words, proj["title"], (20, 30))
 
 
 def _load_sources(pid: int) -> list[dict]:
@@ -339,7 +382,15 @@ def saved_narration(pid: int) -> dict | None:
 
 def available_steps(pid: int) -> list[str]:
     """Các bước có thể chạy lại từ đó, theo dữ liệu dự án đã lưu."""
-    meta = db.get_project(pid)["meta"]
+    proj = db.get_project(pid)
+    meta = proj["meta"]
+    if creator.is_ai(proj):  # video AI: không có nguồn; ảnh được làm (hoặc lấy lại từ cache) ngay trước giọng đọc
+        steps = ["script"]
+        if (config.PROJECTS / str(pid) / "script.json").exists():
+            steps.append("voice")
+            if saved_narration(pid):
+                steps.append("render")
+        return steps
     steps = ["search"]
     if meta.get("chosen"):
         steps.append("download")
@@ -356,6 +407,8 @@ def resume_point(pid: int) -> str:
     """Bước sớm nhất còn thiếu kết quả: chỗ một dự án lỗi nên chạy tiếp."""
     steps = available_steps(pid)
     last = steps[-1]
+    if creator.is_ai(db.get_project(pid)):
+        return last
     if last in ("script", "voice", "render"):
         try:
             sources = _load_sources(pid)
@@ -392,6 +445,7 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
     at = STEPS.index(start)
+    is_ai = creator.is_ai(db.get_project(pid))
     try:
         if db.get_project(pid)["meta"].get("review"):  # chạy lại / làm tiếp: bỏ trạng thái chờ duyệt cũ
             db.update_project(pid, meta={"review": None})
@@ -399,7 +453,10 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
             check_quota(exclude=pid)
         else:
             step(STEP_LABELS[start], STEP_PCT[start], tr("Rerun from step {step}", step=tr(STEP_LABELS[start])))
-        if at <= 1:
+        at = max(at, STEPS.index("script")) if is_ai else at  # video AI không tìm / tải / bóc lời nguồn
+        if is_ai:
+            sources = []
+        elif at <= 1:
             proj = db.get_project(pid)
             chosen = _step_search(proj, step, max_sources) if at == 0 else proj["meta"]["chosen"]
             sources = _step_download(chosen, step)
@@ -407,7 +464,9 @@ def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4,
             sources = _load_sources(pid)
         if at <= 3:
             proj = db.get_project(pid)
-            if proj.get("mode") == dub.MODE:
+            if is_ai:
+                plan = _step_ai_script(proj, out, step, duration_sec)
+            elif proj.get("mode") == dub.MODE:
                 transcripts = _step_transcribe(sources[:1], step, cuts=False)
                 plan = dub.script(proj, sources[0], transcripts[0], out, step)
             else:
@@ -495,15 +554,16 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
     return plan, nar
 
 
-def write_post(plan: dict, sources: list[dict], out: Path) -> str:
+def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
-    (kèm nhãn giọng AI và hashtag)."""
+    (kèm nhãn giọng AI, nhãn ảnh AI cho video AI, và hashtag)."""
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
     (out / "sources.txt").write_text(credits + "\n", encoding="utf-8")  # luôn lưu nội bộ, không đăng
     desc = plan.get("description", "").strip()
-    if config.flag("CREDIT_IN_POST"):
+    if credits and config.flag("CREDIT_IN_POST"):
         desc += f"\n\nSources :\n{credits}"
-    desc += f"\n\nVoix off générée par IA.\n{' '.join(plan.get('hashtags', [])[:6])}"
+    label = "Voix off générée par IA." + (" Images générées par IA." if ai_images else "")
+    desc += f"\n\n{label}\n{' '.join(plan.get('hashtags', [])[:6])}"
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n", encoding="utf-8")
     return desc
 
@@ -513,6 +573,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     proj = db.get_project(pid)
     ch = channels.for_project(proj)
     is_dub = proj.get("mode") == dub.MODE
+    is_ai = creator.is_ai(proj)
+    if is_ai:  # ảnh trước giọng đọc: ảnh đã làm được giữ lại, chỉ làm cảnh còn thiếu hoặc vừa sửa
+        sources = creator.pictures(pid, plan, out, step)
     voice = (ch["voice_id"] or None) if ch else None
     # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ. Bản lồng tiếng: câu đặt theo câu gốc, trộn nền.
     if nar is None:
@@ -533,7 +596,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     if is_dub:  # độ dài đã định ở bước giọng (dub.voice): đoạn gốc + phần mở / kết
         pass
     elif length < MIN_SECONDS:
-        step("Voice", 70, tr("Voice is {length} s: extending the ending with source footage to {min} s",
+        step("Voice", 70, tr("Voice is {length} s: holding the last picture until {min} s" if is_ai
+                             else "Voice is {length} s: extending the ending with source footage to {min} s",
                              length=f"{length:.1f}", min=MIN_SECONDS))
     elif length > MAX_SECONDS:
         step("Voice", 70, tr("Video is {length} s, still over {max} s: Facebook Reels (API) will reject it",
@@ -547,6 +611,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)
+    elif is_ai:
+        res = render.render(**creator.render_args(plan, sources, nar, MIN_SECONDS), narration=nar, out_dir=out,
+                            progress=prog, badge=channels.badge_for(proj), wide=wide)
     else:
         res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
                             badge=channels.badge_for(proj), wide=wide)
@@ -558,12 +625,13 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                               "Open Remove logo, click Remove logo again, then Re-render video", n=i + 1, spans=spans))
 
     # 7. Mô tả bài đăng
-    desc = write_post(plan, sources, out)
+    desc = write_post(plan, [] if is_ai else sources, out, ai_images=is_ai)
     bg = nar.get("background") if is_dub else None
     how = (tr(" · original music and sound kept") if bg == "separated"
            else tr(" · original sound turned down") if bg == "original" else "")
     db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
-                                  clips=tr_n(res["pieces"], "clip"), rest=f"{res['duration']:.1f} s video")
+                                  clips=tr_n(res["pieces"], "scene" if is_ai else "clip"),
+                                  rest=f"{res['duration']:.1f} s video")
                       + (tr(" + 16:9 copy") if res.get("wide") else "") + how,
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg",
                             "wide": f"projects/{pid}/final_wide.mp4" if res.get("wide") else None,
@@ -583,13 +651,18 @@ def _await_review(pid: int, what: str, log: str) -> None:
 def _deliver(pid: int, ch: dict | None) -> None:
     """Video vừa dựng xong. Kênh có cổng duyệt video: dừng chờ duyệt. Không có cổng mà có kênh Postiz: tự gửi. Dự án
     đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app.
-    Bản lồng tiếng mà quyền nguồn chưa rõ không bao giờ tự gửi: luôn dừng chờ duyệt video."""
+    Bản lồng tiếng mà quyền nguồn chưa rõ, hay video AI dùng ảnh của nhà cung cấp chưa được phép cho kênh kiếm tiền
+    (Modal, ảnh giữ chỗ), không bao giờ tự gửi: luôn dừng chờ duyệt video."""
     proj = db.get_project(pid)
     sent = bool(proj["meta"].get("postiz"))
-    held = bool(ch and ch["postiz"] and dub.needs_review(proj))
+    held = bool(ch and ch["postiz"] and (dub.needs_review(proj) or creator.needs_review(proj)))
     if ch and not sent and (ch["gate_video"] or held):
-        why = tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it without "
-                 "approval)") if held and not ch["gate_video"] else ""
+        why = ""
+        if held and not ch["gate_video"]:
+            why = (tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it "
+                      "without approval)") if dub.needs_review(proj) else
+                   tr(" (pictures from a provider that isn't cleared for monetized channels: approve the video "
+                      "yourself before it goes out)"))
         _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"
                                        if ch["postiz"] else "Channel {name}: awaiting your video approval",
                                        name=ch["name"]) + why)

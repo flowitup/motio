@@ -25,6 +25,7 @@ from . import (
     automake,
     channels,
     config,
+    creator,
     db,
     delogo,
     dub,
@@ -62,6 +63,12 @@ class TopicIn(BaseModel):
     links_only: bool = False
     duration: int = 80  # 70 | 80 | 90 giây
     rights: str = "unknown"  # unknown | owned | licensed | cc
+    channel: int | None = None  # như ProduceIn
+
+
+class AiIn(BaseModel):
+    topic: str  # chủ đề của video AI (mọi ngôn ngữ)
+    duration: int = 80  # 70 | 80 | 90 giây
     channel: int | None = None  # như ProduceIn
 
 
@@ -117,6 +124,7 @@ class ScriptIn(BaseModel):
     lines: list[dict]  # [{text, clips: [{src, start, end}]}]; clips giữ nguyên từ GET, dòng mới không cần
     description: str = ""
     hashtags: list[str] = []
+    style: str = ""  # video AI: phong cách ảnh chung; dòng của video AI có thêm image, motion, seed
 
 
 class LinksIn(BaseModel):
@@ -183,6 +191,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
         out["dub"] = dub.view(p)
+        out["ai"] = creator.view(p)
         out["usage"] = usage.for_project(p["id"])
     return out
 
@@ -506,6 +515,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
+    @app.post("/api/ai", status_code=202, dependencies=[Depends(auth)])
+    def create_ai(body: AiIn):
+        """Video làm hoàn toàn bằng ảnh AI từ một chủ đề: Claude viết lời và prompt từng cảnh, nhà cung cấp ảnh
+        (Cài đặt) làm ảnh, rồi đọc và dựng với chuyển động chậm."""
+        ch = _channel_for(body.channel)
+        if pipeline.quota_left() == 0:
+            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
+                                        n=config.max_videos_per_day()))
+        try:
+            pid = creator.create(body.topic, body.duration)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        channels.attach(pid, ch)
+        jobs.submit(_run_job, pipeline.produce, pid)
+        return {"project_id": pid}
+
     @app.post("/api/dubs", status_code=202, dependencies=[Depends(auth)])
     def create_dub(body: DubIn):
         """Lồng tiếng Pháp cho một video: dịch từng câu, giữ nhạc nền gốc, làm mờ phụ đề cũ."""
@@ -573,6 +598,19 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         _get(pid)
         try:
             return edit.save_script(pid, body.model_dump())
+        except edit.Busy as e:
+            raise HTTPException(409, str(e)) from e
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.post("/api/projects/{pid}/scenes/{index}/redo", dependencies=[Depends(auth)])
+    def redo_scene(pid: int, index: int):
+        """Video AI: xin ảnh mới cho một cảnh; dựng lại bằng POST /retry {"start": "render"} để làm ảnh đó."""
+        _get(pid)
+        try:
+            return edit.reroll_picture(pid, index)
         except edit.Busy as e:
             raise HTTPException(409, str(e)) from e
         except FileNotFoundError as e:
