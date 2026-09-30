@@ -109,6 +109,12 @@ jobs:
             pnpm tauri build --bundles ${{ matrix.bundles }}
           fi
 
+      # Tauri copies the frozen engine into the .app; mlx needs mlx.metallib next to libmlx.dylib there too.
+      - name: Check mlx in the built .app
+        if: matrix.name == 'macOS'
+        working-directory: .
+        run: python3 tools/build_engine.py --check app/src-tauri/target/release/bundle/macos/Motio.app/Contents/Resources/motio-engine
+
       - uses: actions/upload-artifact@v4
         with:
           name: motio-${{ matrix.name }}
