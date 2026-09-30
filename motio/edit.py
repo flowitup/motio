@@ -6,7 +6,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import config, creator, db, dub, images, pipeline, render, tts
+from . import aiclips, config, creator, db, dub, images, pipeline, render, tts
 from .i18n import tr, tr_n
 
 BUSY = ("queued", "running")
@@ -255,7 +255,8 @@ def save_script(pid: int, raw: dict) -> dict:
         meta["edited_at"] = time.time()
     _write(pid, {**old, **new})
     if p["status"] == "done":
-        meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid), ai_images=ai)
+        meta["description"] = pipeline.write_post(new, p["meta"].get("sources") or [], _dir(pid), ai_images=ai,
+                                                   ai_clips=ai and aiclips.used(p["meta"]))
         meta["hashtags"] = new["hashtags"]
     stale = on_video and p["status"] == "done"
     db.update_project(pid, log=tr("Script edited: {parts} · re-render to update the video" if stale

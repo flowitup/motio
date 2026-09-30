@@ -12,7 +12,7 @@ KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", 
         "CREDIT_IN_POST",
         "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "UI_LANG",
         "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
-        "IMAGE_STYLE")
+        "IMAGE_STYLE", "AI_CLIP_USD_PER_SEC")
 SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL", "FAL_KEY")
 MASK = "••••"
 
@@ -103,7 +103,7 @@ def update(changes: dict) -> dict[str, dict]:
                     raise ValueError
             except (TypeError, ValueError):
                 raise ValueError(tr("{key} must be an integer ≥ 0", key=k)) from None
-    for k in ("ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD"):
+    for k in ("ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "AI_CLIP_USD_PER_SEC"):
         if k in changes and changes[k] not in (None, ""):
             try:
                 if float(changes[k]) < 0:

@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 from . import (
+    aiclips,
     asr,
     channels,
     config,
@@ -554,15 +555,16 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
     return plan, nar
 
 
-def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False) -> str:
+def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
-    (kèm nhãn giọng AI, nhãn ảnh AI cho video AI, và hashtag)."""
+    (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
     credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
     (out / "sources.txt").write_text(credits + "\n", encoding="utf-8")  # luôn lưu nội bộ, không đăng
     desc = plan.get("description", "").strip()
     if credits and config.flag("CREDIT_IN_POST"):
         desc += f"\n\nSources :\n{credits}"
-    label = "Voix off générée par IA." + (" Images générées par IA." if ai_images else "")
+    label = "Voix off générée par IA." + (" Images et vidéos générées par IA." if ai_images and ai_clips
+                                          else " Images générées par IA." if ai_images else "")
     desc += f"\n\n{label}\n{' '.join(plan.get('hashtags', [])[:6])}"
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n", encoding="utf-8")
     return desc
@@ -574,6 +576,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     ch = channels.for_project(proj)
     is_dub = proj.get("mode") == dub.MODE
     is_ai = creator.is_ai(proj)
+    want = aiclips.limit(proj, ch) if is_ai else 0  # số cảnh thành clip AI (kênh hoặc riêng video này)
+    if want:
+        aiclips.check_ready()  # thiếu khoá fal thì dừng trước khi trả tiền cho bất kỳ ảnh nào
     if is_ai:  # ảnh trước giọng đọc: ảnh đã làm được giữ lại, chỉ làm cảnh còn thiếu hoặc vừa sửa
         sources = creator.pictures(pid, plan, out, step)
     voice = (ch["voice_id"] or None) if ch else None
@@ -585,13 +590,19 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                                 picks=(proj["meta"].get("dub") or {}).get("voices"))
                 dub.remember_voices(pid, nar)
             else:
+                before = plan
                 plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
+                if is_ai and plan is not before:  # the voice step rewrote or trimmed the script: one picture per scene
+                    sources = creator.pictures(pid, plan, out, step, lo=69, hi=69)
         (out / "audio").mkdir(parents=True, exist_ok=True)
         (out / "audio" / NARRATION).write_text(json.dumps({**nar, "texts": [ln["text"] for ln in plan["lines"]]},
                                                           ensure_ascii=False), encoding="utf-8")
     else:
         step("Render", 70, tr("Keeping the previous voice ({voice})",
                               voice=f"{nar.get('provider')} · {nar.get('voice')} · {nar['duration']:.1f} s"))
+    if is_ai:  # clip AI sau giọng đọc: kịch bản đã chốt, biết mỗi cảnh dài bao lâu
+        with usage.context(project_id=pid, channel_id=ch["id"] if ch else None):
+            sources = creator.animate(pid, plan, sources, out, step, want)
     length = nar["duration"] + render.TAIL
     if is_dub:  # độ dài đã định ở bước giọng (dub.voice): đoạn gốc + phần mở / kết
         pass
@@ -625,7 +636,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                               "Open Remove logo, click Remove logo again, then Re-render video", n=i + 1, spans=spans))
 
     # 7. Mô tả bài đăng
-    desc = write_post(plan, [] if is_ai else sources, out, ai_images=is_ai)
+    desc = write_post(plan, [] if is_ai else sources, out, ai_images=is_ai,
+                      ai_clips=is_ai and aiclips.used(db.get_project(pid)["meta"]))
     bg = nar.get("background") if is_dub else None
     how = (tr(" · original music and sound kept") if bg == "separated"
            else tr(" · original sound turned down") if bg == "original" else "")

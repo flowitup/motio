@@ -455,4 +455,21 @@ VI = {
     "Could not download the picture from fal: {error}": "Không tải được ảnh từ fal: {error}",
     "Modal could not make the picture: {error}": "Modal không làm được ảnh: {error}",
     "The provider did not return a picture": "Nhà cung cấp không trả về ảnh",
+    # AI clips (aiclips.py, creator.animate)
+    "Clips": "Clip AI",
+    "AI clips need your fal key: add it in Settings → Image provider, or set AI clips to 0":
+        "Clip AI cần khoá fal của bạn: hãy nhập trong Cài đặt → Nhà cung cấp ảnh, hoặc đặt số clip AI về 0",
+    "AI clips per video must be a number": "Số clip AI mỗi video phải là một số",
+    "AI clips per video must be between 0 and {n}": "Số clip AI mỗi video phải từ 0 đến {n}",
+    "Could not reach fal: {error}": "Không kết nối được fal: {error}",
+    "fal could not make the clip: {error}": "fal không làm được clip: {error}",
+    "fal returned no clip (the prompt may have been filtered)": "fal không trả clip nào (prompt có thể bị lọc)",
+    "Could not download the clip from fal: {error}": "Không tải được clip từ fal: {error}",
+    "The clip from fal is not a readable video": "Clip từ fal không phải video đọc được",
+    "Clip {n} of {total} (scene {scene})": "Clip {n} / {total} (cảnh {scene})",
+    "Clip for scene {scene} failed ({error}): it keeps its camera move":
+        "Clip của cảnh {scene} bị lỗi ({error}): cảnh này giữ chuyển động máy quay",
+    "Monthly budget reached: the other scenes keep their camera move":
+        "Đã hết ngân sách tháng: các cảnh còn lại giữ chuyển động máy quay",
+    "{made} of {total} AI clips ready · about ${cost}": "Đã có {made} / {total} clip AI · khoảng ${cost}",
 }

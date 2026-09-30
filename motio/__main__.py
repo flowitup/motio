@@ -1,5 +1,5 @@
 """CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
-ai "<topic>" [seconds] | dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] |
+ai "<topic>" [seconds] [ai clips] | dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] |
 delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
 
 produce / topic / ai / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
@@ -63,10 +63,11 @@ def main(argv: list[str]) -> None:
         print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
-    elif cmd == "ai":  # ai "<chủ đề>" [giây]: video làm hoàn toàn bằng ảnh AI
+    elif cmd == "ai":  # ai "<chủ đề>" [giây] [số clip AI]: video làm hoàn toàn bằng ảnh AI (+ vài cảnh là clip AI)
         from . import channels, creator, pipeline
         try:
-            pid = creator.create(argv[1] if len(argv) > 1 else "", int(argv[2]) if len(argv) > 2 else 80)
+            pid = creator.create(argv[1] if len(argv) > 1 else "", int(argv[2]) if len(argv) > 2 else 80,
+                                 int(argv[3]) if len(argv) > 3 else None)
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))

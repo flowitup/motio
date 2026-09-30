@@ -330,7 +330,7 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
           f"eq=brightness=-0.10:saturation=0.9{bg_tail}[bg];"
           f"{fg}"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v1];[v1][1:v]overlay=0:0:shortest=1,fps={FPS},format=yuv420p,"
-          f"setsar=1,tpad=stop_mode=clone:stop_duration=3[v];"
+          f"setsar=1,tpad=stop_mode=clone:stop_duration={max(3.0, p.dur):.3f}[v];"
           f"{a_map}volume={volume if sound else 0:.3f},aresample=48000,aformat=channel_layouts=stereo,apad[aud]")
     _run([config.ffmpeg(), "-y", "-v", "error", *inputs, "-filter_complex", fc, "-map", "[v]", "-map", "[aud]",
           "-t", f"{p.dur:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
