@@ -19,6 +19,11 @@ as authoritative for scope and milestones.
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
+  - `creator.py` AI video mode (`mode = "ai"`): Claude writes scenes (spoken line + English picture prompt + camera move),
+    one picture per scene, one moving piece per scene (Ken Burns, `render.Piece.motion`); no source footage; pictures
+    from a provider that isn't cleared for monetized channels force the video gate (`creator.needs_review`)
+  - `images.py` AI pictures behind one adapter: fal `qwen-image-2512` (default) / Modal `qwen21-uc` / placeholder; a
+    picture is cached by (provider, size, seed, prompt) in `out/scenes/`, so only a new or edited scene is made again
   - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
@@ -62,6 +67,7 @@ uv run python -m motio trends               # list scored topics
 uv run python -m motio produce <trend_id>   # full pipeline for one topic
 uv run python -m motio rerender <project>   # voice + render again from script.json
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
+uv run python -m motio ai "<topic>" [70|80|90]   # video made only of AI pictures (IMAGE_PROVIDER=placeholder to try it free)
 uv run python -m motio dub <link> [start end]      # French dub of one video (times in seconds; none = whole video if short, else Claude picks)
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
@@ -98,6 +104,11 @@ on every PR; keep them green.
 - AI disclosure (AI Act art. 50): every post keeps "Voix off générée par IA." and the platforms' AI flags (TikTok
   `video_made_with_ai`). The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
   unless they ask.
+- AI video (`motio/creator.py`): every post keeps "Voix off générée par IA." and adds "Images générées par IA." (the
+  platforms' AI flags stay on). Only Qwen-Image-2512 on fal (Apache 2.0) is cleared for a monetized channel: a video
+  made with the Modal provider (Qwen Research Licence, no safety filter) or the placeholder always stops at the video
+  gate (`images.REVIEW_PROVIDERS`), and the pictures are made right before the voice so a script gate stops before any
+  picture is paid for. Never make a picture of a real, recognizable person.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
