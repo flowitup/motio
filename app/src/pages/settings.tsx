@@ -319,6 +319,30 @@ function SettingsForm({ api }: { api: Api }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t.settings.images}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label={t.settings.imageProvider} hint={src("IMAGE_PROVIDER")}>
+            <Choice
+              value={val("IMAGE_PROVIDER") || "fal"}
+              onChange={(v) => set("IMAGE_PROVIDER", v)}
+              options={(["fal", "modal", "placeholder"] as const).map((k) => [k, t.ai.providers[k]])}
+            />
+          </Field>
+          <Field label="FAL_KEY" hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
+            {secret("FAL_KEY")}
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
+              {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
+            </Field>
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">{t.settings.imageProviderHint}</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t.settings.slack}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">

@@ -181,7 +181,7 @@ export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 export type Project = {
   id: number;
   trend_id: string | null;
-  mode: "news" | "topic" | "dub";
+  mode: "news" | "topic" | "dub" | "ai";
   title: string;
   status: ProjectStatus;
   step: string | null;
@@ -216,6 +216,17 @@ export type DubView = {
   speakers: DubSpeaker[]; // người nói có lời, theo thứ tự xuất hiện
 };
 
+export type ImageProvider = "fal" | "modal" | "placeholder";
+/** Video AI: nhà cung cấp ảnh đã dùng, cổng duyệt video bắt buộc, tiền ảnh đã tốn (USD, ước tính). */
+export type AiView = {
+  topic: string | null;
+  provider: ImageProvider;
+  needs_review: boolean; // ảnh của nhà cung cấp chưa được phép cho kênh kiếm tiền: không tự gửi Postiz
+  cost: number | null;
+  scenes: number | null;
+};
+export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
+
 export type ProjectDetail = Project & {
   log: string;
   folder: string;
@@ -223,6 +234,7 @@ export type ProjectDetail = Project & {
   retry: { auto: RetryStep; steps: RetryStep[] };
   has_script: boolean;
   dub: DubView | null;
+  ai: AiView | null;
   usage: { tts_chars: number; usd: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
 
@@ -237,8 +249,13 @@ export type ScriptLine = {
   at?: number;
   until?: number;
   max_chars?: number;
+  // Video AI: mỗi dòng là một cảnh
+  image?: string; // prompt ảnh (tiếng Anh)
+  motion?: Motion; // chuyển động máy quay chậm
+  seed?: number; // đổi hạt giống = ảnh mới
+  picture?: string | null; // đường dẫn /media của ảnh đã làm (chỉ đọc)
 };
-export type Script = { title_fr: string; lines: ScriptLine[]; description: string; hashtags: string[] };
+export type Script = { title_fr: string; lines: ScriptLine[]; description: string; hashtags: string[]; style?: string };
 /** Kịch bản cho trình sửa, kèm số liệu để ước lượng độ dài video. */
 export type ScriptView = {
   script: Script;
@@ -250,6 +267,7 @@ export type ScriptView = {
   tail: number;
   version: number;
   dub: { register: string; speakers: Record<string, string>; language: string | null } | null;
+  ai: AiView | null;
 };
 
 export type ProgressEvent = { status: ProjectStatus; step: string | null; pct: number; log_tail: string[] };
@@ -433,6 +451,11 @@ export function makeApi(url: string, token: string) {
     /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn. */
     createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
+    /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
+    createAi: (body: { topic: string; duration: number; channel?: number }) =>
+      call<{ project_id: number }>("POST", "/api/ai", body),
+    /** Video AI: xin ảnh mới cho cảnh `index`; dựng lại bằng retry(id, "render") để làm ảnh đó. */
+    redoScene: (id: number, index: number) => call<ScriptView>("POST", `/api/projects/${id}/scenes/${index}/redo`),
     /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
     dubClip: (id: string, channel?: number) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),

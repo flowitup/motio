@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Film, Loader2, Plus, Trash2, Video, X } from "lucide-react";
+import { Film, Loader2, Plus, Sparkles, Trash2, Video, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
@@ -18,17 +18,18 @@ import { useApi, type Api, type Project, type Rights } from "@/lib/api";
 import { t } from "@/i18n";
 
 const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
+const PICTURE_USD: Record<string, string> = { fal: "0.50", modal: "0.15", placeholder: "0" }; // một video 12 cảnh, ước tính
 
 /** Video mới: giải thích một chủ đề / link video, hoặc lồng tiếng Pháp một video. */
 function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
-  const [kind, setKind] = useState<"topic" | "dub">("topic");
+  const [kind, setKind] = useState<"topic" | "dub" | "ai">("topic");
   return (
     <Card>
       <CardHeader>
         <CardTitle>{t.projects.create}</CardTitle>
         <CardAction className="flex items-center gap-2">
           <div className="flex gap-1">
-            {(["topic", "dub"] as const).map((k) => (
+            {(["topic", "ai", "dub"] as const).map((k) => (
               <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} onClick={() => setKind(k)}>
                 {t.dub.kinds[k]}
               </Button>
@@ -39,8 +40,58 @@ function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
           </Button>
         </CardAction>
       </CardHeader>
-      {kind === "topic" ? <TopicForm api={api} /> : <DubForm api={api} />}
+      {kind === "topic" ? <TopicForm api={api} /> : kind === "ai" ? <AiForm api={api} /> : <DubForm api={api} />}
     </Card>
+  );
+}
+
+/** Video làm hoàn toàn bằng ảnh AI từ một chủ đề: Claude viết lời và prompt từng cảnh, mô hình ảnh làm ảnh. */
+function AiForm({ api }: { api: Api }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [topic, setTopic] = useState("");
+  const [duration, setDuration] = useState("80");
+  const choice = useChannelChoice(api);
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
+  const provider = settings?.IMAGE_PROVIDER?.value || "fal";
+  const needsKey = !!settings && provider === "fal" && !settings.FAL_KEY?.value;
+  const create = useMutation({
+    mutationFn: () => api.createAi({ topic: topic.trim(), duration: Number(duration), channel: choice.channel }),
+    onSuccess: ({ project_id }) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      navigate(`/projects/${project_id}`);
+    },
+  });
+  return (
+    <CardContent className="grid gap-4">
+      <Field label={t.ai.topic} hint={t.ai.topicHint}>
+        <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.ai.topicPlaceholder} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-[160px_auto]">
+        <Field label={t.projects.duration} hint={t.projects.durationHint}>
+          <Choice
+            value={duration}
+            onChange={setDuration}
+            options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
+          />
+        </Field>
+        {choice.channels.length > 0 && (
+          <Field label={t.channels.pick}>
+            <ChannelChoice choice={choice} className="w-full sm:w-56" />
+          </Field>
+        )}
+      </div>
+      <p className={needsKey ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>
+        {needsKey ? t.ai.needsKey : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
+      </p>
+      <div className="flex items-center justify-end gap-3">
+        {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
+        <Button onClick={() => create.mutate()} disabled={!topic.trim() || needsKey || create.isPending}>
+          {create.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          {t.ai.make}
+        </Button>
+      </div>
+    </CardContent>
   );
 }
 
