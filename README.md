@@ -80,6 +80,17 @@ scene's picture is made again, press **New picture** to draw the same scene agai
 when only pictures changed). The post keeps "Voix off générée par IA." and adds "Images générées par IA."; the
 estimated cost of the pictures is in the project log and on the project page. Stats does not include it yet.
 
+**AI clips** turn some scenes of an AI video into short video clips instead of a camera move on the picture. Each clip is
+made by fal's **H3 Max** (MiniMax H3, image to video, 768p, 5 s, about $0.40): the scene's picture is its first frame, so
+the look you approved is kept, and the model's own sound is dropped. Set how many scenes become clips per channel
+(Channels → *AI clips per video*, 0 = off, up to 6) or for one video (New video → AI video → *AI clips*, empty = the
+channel's number). The scenes are spread over the video and the first one (the hook) is always included. Clips are made
+after the voice, once the script is final, and only new ones are paid for (they are cached, so a re-render costs
+nothing); the cost goes into the project log, the project page and the Stats page, at the price per second in
+Settings → AI pictures, and the monthly budget stops new clips. A clip fal can't make, or one that would go over the
+budget, leaves its scene with the picture and camera move. The post then says "Images et vidéos générées par IA."; the
+platforms' AI flags stay on. Needs the same fal key as the pictures.
+
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
@@ -116,7 +127,7 @@ month (videos you start yourself still run). Claude runs on your Claude plan and
 per platform aren't tracked (they need each platform's account).
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds]` (a video made only of AI pictures, 70 / 80 / 90 s), `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
+`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds] [ai clips]` (a video made only of AI pictures, 70 / 80 / 90 s, with some scenes as AI clips), `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice` / `render`), `... approve <project> [nosend]`
 (approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's
@@ -201,6 +212,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
+| `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08, fal H3 Max at 768p; every clip is 5 s) |
 | `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
@@ -221,6 +233,7 @@ motio/pipeline.py  the steps of one project; a failed project continues from the
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
 motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
 motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
+motio/aiclips.py   AI clips: fal H3 Max image-to-video for some scenes of an AI video, cached per scene, cost estimate
 motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
 motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
