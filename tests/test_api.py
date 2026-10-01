@@ -61,6 +61,7 @@ def test_requires_token(client):
     assert r.status_code == 200
     body = r.json()
     assert body["version"] and {"llm", "tts", "asr"} <= body["providers"].keys()
+    assert 0 < body["disk"]["free"] <= body["disk"]["total"]  # app từ xa hiện ổ của máy chủ còn bao nhiêu
 
 
 def test_trends_filter(client):
@@ -203,6 +204,15 @@ def test_media_blocks_traversal_and_settings(client):
     assert client.get(f"/media/settings.json?token={TOKEN}").status_code == 404
     assert client.get(f"/media/../pyproject.toml?token={TOKEN}").status_code == 404
     assert client.get(f"/media/%2e%2e/pyproject.toml?token={TOKEN}").status_code == 404
+
+
+def test_media_never_serves_the_cookie_file(client):
+    jar = config.DATA / "cookies.txt"  # đặt ngay trong thư mục dữ liệu: vẫn không được phục vụ
+    jar.write_text("# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
+    assert client.get(f"/media/cookies.txt?token={TOKEN}").status_code == 200
+    settings.update({"YTDLP_COOKIES_FILE": str(jar)})
+    assert client.get(f"/media/cookies.txt?token={TOKEN}").status_code == 404
+    jar.unlink()
 
 
 def test_settings_roundtrip(client, monkeypatch):

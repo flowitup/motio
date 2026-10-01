@@ -14,7 +14,7 @@ as authoritative for scope and milestones.
 
 - `motio/` — Python 3.12 engine (uv, `package = false`).
   - `config.py` env + paths · `db.py` SQLite (trend, project) · `newsnow.py` fetch/translate/score trends
-  - `search.py` yt-dlp search/download · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
+  - `search.py` yt-dlp search/download (cookies: `YTDLP_COOKIES_FILE` per-thread copy, else browser) · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
@@ -56,6 +56,8 @@ as authoritative for scope and milestones.
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
 - `deploy/` + `Dockerfile` — Hetzner server stack (engine + Postiz + Caddy), runbook `docs/DEPLOY.md`.
+- `tools/windows/motio-server.ps1` — runs the installed engine 24/7 on a Windows PC at home (Task Scheduler, Tailscale
+  only), runbook `docs/WINDOWS_SERVER.md`; the app uses it as a Remote engine and keeps no video on the Mac.
 - `tools/` — dev scripts. `docs/` — plans and notes.
 - `.claude/skills/motio-dev/` — the dev playbook skill (workflow, gates, ship, release, server rules).
 - `data/` — runtime data (SQLite, downloaded sources, rendered projects). Never commit.

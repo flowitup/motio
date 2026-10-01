@@ -2,10 +2,17 @@
 
 Tự tìm: YouTube, Bilibili (yt-dlp không có tìm kiếm cho Douyin, X). Link dán tay: mọi trang yt-dlp tải được.
 """
+import atexit
 import re
+import shutil
+import tempfile
+import threading
+from http.cookiejar import LoadError
 from pathlib import Path
+from urllib.parse import urlparse
 
 from yt_dlp import YoutubeDL
+from yt_dlp.cookies import YoutubeDLCookieJar
 
 from . import config
 from .i18n import tr
@@ -25,7 +32,8 @@ def _base() -> dict:
 
 def search(query: str, site: str, n: int = 6) -> list[dict]:
     prefix = SEARCH_PREFIX[site]
-    opts = {**_base(), "extract_flat": "in_playlist", "skip_download": True}
+    opts = {**_base(), "extract_flat": "in_playlist", "skip_download": True,
+            **(_file_cookie_opts() if site == "bilibili" else {})}
     try:
         with YoutubeDL(opts) as y:
             info = y.extract_info(f"{prefix}{n}:{query}", download=False)
@@ -87,24 +95,86 @@ def link_candidate(url: str) -> dict:
             "query": "", "pinned": True}
 
 
+def _cookie_path(raw: str) -> Path:
+    """Explorer "Copy as path" bọc đường dẫn trong dấu nháy: bỏ đi."""
+    return Path(raw.strip().strip("\"'")).expanduser()
+
+
+def cookie_file() -> Path | None:
+    """YTDLP_COOKIES_FILE: cookies.txt (Netscape) xuất từ trình duyệt, dùng được trên máy không có trình duyệt
+    (server, máy Windows chạy nền). None khi chưa đặt hoặc file không còn."""
+    raw = config.env("YTDLP_COOKIES_FILE")
+    path = _cookie_path(raw) if raw else None
+    return path if path and path.is_file() else None
+
+
+def check_cookie_file(raw: str) -> None:
+    """Báo lỗi (ValueError) nếu `raw` không phải file cookies.txt mà yt-dlp đọc được. Dùng khi lưu cài đặt."""
+    path = _cookie_path(raw)
+    if not path.is_file():
+        raise ValueError(tr("Cookie file not found: {path}", path=raw))
+    try:
+        YoutubeDLCookieJar(str(path)).load(ignore_discard=True, ignore_expires=True)
+    except (LoadError, OSError, UnicodeDecodeError):
+        raise ValueError(tr("Not a cookies.txt file (Netscape format): {path}", path=raw)) from None
+
+
+_jar = threading.local()
+_jar_lock = threading.Lock()
+_jar_dir: Path | None = None
+
+
+def _own_cookie_copy(src: Path) -> str:
+    """yt-dlp ghi lại file cookie khi đóng: mỗi luồng dùng một bản sao riêng (cùng lúc có luồng làm video, luồng tải
+    công cụ, luồng kiểm tra nguồn), nên không ghi đè nhau và file gốc không bị sửa. Chép lại khi file gốc đổi."""
+    global _jar_dir
+    with _jar_lock:
+        if _jar_dir is None:
+            _jar_dir = Path(tempfile.mkdtemp(prefix="motio-cookies-"))
+            atexit.register(shutil.rmtree, _jar_dir, ignore_errors=True)
+    dst = _jar_dir / f"{threading.get_ident()}.txt"
+    st = src.stat()
+    stamp = (str(src), st.st_mtime_ns, st.st_size)
+    if getattr(_jar, "stamp", None) != stamp or not dst.exists():
+        shutil.copyfile(src, dst)
+        _jar.stamp = stamp
+    return str(dst)
+
+
+def _file_cookie_opts() -> dict:
+    src = cookie_file()
+    return {"cookiefile": _own_cookie_copy(src)} if src else {}
+
+
+def _is_bilibili(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host == "b23.tv" or host == "bilibili.com" or host.endswith(".bilibili.com")
+
+
 def _cookie_opts() -> dict:
-    """YTDLP_COOKIES_FROM_BROWSER=chrome…: dùng phiên đăng nhập của trình duyệt (Douyin, X hay đòi)."""
+    """Cookie đăng nhập cho yt-dlp (Douyin, X, không gian Bilibili hay đòi): file YTDLP_COOKIES_FILE nếu có, không thì
+    phiên của trình duyệt trong YTDLP_COOKIES_FROM_BROWSER (chrome…)."""
+    file = _file_cookie_opts()
+    if file:
+        return file
     browser = config.env("YTDLP_COOKIES_FROM_BROWSER").lower()
     return {"cookiesfrombrowser": (browser,)} if browser in BROWSERS else {}
 
 
 def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False, hooks: list | None = None) -> dict:
-    """Tải 1 video (≤ max_height, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay.
+    """Tải 1 video (≤ max_height, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay (cookie file hoặc
+    trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu có.
     hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
     ném lỗi trong hàm thì dừng tải."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
     opts = {**_base(),
             "format": f"bv*[height<={max_height}][ext=mp4]+ba[ext=m4a]/bv*[height<={max_height}]+ba/"
                       f"b[height<={max_height}]/b",
             "merge_output_format": "mp4",
             "outtmpl": str(out_dir / "%(extractor_key)s_%(id)s.%(ext)s"),
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,
-            "ffmpeg_location": config.ffmpeg(), **(_cookie_opts() if cookies else {}),
+            "ffmpeg_location": config.ffmpeg(), **cookie,
             **({"progress_hooks": hooks} if hooks else {})}
     with YoutubeDL(opts) as y:
         info = y.extract_info(url, download=True)

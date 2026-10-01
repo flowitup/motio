@@ -13,7 +13,8 @@ engine ── http://newsnow:4444 (mạng nội bộ) ──▶ NewsNow tự hos
 Engine tự cập nhật tin mỗi `REFRESH_EVERY_MIN` phút (mặc định 30 trên server, 0 = tắt) từ NewsNow tự host
 (dịch vụ `newsnow`, ảnh `ghcr.io/ourongxing/newsnow`, không mở ra Internet), và cùng nhịp đó kiểm tra các nguồn
 theo dõi của trang "New videos". Không gian Bilibili hay chặn khi không có cookie trình duyệt, mà server không có
-trình duyệt: theo dõi Bilibili bằng engine trên Mac, hoặc dùng tìm kiếm Bilibili.
+trình duyệt: chép một file `cookies.txt` vào volume dữ liệu (`/data/...`) rồi nhập đường dẫn đó ở Cài đặt → "File
+cookie" (xem `docs/WINDOWS_SERVER.md` mục 4), theo dõi Bilibili bằng engine trên Mac, hoặc dùng tìm kiếm Bilibili.
 
 | File | Vai trò |
 |---|---|

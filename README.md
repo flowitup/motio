@@ -192,6 +192,14 @@ Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the 
 [docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
 defaults to `LLM_PROVIDER=anthropic`. Channel posting times use the server's `TZ` (default `Europe/Paris`).
 
+## Running on a Windows PC at home
+
+The engine can also run 24/7 on a Windows PC with a big drive, with the Mac (or any desktop app) pointing at it over
+Tailscale (Settings → "Remote engine"): downloads, projects and finished videos stay on the Windows PC and the app only
+streams what you open. `tools/windows/motio-server.ps1` installs the installed engine as a background Task Scheduler
+task bound to the Tailscale address; Settings → "Engine status" shows the disk space left there. Steps:
+[docs/WINDOWS_SERVER.md](docs/WINDOWS_SERVER.md) (in Vietnamese).
+
 ## Configuration (.env)
 
 Settings changed in the app are saved to `data/settings.json`, override `.env` and take effect immediately.
@@ -209,6 +217,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
 | `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |
 | `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
+| `YTDLP_COOKIES_FILE` | Path (on the engine's machine) of a `cookies.txt` exported from a browser, for an engine without a browser (server, Windows PC): used for pasted links and for Bilibili (search, downloads, followed spaces); wins over the browser; checked when saved, never served by `/media` |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |

@@ -294,8 +294,10 @@ VI = {
     "paste each video link in Projects → New video":
         "Chỉ theo dõi được kênh, playlist YouTube, không gian Bilibili hoặc từ khoá tìm. Douyin, Facebook: dán link "
         "từng video vào Dự án → Tạo video",
-    "Bilibili blocks requests without a login: pick a browser in Settings → Browser cookies":
-        "Bilibili chặn khi chưa đăng nhập: chọn trình duyệt ở Cài đặt → Cookie trình duyệt",
+    "Bilibili blocks requests without a login: pick a browser or set a cookie file in Settings → Browser cookies":
+        "Bilibili chặn khi chưa đăng nhập: chọn trình duyệt hoặc đặt file cookie ở Cài đặt → Cookie trình duyệt",
+    "Cookie file not found: {path}": "Không thấy file cookie: {path}",
+    "Not a cookies.txt file (Netscape format): {path}": "Không phải file cookies.txt (định dạng Netscape): {path}",
     "Paste a channel / playlist link or enter search keywords": "Dán link kênh / playlist hoặc nhập từ khoá tìm",
     "Search works only on YouTube or Bilibili, not {site}":
         "Chỉ tìm được trên YouTube hoặc Bilibili, không phải {site}",
