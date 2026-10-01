@@ -163,6 +163,7 @@ def test_douyin_without_a_browser_session_says_what_to_do(tmp_path, monkeypatch)
             raise DownloadError("ERROR: [Douyin] 123: Fresh cookies (not necessarily logged in) are needed")
 
     monkeypatch.setattr(search, "YoutubeDL", Boom)
+    monkeypatch.setattr(config, "ffmpeg", lambda: "ffmpeg")  # read before yt-dlp is called; CI has no FFmpeg
     with pytest.raises(RuntimeError, match="add the file"):
         search.download("https://www.douyin.com/video/7380308675841297704", tmp_path)
     with pytest.raises(DownloadError):  # any other site keeps yt-dlp's own message
