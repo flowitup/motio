@@ -1,9 +1,11 @@
-"""AI video mode (creator.py, images.py): scene script, pictures from a provider, slow camera moves, the forced video
-gate, editing and redoing scenes. Every outside service (Claude, ElevenLabs, fal, Modal, Postiz) is faked."""
+"""AI video mode (creator.py, images.py, aiclips.py): scene script, pictures from a provider, slow camera moves, AI
+clips for some scenes, the forced video gate, editing and redoing scenes. Every outside service (Claude, ElevenLabs,
+fal, Modal, Postiz) is faked."""
 import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -14,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageChops
 
-from motio import api, channels, config, creator, db, edit, images, llm, pipeline, render, settings, tts
+from motio import aiclips, api, channels, config, creator, db, edit, images, llm, pipeline, render, settings, tts, usage
 
 has_ffmpeg = bool(config.find("ffmpeg") and config.find("ffprobe"))
 TOKEN = "test-token"
@@ -419,6 +421,286 @@ def test_a_script_gate_stops_before_any_picture_is_paid_for(fake):
     assert db.get_project(pid)["status"] == "done" and len(fake["generated"]) == LINES
 
 
+# ---------- AI clips ----------
+@pytest.fixture
+def clip_fake(fake, monkeypatch):
+    """`fake` plus a fal key and a fake H3 Max: every call is recorded in fake["clips"], and FFmpeg's sound strip is a
+    plain copy. fake["clips"]["fail"] lists the call numbers (1-based, retries count) that fail."""
+    monkeypatch.setenv("FAL_KEY", "fal-key")
+    with db.conn() as c:
+        c.execute("DELETE FROM usage")
+    seen = {"calls": [], "fail": set()}
+
+    def generate(picture, text, seed=0):
+        seen["calls"].append((os.path.basename(picture), text, seed))
+        if len(seen["calls"]) in seen["fail"]:
+            raise aiclips.ClipError("fal said no")
+        return b"mp4"
+
+    def run(cmd):
+        shutil.copy(cmd[cmd.index("-i") + 1], cmd[-1])
+
+    monkeypatch.setattr(aiclips, "generate", generate)
+    monkeypatch.setattr(config, "ffmpeg", lambda: "ffmpeg")  # built before the fake _run; CI has no FFmpeg
+    monkeypatch.setattr(render, "_run", run)
+    fake["clips"] = seen
+    yield fake
+    with db.conn() as c:
+        c.execute("DELETE FROM usage")
+
+
+def _clip_scenes(fake) -> list[int]:
+    return [i for i, s in enumerate(fake["render"][-1]["sources"]) if s.get("clip")]
+
+
+def _usd(pid: int) -> float:
+    return db.usage_sum(0, project_id=pid)[1]
+
+
+def test_pick_spreads_the_clips_and_always_takes_the_hook():
+    assert aiclips.pick(10, 3) == [0, 3, 6] and aiclips.pick(10, 1) == [0] and aiclips.pick(10, 0) == []
+    assert aiclips.pick(4, 10) == [0, 1, 2, 3] and aiclips.pick(0, 3) == []
+    assert all(aiclips.pick(12, n)[0] == 0 and len(set(aiclips.pick(12, n))) == n for n in range(1, 13))
+
+
+def test_the_projects_choice_beats_the_channels_and_both_are_capped():
+    ch = {"ai_clips": 4}
+    assert aiclips.limit({"meta": {}}, ch) == 4 and aiclips.limit({"meta": {}}, None) == 0
+    assert aiclips.limit({"meta": {"ai": {"clip_limit": 0}}}, ch) == 0
+    assert aiclips.limit({"meta": {"ai": {"clip_limit": 2}}}, ch) == 2
+    assert aiclips.limit({"meta": {"ai": {"clip_limit": 99}}}, ch) == aiclips.MAX_PER_VIDEO == 6
+
+
+def test_the_clip_prompt_describes_the_move():
+    text = aiclips.prompt("A panda eating bamboo.", "pan_left")
+    assert text.startswith("A panda eating bamboo. Slow pan to the left,") and text.endswith("no cuts.")
+    assert "Gentle camera move" in aiclips.prompt("A panda", "")
+
+
+def _fal_clip(monkeypatch, status=200, payload=None, video=b"mp4"):
+    sent = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        req.read()
+        sent.append(req)
+        if req.url.host == "fal.run":
+            if status != 200:
+                return httpx.Response(status, json=payload or {"detail": "nope"})
+            return httpx.Response(200, json=payload or {"video": {"url": "https://cdn.fal.test/a.mp4"}})
+        return httpx.Response(200, content=video)
+
+    monkeypatch.setattr(aiclips, "_transport", httpx.MockTransport(handler))
+    monkeypatch.setenv("FAL_KEY", "fal-key")
+    monkeypatch.setattr(config, "ffmpeg", lambda: "ffmpeg")  # built before the fake _run; CI has no FFmpeg
+    monkeypatch.setattr(render, "_run", lambda cmd: shutil.copy(cmd[cmd.index("-i") + 1], cmd[-1]))
+    return sent
+
+
+def test_fal_clip_request_download_and_cache(monkeypatch, tmp_path):
+    sent = _fal_clip(monkeypatch)
+    pic = tmp_path / "a.png"
+    Image.new("RGB", (1088, 1920), "gray").save(pic)
+    path, new = aiclips.make(pic, "A panda. Slow push-in.", 7, tmp_path / "clips")
+    assert new and path.read_bytes() == b"mp4" and path.suffix == ".mp4"
+    req = sent[0]
+    body = json.loads(req.content)
+    assert req.url.path == "/minimax/h3-max/image-to-video" and req.headers["authorization"] == "Key fal-key"
+    assert body["prompt"] == "A panda. Slow push-in." and body["seed"] == 7 and body["duration"] == 5
+    assert body["resolution"] == "768P" and body["enable_safety_checker"] is True
+    assert body["image_url"].startswith("data:image/jpeg;base64,") and sent[1].url.host == "cdn.fal.test"
+    assert aiclips.make(pic, "A panda. Slow push-in.", 7, tmp_path / "clips") == (path, False) and len(sent) == 2
+    other, fresh = aiclips.make(pic, "A panda. Slow push-in.", 8, tmp_path / "clips")  # another seed: another clip
+    assert fresh and other != path and not list((tmp_path / "clips").glob("*.raw"))
+
+
+@pytest.mark.parametrize("status,payload,message", [
+    (401, None, "refused the request"), (403, {"detail": "Exhausted balance"}, "Exhausted balance"),
+    (500, {"detail": "boom"}, "could not make the clip: 500 boom"),
+    (200, {"video": None}, "returned no clip"), (200, {"nothing": 1}, "returned no clip")])
+def test_fal_clip_errors_are_explained(monkeypatch, tmp_path, status, payload, message):
+    _fal_clip(monkeypatch, status, payload)
+    pic = tmp_path / "a.png"
+    Image.new("RGB", (64, 64), "gray").save(pic)
+    with pytest.raises(aiclips.ClipError, match=message):
+        aiclips.make(pic, "A panda.", 0, tmp_path / "clips")
+    assert not list((tmp_path / "clips").glob("*.mp4"))
+
+
+def test_a_clip_ffmpeg_cannot_read_is_an_error_and_leaves_nothing_behind(monkeypatch, tmp_path):
+    _fal_clip(monkeypatch)
+
+    def broken(cmd):
+        raise RuntimeError("ffmpeg failed")
+
+    monkeypatch.setattr(render, "_run", broken)
+    pic = tmp_path / "a.png"
+    Image.new("RGB", (64, 64), "gray").save(pic)
+    with pytest.raises(aiclips.ClipError, match="not a readable video"):
+        aiclips.make(pic, "A panda.", 0, tmp_path / "clips")
+    assert list((tmp_path / "clips").iterdir()) == []
+
+
+def test_ai_clips_replace_the_camera_move_on_scenes_spread_over_the_video(clip_fake):
+    pid = creator.create("Les pandas", 80, 3)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    r = clip_fake["render"][-1]
+    assert _clip_scenes(clip_fake) == [0, 3, 6] == aiclips.pick(LINES, 3)
+    assert all(r["sources"][i]["path"].endswith(".mp4") for i in (0, 3, 6))
+    assert all(r["sources"][i]["path"].endswith(".png") for i in (1, 2, 4, 5, 7, 8, 9))
+    assert [pc.motion == "" for pc in r["pieces"]] == [i in (0, 3, 6) for i in range(LINES)]
+    assert all(pc.motion in render.MOTIONS for pc in r["pieces"] if pc.src not in (0, 3, 6))
+    assert [pc.src for pc in r["pieces"]] == list(range(LINES)) and r["total"] == pytest.approx(80.6)
+    calls = clip_fake["clips"]["calls"]
+    assert [c[0].endswith(".png") for c in calls] == [True] * 3 and "A panda number 0" in calls[0][1]
+    assert "Slow push-in" in calls[0][1]
+    assert "A panda number 3" in calls[1][1] and "Slow pan to the right" in calls[1][1]
+    ai = p["meta"]["ai"]
+    assert ai["clips"] == 3 and ai["clip_limit"] == 3 and ai["cost"] == pytest.approx(1.2)  # 3 × 5 s × $0.08
+    assert creator.view(p)["clips"] == 3
+    chars, usd = db.usage_sum(0, project_id=pid)
+    assert chars == 0 and usd == pytest.approx(1.2) and usage.for_project(pid)["usd"] == pytest.approx(1.2)
+    assert usage.for_project(pid)["clip_usd"] == pytest.approx(1.2)
+    assert "3 of 3 AI clips ready · about $1.20" in p["log"]
+    post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")
+    assert "Voix off générée par IA. Images et vidéos générées par IA." in post
+
+
+def test_a_rerender_reuses_the_clips_and_does_not_pay_again(clip_fake):
+    pid = creator.create("Les pandas", 80, 2)
+    pipeline.produce(pid)
+    made, paid = len(clip_fake["clips"]["calls"]), _usd(pid)
+    assert made == 2 and paid == pytest.approx(0.8)
+    pipeline.resume(pid, "render")
+    p = db.get_project(pid)
+    assert p["status"] == "done" and len(clip_fake["clips"]["calls"]) == made and _usd(pid) == pytest.approx(paid)
+    assert _clip_scenes(clip_fake) == [0, 5] and p["meta"]["ai"]["clips"] == 2
+    assert p["meta"]["ai"]["cost"] == pytest.approx(0.8)
+    assert "2 of 2 AI clips ready · about $0.00" in p["log"]
+
+
+def test_a_clip_fal_cannot_make_keeps_its_camera_move_and_the_video_finishes(clip_fake):
+    clip_fake["clips"]["fail"] = {2, 3}  # scene 3 fails twice (one retry); scenes 0 and 6 work
+    pid = creator.create("Les pandas", 80, 3)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert _clip_scenes(clip_fake) == [0, 6] and clip_fake["render"][-1]["pieces"][3].motion in render.MOTIONS
+    assert "Clip for scene 4 failed (fal said no): it keeps its camera move" in p["log"]
+    assert p["meta"]["ai"]["clips"] == 2 and _usd(pid) == pytest.approx(0.8)  # the failed one cost nothing
+    assert "2 of 3 AI clips ready" in p["log"]
+
+
+def test_no_clip_is_made_once_the_monthly_budget_is_reached(clip_fake):
+    settings.update({"MONTHLY_BUDGET_USD": "0.5"})
+    pid = creator.create("Les pandas", 80, 4)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert _clip_scenes(clip_fake) == [0, 2] and _usd(pid) == pytest.approx(0.8)  # $0.40 each: the 3rd would be over
+    assert "Monthly budget reached: the other scenes keep their camera move" in p["log"]
+    assert p["meta"]["ai"]["clips"] == 2
+
+
+def test_the_price_per_second_is_a_setting():
+    assert usage.clip_price() == usage.DEFAULT_CLIP_PRICE == 0.08 and aiclips.cost(2) == pytest.approx(0.8)
+    settings.update({"AI_CLIP_USD_PER_SEC": "0.05"})
+    assert aiclips.cost(1) == pytest.approx(0.25)
+    with pytest.raises(ValueError, match="AI_CLIP_USD_PER_SEC must be a number"):
+        settings.update({"AI_CLIP_USD_PER_SEC": "-1"})
+    settings.update({"AI_CLIP_USD_PER_SEC": None})
+    assert usage.clip_price() == 0.08
+
+
+def test_the_channel_sets_how_many_clips_and_a_video_can_override_it(clip_fake):
+    ch = _channel(gate_video=True, postiz=[], ai_clips=2)
+    pid = creator.create("Les pandas")
+    channels.attach(pid, ch)
+    pipeline.produce(pid)
+    assert _clip_scenes(clip_fake) == [0, 5] and db.get_project(pid)["meta"]["ai"]["clips"] == 2
+    calls = len(clip_fake["clips"]["calls"])
+    pid2 = creator.create("Les pandas 2", 80, 0)  # this video: no clips, whatever the channel says
+    channels.attach(pid2, ch)
+    pipeline.produce(pid2)
+    assert _clip_scenes(clip_fake) == [] and len(clip_fake["clips"]["calls"]) == calls
+    assert db.get_project(pid2)["meta"]["ai"].get("clips") in (None, 0)
+
+
+def test_going_back_to_no_clips_clears_them_and_the_post_label(clip_fake):
+    pid = creator.create("Les pandas", 80, 2)
+    pipeline.produce(pid)
+    meta = db.get_project(pid)["meta"]
+    db.update_project(pid, meta={"ai": {**meta["ai"], "clip_limit": 0}})
+    pipeline.resume(pid, "render")
+    p = db.get_project(pid)
+    assert _clip_scenes(clip_fake) == [] and p["meta"]["ai"]["clips"] == 0 and not creator.view(p)["clips"]
+    post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")
+    assert "Images générées par IA." in post and "vidéos" not in post
+
+
+def test_editing_the_description_keeps_the_ai_clips_label(clip_fake):
+    pid = creator.create("Les pandas", 80, 2)
+    pipeline.produce(pid)
+    view = edit.script_view(pid)
+    body = view["script"]
+    body["description"] = "Une autre description."
+    edit.save_script(pid, body)
+    post = (config.PROJECTS / str(pid) / "post.txt").read_text(encoding="utf-8")
+    assert "Une autre description." in post and "Images et vidéos générées par IA." in post
+
+
+def test_a_missing_fal_key_stops_before_any_picture_is_paid_for(fake, monkeypatch):
+    ch = _channel(gate_video=True, postiz=[], ai_clips=2)
+    pid = creator.create("Les pandas")
+    channels.attach(pid, ch)
+    with pytest.raises(ValueError, match="AI clips need your fal key"):
+        pipeline.produce(pid)
+    assert _made(pid) == [] and not fake["generated"] and db.get_project(pid)["status"] == "failed"
+    with pytest.raises(ValueError, match="AI clips need your fal key"):
+        creator.create("Les pandas", 80, 2)
+    creator.create("Les pandas", 80, 0)  # no clips asked: no key needed
+
+
+def test_the_channel_profile_validates_the_clip_count():
+    assert channels.clean({"name": "A"})["ai_clips"] == 0
+    assert channels.clean({"name": "A", "ai_clips": "3"})["ai_clips"] == 3
+    with pytest.raises(ValueError, match="between 0 and 6"):
+        channels.clean({"name": "A", "ai_clips": 7})
+    with pytest.raises(ValueError, match="between 0 and 6"):
+        channels.clean({"name": "A", "ai_clips": -1})
+    with pytest.raises(ValueError, match="must be a number"):
+        channels.clean({"name": "A", "ai_clips": "many"})
+    assert channels.full(db.get_channel(channels.create({"name": "B", "ai_clips": 4})["id"]))["ai_clips"] == 4
+
+
+def test_the_timeline_plays_a_clip_instead_of_a_camera_move():
+    plan = _plan(3, 10)
+    nar = {"duration": 12.0, "lines": [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0},
+                                       {"start": 8.0, "end": 12.0}]}
+    scenes = [{"path": "a.mp4", "clip": True}, {"path": "b.png"}, {"path": "c.png"}]
+    pieces = creator.timeline(plan, nar, 12.6, scenes)
+    assert [pc.motion for pc in pieces] == ["", "zoom_out", "pan_left"]
+    assert [pc.motion for pc in creator.timeline(plan, nar, 12.6)] == ["zoom_in", "zoom_out", "pan_left"]
+
+
+def test_a_script_changed_by_the_voice_step_still_has_a_picture_for_every_scene(fake, monkeypatch):
+    fake["sec_per_word"] = 0.25  # the voice comes out at 50 s: the voice step asks Claude for a longer script
+
+    def one_more_line(prompt, system, **kw):
+        fake["prompts"].append((prompt, system))
+        fake["order"].append("fit" if prompt.startswith("Voici") else "script")
+        return _plan(LINES + 1, 30) if prompt.startswith("Voici") else _plan(LINES, 20)
+
+    monkeypatch.setattr(llm, "ask_json", one_more_line)
+    pid = creator.create("Les pandas")
+    pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "done" and fake["order"] == ["script", "voice", "fit", "voice", "render"]
+    r = fake["render"][-1]
+    assert len(r["plan"]["lines"]) == LINES + 1 and len(r["sources"]) == LINES + 1 and len(r["pieces"]) == LINES + 1
+    assert len(fake["generated"]) == LINES + 1  # the ten pictures already made are reused, the new line gets its own
+
+
 # ---------- API ----------
 @pytest.fixture
 def client(monkeypatch):
@@ -455,6 +737,23 @@ def test_ai_routes(client, monkeypatch):
     assert bad.status_code == 400 and "fal key" in bad.json()["detail"]
     other = client.post("/api/projects", headers=H, json={"topic": "panda"}).json()["project_id"]
     assert _wait_done(client, other)["ai"] is None
+
+
+def test_ai_route_takes_the_clip_count_and_checks_the_fal_key(client, monkeypatch):
+    assert "between 0 and 6" in client.post("/api/ai", headers=H, json={"topic": "x", "clips": 7}).json()["detail"]
+    no_key = client.post("/api/ai", headers=H, json={"topic": "x", "clips": 2})
+    assert no_key.status_code == 400 and "fal key" in no_key.json()["detail"]
+    assert client.post("/api/ai", headers=H, json={"topic": "x", "clips": 0}).status_code == 202  # none: no key needed
+    monkeypatch.setenv("FAL_KEY", "fal-key")
+    pid = client.post("/api/ai", headers=H, json={"topic": "x", "clips": 2}).json()["project_id"]
+    assert _wait_done(client, pid)["ai"]["clip_limit"] == 2
+    monkeypatch.delenv("FAL_KEY")
+    default = client.post("/api/channels", headers=H, json={"name": "Clips", "ai_clips": 3, "default": True})
+    assert default.status_code == 201 and default.json()["ai_clips"] == 3
+    via_channel = client.post("/api/ai", headers=H, json={"topic": "x"})  # the channel's 3 clips need the key too
+    assert via_channel.status_code == 400 and "fal key" in via_channel.json()["detail"]
+    assert client.post("/api/ai", headers=H, json={"topic": "x", "clips": 0}).status_code == 202
+    assert client.post("/api/channels", headers=H, json={"name": "Too many", "ai_clips": 7}).status_code == 400
 
 
 def test_scene_routes(client, monkeypatch):
@@ -547,3 +846,55 @@ def test_real_render_of_ai_scenes_moves_and_keeps_both_formats(tmp_path):
     buf = io.BytesIO()
     early.save(buf, "PNG")
     assert buf.tell() > 1000
+
+
+def _tone_clip(path, seconds=5):
+    """A small vertical clip with a sound track, like what fal returns."""
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i",
+                    f"testsrc=size=216x384:rate=24:duration={seconds}", "-f", "lavfi", "-i",
+                    f"sine=f=440:d={seconds}", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+                    str(path)], check=True)
+
+
+def _video_seconds(path) -> float:
+    r = subprocess.run([config.ffprobe(), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+                        "-of", "csv=p=0", str(path)], capture_output=True, text=True, check=True)
+    return float(r.stdout.strip())
+
+
+def _streams(path) -> list[str]:
+    r = subprocess.run([config.ffprobe(), "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                        str(path)], capture_output=True, text=True, check=True)
+    return r.stdout.split()
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+def test_real_clip_loses_its_sound_and_a_long_scene_holds_the_last_frame(monkeypatch, tmp_path):
+    src = tmp_path / "fal.mp4"
+    _tone_clip(src)
+    assert "audio" in _streams(src)
+    monkeypatch.setenv("FAL_KEY", "fal-key")
+    monkeypatch.setattr(aiclips, "generate", lambda picture, text, seed=0: src.read_bytes())
+    pic, _ = images.make("Scene 0", 0, tmp_path / "scenes", "placeholder")
+    clip, new = aiclips.make(pic, "A panda.", 0, tmp_path / "clips")
+    assert new and _streams(clip) == ["video"]
+
+    pic2, _ = images.make("Scene 1", 0, tmp_path / "scenes", "placeholder")
+    scenes = [{"path": str(clip), "platform": "AI", "uploader": "fal", "duration": 0, "url": None, "clip": True},
+              {"path": str(pic2), "platform": "AI", "uploader": "placeholder", "duration": 0, "url": None}]
+    voice = tmp_path / "voice.m4a"
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=500:d=12", "-c:a", "aac",
+                    str(voice)], check=True)
+    plan = {"title_fr": "Les pandas", "lines": [{"text": "Une scène de neuf secondes", "motion": "zoom_in"},
+                                                 {"text": "Une scène de trois secondes", "motion": "pan_right"}]}
+    nar = {"audio": str(voice), "duration": 12.0, "lines": [{"start": 0.0, "end": 9.0}, {"start": 9.0, "end": 12.0}]}
+    out = tmp_path / "out"
+    res = render.render(**creator.render_args(plan, scenes, nar, 0.0), narration=nar, out_dir=out)
+    # the 5 s clip fills a 9 s scene (last frame held), so the video is as long as the voice and the next scene is
+    # where the voice says it is
+    assert abs(_probe(res["video"])["duration"] - 12.6) < 0.3
+    assert abs(_video_seconds(out / "pieces" / "p_000.mp4") - 9.0) < 0.1  # frames all the way, no gap after the clip
+    timeline = json.loads((out / "timeline.json").read_text(encoding="utf-8"))
+    assert [t["motion"] for t in timeline] == ["", "pan_right"] and timeline[0]["dur"] == pytest.approx(9.0)
+    early, late = _frame(res["video"], 1.0, tmp_path / "a.png"), _frame(res["video"], 4.0, tmp_path / "b.png")
+    assert ImageChops.difference(early, late).getbbox()  # the clip plays

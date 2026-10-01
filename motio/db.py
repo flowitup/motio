@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS channel (
 );
 CREATE TABLE IF NOT EXISTS usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  at REAL, kind TEXT,             -- tts (ElevenLabs); motio/usage.py
+  at REAL, kind TEXT,             -- tts (ElevenLabs), clip (fal); motio/usage.py
   chars INTEGER, usd REAL,        -- số ký tự đã gửi, tiền ước lượng lúc gọi
   project_id INTEGER, channel_id INTEGER, ref TEXT,  -- dự án / kênh đang chạy; ref: công cụ lẻ ("tool:<job>")
   model TEXT, voice TEXT
@@ -201,12 +201,15 @@ def add_usage(kind: str, chars: int, usd: float, project_id: int | None, channel
                   (time.time(), kind, chars, usd, project_id, channel_id, ref, model, voice))
 
 
-def usage_sum(since: float, project_id: int | None = None) -> tuple[int, float]:
-    """(ký tự, USD ước lượng) từ `since`, của một dự án nếu có project_id."""
+def usage_sum(since: float, project_id: int | None = None, kind: str | None = None) -> tuple[int, float]:
+    """(ký tự, USD ước lượng) từ `since`, của một dự án nếu có project_id, của một loại (tts, clip) nếu có kind."""
     sql, args = "SELECT COALESCE(SUM(chars), 0), COALESCE(SUM(usd), 0) FROM usage WHERE at >= ?", [since]
     if project_id is not None:
         sql += " AND project_id = ?"
         args.append(project_id)
+    if kind is not None:
+        sql += " AND kind = ?"
+        args.append(kind)
     with conn() as c:
         chars, usd = c.execute(sql, args).fetchone()
     return int(chars), float(usd)

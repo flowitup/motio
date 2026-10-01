@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from . import (
     __version__,
+    aiclips,
     asr,
     automake,
     channels,
@@ -70,6 +71,7 @@ class AiIn(BaseModel):
     topic: str  # chủ đề của video AI (mọi ngôn ngữ)
     duration: int = 80  # 70 | 80 | 90 giây
     channel: int | None = None  # như ProduceIn
+    clips: int | None = None  # số cảnh thành clip AI cho video này (0–6); None = theo hồ sơ kênh
 
 
 class DubIn(BaseModel):
@@ -164,6 +166,7 @@ class ChannelIn(BaseModel):
     wide_postiz: list[str] = []  # trong `postiz`: kênh nhận bản 16:9 (có thì dựng thêm bản 16:9)
     auto_score: int = 0  # tự làm video khi tin hot đạt điểm này sau lượt tự cập nhật; 0 = tắt
     auto_daily: int = 2  # tối đa số video tự làm mỗi ngày cho kênh này
+    ai_clips: int = 0  # video AI: số cảnh thành clip AI (fal H3 Max) mỗi video; 0 = chỉ ảnh chuyển động
     default: bool = False
 
 
@@ -524,7 +527,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = creator.create(body.topic, body.duration)
+            if body.clips is None and aiclips.limit({"meta": {}}, ch):
+                aiclips.check_ready()  # the channel's clips need the key too: say so before the project exists
+            pid = creator.create(body.topic, body.duration, body.clips)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)

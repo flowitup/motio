@@ -19,7 +19,7 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
    the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
    B watchlist ✓ → C French dub (GĐ2 parts 1 + 2 ✓), Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
-   auto-make ✓, Slack alerts ✓, GĐ3 part 1 AI video (AI pictures + Ken Burns) ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
+   auto-make ✓, Slack alerts ✓, GĐ3 part 1 AI video (AI pictures + Ken Burns) ✓, GĐ3 part 2 AI clips (fal H3 Max) ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
 4. Project memory (feature list with status, publishing rules, infra). It goes stale: re-check the code
@@ -109,6 +109,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Tools page (download, transcribe, translate subtitles, read aloud, burn subtitles; jobs chain) | `motio/toolbox.py` (`start`, `run`, `recover`, `parse_subs`, `segment_entries`, `translate`, `burn_cues`, `burn_layout`, `RUNNERS`), `/api/tools/*`, `render.write_caption_track(plain=True)`, `app/src/pages/tools.tsx`; tests `tests/test_toolbox.py` |
 | Stats page (ElevenLabs characters and estimated cost per project / channel / tool, monthly budget) | `motio/usage.py` (`context`, `record_tts`, `cost`, `for_project`, `summary`, `over_budget`), `tts.synthesize` records, `db.usage` table, `GET /api/stats`, `app/src/pages/stats.tsx`; tests `tests/test_usage.py` |
 | AI video mode (scenes from a topic, AI pictures, Ken Burns) | `motio/creator.py` (`create`, `tidy`, `prompt`, `pictures`, `timeline`, `render_args`, `needs_review`, `view`), `motio/images.py` (`make`, `generate`, `check_ready`, `cost`, `key`, `REVIEW_PROVIDERS`, `_transport` test hook), `render.Piece.motion` / `kenburns()`, `pipeline._step_ai_script` / `_finish_script` / `_voice_render_post`, `edit.reroll_picture`, `POST /api/ai`, `POST /api/projects/{id}/scenes/{i}/redo`, `IMAGE_PROVIDER` / `FAL_KEY` (secret) / `IMAGE_STYLE`, `AiForm` in `app/src/pages/projects.tsx`, scene rows in `app/src/components/script-card.tsx`; tests `tests/test_creator.py` (motion render needs FFmpeg) |
+| AI clips (some scenes of an AI video become fal H3 Max clips) | `motio/aiclips.py` (`pick`, `limit`, `prompt`, `make`, `generate`, `check_ready`, `cost`, `used`, `_transport` test hook), `creator.animate` / `creator.timeline(scenes)`, `pipeline._voice_render_post` (after the voice), `usage.record_clip` / `clip_price` / `for_project().clip_usd`, channel field `ai_clips`, project `meta.ai.clip_limit` / `clips`, `AI_CLIP_USD_PER_SEC`; tests in `tests/test_creator.py` (`clip_fake`) |
 | Slack alerts (review / done / failed, one-way Incoming Webhook) | `motio/notify.py` (`valid`, `send`, `project`, `escape`), hooks in `pipeline._await_review` / `_deliver` / `approve_video` / failure handlers, `SLACK_WEBHOOK_URL` (secret), `POST /api/notify/test`, Settings card in `app/src/pages/settings.tsx`; tests `tests/test_notify.py`, `fake_slack` fixture |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
@@ -157,6 +158,10 @@ live in `data/tools/delogo/<hex>/`.
   (when it would send to Postiz). Pictures are made right before the voice (`_voice_render_post`), after the script gate, so nothing is paid
   for before a person approves. The post adds "Images générées par IA."; no real, recognizable people in prompts. Real generation needs a
   key (`FAL_KEY`) the sandbox doesn't have: tests use `images._transport` (httpx MockTransport) and the placeholder provider.
+  AI clips (`aiclips.py`) are made after the voice and are paid per new clip: they are recorded in `usage` (kind `clip`), stop at
+  `MONTHLY_BUDGET_USD`, never fail a video (the scene keeps its picture and camera move), and change the post label to
+  "Images et vidéos générées par IA." (`pipeline.write_post(ai_clips=)`, also on script edit). The module is `aiclips`, not
+  `clips`: `clips` already means source footage (`ln["clips"]`) and the New videos list.
 - **French dubs keep other people's pictures and words.** `dub.needs_review(proj)` (mode dub and `meta.rights` not
   owned / licensed / cc; `unknown` counts as not owned) makes `pipeline._deliver` stop at the video gate even when the
   channel has none (when it would send to Postiz), so a dub is never auto-sent without a person. The subtitle blur (`dub.detect_band`, the user's box)

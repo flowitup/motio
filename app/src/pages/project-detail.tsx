@@ -227,7 +227,7 @@ export default function ProjectDetailPage() {
             {channel && `${t.projects.channel(channel.name)} · `}
             {p.meta.auto && `${t.projects.auto} · `}
             {t.age(p.updated_at)}
-            {p.usage?.tts_chars > 0 && ` · ${t.projects.voiceCost(p.usage.tts_chars, p.usage.usd)}`}
+            {p.usage?.tts_chars > 0 && ` · ${t.projects.voiceCost(p.usage.tts_chars, p.usage.usd - (p.usage.clip_usd ?? 0))}`}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -409,7 +409,8 @@ export default function ProjectDetailPage() {
                 <div className="text-muted-foreground">
                   {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
                   {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
-                  {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost)}`}
+                  {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}`}
+                  {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}
                 </div>
                 {p.ai.needs_review && <div className="text-amber-700 dark:text-amber-400">{t.ai.reviewNote}</div>}
               </CardContent>

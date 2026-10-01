@@ -9,7 +9,7 @@ Dự án trỏ tới hồ sơ bằng `meta.channel`; không có hồ sơ thì ch
 import datetime as dt
 import re
 
-from . import db, topic
+from . import aiclips, db, topic
 from .i18n import tr
 
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
@@ -23,7 +23,7 @@ _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
 DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
             "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
-            "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2}
+            "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "ai_clips": 0}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -75,6 +75,12 @@ def clean(data: dict) -> dict:
         raise ValueError(tr("Auto-make score must be between 1 and 100 (0 = off)"))
     if not 1 <= d["auto_daily"] <= MAX_AUTO_DAILY:
         raise ValueError(tr("Auto-made videos per day must be between 1 and {n}", n=MAX_AUTO_DAILY))
+    try:
+        d["ai_clips"] = int(d["ai_clips"])
+    except (TypeError, ValueError):
+        raise ValueError(tr("AI clips per video must be a number")) from None
+    if not 0 <= d["ai_clips"] <= aiclips.MAX_PER_VIDEO:
+        raise ValueError(tr("AI clips per video must be between 0 and {n}", n=aiclips.MAX_PER_VIDEO))
     return d
 
 

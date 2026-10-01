@@ -447,7 +447,45 @@ later, each as its own change.
   Verified in the sandbox with real FFmpeg: the four camera moves in both layouts, and a full 80 s video through the real
   API, renderer and placeholder provider, including one scene redone and the voice kept.
 
+## GĐ3 part 2: AI clips (added 01/10/2026)
+
+The owner confirmed "continue with AI video" and "ship it" for the AI clips line that GĐ3 part 1 left for later. Agreed
+shape (proposed in the thread, accepted): clips on some scenes, switched on per channel with a per-video override,
+at most 6 clips of 5 s per video, the post says so.
+
+- **What it is** (`motio/aiclips.py`): fal's H3 Max (`minimax/h3-max/image-to-video`: MiniMax H3 post-trained by fal, 768p,
+  5–15 s, about $0.08 a second) turns a scene's picture into a `DURATION` = 5 s clip. The picture is the first frame, so the
+  look approved at the script gate is kept; the prompt is the scene's prompt plus the scene's camera move written as a
+  motion ("slow push-in", …). The model's sound is dropped with `-an`. Same `FAL_KEY` as the fal pictures; a data URI carries the
+  picture, `enable_safety_checker` stays on. Cached in `out/clips/` by (picture bytes, prompt, seed, endpoint, size, length).
+- **Which scenes** (`aiclips.pick`): `n` of the scenes, evenly spread, scene 1 (the hook) always in. `n` is the project's own
+  `meta.ai.clip_limit` (New video → AI video → *AI clips*, `POST /api/ai {clips}`, CLI `ai "<topic>" [seconds] [clips]`) or,
+  when it has none, the channel profile's `ai_clips` (0–6, default 0 = off, `aiclips.limit`). Only AI videos.
+- **When** (`creator.animate`, called from `pipeline._voice_render_post`): right after the voice, once the script is final
+  (clips are not made before the script gate or the voice, so a gate or a failed voice costs nothing). A missing fal key stops
+  the run before any picture is paid for (`check_ready`; the app and the API say so at creation).
+- **Render**: a clip scene's `render.Piece` has no `motion` (`creator.timeline(scenes=)`), so `render_piece` plays the clip; a
+  scene longer than 5 s holds the clip's last frame (the piece's video is now padded to the scene length, not only 3 s).
+- **Never fails a video**: a clip fal can't make is tried twice, then that scene keeps its picture and camera move, with a log
+  line. Once `MONTHLY_BUDGET_USD` is reached, scenes that would need a new paid clip are left as they are (clips already made are
+  reused); the video is still made.
+- **Cost**: each new clip adds a `usage` row (kind `clip`, 0 characters, `5 s × AI_CLIP_USD_PER_SEC` USD, default 0.08).
+  That puts clips in the Stats page totals, the per-channel table, the per-video cost and the monthly budget; the project
+  page shows the clip count and "Pictures and clips so far". `usage.for_project` adds `clip_usd` so the voice line stays
+  voice-only. Stats labels that said "Voice cost" now say "Cost". Pictures are still not in Stats.
+- **Disclosure**: with clips the post reads "Voix off générée par IA. Images et vidéos générées par IA." (`write_post(ai_clips=)`,
+  kept when the script is edited); without clips nothing changes.
+- **Also fixed**: when the voice step rewrote or trimmed the script, the render got the pictures of the old script (one too few
+  pictures for an 11-line script). `_voice_render_post` now makes (or reuses) the pictures of the final script right after the voice.
+- Not included: clips in news / topic / dub videos (mixed with source footage), choosing which scenes get a clip, a clip
+  length other than 5 s or 1080p, reference images for consistent characters, Recap.
+- Not verified: a real H3 Max call (no fal key or network in the build environment; tests use a mock transport, and FFmpeg
+  really strips the sound and holds the last frame); the endpoint's exact input names are from fal's published schema
+  (`prompt`, `image_url` as a data URI, `duration`, `resolution`, `seed`, `enable_safety_checker`, `prompt_expansion_mode`) and
+  its price is fal's list price, not checked against an invoice; H3 Max's licence for monetized channels was not checked, so
+  clip videos follow the channel's own gates; the app on Mac / Windows.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel
-profile · AI clips (fal H3 Max) inside the pipeline (AI pictures are in: GĐ3 part 1).
+profile · AI clips mixed into news / topic / dub videos (AI pictures and AI clips are in, for AI videos: GĐ3).

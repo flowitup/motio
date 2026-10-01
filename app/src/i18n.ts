@@ -245,6 +245,10 @@ const en = {
       n ? `Sends to ${plural(n, "Postiz channel")} (${mode})` : "Doesn't send automatically",
     summaryWide: (n: number) => `16:9 copy for ${plural(n, "channel")}`,
     summaryAuto: (score: number, n: number) => `Auto-makes topics scoring ${score}+ (up to ${n} a day)`,
+    aiClips: "AI clips per video",
+    aiClipsHint:
+      "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the fal key in Settings.",
+    summaryClips: (n: number) => `${plural(n, "AI clip")} per video`,
     none: "No channel",
     pick: "Channel",
   },
@@ -403,6 +407,11 @@ const en = {
     providerHint: (name: string, usd: string) =>
       `Pictures come from ${name} (Settings → AI pictures): about $${usd} for a 12-scene video.`,
     needsKey: "Add your fal key in Settings → AI pictures first (or choose the placeholder there to try the flow).",
+    clips: "AI clips",
+    clipsHint: (usd: string) =>
+      `How many scenes become short AI video clips instead of a camera move on the picture (0–6). Leave empty to use the channel's setting. About $${usd} a clip, paid only for clips that are new.`,
+    clipsPlaceholder: "Channel",
+    clipsMade: (n: number) => plural(n, "AI clip"),
     make: "Make AI video",
     card: "AI video",
     provider: "Pictures from",
@@ -412,7 +421,7 @@ const en = {
       placeholder: "Placeholder cards",
     } as Record<string, string>,
     scenes: (n: number) => plural(n, "scene"),
-    cost: (usd: number) => `Pictures so far: about $${usd.toFixed(2)}`,
+    cost: (usd: number, clips: boolean) => `${clips ? "Pictures and clips" : "Pictures"} so far: about $${usd.toFixed(2)}`,
     reviewNote:
       "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself, or choose fal in Settings → AI pictures and remake the pictures.",
     scriptHint:
@@ -434,8 +443,8 @@ const en = {
   },
   stats: {
     title: "Stats",
-    hint: "What the videos cost and how many were made. Costs are estimates: ElevenLabs characters times the price in Settings. Claude runs on your Claude plan and isn't counted.",
-    monthCost: "Voice cost this month",
+    hint: "What the videos cost and how many were made. Costs are estimates: ElevenLabs characters times the price in Settings, plus AI clips (seconds times the price in Settings). Claude runs on your Claude plan and isn't counted.",
+    monthCost: "Cost this month",
     monthVideos: "Videos this month",
     monthChars: "Characters read this month",
     perVideo: (usd: number) => `$${usd.toFixed(2)} per video`,
@@ -447,7 +456,7 @@ const en = {
       "Videos made automatically are paused until next month, or until you raise the budget in Settings. Videos you start yourself still run.",
     days: "Last 30 days",
     dayTip: (date: string, videos: number, usd: number) => `${date}: ${plural(videos, "video")}, $${usd.toFixed(2)}`,
-    dayCost: "Voice cost per day",
+    dayCost: "Cost per day",
     byChannel: "By channel, last 30 days",
     noChannel: "No channel, tools",
     colChannel: "Channel",
@@ -591,6 +600,9 @@ const en = {
     imageStyle: "Picture style",
     imageStyleHint: "Added to every picture prompt (English). Leave empty for the default photographic style.",
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
+    clipPrice: "AI clip price ($ per second)",
+    clipPriceHint:
+      "fal H3 Max at 768p is about $0.08 a second and every clip lasts 5 seconds. Used for the cost estimate and the monthly budget.",
     slackTest: "Send a test message",
     slackSaveFirst: "Save first",
     slackSent: "Sent, check Slack",
@@ -872,6 +884,10 @@ const vi: Messages = {
     summaryPostiz: (n: number, mode: string) => (n ? `Tự gửi ${n} kênh Postiz (${mode})` : "Không tự gửi"),
     summaryWide: (n: number) => `Bản 16:9 cho ${n} kênh`,
     summaryAuto: (score: number, n: number) => `Tự làm tin từ ${score} điểm (tối đa ${n} video mỗi ngày)`,
+    aiClips: "Số clip AI mỗi video",
+    aiClipsHint:
+      "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá fal trong Cài đặt.",
+    summaryClips: (n: number) => `${n} clip AI mỗi video`,
     none: "Không dùng kênh",
     pick: "Kênh",
   },
@@ -1030,6 +1046,11 @@ const vi: Messages = {
     providerHint: (name: string, usd: string) =>
       `Ảnh lấy từ ${name} (Cài đặt → Ảnh AI): khoảng $${usd} cho video 12 cảnh.`,
     needsKey: "Hãy nhập khoá fal ở Cài đặt → Ảnh AI trước (hoặc chọn ảnh giữ chỗ ở đó để thử luồng này).",
+    clips: "Clip AI",
+    clipsHint: (usd: string) =>
+      `Bao nhiêu cảnh thành clip video AI ngắn thay vì chuyển động máy quay trên ảnh (0–6). Để trống thì theo cài đặt của kênh. Khoảng $${usd} một clip, chỉ tính clip mới làm.`,
+    clipsPlaceholder: "Theo kênh",
+    clipsMade: (n: number) => `${n} clip AI`,
     make: "Làm video AI",
     card: "Video AI",
     provider: "Ảnh từ",
@@ -1039,7 +1060,7 @@ const vi: Messages = {
       placeholder: "Ảnh giữ chỗ",
     } as Record<string, string>,
     scenes: (n: number) => `${n} cảnh`,
-    cost: (usd: number) => `Tiền ảnh đến giờ: khoảng $${usd.toFixed(2)}`,
+    cost: (usd: number, clips: boolean) => `${clips ? "Tiền ảnh và clip" : "Tiền ảnh"} đến giờ: khoảng $${usd.toFixed(2)}`,
     reviewNote:
       "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal trong Cài đặt → Ảnh AI rồi làm lại ảnh.",
     scriptHint:
@@ -1061,8 +1082,8 @@ const vi: Messages = {
   },
   stats: {
     title: "Thống kê",
-    hint: "Video tốn bao nhiêu và đã làm bao nhiêu. Chi phí là ước lượng: số ký tự ElevenLabs nhân với giá trong Cài đặt. Claude chạy trên gói Claude của bạn nên không tính.",
-    monthCost: "Chi phí giọng đọc tháng này",
+    hint: "Video tốn bao nhiêu và đã làm bao nhiêu. Chi phí là ước lượng: số ký tự ElevenLabs nhân với giá trong Cài đặt, cộng clip AI (số giây nhân với giá trong Cài đặt). Claude chạy trên gói Claude của bạn nên không tính.",
+    monthCost: "Chi phí tháng này",
     monthVideos: "Video tháng này",
     monthChars: "Ký tự đã đọc tháng này",
     perVideo: (usd: number) => `$${usd.toFixed(2)} mỗi video`,
@@ -1074,7 +1095,7 @@ const vi: Messages = {
       "Video tự làm đang tạm dừng tới tháng sau, hoặc tới khi bạn nâng ngân sách trong Cài đặt. Video bạn tự bấm làm vẫn chạy.",
     days: "30 ngày gần nhất",
     dayTip: (date: string, videos: number, usd: number) => `${date}: ${videos} video, $${usd.toFixed(2)}`,
-    dayCost: "Chi phí giọng đọc mỗi ngày",
+    dayCost: "Chi phí mỗi ngày",
     byChannel: "Theo kênh, 30 ngày gần nhất",
     noChannel: "Không kênh, công cụ",
     colChannel: "Kênh",
@@ -1218,6 +1239,9 @@ const vi: Messages = {
     imageStyle: "Phong cách ảnh",
     imageStyleHint: "Được thêm vào mọi prompt ảnh (tiếng Anh). Để trống thì dùng phong cách ảnh chụp mặc định.",
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
+    clipPrice: "Giá clip AI ($ mỗi giây)",
+    clipPriceHint:
+      "fal H3 Max ở 768p khoảng $0,08 một giây và mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng.",
     slackTest: "Gửi tin thử",
     slackSaveFirst: "Lưu trước",
     slackSent: "Đã gửi, xem Slack",

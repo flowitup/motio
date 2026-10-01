@@ -13,6 +13,7 @@ import time
 from . import channels, db, settings
 
 DEFAULT_PRICE = 0.22  # USD cho 1000 ký tự (đơn giá gói Creator của ElevenLabs)
+DEFAULT_CLIP_PRICE = 0.08  # USD mỗi giây clip AI ở 768P (fal, MiniMax H3 Max)
 HALF_PRICE = ("flash", "turbo")  # mô hình tính 0,5 tín dụng / ký tự
 WARN_AT = 0.8  # cảnh báo khi đã dùng 80 % ngân sách tháng
 WINDOW_DAYS = 30
@@ -42,6 +43,11 @@ def price_per_1k() -> float:
     return _number("ELEVENLABS_USD_PER_1K_CHARS", DEFAULT_PRICE)
 
 
+def clip_price() -> float:
+    """USD mỗi giây clip AI (AI_CLIP_USD_PER_SEC)."""
+    return _number("AI_CLIP_USD_PER_SEC", DEFAULT_CLIP_PRICE)
+
+
 def budget() -> float:
     """Ngân sách tháng (USD), 0 = không đặt."""
     return _number("MONTHLY_BUDGET_USD", 0.0)
@@ -55,6 +61,16 @@ def record_tts(chars: int, model: str, voice: str) -> None:
     """Ghi một lần gọi ElevenLabs thành công. Không ghi được (DB bận…) thì bỏ qua, đừng làm hỏng việc đang làm."""
     if chars <= 0:
         return
+    _add("tts", chars, cost(chars, model), model, voice)
+
+
+def record_clip(seconds: float, model: str) -> None:
+    """Ghi một clip AI vừa làm (tiền theo số giây, không có ký tự). Không ghi được thì bỏ qua như record_tts."""
+    if seconds > 0:
+        _add("clip", 0, seconds * clip_price(), model, "")
+
+
+def _add(kind: str, chars: int, usd: float, model: str, voice: str) -> None:
     c = _ctx.get() or {}
     pid = c.get("project_id")
     cid = c.get("channel_id")
@@ -62,7 +78,7 @@ def record_tts(chars: int, model: str, voice: str) -> None:
         proj = db.get_project(pid)
         cid = ((proj or {}).get("meta") or {}).get("channel")
     with contextlib.suppress(Exception):
-        db.add_usage("tts", chars, round(cost(chars, model), 6), pid, cid, c.get("ref"), model, voice)
+        db.add_usage(kind, chars, round(usd, 6), pid, cid, c.get("ref"), model, voice)
 
 
 def _month_start(now: float) -> float:
@@ -82,7 +98,8 @@ def over_budget(now: float | None = None) -> bool:
 
 def for_project(pid: int) -> dict:
     chars, usd = db.usage_sum(0, project_id=pid)
-    return {"tts_chars": chars, "usd": round(usd, 4)}
+    clip_usd = db.usage_sum(0, project_id=pid, kind="clip")[1]
+    return {"tts_chars": chars, "usd": round(usd, 4), "clip_usd": round(clip_usd, 4)}
 
 
 def _day(ts: float) -> str:
