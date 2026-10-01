@@ -158,6 +158,9 @@ export type ChannelInput = {
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
 
 export type PublishMode = "draft" | "schedule" | "now";
+/** Identifier của kênh TikTok trong Postiz (như `postiz.TIKTOK` của engine). */
+export const isTiktok = (provider: string) => provider === "tiktok" || provider === "tiktok-business";
+
 export type PostizChannel = {
   id: string;
   name: string;
@@ -174,6 +177,7 @@ export type PublishRecord = {
   posts: { postId: string; integration: string }[];
   profile?: number; // gửi tự động theo hồ sơ kênh này
   version?: VideoVersion; // "wide" = đã gửi bản 16:9
+  tiktok_inbox?: string[]; // kênh TikTok mà bài vào hộp thư app TikTok (chủ kênh tự đăng trong 24 giờ)
 };
 export type VideoVersion = "vertical" | "wide";
 
@@ -289,6 +293,7 @@ export type Health = {
   js_runtime: string | null;
   claude_cli: string | null;
   postiz: boolean;
+  tiktok_direct: boolean; // TIKTOK_DIRECT_POST: tắt = bài TikTok vào hộp thư app TikTok
   quota_left: number | null;
   data_dir: string;
   disk: { free: number; total: number } | null; // ổ chứa thư mục dữ liệu của engine (byte)

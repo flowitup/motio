@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePicker } from "@/components/voice-picker";
-import { ApiError, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
+import { ApiError, isTiktok, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
 import { t } from "@/i18n";
 
 const MODES: SendMode[] = ["draft", "schedule", "now"];
@@ -89,6 +89,7 @@ function PostizPicker({
     retry: false,
     staleTime: 60_000,
   });
+  const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
   if (error)
     return error instanceof ApiError && error.status === 409 ? (
       <p className="text-sm text-muted-foreground">
@@ -103,6 +104,9 @@ function PostizPicker({
   if (!data) return <Loader2 className="size-4 animate-spin" />;
   if (!data.length) return <p className="text-sm text-muted-foreground">{t.publish.noChannels}</p>;
   const known = new Set(data.map((c) => c.id));
+  // một tài khoản TikTok mỗi kênh: chọn một rồi thì các TikTok khác bị khoá
+  const tiktok = data.find((c) => value.includes(c.id) && isTiktok(c.provider));
+  const manyTiktok = data.filter((c) => isTiktok(c.provider)).length > 1;
   const toggle = (id: string) => {
     if (value.includes(id)) {
       onChange(value.filter((x) => x !== id));
@@ -118,7 +122,7 @@ function PostizPicker({
               type="checkbox"
               className="size-4 accent-primary"
               checked={value.includes(c.id)}
-              disabled={c.disabled}
+              disabled={c.disabled || (isTiktok(c.provider) && !!tiktok && tiktok.id !== c.id)}
               onChange={() => toggle(c.id)}
             />
             <span>{c.name}</span>
@@ -145,6 +149,8 @@ function PostizPicker({
             {id}
           </label>
         ))}
+      {manyTiktok && <p className="text-xs text-muted-foreground">{t.channels.oneTiktok}</p>}
+      {tiktok && health && !health.tiktok_direct && <p className="text-xs text-muted-foreground">{t.publish.tiktokInbox}</p>}
     </div>
   );
 }

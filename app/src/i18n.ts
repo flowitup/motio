@@ -219,6 +219,7 @@ const en = {
     postiz: "Send to Postiz automatically",
     postizHint: "Sends when the video is approved, or as soon as it's rendered if video approval is off. Each project is sent automatically only once.",
     postizNone: "Don't send automatically",
+    oneTiktok: "One TikTok account per channel: the same video on several TikTok accounts links them and cuts their reach.",
     sendMode: "Send as",
     sendModes: { draft: "Draft", schedule: "Schedule", now: "Post now" } as Record<string, string>,
     sendModeHint: {
@@ -541,6 +542,10 @@ const en = {
     history: "Sent to Postiz",
     version: "Video",
     versionHint: "The 16:9 copy suits YouTube videos and Facebook pages; 9:16 suits TikTok, Reels and Shorts.",
+    oneTiktok: "One TikTok account per video. Facebook Pages and other channels have no limit.",
+    tiktokInbox:
+      "TikTok: the video lands in the TikTok app inbox, not on the profile. Open TikTok within 24 h, finish the post and turn on “AI-generated content”. For scheduled and immediate posts, Slack tells you when it's on its way.",
+    inbox: "TikTok inbox",
   },
   settings: {
     title: "Settings",
@@ -596,6 +601,9 @@ const en = {
     postiz: "Posting (Postiz)",
     postizUrl: "Postiz API URL",
     postizHint: "E.g. https://postiz.example.com/api. An engine running on the server is already set up.",
+    tiktokDirect: "TikTok Direct Post",
+    tiktokDirectHint:
+      "Off: TikTok posts land in the TikTok app inbox and you finish each one in the app within 24 h (TikTok blocks Direct Post from apps it hasn't audited, and keeps at most 5 waiting a day). Turn on only once TikTok has audited your Postiz TikTok app: posts then go live with the AI label set.",
     slack: "Slack alerts",
     slackHint: "Incoming Webhook link (https://hooks.slack.com/…). Motio posts when a script or video waits for approval, when a video is ready (and whether Postiz took it) and when one fails. It works while the app is closed if the engine runs on a server.",
     images: "AI pictures",
@@ -864,6 +872,7 @@ const vi: Messages = {
     postiz: "Tự gửi sang Postiz",
     postizHint: "Gửi khi video được duyệt, hoặc ngay khi dựng xong nếu tắt duyệt video. Mỗi dự án chỉ tự gửi một lần.",
     postizNone: "Không tự gửi",
+    oneTiktok: "Mỗi kênh một tài khoản TikTok: cùng một video trên nhiều tài khoản TikTok làm TikTok gộp chúng lại và giảm lượt xem.",
     sendMode: "Cách gửi",
     sendModes: { draft: "Nháp", schedule: "Lên lịch", now: "Đăng ngay" } as Record<string, string>,
     sendModeHint: {
@@ -1185,6 +1194,10 @@ const vi: Messages = {
     history: "Đã gửi sang Postiz",
     version: "Video",
     versionHint: "Bản 16:9 hợp với video YouTube và trang Facebook; 9:16 hợp với TikTok, Reels và Shorts.",
+    oneTiktok: "Mỗi video một tài khoản TikTok. Page Facebook và kênh khác không giới hạn.",
+    tiktokInbox:
+      "TikTok: video vào hộp thư app TikTok, chưa lên trang. Mở TikTok trong 24 giờ, hoàn tất bài và bật “Nội dung do AI tạo”. Với bài lên lịch hoặc đăng ngay, Slack báo khi video đang tới.",
+    inbox: "hộp thư TikTok",
   },
   settings: {
     title: "Cài đặt",
@@ -1240,6 +1253,9 @@ const vi: Messages = {
     postiz: "Đăng bài (Postiz)",
     postizUrl: "URL API Postiz",
     postizHint: "Vd. https://postiz.example.com/api. Engine chạy trên server đã được cấu hình sẵn.",
+    tiktokDirect: "TikTok Direct Post",
+    tiktokDirectHint:
+      "Tắt: bài TikTok vào hộp thư app TikTok, bạn hoàn tất từng bài trong app trong 24 giờ (TikTok chặn Direct Post từ app chưa audit, và chỉ giữ tối đa 5 bài chờ mỗi ngày). Chỉ bật khi TikTok đã audit app TikTok trong Postiz của bạn: bài sẽ lên trang ngay, có sẵn nhãn AI.",
     slack: "Thông báo Slack",
     slackHint: "Link Incoming Webhook (https://hooks.slack.com/…). Motio báo khi kịch bản hoặc video chờ duyệt, khi video xong (kèm Postiz đã nhận chưa) và khi có video lỗi. Engine chạy trên server thì vẫn báo lúc app đóng.",
     images: "Ảnh AI",
