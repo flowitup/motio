@@ -227,6 +227,7 @@ export type AiView = {
   scenes: number | null;
   clips: number | null; // số cảnh đang dùng clip AI ở lần dựng gần nhất
   clip_limit: number | null; // số clip riêng của video này; null = theo kênh
+  clip_provider: string | null; // nhà cung cấp của các clip ở lần dựng gần nhất (fal | heygen)
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 

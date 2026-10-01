@@ -1,5 +1,6 @@
 """CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
-ai "<topic>" [seconds] [ai clips] | dub <link> [start end] | rerender <id> | retry <id> [step] | approve <id> [nosend] |
+ai "<topic>" [seconds] [ai clips] | clipcheck <picture> ["<scene>"] [fal | heygen] | dub <link> [start end] |
+rerender <id> | retry <id> [step] | approve <id> [nosend] |
 delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
 
 produce / topic / ai / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
@@ -74,6 +75,19 @@ def main(argv: list[str]) -> None:
         print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "clipcheck":  # clipcheck <ảnh> ["<cảnh>"] [fal | heygen]: thử một clip 5 s (tốn tiền), so nhà cung cấp
+        from pathlib import Path
+
+        from . import aiclips
+        pic = Path(argv[1]) if len(argv) > 1 else None
+        if not pic or not pic.is_file():
+            sys.exit('Usage: clipcheck <picture file> ["<what is in the scene>"] [fal | heygen]')
+        try:
+            path, usd = aiclips.trial(pic, aiclips.prompt(argv[2] if len(argv) > 2 else "A cinematic shot", "zoom_in"),
+                                      argv[3] if len(argv) > 3 else aiclips.provider(), config.DATA / "clipcheck")
+        except (ValueError, aiclips.ClipError) as e:
+            sys.exit(str(e))
+        print(f"{path} · about ${usd:.2f}")
     elif cmd == "dub":  # dub <link> [đầu cuối]: lồng tiếng Pháp một video
         from . import channels, dub, pipeline
         try:

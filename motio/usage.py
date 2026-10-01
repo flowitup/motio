@@ -14,6 +14,8 @@ from . import channels, db, settings
 
 DEFAULT_PRICE = 0.22  # USD cho 1000 ký tự (đơn giá gói Creator của ElevenLabs)
 DEFAULT_CLIP_PRICE = 0.08  # USD mỗi giây clip AI ở 768P (fal, MiniMax H3 Max)
+# HeyGen Video 1 (768p): 0.01 đến hết tháng 10/2026, giá thường 0.02: tính theo giá thường cho khỏi hụt ngân sách
+DEFAULT_CLIP_PRICES = {"fal": DEFAULT_CLIP_PRICE, "heygen": 0.02}
 HALF_PRICE = ("flash", "turbo")  # mô hình tính 0,5 tín dụng / ký tự
 WARN_AT = 0.8  # cảnh báo khi đã dùng 80 % ngân sách tháng
 WINDOW_DAYS = 30
@@ -43,9 +45,10 @@ def price_per_1k() -> float:
     return _number("ELEVENLABS_USD_PER_1K_CHARS", DEFAULT_PRICE)
 
 
-def clip_price() -> float:
-    """USD mỗi giây clip AI (AI_CLIP_USD_PER_SEC)."""
-    return _number("AI_CLIP_USD_PER_SEC", DEFAULT_CLIP_PRICE)
+def clip_price(provider: str | None = None) -> float:
+    """USD mỗi giây clip AI (AI_CLIP_USD_PER_SEC); chưa đặt thì giá niêm yết của nhà cung cấp (mặc định: đang chọn)."""
+    provider = (provider or settings.get("CLIP_PROVIDER") or "fal").strip().lower()
+    return _number("AI_CLIP_USD_PER_SEC", DEFAULT_CLIP_PRICES.get(provider, DEFAULT_CLIP_PRICE))
 
 
 def budget() -> float:
@@ -64,10 +67,10 @@ def record_tts(chars: int, model: str, voice: str) -> None:
     _add("tts", chars, cost(chars, model), model, voice)
 
 
-def record_clip(seconds: float, model: str) -> None:
+def record_clip(seconds: float, model: str, provider: str | None = None) -> None:
     """Ghi một clip AI vừa làm (tiền theo số giây, không có ký tự). Không ghi được thì bỏ qua như record_tts."""
     if seconds > 0:
-        _add("clip", 0, seconds * clip_price(), model, "")
+        _add("clip", 0, seconds * clip_price(provider), model, "")
 
 
 def _add(kind: str, chars: int, usd: float, model: str, voice: str) -> None:

@@ -580,6 +580,22 @@ def test_a_rerender_reuses_the_clips_and_does_not_pay_again(clip_fake):
     assert "2 of 2 AI clips ready · about $0.00" in p["log"]
 
 
+def test_heygen_clips_never_go_out_without_approval(clip_fake, fake_postiz, monkeypatch):
+    _fal(monkeypatch)  # the pictures are from the cleared provider: only the clips are in question
+    monkeypatch.setenv("CLIP_PROVIDER", "heygen")
+    monkeypatch.setenv("HEYGEN_API_KEY", "hg-key")
+    pid = creator.create("Les pandas", 80, 2)
+    channels.attach(pid, _channel())  # no video gate and a Postiz channel: a normal video would be sent at once
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "video" and _posts(fake_postiz) == 0
+    assert p["meta"]["ai"]["clip_provider"] == "heygen" and creator.view(p)["clip_provider"] == "heygen"
+    assert "terms for monetized channels are not checked yet" in p["log"]
+    assert usage.for_project(pid)["clip_usd"] == pytest.approx(0.2)  # 2 clips × 5 s × $0.02
+    pipeline.approve_video(pid)
+    assert db.get_project(pid)["status"] == "done" and _posts(fake_postiz) == 1
+
+
 def test_a_clip_fal_cannot_make_keeps_its_camera_move_and_the_video_finishes(clip_fake):
     clip_fake["clips"]["fail"] = {2, 3}  # scene 3 fails twice (one retry); scenes 0 and 6 work
     pid = creator.create("Les pandas", 80, 3)

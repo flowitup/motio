@@ -673,6 +673,8 @@ def _deliver(pid: int, ch: dict | None) -> None:
         if held and not ch["gate_video"]:
             why = (tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it "
                       "without approval)") if dub.needs_review(proj) else
+                   tr(" (clips from a provider whose terms for monetized channels are not checked yet: approve the "
+                      "video yourself before it goes out)") if creator.clips_need_review(proj) else
                    tr(" (pictures from a provider that isn't cleared for monetized channels: approve the video "
                       "yourself before it goes out)"))
         _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"

@@ -84,7 +84,15 @@ def needs_review(proj: dict) -> bool:
     """Pictures from a provider that isn't cleared for a monetized channel: no auto-send, the video gate is forced."""
     if not is_ai(proj):
         return False
-    return images.needs_review(((proj.get("meta") or {}).get("ai") or {}).get("provider") or images.provider())
+    ai = (proj.get("meta") or {}).get("ai") or {}
+    return (images.needs_review(ai.get("provider") or images.provider())
+            or bool(ai.get("clips") and aiclips.needs_review(ai.get("clip_provider"))))
+
+
+def clips_need_review(proj: dict) -> bool:
+    """True when it is the clips (not the pictures) that stop the video at the gate: HeyGen clips, terms not cleared."""
+    ai = (proj.get("meta") or {}).get("ai") or {}
+    return bool(is_ai(proj) and ai.get("clips") and aiclips.needs_review(ai.get("clip_provider")))
 
 
 def tidy(plan: dict) -> dict:
@@ -180,11 +188,12 @@ def animate(pid: int, plan: dict, scenes: list[dict], out: Path, step, want: int
             continue
         if new:
             fresh += 1
-            usage.record_clip(aiclips.DURATION, aiclips.ENDPOINT)
+            usage.record_clip(aiclips.DURATION, aiclips.endpoint(), aiclips.provider())
         made += 1
         sources[i] = {**scenes[i], "path": str(path), "clip": True}
     cost = aiclips.cost(fresh)
-    ai = {**((db.get_project(pid) or {}).get("meta", {}).get("ai") or {}), "clips": made}
+    ai = {**((db.get_project(pid) or {}).get("meta", {}).get("ai") or {}), "clips": made,
+          "clip_provider": aiclips.provider() if made else None}
     ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3)
     step("Clips", CLIPS_AT, tr("{made} of {total} AI clips ready · about ${cost}", made=made, total=len(chosen),
                                cost=f"{cost:.2f}"), ai=ai)
@@ -235,7 +244,7 @@ def view(proj: dict) -> dict | None:
     name = ai.get("provider") or images.provider()
     return {"topic": meta.get("topic"), "provider": name, "needs_review": needs_review(proj),
             "cost": ai.get("cost"), "scenes": ai.get("scenes"), "clips": ai.get("clips"),
-            "clip_limit": ai.get("clip_limit")}
+            "clip_limit": ai.get("clip_limit"), "clip_provider": ai.get("clip_provider")}
 
 
 def media(path: Path) -> str | None:

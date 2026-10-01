@@ -132,7 +132,11 @@ function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; c
           {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
         </p>
         {video && targets > 0 && p.dub?.needs_review && <p className="text-muted-foreground">{t.dub.reviewNote}</p>}
-        {video && targets > 0 && p.ai?.needs_review && <p className="text-muted-foreground">{t.ai.reviewNote}</p>}
+        {video && targets > 0 && p.ai?.needs_review && (
+          <p className="text-muted-foreground">
+            {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {video ? (
             <>
@@ -409,10 +413,14 @@ export default function ProjectDetailPage() {
                 <div className="text-muted-foreground">
                   {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
                   {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
-                  {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}`}
+                  {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}${p.ai.clip_provider ? ` (${t.ai.clipProviders[p.ai.clip_provider] ?? p.ai.clip_provider})` : ""}`}
                   {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}
                 </div>
-                {p.ai.needs_review && <div className="text-amber-700 dark:text-amber-400">{t.ai.reviewNote}</div>}
+                {p.ai.needs_review && (
+                  <div className="text-amber-700 dark:text-amber-400">
+                    {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

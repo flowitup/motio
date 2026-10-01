@@ -447,6 +447,7 @@ VI = {
     "pictures": "ảnh",
     "camera moves": "chuyển động máy quay",
     "IMAGE_PROVIDER must be one of {choices}": "IMAGE_PROVIDER phải là một trong: {choices}",
+    "CLIP_PROVIDER must be one of {choices}": "CLIP_PROVIDER phải là một trong: {choices}",
     "Add your fal key in Settings → Image provider (or choose the Placeholder provider to try the flow)":
         "Hãy nhập khoá fal trong Cài đặt → Nhà cung cấp ảnh (hoặc chọn Ảnh giữ chỗ để thử luồng này)",
     "The Modal provider needs the `modal` Python package and a Modal login: it runs from the dev engine or the server, "
@@ -467,6 +468,21 @@ VI = {
         "Clip AI cần khoá fal của bạn: hãy nhập trong Cài đặt → Nhà cung cấp ảnh, hoặc đặt số clip AI về 0",
     "AI clips per video must be a number": "Số clip AI mỗi video phải là một số",
     "AI clips per video must be between 0 and {n}": "Số clip AI mỗi video phải từ 0 đến {n}",
+    "AI clips need your HeyGen key: add it in Settings → AI pictures, or set AI clips to 0":
+        "Clip AI cần khoá HeyGen của bạn: hãy nhập trong Cài đặt → Ảnh AI, hoặc đặt số clip AI về 0",
+    "Could not reach HeyGen: {error}": "Không kết nối được HeyGen: {error}",
+    "HeyGen refused the request ({error}): check the API key":
+        "HeyGen từ chối yêu cầu ({error}): hãy kiểm tra khoá API",
+    "HeyGen has no credit left: top up the API balance in your HeyGen account":
+        "HeyGen hết tiền: hãy nạp thêm vào số dư API trong tài khoản HeyGen",
+    "HeyGen could not make the clip: {error}": "HeyGen không làm được clip: {error}",
+    "HeyGen returned no clip": "HeyGen không trả clip nào",
+    "HeyGen took too long to make the clip": "HeyGen làm clip quá lâu",
+    "Could not download the clip from HeyGen: {error}": "Không tải được clip từ HeyGen: {error}",
+    "The clip from HeyGen is not a readable video": "Clip từ HeyGen không phải video đọc được",
+    " (clips from a provider whose terms for monetized channels are not checked yet: approve the video yourself "
+    "before it goes out)":
+        " (clip của nhà cung cấp chưa kiểm tra điều khoản cho kênh kiếm tiền: bạn phải tự duyệt video trước khi đăng)",
     "Could not reach fal: {error}": "Không kết nối được fal: {error}",
     "fal could not make the clip: {error}": "fal không làm được clip: {error}",
     "fal returned no clip (the prompt may have been filtered)": "fal không trả clip nào (prompt có thể bị lọc)",

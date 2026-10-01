@@ -435,6 +435,7 @@ const en = {
     providerHint: (name: string, usd: string) =>
       `Pictures come from ${name} (Settings → AI pictures): about $${usd} for a 12-scene video.`,
     needsKey: "Add your fal key in Settings → AI pictures first (or choose the placeholder there to try the flow).",
+    needsClipKey: (name: string) => `Add your ${name} key in Settings → AI pictures first, or set AI clips to 0.`,
     clips: "AI clips",
     clipsHint: (usd: string) =>
       `How many scenes become short AI video clips instead of a camera move on the picture (0–6). Leave empty to use the channel's setting. About $${usd} a clip, paid only for clips that are new.`,
@@ -452,6 +453,10 @@ const en = {
     cost: (usd: number, clips: boolean) => `${clips ? "Pictures and clips" : "Pictures"} so far: about $${usd.toFixed(2)}`,
     reviewNote:
       "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself, or choose fal in Settings → AI pictures and remake the pictures.",
+    clipReviewNote:
+      "The clips come from a provider whose terms for monetized channels aren't checked yet, so Motio doesn't send this video on its own. Approve it yourself, or choose fal as the clip provider in Settings → AI pictures and remake the clips.",
+    clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
+    clipsFrom: "Clips from",
     scriptHint:
       "Each line is a scene: what the voice says, the English prompt of its picture and a slow camera move. Edit what you like, then click “Save and re-render”: only scenes whose prompt changed get a new picture.",
     style: "Visual style",
@@ -635,7 +640,11 @@ const en = {
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
     clipPrice: "AI clip price ($ per second)",
     clipPriceHint:
-      "fal H3 Max at 768p is about $0.08 a second and every clip lasts 5 seconds. Used for the cost estimate and the monthly budget.",
+      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02 ($0.01 until the end of October 2026); every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the provider below.",
+    clipProvider: "Clip provider",
+    clipProviderHint:
+      "Who turns a scene's picture into a 5-second clip. HeyGen Video 1 is much cheaper, but its terms for monetized channels are not checked yet, so videos with HeyGen clips stop at the video approval.",
+    heygenKeyHint: "From app.heygen.com → Developers → API. Pay-as-you-go: top up the API balance ($5 minimum).",
     slackTest: "Send a test message",
     slackSaveFirst: "Save first",
     slackSent: "Sent, check Slack",
@@ -1107,6 +1116,7 @@ const vi: Messages = {
     providerHint: (name: string, usd: string) =>
       `Ảnh lấy từ ${name} (Cài đặt → Ảnh AI): khoảng $${usd} cho video 12 cảnh.`,
     needsKey: "Hãy nhập khoá fal ở Cài đặt → Ảnh AI trước (hoặc chọn ảnh giữ chỗ ở đó để thử luồng này).",
+    needsClipKey: (name: string) => `Hãy nhập khoá ${name} ở Cài đặt → Ảnh AI trước, hoặc đặt số clip AI về 0.`,
     clips: "Clip AI",
     clipsHint: (usd: string) =>
       `Bao nhiêu cảnh thành clip video AI ngắn thay vì chuyển động máy quay trên ảnh (0–6). Để trống thì theo cài đặt của kênh. Khoảng $${usd} một clip, chỉ tính clip mới làm.`,
@@ -1124,6 +1134,10 @@ const vi: Messages = {
     cost: (usd: number, clips: boolean) => `${clips ? "Tiền ảnh và clip" : "Tiền ảnh"} đến giờ: khoảng $${usd.toFixed(2)}`,
     reviewNote:
       "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal trong Cài đặt → Ảnh AI rồi làm lại ảnh.",
+    clipReviewNote:
+      "Các clip đến từ nhà cung cấp chưa kiểm tra điều khoản cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal làm nhà cung cấp clip trong Cài đặt → Ảnh AI rồi làm lại clip.",
+    clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
+    clipsFrom: "Clip từ",
     scriptHint:
       "Mỗi dòng là một cảnh: lời đọc, prompt ảnh tiếng Anh và chuyển động máy quay chậm. Sửa tuỳ ý rồi bấm “Lưu và dựng lại”: chỉ cảnh nào đổi prompt mới được làm ảnh mới.",
     style: "Phong cách hình",
@@ -1307,7 +1321,11 @@ const vi: Messages = {
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
     clipPrice: "Giá clip AI ($ mỗi giây)",
     clipPriceHint:
-      "fal H3 Max ở 768p khoảng $0,08 một giây và mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng.",
+      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02 ($0,01 đến hết tháng 10/2026); mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp bên dưới.",
+    clipProvider: "Nhà cung cấp clip",
+    clipProviderHint:
+      "Nơi biến ảnh của cảnh thành clip 5 giây. HeyGen Video 1 rẻ hơn nhiều nhưng chưa kiểm tra điều khoản cho kênh kiếm tiền, nên video có clip HeyGen dừng ở bước duyệt video.",
+    heygenKeyHint: "Lấy ở app.heygen.com → Developers → API. Trả theo dùng: nạp số dư API (tối thiểu $5).",
     slackTest: "Gửi tin thử",
     slackSaveFirst: "Lưu trước",
     slackSent: "Đã gửi, xem Slack",
