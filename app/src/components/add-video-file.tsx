@@ -1,5 +1,5 @@
 import { Loader2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Api } from "@/lib/api";
 import { t } from "@/i18n";
@@ -9,16 +9,25 @@ export function AddVideoFile({ api, onAdded, disabled }: { api: Api; onAdded: (l
   const input = useRef<HTMLInputElement>(null);
   const [pct, setPct] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const upload = useRef<AbortController | null>(null);
+  // The panel that holds this button can close (or another trend's panel can open) while a big file is still on its way:
+  // the upload stops with it, so a finished file never lands in the wrong list of links.
+  useEffect(() => () => upload.current?.abort(), []);
   const send = async (file: File) => {
+    const ctl = new AbortController();
+    upload.current = ctl;
     setError(null);
     setPct(0);
     try {
-      onAdded((await api.uploadVideo(file, setPct)).link);
+      const done = await api.uploadVideo(file, setPct, ctl.signal);
+      if (!ctl.signal.aborted) onAdded(done.link);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setPct(null);
-      if (input.current) input.current.value = "";
+      if (!ctl.signal.aborted) {
+        setPct(null);
+        if (input.current) input.current.value = "";
+      }
     }
   };
   return (

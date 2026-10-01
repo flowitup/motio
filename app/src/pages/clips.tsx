@@ -21,6 +21,9 @@ const ALL = "__all__";
 const TABS: ClipStatus[] = ["new", "used", "hidden"];
 
 const watchName = (w: Watch) => (w.kind === "trending" ? t.watches.lists[w.target] : undefined) ?? (w.name || w.target);
+/** The followed source a clip came from; a Bilibili list is named in the UI language, not with the engine's English text. */
+const clipSource = (c: Clip) =>
+  (c.watch_kind === "trending" && c.watch_target ? t.watches.lists[c.watch_target] : undefined) ?? c.watch_name;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
 /** Danh sách nguồn theo dõi + ô thêm nguồn. */
@@ -48,7 +51,9 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
-  const error = add.error ?? addList.error ?? patch.error ?? remove.error;
+  // the error of the action tried last: an older failure of another form must not hide it, nor outlive a later success
+  const latest = [add, addList, patch, remove].reduce((a, b) => (b.submittedAt > a.submittedAt ? b : a));
+  const error = latest.error;
 
   return (
     <CardContent className="grid grid-cols-[minmax(0,1fr)] gap-4">
@@ -202,7 +207,7 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             {clip.category && <span>· {clip.category}</span>}
             {clip.rank != null && <span>· {t.clips.rank(clip.rank)}</span>}
             {clip.pubdate != null && <span>· {t.clips.posted} {t.age(clip.pubdate)}</span>}
-            {clip.watch_name && clip.watch_name !== clip.uploader && <span>· {clip.watch_name}</span>}
+            {clipSource(clip) && clipSource(clip) !== clip.uploader && <span>· {clipSource(clip)}</span>}
             <span>· {t.age(clip.first_seen)}</span>
             <ExternalA href={clip.url} className="inline-flex items-center gap-1">
               <ExternalLink className="size-3" />

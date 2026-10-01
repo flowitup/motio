@@ -521,7 +521,7 @@ project files. Built in this batch:
 - **Bilibili trending lists as followed sources** (`motio/trending.py`): `bilibili:ranking:<rid>` (17 categories),
   `bilibili:popular`, `bilibili:weekly`. Plain JSON, no login and no signature (the weekly list wants anonymous buvid
   cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing "no reprint" or paid, nothing
-  under 15 s; rights stay *unknown*. Quick-add buttons on the New videos page; source kind `trending` in `watch.py`.
+  under 15 s; rights stay *unknown*. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
 - **HeyGen Video 1 as a second AI clip provider** (`aiclips.py`, `CLIP_PROVIDER`, `HEYGEN_API_KEY`): `POST /v3/models/videos`
   `image_to_video` with the scene picture as the first frame, 5 s, 768p, polled every 3 s up to 420 s, sound dropped. The
   output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is

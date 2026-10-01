@@ -79,7 +79,7 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
                   {s.delogo && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400"> · {t.delogo.cleaned}</span>
                   )}
-                  {s.title && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
+                  {s.title && !s.url.startsWith("file:") && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
                 </div>
                 <Link
                   to={`/delogo?target=p${p.id}-${i}`}
@@ -127,7 +127,7 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
 }
 
 /** Kết quả kiểm tra chất lượng của lần dựng gần nhất (qa.py): mức chung và từng mục. */
-function QualityCard({ qa }: { qa: NonNullable<ProjectDetail["meta"]["qa"]> }) {
+function QualityCard({ qa, held }: { qa: NonNullable<ProjectDetail["meta"]["qa"]>; held: boolean }) {
   const tone = { ok: "text-emerald-700 dark:text-emerald-400", warn: "text-amber-700 dark:text-amber-400", fail: "text-destructive" };
   const Icon = { ok: CircleCheck, warn: TriangleAlert, fail: OctagonAlert };
   return (
@@ -137,7 +137,7 @@ function QualityCard({ qa }: { qa: NonNullable<ProjectDetail["meta"]["qa"]> }) {
         <span className={`text-sm font-medium ${tone[qa.level]}`}>{t.qa.level[qa.level] ?? qa.level}</span>
       </CardHeader>
       <CardContent className="grid gap-1.5 text-sm">
-        {qa.level === "fail" && <p className="text-muted-foreground">{t.qa.failNote}</p>}
+        {qa.level === "fail" && held && <p className="text-muted-foreground">{t.qa.failNote}</p>}
         {qa.checks
           .filter((c) => c.level !== "ok")
           .map((c) => {
@@ -391,7 +391,7 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-5">
-          {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} />}
+          {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} held={p.status === "review" && p.meta.review === "video"} />}
 
           {post && (
             <Card>

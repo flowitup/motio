@@ -275,7 +275,7 @@ const en = {
     summaryAuto: (score: number, n: number) => `Auto-makes topics scoring ${score}+ (up to ${n} a day)`,
     aiClips: "AI clips per video",
     aiClipsHint:
-      "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the fal key in Settings.",
+      "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each, or HeyGen Video 1, about $0.10 each: pick the provider in Settings) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the key of the chosen provider in Settings.",
     summaryClips: (n: number) => `${plural(n, "AI clip")} per video`,
     none: "No channel",
     pick: "Channel",
@@ -650,7 +650,7 @@ const en = {
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
     clipPrice: "AI clip price ($ per second)",
     clipPriceHint:
-      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02 ($0.01 until the end of October 2026); every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the provider below.",
+      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02 ($0.01 until the end of October 2026); every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the clip provider chosen above.",
     clipProvider: "Clip provider",
     clipProviderHint:
       "Who turns a scene's picture into a 5-second clip. HeyGen Video 1 is much cheaper, but its terms for monetized channels are not checked yet, so videos with HeyGen clips stop at the video approval.",
@@ -824,7 +824,7 @@ const vi: Messages = {
       "bilibili:ranking:129": "Xếp hạng · Nhảy",
       "bilibili:ranking:119": "Xếp hạng · Meme",
       "bilibili:popular": "Thịnh hành",
-      "bilibili:weekly": "Mỗi tuần một xem",
+      "bilibili:weekly": "Nên xem mỗi tuần",
     } as Record<string, string>,
   },
   projects: {
@@ -966,7 +966,7 @@ const vi: Messages = {
     summaryAuto: (score: number, n: number) => `Tự làm tin từ ${score} điểm (tối đa ${n} video mỗi ngày)`,
     aiClips: "Số clip AI mỗi video",
     aiClipsHint:
-      "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá fal trong Cài đặt.",
+      "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip, hoặc HeyGen Video 1, khoảng $0,10 một clip: chọn nhà cung cấp trong Cài đặt) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá của nhà cung cấp đã chọn trong Cài đặt.",
     summaryClips: (n: number) => `${n} clip AI mỗi video`,
     none: "Không dùng kênh",
     pick: "Kênh",
@@ -1341,7 +1341,7 @@ const vi: Messages = {
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
     clipPrice: "Giá clip AI ($ mỗi giây)",
     clipPriceHint:
-      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02 ($0,01 đến hết tháng 10/2026); mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp bên dưới.",
+      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02 ($0,01 đến hết tháng 10/2026); mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp clip đã chọn ở trên.",
     clipProvider: "Nhà cung cấp clip",
     clipProviderHint:
       "Nơi biến ảnh của cảnh thành clip 5 giây. HeyGen Video 1 rẻ hơn nhiều nhưng chưa kiểm tra điều khoản cho kênh kiếm tiền, nên video có clip HeyGen dừng ở bước duyệt video.",

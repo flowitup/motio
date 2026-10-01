@@ -407,7 +407,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/watches", status_code=201, dependencies=[Depends(auth)])
     def add_watch(body: WatchIn):
-        """Thêm nguồn rồi kiểm tra ngay trong nền: lần đầu hiện 10 video mới nhất."""
+        """Thêm nguồn rồi kiểm tra ngay trong nền: lần đầu hiện 10 video mới nhất (danh sách trending Bilibili: 20)."""
         try:
             wid = watch.add(body.target, body.site, body.rights)
         except ValueError as e:

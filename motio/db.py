@@ -321,7 +321,8 @@ def score_clip(cid: str, title_fr: str | None, score: int | None, reason: str | 
 
 
 def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 200) -> list[dict]:
-    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.rights AS rights "
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target, "
+           "watch.rights AS rights "
            "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.status = ?")
     args: list = [status]
     if watch_id:

@@ -353,6 +353,8 @@ export type Clip = {
   id: string;
   watch_id: number | null;
   watch_name: string | null;
+  watch_kind?: string | null; // "trending" = a Bilibili list: the app translates its name from watch_target
+  watch_target?: string | null;
   site: Site;
   url: string;
   title: string;
@@ -430,10 +432,12 @@ export function makeApi(url: string, token: string) {
     });
   }
   /** Gửi form multipart (công cụ lẻ) bằng XHR để có tiến trình tải file lên. */
-  function postForm<T>(path: string, form: FormData, onProgress?: (pct: number) => void): Promise<T> {
+  function postForm<T>(path: string, form: FormData, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<T> {
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
       x.open("POST", url + path);
+      signal?.addEventListener("abort", () => x.abort());
+      x.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
       x.setRequestHeader("Authorization", `Bearer ${token}`);
       x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((100 * e.loaded) / e.total));
       x.onload = () => {
@@ -452,10 +456,10 @@ export function makeApi(url: string, token: string) {
   }
   return {
     /** Thêm file video có sẵn (tự tải từ Douyin hay nơi khác) làm nguồn. */
-    uploadVideo: (file: File, onProgress?: (pct: number) => void) => {
+    uploadVideo: (file: File, onProgress?: (pct: number) => void, signal?: AbortSignal) => {
       const form = new FormData();
       form.append("file", file);
-      return postForm<UploadedVideo>("/api/uploads", form, onProgress);
+      return postForm<UploadedVideo>("/api/uploads", form, onProgress, signal);
     },
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),

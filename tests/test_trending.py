@@ -135,6 +135,9 @@ def test_a_trending_list_is_a_watch_source(bili):
     assert (c["likes"], c["category"], c["rank"], c["views"], c["watch_name"]) == (
         5000, "影视杂谈", 1, 100_000, "Bilibili ranking · Film & TV")
 
+    shown = db.list_clips("new")[0]  # says which list it came from, so the app can name it in its own language
+    assert (shown["watch_kind"], shown["watch_target"]) == ("trending", "bilibili:ranking:181")
+
     bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [_video("BV1new"), *top]}}
     assert watch.check(db.get_watch(wid))["new"] == ["bilibili:BV1new"]  # only what entered the list
 
