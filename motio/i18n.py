@@ -528,4 +528,13 @@ VI = {
         "Tiêu đề gần giống dự án #{n} ({days} ngày trước)",
     "The script is very close to project #{n} ({days} d ago)":
         "Kịch bản rất giống dự án #{n} ({days} ngày trước)",
+    # A video file added by hand as a source (localfile.py)
+    "video file": "file video",
+    "The video file is no longer here: add it again": "File video không còn ở đây: hãy thêm lại",
+    "This video file cannot be read: {error}": "Không đọc được file video này: {error}",
+    "This file has no video to use": "File này không có hình để dùng",
+    "Douyin lets only a logged-in browser download this. Download the video yourself and add the file, or set a "
+    "cookies file in Settings":
+        "Douyin chỉ cho trình duyệt đã đăng nhập tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt file "
+        "cookie trong Cài đặt",
 }

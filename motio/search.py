@@ -13,8 +13,9 @@ from urllib.parse import urlparse
 
 from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
+from yt_dlp.utils import DownloadError
 
-from . import config
+from . import config, localfile
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -80,7 +81,9 @@ def clean_links(links: list[str]) -> list[str]:
         url = (raw or "").strip()
         if not url:
             continue
-        if not re.match(r"^https?://[^\s/]+\.[^\s]+$", url):
+        if localfile.parse(url):  # a video file added in the app
+            url = localfile.check(url)
+        elif not re.match(r"^https?://[^\s/]+\.[^\s]+$", url):
             raise ValueError(tr("Invalid link: {url}", url=url[:120]))
         if url not in out:
             out.append(url)
@@ -151,6 +154,11 @@ def _is_bilibili(url: str) -> bool:
     return host == "b23.tv" or host == "bilibili.com" or host.endswith(".bilibili.com")
 
 
+def _is_douyin(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host.endswith(("douyin.com", "iesdouyin.com"))
+
+
 def _cookie_opts() -> dict:
     """Cookie đăng nhập cho yt-dlp (Douyin, X, không gian Bilibili hay đòi): file YTDLP_COOKIES_FILE nếu có, không thì
     phiên của trình duyệt trong YTDLP_COOKIES_FROM_BROWSER (chrome…)."""
@@ -166,6 +174,8 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
     trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu có.
     hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
     ném lỗi trong hàm thì dừng tải."""
+    if localfile.parse(url):
+        return localfile.source(url)
     out_dir.mkdir(parents=True, exist_ok=True)
     cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
     opts = {**_base(),
@@ -176,9 +186,15 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,
             "ffmpeg_location": config.ffmpeg(), **cookie,
             **({"progress_hooks": hooks} if hooks else {})}
-    with YoutubeDL(opts) as y:
-        info = y.extract_info(url, download=True)
-        path = Path(y.prepare_filename(info)).with_suffix(".mp4")
+    try:
+        with YoutubeDL(opts) as y:
+            info = y.extract_info(url, download=True)
+            path = Path(y.prepare_filename(info)).with_suffix(".mp4")
+    except DownloadError as e:
+        if _is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor needs a real browser session
+            raise RuntimeError(tr("Douyin lets only a logged-in browser download this. Download the video yourself and "
+                                  "add the file, or set a cookies file in Settings")) from e
+        raise
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))
         if not matches:

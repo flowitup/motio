@@ -31,6 +31,7 @@ from . import (
     delogo,
     dub,
     edit,
+    localfile,
     newsnow,
     notify,
     pipeline,
@@ -651,6 +652,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                           log=tr("Queued to rerun from step {step}", step=label))
         jobs.submit(_run_job, lambda i: pipeline.resume(i, asked), pid)
         return {"project_id": pid, "start": start}
+
+    @app.post("/api/uploads", status_code=201, dependencies=[Depends(auth)])
+    def upload_video(file: UploadFile):
+        """A video file the user already has, kept as a source: answers the `file:` link to paste where links go."""
+        try:
+            return localfile.save(file.filename or "", file.file)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except (RuntimeError, OSError) as e:
+            raise HTTPException(500, str(e)[:500]) from e
 
     @app.post("/api/projects/{pid}/links", status_code=202, dependencies=[Depends(auth)])
     def add_links(pid: int, body: LinksIn):

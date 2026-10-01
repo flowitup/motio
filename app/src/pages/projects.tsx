@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Plus, Sparkles, Trash2, Video, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice, Field } from "@/components/form";
@@ -151,7 +152,10 @@ function DubForm({ api }: { api: Api }) {
   return (
     <CardContent className="grid gap-4">
       <Field label={t.dub.link} hint={t.dub.linkHint}>
-        <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
+        <div className="grid gap-2">
+          <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
+          <AddVideoFile api={api} onAdded={setLink} />
+        </div>
       </Field>
       <Field
         label={t.dub.part}
@@ -222,13 +226,16 @@ function TopicForm({ api }: { api: Api }) {
         <Field label={t.projects.topic} hint={t.projects.topicHint}>
           <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.projects.topicPlaceholder} />
         </Field>
-        <Field label={t.projects.links} hint={t.projects.linksHint}>
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
-            className="min-h-20 font-mono text-xs"
-          />
+        <Field label={t.projects.links} hint={`${t.projects.linksHint} ${t.upload.hint}`}>
+          <div className="grid gap-2">
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
+              className="min-h-20 font-mono text-xs"
+            />
+            <AddVideoFile api={api} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
+          </div>
         </Field>
         {topic.trim() && links.length > 0 && (
           <label className="flex items-center gap-2 text-sm">

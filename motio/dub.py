@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from . import channels, config, db, llm, render, search, separate, topic, tts
+from . import channels, config, db, llm, localfile, render, search, separate, topic, tts
 from .asr import has_audio
 from .i18n import tr, tr_n
 
@@ -120,7 +120,8 @@ def create(link: str, start=None, end=None, rights: str = "unknown", title: str 
     if rights not in topic.RIGHTS:
         raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     a, b = clean_excerpt(start, end)
-    title = _one(title)[:200] or tr("Dub: {site}", site=urlparse(links[0]).hostname or "video")
+    site = localfile.title(links[0]) if localfile.parse(links[0]) else urlparse(links[0]).hostname or "video"
+    title = _one(title)[:200] or tr("Dub: {site}", site=site)
     pid = db.create_project(None, title, mode=MODE)
     part = (tr(" · part {a}–{b}", a=clock(a or 0), b=clock(b) if b is not None else tr("end"))
             if a is not None or b is not None else "")

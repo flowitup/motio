@@ -280,6 +280,11 @@ const en = {
     none: "No channel",
     pick: "Channel",
   },
+  upload: {
+    add: "Add a video file",
+    uploading: (pct: number) => `Sending… ${pct} %`,
+    hint: "Downloaded the video yourself (Douyin, a screen recording, anywhere)? Add the file: it is used like a link.",
+  },
   qa: {
     card: "Quality check",
     level: { ok: "Passed", warn: "Look at it", fail: "Problem found" } as Record<string, string>,
@@ -965,6 +970,11 @@ const vi: Messages = {
     summaryClips: (n: number) => `${n} clip AI mỗi video`,
     none: "Không dùng kênh",
     pick: "Kênh",
+  },
+  upload: {
+    add: "Thêm file video",
+    uploading: (pct: number) => `Đang gửi… ${pct} %`,
+    hint: "Đã tự tải video về (Douyin, quay màn hình, bất kỳ đâu)? Thêm file vào đây: dùng như một link.",
   },
   qa: {
     card: "Kiểm tra chất lượng",

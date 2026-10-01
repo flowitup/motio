@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { AddVideoFile } from "@/components/add-video-file";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
@@ -65,9 +66,15 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
             {sources.map((s, i) => (
               <li key={s.url} className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <ExternalA href={s.url} className="break-all">
-                    {s.platform} · {s.uploader || s.url}
-                  </ExternalA>
+                  {s.url.startsWith("file:") ? (
+                    <span className="break-all">
+                      {s.platform} · {s.title || s.url}
+                    </span>
+                  ) : (
+                    <ExternalA href={s.url} className="break-all">
+                      {s.platform} · {s.uploader || s.url}
+                    </ExternalA>
+                  )}
                   {pinned.has(s.url) && <span className="text-xs text-muted-foreground"> · {t.projects.pasted}</span>}
                   {s.delogo && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400"> · {t.delogo.cleaned}</span>
@@ -94,6 +101,7 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
               className="min-h-16 font-mono text-xs"
               aria-label={t.projects.addLinks}
             />
+            <AddVideoFile api={api} disabled={active} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
             <div className="flex flex-wrap items-center gap-3">
               <p className="mr-auto text-xs text-muted-foreground">{t.projects.addLinksHint}</p>
               <Button size="sm" variant="outline" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>

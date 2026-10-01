@@ -186,6 +186,9 @@ export type PublishRecord = {
 };
 export type VideoVersion = "vertical" | "wide";
 
+/** Video có sẵn đã gửi lên engine: `link` dán vào chỗ nào nhận link (dạng `file:…`). */
+export type UploadedVideo = { link: string; name: string; duration: number; width: number | null; height: number | null; size: number };
+
 export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 
 export type Project = {
@@ -448,6 +451,12 @@ export function makeApi(url: string, token: string) {
     });
   }
   return {
+    /** Thêm file video có sẵn (tự tải từ Douyin hay nơi khác) làm nguồn. */
+    uploadVideo: (file: File, onProgress?: (pct: number) => void) => {
+      const form = new FormData();
+      form.append("file", file);
+      return postForm<UploadedVideo>("/api/uploads", form, onProgress);
+    },
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),
     trends: (source?: string) =>
