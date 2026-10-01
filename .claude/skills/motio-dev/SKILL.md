@@ -100,7 +100,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | JSON API, refresh scheduler | `motio/api.py` (`create_app(token, headless)`; `REFRESH_EVERY_MIN`) |
 | CLI / engine entrypoint | `motio/__main__.py` |
 | Edit a project's script, delete a project | `motio/edit.py` (`script_view`, `save_script`, `delete`), `pipeline.write_post`; `app/src/components/{script-card,delete-project}.tsx` |
-| Postiz posting | `motio/postiz.py` (`publish`, `publish_project`, `project_video`: vertical / wide), `app/src/components/publish-card.tsx` |
+| Postiz posting | `motio/postiz.py` (`publish`, `publish_project`, `project_video`: vertical / wide; TikTok: `TIKTOK`, `tiktok_direct` / `TIKTOK_DIRECT_POST`, `settings_for` UPLOAD vs DIRECT_POST, one account per video: `one_tiktok`, `tiktok_sent`), `notify.tiktok_inbox` / `_inbox`, `app/src/components/publish-card.tsx`, `PostizPicker` in `app/src/pages/channels.tsx` (`isTiktok` in `lib/api.ts`) |
 | 16:9 copy of a video | `motio/render.py` (`Layout`, `VERTICAL` / `WIDE`, `_compose`, `render(..., wide=True)` → `final_wide.mp4`), `pipeline._voice_render_post` / `send_to_postiz`, profile `wide_postiz`; tests `tests/test_render.py` (needs FFmpeg), `tests/test_pipeline.py` |
 | Auto-make above a channel's score | `motio/automake.py` (`profiles`, `picks`, `start`), `api._refresh(auto=True)` / `_automake` (scheduled refresh only), `db.count_auto_since`, profile `auto_score` / `auto_daily`, CLI `automake`; tests `tests/test_automake.py` |
 | "Channels" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
@@ -181,7 +181,8 @@ live in `data/tools/delogo/<hex>/`.
   `/api/*` needs `Authorization: Bearer`; only `/media/*` and the SSE `/events` route accept `?token=`.
   A non-loopback `--host` requires `--token` (on the server it comes from `MOTIO_TOKEN`).
 - **Posting** goes only through Postiz's Public API (`POST /api/projects/{id}/publish`, draft by default).
-  Never call TikTok / YouTube / Meta / X APIs directly. Automatic sending happens only for a project whose channel
+  Never call TikTok / YouTube / Meta / X APIs directly. One TikTok account per video (a profile lists one, a video
+  scheduled or posted on one can't go to another; Facebook Pages have no limit). Automatic sending happens only for a project whose channel
   profile lists Postiz channels, after its gates (`pipeline._deliver`), once per project; later re-renders don't post
   again. A Postiz failure is logged (`meta.send_error`), never fails the video.
 - **Approval gates.** A profile's script gate stops `produce` after the script step with status `review`
@@ -239,7 +240,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 387 passed with FFmpeg on PATH (01/10); some FFmpeg tests skip without it
+uv run pytest                          # 398 passed with FFmpeg on PATH (02/10); some FFmpeg tests skip without it
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)
@@ -326,7 +327,8 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
   over SSH on the server are production actions: wait for the owner's explicit go each time.
 - Server LLM is the Claude API (`LLM_PROVIDER=anthropic`, billed per token); Whisper runs on CPU.
 - Health: `curl -H "Authorization: Bearer <MOTIO_TOKEN>" https://motio.<domain>/api/health`.
-- TikTok / YouTube developer apps stay private until audited: send Postiz drafts until then.
+- TikTok / YouTube developer apps stay private until audited. TikTok: Motio sends with Postiz `UPLOAD` (TikTok app
+  inbox, owner finishes within 24 h, Slack reminds) until the owner turns on `TIKTOK_DIRECT_POST` after the audit.
 
 ## 11. Landmines
 

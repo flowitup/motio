@@ -45,6 +45,23 @@ and are marked "Made automatically". Pick the channel when you make a video (Tre
 videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
 Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
 
+**Several TikTok accounts and Facebook Pages.** Connect each account once in Postiz. For each TikTok account, check
+that TikTok's sign-in page shows that account before you authorize (switch accounts or sign out of tiktok.com first);
+each TikTok account needs its own email or phone number. For Facebook, add the Facebook channel once per Page and pick
+a different Page each time; one Facebook account that manages the Pages is enough. Then make one Motio channel per
+brand, say three, each with its own badge, style, voice, hashtags and posting times, and tick one TikTok account and
+one Facebook Page in it. Give each brand its own topics: never the same video on two TikTok accounts. Motio enforces
+that: a channel takes one TikTok account, and a video that was scheduled or posted on one TikTok account can't be sent
+to another (a draft still in Postiz doesn't count). The same video on several of your own Facebook Pages is allowed.
+
+**TikTok posts land in the TikTok app inbox.** A self-hosted Postiz uses your own TikTok developer app, and TikTok
+blocks Direct Post to public accounts until it has audited that app. So by default Motio sends TikTok posts with
+Postiz's *Upload* method: at the posting time the video arrives as a draft in the TikTok app's inbox, and you open
+TikTok, finish the post and turn on “AI-generated content” within 24 hours (TikTok drops the AI flag and every other
+setting in this mode, and keeps at most 5 waiting drafts per account a day). Slack tells you when a draft is on its way
+(with its time when it is scheduled). Once TikTok has audited your app, turn on **TikTok Direct Post** in Settings →
+Posting: posts then go live directly, with the AI flag set. Facebook Pages and YouTube are not affected.
+
 **French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in New videos) turns one video
 (Douyin, Bilibili, YouTube…) into a French version that keeps its pictures, music and sound effects. Motio transcribes
 it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
@@ -220,7 +237,8 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `YTDLP_COOKIES_FILE` | Path (on the engine's machine) of a `cookies.txt` exported from a browser, for an engine without a browser (server, Windows PC): used for pasted links and for Bilibili (search, downloads, followed spaces); wins over the browser; checked when saved, never served by `/media` |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
+| `TIKTOK_DIRECT_POST` | `true` once TikTok has audited your Postiz TikTok app: TikTok posts go live directly. Default off: they land in the TikTok app inbox for you to finish within 24 h |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it), a TikTok draft is on its way to the TikTok app inbox, or a video fails; empty = off |
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08, fal H3 Max at 768p; every clip is 5 s) |
 | `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
@@ -248,7 +266,7 @@ motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, 
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
 motio/settings.py  data/settings.json over .env
 motio/api.py       JSON engine API for the desktop app
-motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
+motio/postiz.py    send videos to Postiz (draft / scheduled / post now); TikTok inbox or Direct Post, one TikTok account per video
 motio/channels.py  channel profiles: badge, script style, voice, hashtags, approval gates, Postiz auto-send, posting times
 motio/automake.py  make videos by themselves for trends above a channel's score, after each scheduled refresh
 motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)

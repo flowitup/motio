@@ -35,8 +35,9 @@ as authoritative for scope and milestones.
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
-  - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
-  - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
+  - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting; TikTok posts land in the TikTok
+    app inbox (Postiz `UPLOAD`) unless `TIKTOK_DIRECT_POST` is on (app audited); one TikTok account per video
+  - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it, with a reminder for TikTok inbox drafts) or fails, and after a manual send that puts a TikTok draft in the inbox; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
@@ -107,7 +108,8 @@ on every PR; keep them green.
 - Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
   `sources.txt` in the project folder.
 - AI disclosure (AI Act art. 50): every post keeps "Voix off générée par IA." and the platforms' AI flags (TikTok
-  `video_made_with_ai`). The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
+  `video_made_with_ai`). TikTok drops that flag for inbox drafts (Postiz `UPLOAD`, the default until TikTok audits the
+  app): the Slack reminder tells the owner to turn on "AI-generated content" in the TikTok app; keep that reminder. The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
   unless they ask.
 - AI video (`motio/creator.py`): every post keeps "Voix off générée par IA." and adds "Images générées par IA." (the
   platforms' AI flags stay on). Only Qwen-Image-2512 on fal (Apache 2.0) is cleared for a monetized channel: a video

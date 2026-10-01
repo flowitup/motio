@@ -100,10 +100,14 @@ Kiểm tra: `curl -H "Authorization: Bearer <MOTIO_TOKEN>" https://motio.<domain
    `docker compose up -d engine`, hoặc nhập trong app Motio → Settings → Posting (Postiz).
 
 Lưu ý khi app developer chưa được duyệt:
-- **TikTok**: app chưa qua audit chỉ đăng được ở chế độ riêng tư. Motio gửi `PUBLIC_TO_EVERYONE`, nên trước khi
-  có audit hãy gửi **Draft** rồi đổi quyền trong Postiz. Nộp audit sớm.
+- **TikTok**: app chưa qua audit thì TikTok chặn Direct Post vào tài khoản công khai. Mặc định Motio gửi bài TikTok vào
+  **hộp thư app TikTok** (Postiz `UPLOAD`): tới giờ đăng, video nằm ở hộp thư dạng nháp, bạn mở TikTok, hoàn tất bài và
+  bật "Nội dung do AI tạo" trong 24 giờ (tối đa 5 nháp chờ mỗi tài khoản trong 24 giờ); Slack nhắc khi video tới. Nộp
+  audit sớm; có audit rồi thì bật **TikTok Direct Post** (Settings → Posting, hoặc `TIKTOK_DIRECT_POST=true` trong
+  `.env`) để bài lên trang ngay, có sẵn nhãn AI. Mỗi video chỉ lên một tài khoản TikTok.
 - **YouTube**: project Google Cloud chưa qua audit thì video tải lên bị để private.
-- Motio luôn giữ dòng "Voix off générée par IA." trong bài và bật nhãn AI của TikTok (`video_made_with_ai`). Video
+- Motio luôn giữ dòng "Voix off générée par IA." trong bài và bật nhãn AI của TikTok (`video_made_with_ai`, chỉ có
+  tác dụng với Direct Post; nháp trong hộp thư thì bạn tự bật trong app). Video
   không còn nhãn AI trên hình, nên khi đăng Facebook hãy bật nhãn "AI info" của Meta (Motio chưa bật nhãn này qua Postiz).
 
 ## 7. App desktop
