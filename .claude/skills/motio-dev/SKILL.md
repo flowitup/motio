@@ -347,6 +347,12 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - Installers run the engine frozen by PyInstaller, not uv. A new dependency that loads data files or plugins
   at runtime may need `--collect-all` in `tools/build_engine.py`; `motio.web` (legacy dashboard) is excluded
   from the freeze. Touch the packaging tools and the PR builds the installers, which proves it.
+- mlx in the frozen engine needs `mlx.metallib` **next to the `libmlx.dylib` that `core.so` loads** (`_internal/`, not
+  `mlx/lib/`), or `import mlx.core` fails with "Failed to load the default metallib" and every transcription in the
+  installed app breaks (v0.7.10; `collect_all mlx` alone put it in `mlx/lib/`). `tools/build_engine.py` `fix_mlx` places it
+  and `check_mlx` fails the build otherwise; the Release workflow re-checks the built `.app` (Tauri copies PyInstaller's
+  symlinks as real files). CI never runs the frozen engine's transcription, so a bump of mlx / PyInstaller is still
+  worth one real transcribe in the installed app.
 - The LaMa model is not in the installers: `inpaint.ensure_model` downloads it on the first logo run from OpenCV Zoo
   (pinned by sha256, then 6 shape bytes are patched at fixed offsets). If OpenCV ever replaces that file, downloads
   fail with a "sai sha256" error: update `MODEL_URL`, both hashes and `_FREE_DIMS` together. Tests never download it
