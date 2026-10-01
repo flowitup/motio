@@ -119,6 +119,11 @@ def test_real_problems_are_found(tmp_path):
     assert "loudness" in ids(silent, "fail")
     black = real_run(make(tmp_path / "b.mp4", video="color=c=black"), 3, 5)
     assert "black" in ids(black, "fail") and "the cover would be black" in str(black["checks"])
+    # a Motio render is never pure black: its title, badge and captions light a few percent of every frame
+    lit = ("-vf", "drawbox=x=0:y=0:w=iw:h=ih*0.05:color=white:t=fill")
+    titled = real_run(make(tmp_path / "t.mp4", video="color=c=black", extra=lit), 3, 5)
+    assert "black" in ids(titled, "fail"), titled["checks"]
+    assert "black" not in ids(real_run(make(tmp_path / "g.mp4", video="color=c=gray", extra=lit), 3, 5), "fail")
     small = real_run(make(tmp_path / "m.mp4", size="540x960"), 3, 5)
     assert "video" in ids(small, "warn") and small["level"] == "warn"
     loud = real_run(make(tmp_path / "l.mp4", audio="volume=0.4"), 3, 5)  # far quieter than -14 LUFS
@@ -183,6 +188,14 @@ def test_other_videos_are_not_repeats(projects):
     old = project("Vieux", sources=["BV1old"], age_days=40)
     again = project("Autre titre", sources=["BV1old"])  # the same source, but 40 days ago: out of the window
     assert qa.repeats(again) == [] and old
+
+
+def test_the_whole_month_is_looked_at_on_a_busy_install(projects):
+    old = project("Les pandas de Chengdu", sources=["BV1same"], age_days=5)
+    for i in range(qa.REPEAT_LOOKBACK // 2 + 20):  # more videos than the old 60-project look-back, all within 30 days
+        project(f"Autre sujet numéro {i}", sources=[f"BV1x{i}"], age_days=2)
+    new = project("Un autre titre", sources=["BV1same"])
+    assert [c["id"] for c in qa.repeats(new)] == ["repeat_source"] and old
 
 
 def test_the_check_is_saved_with_the_repeats_and_a_failed_one_is_seen(projects, tmp_path, monkeypatch):

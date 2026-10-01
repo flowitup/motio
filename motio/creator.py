@@ -164,18 +164,19 @@ def animate(pid: int, plan: dict, scenes: list[dict], out: Path, step, want: int
         if ai.get("clips"):
             db.update_project(pid, meta={"ai": {**ai, "clips": 0}})
         return list(scenes)
+    name = aiclips.provider()  # read once: a change in Settings during the render cannot mix two providers
     sources, made, fresh = list(scenes), 0, 0
     for n, i in enumerate(chosen, 1):
         ln, picture = lines[i], Path(scenes[i]["path"])
         text = aiclips.prompt(prompt(plan, ln), ln.get("motion") or "")
         seed = int(ln.get("seed") or 0)
         step("Clips", CLIPS_AT, tr("Clip {n} of {total} (scene {scene})", n=n, total=len(chosen), scene=i + 1))
-        if not aiclips.path_for(out / "clips", picture, text, seed).is_file() and usage.over_budget():
+        if not aiclips.path_for(out / "clips", picture, text, seed, name).is_file() and usage.over_budget():
             step("Clips", CLIPS_AT, tr("Monthly budget reached: the other scenes keep their camera move"))
             break
         for attempt in (1, 2):
             try:
-                path, new = aiclips.make(picture, text, seed, out / "clips")
+                path, new = aiclips.make(picture, text, seed, out / "clips", name)
                 break
             except aiclips.ClipError as e:
                 path = None
@@ -188,12 +189,12 @@ def animate(pid: int, plan: dict, scenes: list[dict], out: Path, step, want: int
             continue
         if new:
             fresh += 1
-            usage.record_clip(aiclips.DURATION, aiclips.endpoint(), aiclips.provider())
+            usage.record_clip(aiclips.DURATION, aiclips.endpoint(name), name)
         made += 1
         sources[i] = {**scenes[i], "path": str(path), "clip": True}
-    cost = aiclips.cost(fresh)
+    cost = aiclips.cost(fresh, name)
     ai = {**((db.get_project(pid) or {}).get("meta", {}).get("ai") or {}), "clips": made,
-          "clip_provider": aiclips.provider() if made else None}
+          "clip_provider": name if made else None}
     ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3)
     step("Clips", CLIPS_AT, tr("{made} of {total} AI clips ready · about ${cost}", made=made, total=len(chosen),
                                cost=f"{cost:.2f}"), ai=ai)

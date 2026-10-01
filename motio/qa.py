@@ -4,8 +4,8 @@ channel already posted.
 Each finding is {"id", "level": "ok" | "warn" | "fail", "msg"} (msg in the UI language). `fail` means the video is not
 fit to post as it is (no sound, outside 62–90 s, a black first frame, almost all silence): the project stops at the
 video gate instead of going to Postiz by itself, and the owner can still approve it. `warn` is only shown. The
-thresholds are Motio's own, not a platform rule. A check that cannot run never fails a video: it says so and the video
-goes on.
+thresholds are Motio's own, not a platform rule. FFmpeg's detector pass never fails a video when it cannot run: the
+check says so and the video goes on. A file ffprobe cannot read at all is a `fail`.
 """
 import difflib
 import json
@@ -27,10 +27,11 @@ SILENCE_FROM = 1.2  # s of silence that count as a gap
 SILENCE_WARN = 1.5  # a gap this long inside the video is shown
 SILENT_SHARE = 0.5  # more than this share of the video silent: the voice is missing
 BLACK_FROM = 0.3  # s of black that count as a black picture
+BLACK_PIC = 0.90  # share of dark pixels that makes a frame black: the title, badge and captions light 3–5% of a render
 BLACK_FIRST = 0.5  # a black start this long makes the cover black
 TAIL_SLACK = 0.35  # silence reaching the last 0.35 s is the ending, not a gap
 REPEAT_DAYS = 30
-REPEAT_LOOKBACK = 60  # projects looked at
+REPEAT_LOOKBACK = 600  # projects looked at: 30 days of a busy install (6 a day, failed ones included) fit
 TITLE_SAME = 0.85  # title similarity (0–1) that is "almost the same"
 SCRIPT_SAME = 0.5  # share of 5-word runs two scripts have in common that is "the same script"
 TIMEOUT = 300
@@ -102,7 +103,7 @@ def parse_scan(text: str, duration: float) -> dict:
 def scan(path: Path, has_audio: bool, duration: float) -> dict:
     """One FFmpeg pass over the whole file with the black / silence / loudness detectors."""
     cmd = [config.ffmpeg(), "-nostdin", "-hide_banner", "-nostats", "-v", "info", "-i", str(path),
-           "-vf", f"blackdetect=d={BLACK_FROM}:pic_th=0.98:pix_th=0.10"]
+           "-vf", f"blackdetect=d={BLACK_FROM}:pic_th={BLACK_PIC}:pix_th=0.10"]
     if has_audio:
         cmd += ["-af", f"silencedetect=n=-50dB:d={SILENCE_FROM},ebur128=peak=true:framelog=quiet"]
     r = _run(cmd + ["-f", "null", "-"])

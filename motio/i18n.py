@@ -538,4 +538,5 @@ VI = {
         "Douyin yêu cầu cookie trình duyệt còn mới để tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt "
         "file cookie trong Cài đặt",
     "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
+    "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
 }

@@ -160,3 +160,75 @@ def test_a_trial_clip_uses_the_chosen_provider_and_is_paid_and_recorded(heygen, 
     with pytest.raises(ValueError, match="need your HeyGen key"):
         aiclips.trial(heygen.pic, "Another.", "heygen", heygen.folder)
     assert aiclips.provider() == "fal"
+
+
+def _job(heygen, text="A panda.", seed=0):
+    return aiclips.path_for(heygen.folder, heygen.pic, text, seed).with_suffix(".job")
+
+
+def _posts(heygen):
+    return [r for r in heygen.sent if r.method == "POST"]
+
+
+def test_a_hiccup_while_waiting_does_not_pay_for_a_second_job(heygen):
+    ok = {"status": "completed", "video_url": "https://cdn.heygen.test/a.mp4"}
+    heygen.script = [502, {"status": "processing"}, 429, 503, ok]  # HeyGen blinks three times on the way
+    path, new = aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert new and path.read_bytes() == b"mp4" and len(_posts(heygen)) == 1
+    assert not _job(heygen).exists()  # the job is done: nothing left to resume
+
+
+def test_a_wait_that_runs_out_is_picked_up_again_not_paid_twice(heygen):
+    heygen.script = [{"status": "processing"}]
+    with pytest.raises(aiclips.ClipError, match="took too long"):
+        aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert _job(heygen).read_text() == "v1" and len(_posts(heygen)) == 1  # the paid job is remembered
+    with pytest.raises(aiclips.ClipError, match="took too long"):  # the retry right after waits on the same job
+        aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert len(_posts(heygen)) == 1
+    heygen.script = [{"status": "completed", "video_url": "https://cdn.heygen.test/a.mp4"}]
+    path, new = aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)  # a later render finds the clip ready
+    assert new and path.read_bytes() == b"mp4" and len(_posts(heygen)) == 1 and not _job(heygen).exists()
+
+
+def test_too_many_failed_looks_in_a_row_stop_the_wait_but_keep_the_job(heygen):
+    heygen.script = [503]
+    with pytest.raises(aiclips.ClipError, match="status 503"):
+        aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    looks = [r for r in heygen.sent if r.method == "GET"]
+    assert len(looks) == aiclips.POLL_ERRORS and _job(heygen).exists() and len(_posts(heygen)) == 1
+
+
+def test_a_job_that_failed_or_that_heygen_forgot_is_started_again(heygen):
+    heygen.script = [{"status": "failed", "failure_code": "filtered"}]
+    with pytest.raises(aiclips.ClipError, match="filtered"):
+        aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert not _job(heygen).exists()  # a failed job is not resumed
+    _job(heygen).write_text("old-job")  # an id kept by an earlier try that HeyGen no longer knows
+    heygen.script = [404, {"status": "completed", "video_url": "https://cdn.heygen.test/a.mp4"}]
+    path, new = aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert new and path.read_bytes() == b"mp4" and len(_posts(heygen)) == 2  # one for the failed job, one new
+    assert any(str(r.url).endswith("/old-job") for r in heygen.sent)  # the kept id was tried first
+
+
+def test_a_download_problem_names_heygen_and_keeps_the_job(heygen, monkeypatch):
+    inner = aiclips._transport
+
+    def handler(req):
+        if req.url.host == "cdn.heygen.test":
+            raise httpx.ConnectError("reset")
+        return inner.handler(req)
+
+    monkeypatch.setattr(aiclips, "_transport", httpx.MockTransport(handler))
+    with pytest.raises(aiclips.ClipError, match="Could not reach HeyGen: reset"):
+        aiclips.make(heygen.pic, "A panda.", 0, heygen.folder)
+    assert _job(heygen).exists()
+
+
+def test_clipcheck_finds_the_provider_and_the_scene_in_either_position(monkeypatch):
+    monkeypatch.setenv("CLIP_PROVIDER", "fal")
+    assert aiclips.trial_args([]) == ("A cinematic shot", "fal")
+    assert aiclips.trial_args(["heygen"]) == ("A cinematic shot", "heygen")  # not a scene called "heygen"
+    assert aiclips.trial_args(["A panda on a rock", "HeyGen"]) == ("A panda on a rock", "heygen")
+    assert aiclips.trial_args(["A panda on a rock"]) == ("A panda on a rock", "fal")
+    assert aiclips.trial_args(["A", "panda", "fal"]) == ("A panda", "fal")

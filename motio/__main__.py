@@ -82,9 +82,9 @@ def main(argv: list[str]) -> None:
         pic = Path(argv[1]) if len(argv) > 1 else None
         if not pic or not pic.is_file():
             sys.exit('Usage: clipcheck <picture file> ["<what is in the scene>"] [fal | heygen]')
+        scene, name = aiclips.trial_args(argv[2:])
         try:
-            path, usd = aiclips.trial(pic, aiclips.prompt(argv[2] if len(argv) > 2 else "A cinematic shot", "zoom_in"),
-                                      argv[3] if len(argv) > 3 else aiclips.provider(), config.DATA / "clipcheck")
+            path, usd = aiclips.trial(pic, aiclips.prompt(scene, "zoom_in"), name, config.DATA / "clipcheck")
         except (ValueError, aiclips.ClipError) as e:
             sys.exit(str(e))
         print(f"{path} · about ${usd:.2f}")

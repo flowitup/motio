@@ -104,6 +104,18 @@ def test_messages_per_event(fake_slack):
     ]
 
 
+def test_a_video_held_by_the_quality_check_says_why(fake_slack):
+    pid = db.create_project("douyin:p", "Titre")
+    fail = {"level": "fail", "checks": [{"id": "audio", "level": "fail", "msg": "No sound <track>"},
+                                         {"id": "black", "level": "warn", "msg": "Black stretch"}]}
+    db.update_project(pid, meta={"review": "video", "qa": fail})
+    notify.project(pid, "review")
+    db.update_project(pid, meta={"review": "script"})  # a script waiting for approval has no picture to judge yet
+    notify.project(pid, "review")
+    assert fake_slack == [":eyes: Video ready for your approval: Titre\nQuality check failed: No sound &lt;track&gt;",
+                          ":eyes: Script ready for your approval: Titre"]
+
+
 def test_message_in_vietnamese_and_a_project_without_a_channel(fake_slack):
     settings.update({"UI_LANG": "vi"})
     pid = db.create_project("douyin:p", "Titre")

@@ -523,9 +523,12 @@ project files. Built in this batch:
   cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing "no reprint" or paid, nothing
   under 15 s; rights stay *unknown*. Quick-add buttons on the New videos page; source kind `trending` in `watch.py`.
 - **HeyGen Video 1 as a second AI clip provider** (`aiclips.py`, `CLIP_PROVIDER`, `HEYGEN_API_KEY`): `POST /v3/models/videos`
-  `image_to_video` with the scene picture as the first frame, 5 s, 768p, 9:16, polled every 3 s up to 420 s, sound dropped.
-  Default price $0.02/s (the October promo is $0.01/s at 480p and $0.015 at 768p; sources disagree on the standard price, so
-  the budget uses the higher one). Its commercial terms are not confirmed, so HeyGen clips force the video gate
+  `image_to_video` with the scene picture as the first frame, 5 s, 768p, polled every 3 s up to 420 s, sound dropped. The
+  output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is
+  sent. The job is paid once it exists: its id is kept in `<clip>.job` until the clip is saved, a failed look (429 / 5xx /
+  network, up to 6 in a row) is retried, and a timeout or a retry resumes the same job instead of paying for a second one.
+  Default price $0.02/s (HeyGen's page says $0.01/s until the end of October and $0.02/s at 768p with sound, OpenRouter shows
+  $0.015 after the discount; sources disagree, so the budget uses the list price). Its commercial terms are not confirmed, so HeyGen clips force the video gate
   (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10).
 - **Quality check after every render** (`motio/qa.py`, `meta.qa`, `QualityCard` on the project page): length 62–90 s,
   H.264 1080×1920 / AAC, loudness near -14 LUFS without clipping, silence over 1.5 s inside the video, a black start (the

@@ -32,6 +32,7 @@ HEYGEN_URL = "https://api.heygen.com/v3/models/videos"
 HEYGEN_MODEL = "heygen-video-1"
 HEYGEN_RESOLUTION = "768p"
 POLL_EVERY = 3.0  # seconds between two looks at a HeyGen job
+POLL_ERRORS = 6  # failed looks in a row (HeyGen 429 / 5xx, network) before a job is left for a later try
 MAX_WAIT = 420.0  # a job still not done after this long is given up
 DURATION = 5  # seconds of video per clip: the model makes 5 to 15
 RESOLUTION = "768P"  # fal's default; 1080P is a paid refinement
@@ -46,6 +47,10 @@ _override: str | None = None  # `trial` (the clipcheck command) picks a provider
 
 class ClipError(RuntimeError):
     pass
+
+
+class _Transient(ClipError):
+    """HeyGen answered 429 / 5xx or could not be reached: worth another look at a job that is already paid for."""
 
 
 def provider() -> str:
@@ -74,8 +79,8 @@ def check_ready() -> None:
         raise ValueError(tr("AI clips need your fal key: add it in Settings → Image provider, or set AI clips to 0"))
 
 
-def cost(n: int = 1) -> float:
-    return round(n * DURATION * usage.clip_price(provider()), 3)
+def cost(n: int = 1, name: str | None = None) -> float:
+    return round(n * DURATION * usage.clip_price(name or provider()), 3)
 
 
 def limit(proj: dict, ch: dict | None) -> int:
@@ -103,23 +108,24 @@ def prompt(scene: str, motion: str) -> str:
             "motion of the subject, cinematic, steady, no text, no cuts.")
 
 
-def key(picture: Path, text: str, seed: int = 0) -> str:
+def key(picture: Path, text: str, seed: int = 0, name: str | None = None) -> str:
     """Cache key of one clip: another picture, prompt, seed, length or size is another clip."""
-    model = endpoint()  # fal keeps its old key, so clips made before HeyGen existed stay cached
+    model = endpoint(name)  # fal keeps its old key, so clips made before HeyGen existed stay cached
     raw = b"|".join([picture.read_bytes(), f"{model}|{DURATION}|{RESOLUTION}|{seed}|{text}".encode()])
     return hashlib.sha1(raw).hexdigest()[:12]
 
 
-def path_for(folder: Path, picture: Path, text: str, seed: int = 0) -> Path:
-    return folder / f"{key(picture, text, seed)}.mp4"
+def path_for(folder: Path, picture: Path, text: str, seed: int = 0, name: str | None = None) -> Path:
+    return folder / f"{key(picture, text, seed, name)}.mp4"
 
 
-def _http(method: str, url: str, **kw) -> httpx.Response:
+def _http(method: str, url: str, heygen: bool = False, **kw) -> httpx.Response:
     try:
         with httpx.Client(timeout=TIMEOUT, transport=_transport, follow_redirects=True) as c:
             return c.request(method, url, **kw)
     except httpx.HTTPError as e:
-        raise ClipError(tr("Could not reach fal: {error}", error=str(e)[:200])) from e
+        raise ClipError(tr("Could not reach HeyGen: {error}" if heygen else "Could not reach fal: {error}",
+                           error=str(e)[:200])) from e
 
 
 def _jpeg_b64(picture: Path) -> str:
@@ -157,7 +163,7 @@ def _heygen_http(method: str, url: str, **kw) -> httpx.Response:
         with httpx.Client(timeout=TIMEOUT, transport=_transport, follow_redirects=True) as c:
             return c.request(method, url, headers={"x-api-key": config.env("HEYGEN_API_KEY")}, **kw)
     except httpx.HTTPError as e:
-        raise ClipError(tr("Could not reach HeyGen: {error}", error=str(e)[:200])) from e
+        raise _Transient(tr("Could not reach HeyGen: {error}", error=str(e)[:200])) from e
 
 
 def _heygen_check(r: httpx.Response, what: str) -> dict:
@@ -168,7 +174,8 @@ def _heygen_check(r: httpx.Response, what: str) -> dict:
     if r.status_code == 402:
         raise ClipError(tr("HeyGen has no credit left: top up the API balance in your HeyGen account"))
     if r.status_code not in (200, 201, 202):
-        raise ClipError(tr("HeyGen could not make the clip: {error}", error=f"{what} {r.status_code} {_hg(r)}"))
+        raise (_Transient if r.status_code == 429 or r.status_code >= 500 else ClipError)(
+            tr("HeyGen could not make the clip: {error}", error=f"{what} {r.status_code} {_hg(r)}"))
     try:
         body = r.json()
     except ValueError:
@@ -188,62 +195,99 @@ def _hg(r: httpx.Response) -> str:
     return str(err.get("message") if isinstance(err, dict) and err.get("message") else err)[:200]
 
 
-def _heygen_clip(picture: Path, text: str, seed: int) -> bytes:
-    """HeyGen Video 1, image to video: the picture is the first frame and the clip keeps its proportions. The model also
-    makes dialogue and sound, which the render drops, so the prompt asks for a silent scene (no lips moving to words
-    nobody hears). POST /v3/models/videos, then a look every few seconds until the job is done."""
-    created = _heygen_check(_heygen_http("POST", HEYGEN_URL, json={
-        "mode": "image_to_video", "model": HEYGEN_MODEL, "duration": DURATION, "resolution": HEYGEN_RESOLUTION,
-        "prompt": f"{text} Silent scene, no dialogue, no music.", "seed": seed % 2**32,
-        "image": {"type": "base64", "media_type": "image/jpeg", "data": _jpeg_b64(picture)}}), "create")
-    vid = created.get("video_id") or created.get("id")
+def _heygen_clip(picture: Path, text: str, seed: int, job: Path | None = None) -> bytes:
+    """HeyGen Video 1, image to video: the picture is the first frame and the clip keeps its proportions (the API
+    ignores aspect_ratio for this mode). The model also makes dialogue and sound, which the render drops, so the prompt
+    asks for a silent scene (no lips moving to words nobody hears). POST /v3/models/videos, then a look every few
+    seconds until the job is done.
+    The job is paid once it exists, so its id is kept in `job` until the clip is saved: a hiccup while waiting, a wait
+    that runs out or a retry picks the same job up again instead of paying for a second one."""
+    vid = (job.read_text(encoding="utf-8").strip() if job and job.is_file() else "") or None
+    resumed = bool(vid)
     if not vid:
-        raise ClipError(tr("HeyGen returned no clip"))
-    waited = 0.0
+        created = _heygen_check(_heygen_http("POST", HEYGEN_URL, json={
+            "mode": "image_to_video", "model": HEYGEN_MODEL, "duration": DURATION, "resolution": HEYGEN_RESOLUTION,
+            "prompt": f"{text} Silent scene, no dialogue, no music.", "seed": seed % 2**32,
+            "image": {"type": "base64", "media_type": "image/jpeg", "data": _jpeg_b64(picture)}}), "create")
+        vid = created.get("video_id") or created.get("id")
+        if not vid:
+            raise ClipError(tr("HeyGen returned no clip"))
+        if job:
+            job.write_text(str(vid), encoding="utf-8")
+    waited, errors = 0.0, 0
     while True:
-        job = _heygen_check(_heygen_http("GET", f"{HEYGEN_URL}/{vid}"), "status")
-        status = job.get("status")
+        try:
+            r = _heygen_http("GET", f"{HEYGEN_URL}/{vid}")
+            if resumed and r.status_code == 404:  # HeyGen no longer knows the job kept from an earlier try: start again
+                job.unlink(missing_ok=True)
+                return _heygen_clip(picture, text, seed, job)
+            data = _heygen_check(r, "status")
+            errors = 0
+        except _Transient:
+            errors += 1
+            if errors >= POLL_ERRORS:
+                raise
+            data = {}
+        status = data.get("status")
         if status == "completed":
             break
         if status in ("failed", "cancelled"):
-            raise ClipError(tr("HeyGen could not make the clip: {error}",
-                               error=f"{job.get('failure_code') or status} {job.get('failure_message') or ''}".strip()))
+            if job:
+                job.unlink(missing_ok=True)
+            why = f"{data.get('failure_code') or status} {data.get('failure_message') or ''}".strip()
+            raise ClipError(tr("HeyGen could not make the clip: {error}", error=why))
         if waited >= MAX_WAIT:
             raise ClipError(tr("HeyGen took too long to make the clip"))
         _sleep(POLL_EVERY)
         waited += POLL_EVERY
-    if not job.get("video_url"):
+    if not data.get("video_url"):
         raise ClipError(tr("HeyGen returned no clip"))
-    got = _http("GET", job["video_url"])  # a signed link: no key sent to it
+    got = _http("GET", data["video_url"], heygen=True)  # a signed link: no key sent to it
     if got.status_code != 200 or not got.content:
         raise ClipError(tr("Could not download the clip from HeyGen: {error}", error=got.status_code))
     return got.content
 
 
-def generate(picture: Path, text: str, seed: int = 0) -> bytes:
-    """One clip (MP4 bytes) that starts on `picture`. ClipError (translated) on failure."""
-    return (_heygen_clip if provider() == "heygen" else _fal_clip)(picture, text, seed)
+def generate(picture: Path, text: str, seed: int = 0, job: Path | None = None, name: str | None = None) -> bytes:
+    """One clip (MP4 bytes) that starts on `picture`, from provider `name` (default: the one in Settings). `job`: where
+    HeyGen's job id is kept while the clip is made. ClipError (translated) on failure."""
+    if (name or provider()) == "heygen":
+        return _heygen_clip(picture, text, seed, job)
+    return _fal_clip(picture, text, seed)
 
 
-def make(picture: Path, text: str, seed: int, folder: Path) -> tuple[Path, bool]:
-    """The clip for `picture` in `folder`: the cached file when there is one, else a new one. (path, was_new)."""
+def make(picture: Path, text: str, seed: int, folder: Path, name: str | None = None) -> tuple[Path, bool]:
+    """The clip for `picture` in `folder`: the cached file when there is one, else a new one. (path, was_new).
+    `name`: the provider, read once by the caller so a Settings change in the middle of a render cannot mix two."""
+    name = name or provider()
     folder.mkdir(parents=True, exist_ok=True)
-    path = path_for(folder, picture, text, seed)
+    path = path_for(folder, picture, text, seed, name)
     if path.is_file() and path.stat().st_size:
         return path, False
     raw = path.with_suffix(".raw")
     tmp = path.with_suffix(".tmp")
-    raw.write_bytes(generate(picture, text, seed))
+    job = path.with_suffix(".job")
+    raw.write_bytes(generate(picture, text, seed, job=job, name=name))
     try:  # drop the model's sound; a file FFmpeg can't read is an error here, not at the render
         render._run([config.ffmpeg(), "-y", "-v", "error", "-i", str(raw), "-an", "-c:v", "copy",
                      "-movflags", "+faststart", "-f", "mp4", str(tmp)])
     except RuntimeError as e:
-        raise ClipError(tr("The clip from HeyGen is not a readable video" if provider() == "heygen"
+        job.unlink(missing_ok=True)  # the clip itself is bad: another job is the way out
+        raise ClipError(tr("The clip from HeyGen is not a readable video" if name == "heygen"
                            else "The clip from fal is not a readable video")) from e
     finally:
         raw.unlink(missing_ok=True)
     tmp.replace(path)
+    job.unlink(missing_ok=True)
     return path, True
+
+
+def trial_args(args: list[str]) -> tuple[str, str]:
+    """`clipcheck <picture> ["<scene>"] [fal | heygen]`: what follows the picture → (scene, provider). Either may be
+    left out: a lone `heygen` is the provider, not the scene; without one the provider is the one in Settings."""
+    rest = [a for a in args if a.strip()]
+    name = rest.pop().lower() if rest and rest[-1].strip().lower() in PROVIDERS else provider()
+    return (" ".join(rest) or "A cinematic shot"), name
 
 
 def trial(picture: Path, text: str, name: str, folder: Path, seed: int = 0) -> tuple[Path, float]:
@@ -255,8 +299,8 @@ def trial(picture: Path, text: str, name: str, folder: Path, seed: int = 0) -> t
     _override = name
     try:
         check_ready()
-        path, new = make(picture, text, seed, folder / name)
-        usd = cost(1) if new else 0.0
+        path, new = make(picture, text, seed, folder / name, name)
+        usd = cost(1, name) if new else 0.0
         if new:
             usage.record_clip(DURATION, endpoint(), name)
         return path, usd
