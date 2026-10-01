@@ -618,6 +618,17 @@ def test_slack_hears_review_done_with_send_and_failure(fake, fake_postiz, fake_s
     assert fake_slack == [":x: Video failed: Titre\nscript broke"]
 
 
+def test_auto_send_reminds_to_finish_the_tiktok_post(fake, fake_postiz, fake_slack):
+    pid = _with(_profile(postiz=["tt1", "fb1"], send_mode="now"), _new())
+    pipeline.produce(pid)
+    assert fake_slack[-1] == (
+        ":white_check_mark: Video ready: Titre · Chine Express\nSent to Postiz (now)\n"
+        ":iphone: TikTok Motio TikTok: the video goes to the TikTok app inbox now.\n"
+        "Open TikTok within 24 h, finish the post and turn on “AI-generated content”.")
+    entry = db.get_project(pid)["meta"]["postiz"][-1]
+    assert entry["tiktok_inbox"] == ["Motio TikTok"] and [c["id"] for c in entry["channels"]] == ["tt1", "fb1"]
+
+
 def test_slack_says_when_postiz_did_not_take_the_video(fake, fake_slack):
     pid = _with(_profile(postiz=["tt1"]), _new())  # Postiz chưa cấu hình
     pipeline.produce(pid)

@@ -4,7 +4,9 @@ chiều, không có nút bấm; Slack app Socket Mode có nút vẫn là việc 
 
 Chỉ nhận link https://hooks.slack.com/…: engine không bị dùng để gọi tới địa chỉ khác. Gửi lỗi (mất mạng, link bị
 thu hồi…) chỉ ghi log, không bao giờ làm hỏng video; nút "Send a test message" trong Cài đặt báo lỗi thật.
+Bài TikTok vào hộp thư app TikTok (chưa bật TikTok Direct Post) kèm lời nhắc tự đăng trong 24 giờ và bật nhãn AI.
 """
+import datetime as dt
 import logging
 from urllib.parse import urlparse
 
@@ -60,6 +62,21 @@ def send(text: str) -> None:
         raise NotifyError(tr("Slack refused the message: {error}", error=f"{r.status_code} {r.text[:120]}".strip()))
 
 
+def _inbox(entry: dict) -> str:
+    """Nhắc chủ kênh tự đăng bài TikTok đã vào hộp thư app TikTok (app TikTok của Postiz chưa audit), "" nếu không có.
+    entry: một lần gửi Postiz (`meta.postiz[i]` hoặc kết quả `postiz.publish`)."""
+    names = entry.get("tiktok_inbox") or []
+    if not names:
+        return ""
+    who = escape(", ".join(names))
+    if entry.get("mode") == "schedule" and entry.get("date"):
+        at = dt.datetime.fromisoformat(entry["date"]).astimezone().strftime("%d/%m %H:%M")
+        head = tr("TikTok {names}: the video lands in the TikTok app inbox at {time}.", names=who, time=at)
+    else:
+        head = tr("TikTok {names}: the video goes to the TikTok app inbox now.", names=who)
+    return head + "\n" + tr("Open TikTok within 24 h, finish the post and turn on “AI-generated content”.")
+
+
 def _text(p: dict, event: str, sent: bool | None, error: str) -> str:
     meta = p["meta"] or {}
     title = escape(meta.get("title") or p["title"] or f"#{p['id']}")
@@ -74,9 +91,26 @@ def _text(p: dict, event: str, sent: bool | None, error: str) -> str:
     text = ":white_check_mark: " + tr("Video ready: {title}", title=title) + where
     if sent is True and ch:
         text += "\n" + tr("Sent to Postiz ({mode})", mode=ch["send_mode"])
+        # lần tự gửi của kênh (mỗi dự án chỉ tự gửi một lần): bài nào vào hộp thư TikTok thì nhắc luôn
+        for e in meta.get("postiz") or []:
+            if e.get("profile") == ch["id"] and (line := _inbox(e)):
+                text += "\n:iphone: " + line
     elif sent is False:
         text += "\n" + tr("Not sent to Postiz: {error}", error=escape(str(meta.get("send_error") or "")[:200]))
     return text
+
+
+def tiktok_inbox(pid: int, res: dict) -> None:
+    """Sau khi gửi Postiz bằng tay: bài TikTok vào hộp thư app TikTok thì nhắc chủ kênh tự đăng trong 24 giờ.
+    Không bao giờ ném lỗi và không làm gì khi chưa có webhook."""
+    if not res.get("tiktok_inbox") or not enabled():
+        return
+    try:
+        p = db.get_project(pid)
+        title = escape((p["meta"] or {}).get("title") or p["title"] or f"#{pid}") if p else f"#{pid}"
+        send(f":iphone: {title}\n{_inbox(res)}")
+    except Exception as e:  # mạng, DB, Slack…: việc gửi bài đã xong, chỉ ghi log
+        log.warning("Slack TikTok inbox reminder for project %s failed: %s", pid, e)
 
 
 def project(pid: int, event: str, *, sent: bool | None = None, error: str = "") -> None:
