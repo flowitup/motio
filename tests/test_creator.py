@@ -441,6 +441,7 @@ def clip_fake(fake, monkeypatch):
         shutil.copy(cmd[cmd.index("-i") + 1], cmd[-1])
 
     monkeypatch.setattr(aiclips, "generate", generate)
+    monkeypatch.setattr(config, "ffmpeg", lambda: "ffmpeg")  # built before the fake _run; CI has no FFmpeg
     monkeypatch.setattr(render, "_run", run)
     fake["clips"] = seen
     yield fake
@@ -490,6 +491,7 @@ def _fal_clip(monkeypatch, status=200, payload=None, video=b"mp4"):
 
     monkeypatch.setattr(aiclips, "_transport", httpx.MockTransport(handler))
     monkeypatch.setenv("FAL_KEY", "fal-key")
+    monkeypatch.setattr(config, "ffmpeg", lambda: "ffmpeg")  # built before the fake _run; CI has no FFmpeg
     monkeypatch.setattr(render, "_run", lambda cmd: shutil.copy(cmd[cmd.index("-i") + 1], cmd[-1]))
     return sent
 
