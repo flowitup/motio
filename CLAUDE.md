@@ -24,9 +24,18 @@ as authoritative for scope and milestones.
     from a provider that isn't cleared for monetized channels force the video gate (`creator.needs_review`)
   - `images.py` AI pictures behind one adapter: fal `qwen-image-2512` (default) / Modal `qwen21-uc` / placeholder; a
     picture is cached by (provider, size, seed, prompt) in `out/scenes/`, so only a new or edited scene is made again
-  - `aiclips.py` AI clips for AI videos: a scene's picture becomes a 5 s clip (fal `minimax/h3-max/image-to-video`, first
-    frame = the picture, sound dropped) instead of a camera move; `creator.animate` picks scenes (`pick`), makes them after the
-    voice, cached in `out/clips/`; a clip that fails or goes over `MONTHLY_BUDGET_USD` leaves the scene as it was
+  - `aiclips.py` AI clips for AI videos: a scene's picture becomes a 5 s clip (fal `minimax/h3-max/image-to-video`, or
+    HeyGen Video 1 when `CLIP_PROVIDER=heygen`; first frame = the picture, sound dropped) instead of a camera move;
+    `creator.animate` picks scenes (`pick`), makes them after the voice, cached in `out/clips/`; a clip that fails or goes
+    over `MONTHLY_BUDGET_USD` leaves the scene as it was; HeyGen clips force the video gate (`REVIEW_PROVIDERS`); CLI
+    `clipcheck` makes one paid trial clip to compare providers
+  - `qa.py` quality check after every render (ffprobe + FFmpeg blackdetect / silencedetect / ebur128, saved as `meta.qa`) and
+    warnings for a source, title or script used in the last 30 days; a `fail` holds the video at the gate when the channel
+    has Postiz (`pipeline._why_held`), a warning is only shown
+  - `trending.py` Bilibili's own ranking (17 categories), popular and weekly lists as followed sources in `watch.py`
+    (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only
+  - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
+    link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
@@ -118,6 +127,10 @@ on every PR; keep them green.
   paid per new clip (`AI_CLIP_USD_PER_SEC`, recorded in the `usage` table) and stop when the monthly budget is reached.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
+- Douyin: yt-dlp's extractor needs a logged-in browser session, so a Douyin video the engine cannot fetch is added as a file
+  (`localfile.py`). Do not put Douyin's request signing (`a_bogus`, a device-fingerprint `msToken` payload, as f2 does)
+  into the engine without the owner's explicit go: the safety check of an auto-mode session refused it on 2026-10-02 and
+  the owner has to decide (thread "Studio phim AI, dịch video Trung").
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /

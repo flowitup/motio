@@ -27,8 +27,20 @@ Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 
 **New videos** follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
 Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Check now"; a new source shows
 its latest 10 videos, then only videos it hasn't seen. Claude gives each one a French title and a score, and
-"Make video" makes a French explainer from it. Douyin and Facebook accounts can't be followed (yt-dlp only downloads
-single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
+"Make video" makes a French explainer from it. Bilibili's own trending lists can be followed too (**Trending lists**
+on that page: the ranking of each of 17 categories, Popular, and the weekly must-watch): no login, original uploads
+only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
+downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
+
+**Douyin**: yt-dlp's Douyin extractor needs a logged-in browser session (`YTDLP_COOKIES_FROM_BROWSER` or
+`YTDLP_COOKIES_FILE`), so a pasted Douyin link only works with one of those. Without it, download the video yourself
+(for example with [f2](https://github.com/Johnserf-Seed/f2), Apache 2.0, which fetched Douyin videos without logging in
+when tried on 2026-10-02) and use **Add a video file** (below).
+
+**Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
+sends a video you already have, from Douyin or anywhere else, to the engine and uses it like a link: dubbed, or used as
+a source for a topic explainer. It is kept with the downloaded sources, so Remove logo and re-renders find it. MP4, MOV,
+M4V, MKV, WebM, AVI, TS or FLV, up to 2 GB; anything but MP4 is converted. Rights stay *unknown* until you set them.
 
 **Channels** holds one profile per channel you post to: the red badge on the video ("ACTU CHINE", "INSOLITE",
 or none), style notes Claude follows when it writes the script, the ElevenLabs voice, the default length for hot-news
@@ -81,15 +93,27 @@ when only pictures changed). The post keeps "Voix off générée par IA." and ad
 estimated cost of the pictures is in the project log and on the project page. Stats does not include it yet.
 
 **AI clips** turn some scenes of an AI video into short video clips instead of a camera move on the picture. Each clip is
-made by fal's **H3 Max** (MiniMax H3, image to video, 768p, 5 s, about $0.40): the scene's picture is its first frame, so
-the look you approved is kept, and the model's own sound is dropped. Set how many scenes become clips per channel
+made by fal's **H3 Max** (MiniMax H3, image to video, 768p, 5 s, about $0.40) or, if you pick it in Settings → AI
+pictures → *Clip provider*, by **HeyGen Video 1** (image to video, 768p, 5 s, $0.01–0.02 per second, so about $0.05–0.10 a
+clip; needs `HEYGEN_API_KEY`): the scene's picture is its first frame, so the look you approved is kept, and the model's
+own sound is dropped. HeyGen is newer and its commercial terms aren't confirmed, so a video with HeyGen clips always
+stops at **Awaiting video approval**; try it on one clip first with `uv run python -m motio clipcheck <picture> "<scene>"
+heygen` (about $0.10, saved in `data/clipcheck/`) and compare with `... fal`. Set how many scenes become clips per channel
 (Channels → *AI clips per video*, 0 = off, up to 6) or for one video (New video → AI video → *AI clips*, empty = the
 channel's number). The scenes are spread over the video and the first one (the hook) is always included. Clips are made
 after the voice, once the script is final, and only new ones are paid for (they are cached, so a re-render costs
 nothing); the cost goes into the project log, the project page and the Stats page, at the price per second in
-Settings → AI pictures, and the monthly budget stops new clips. A clip fal can't make, or one that would go over the
+Settings → AI pictures (default $0.08 for fal, $0.02 for HeyGen), and the monthly budget stops new clips. A clip fal can't make, or one that would go over the
 budget, leaves its scene with the picture and camera move. The post then says "Images et vidéos générées par IA."; the
-platforms' AI flags stay on. Needs the same fal key as the pictures.
+platforms' AI flags stay on. Needs the fal key (or the HeyGen key) as well as the one for the pictures.
+
+**Quality check** runs after every render (FFmpeg and ffprobe, nothing is sent anywhere): the length is 62–90 s, the
+picture is 1080×1920 H.264, there is a sound track at about -14 LUFS without clipping, no silence longer than 1.5 s
+inside the video, and the first picture is not black (the cover would be). The project page shows the result; a
+**problem** (no sound or almost only silence, wrong length, a black start, a file that cannot be read) stops the video at **Awaiting video
+approval** instead of sending it to Postiz by itself, and you can still approve it. A **warning** is only shown. It
+also points out a video whose source, title or script is almost the same as one made in the last 30 days (a warning, to
+avoid posting the same thing twice). The thresholds are Motio's own, not a platform rule.
 
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
@@ -221,7 +245,8 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
-| `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08, fal H3 Max at 768p; every clip is 5 s) |
+| `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
+| `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
 | `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
@@ -242,7 +267,10 @@ motio/pipeline.py  the steps of one project; a failed project continues from the
 motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
 motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
 motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
-motio/aiclips.py   AI clips: fal H3 Max image-to-video for some scenes of an AI video, cached per scene, cost estimate
+motio/aiclips.py   AI clips: fal H3 Max or HeyGen Video 1 image-to-video for some scenes of an AI video, cached per scene, cost estimate
+motio/qa.py        quality check after each render (length, picture, loudness, silence, black start) + repeat warnings
+motio/trending.py  Bilibili ranking / popular / weekly lists as followed sources
+motio/localfile.py a video file added by hand, used as a source like a link
 motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
 motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
