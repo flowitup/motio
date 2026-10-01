@@ -20,7 +20,7 @@ import { t } from "@/i18n";
 const ALL = "__all__";
 const TABS: ClipStatus[] = ["new", "used", "hidden"];
 
-const watchName = (w: Watch) => w.name || w.target;
+const watchName = (w: Watch) => (w.kind === "trending" ? t.watches.lists[w.target] : undefined) ?? (w.name || w.target);
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
 /** Danh sách nguồn theo dõi + ô thêm nguồn. */
@@ -28,6 +28,7 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   const qc = useQueryClient();
   const [target, setTarget] = useState("");
   const [site, setSite] = useState<Site>("youtube");
+  const [list, setList] = useState("bilibili:ranking:181");
   const isLink = /^https?:\/\//i.test(target.trim());
   const changed = () => {
     qc.invalidateQueries({ queryKey: ["watches"] });
@@ -41,12 +42,13 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
       changed();
     },
   });
+  const addList = useMutation({ mutationFn: () => api.addWatch({ target: list, site: "bilibili" }), onSuccess: changed });
   const patch = useMutation({
     mutationFn: ({ id, ...body }: { id: number; enabled?: boolean }) => api.patchWatch(id, body),
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
-  const error = add.error ?? patch.error ?? remove.error;
+  const error = add.error ?? addList.error ?? patch.error ?? remove.error;
 
   return (
     <CardContent className="grid grid-cols-[minmax(0,1fr)] gap-4">
@@ -77,6 +79,15 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
           </Button>
         </div>
       </form>
+      <div className="flex flex-wrap items-end gap-3 border-t pt-3">
+        <Field label={t.watches.trending} hint={t.watches.trendingHint}>
+          <Choice value={list} onChange={setList} options={Object.entries(t.watches.lists)} className="w-64" />
+        </Field>
+        <Button variant="outline" className="ml-auto" onClick={() => addList.mutate()} disabled={addList.isPending}>
+          {addList.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
+          {t.watches.trendingAdd}
+        </Button>
+      </div>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       {watches.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t.clips.noWatches}</p>
@@ -187,6 +198,10 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             <Badge variant="outline">{t.clips.sites[clip.site]}</Badge>
             {clip.uploader && <span>{clip.uploader}</span>}
             {clip.views != null && <span>· {t.clips.views(clip.views)}</span>}
+            {clip.likes != null && <span>· {t.clips.likes(clip.likes)}</span>}
+            {clip.category && <span>· {clip.category}</span>}
+            {clip.rank != null && <span>· {t.clips.rank(clip.rank)}</span>}
+            {clip.pubdate != null && <span>· {t.clips.posted} {t.age(clip.pubdate)}</span>}
             {clip.watch_name && clip.watch_name !== clip.uploader && <span>· {clip.watch_name}</span>}
             <span>· {t.age(clip.first_seen)}</span>
             <ExternalA href={clip.url} className="inline-flex items-center gap-1">

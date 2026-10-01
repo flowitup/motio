@@ -315,15 +315,15 @@ export type RefreshState = {
   last_auto: { at: number; projects: number[] } | null; // lượt tự làm gần nhất (sau lượt tự cập nhật)
 };
 
-export type WatchKind = "channel" | "playlist" | "space" | "search";
+export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending";
 export type Site = "youtube" | "bilibili";
 
-/** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu. */
+/** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
 export type Watch = {
   id: number;
   kind: WatchKind;
   site: Site;
-  target: string; // URL, hoặc từ khoá khi kind = search
+  target: string; // URL, từ khoá khi kind = search, hoặc "bilibili:ranking:181" / "bilibili:popular" / "bilibili:weekly" khi kind = trending
   name: string | null;
   rights: Rights;
   enabled: boolean;
@@ -348,6 +348,10 @@ export type Clip = {
   uploader: string | null;
   duration: number | null;
   views: number | null;
+  likes: number | null; // chỉ có ở video từ bảng xếp hạng
+  pubdate: number | null; // giờ đăng gốc (giây Unix), chỉ có ở video từ bảng xếp hạng
+  category: string | null; // chuyên mục Bilibili
+  rank: number | null; // thứ hạng trong bảng
   thumbnail: string | null;
   score: number | null;
   first_seen: number;

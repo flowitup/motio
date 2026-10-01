@@ -303,6 +303,10 @@ VI = {
         "Chỉ tìm được trên YouTube hoặc Bilibili, không phải {site}",
     "This source is already in the list": "Nguồn này đã có trong danh sách",
     "At most {n} sources": "Tối đa {n} nguồn",
+    "Unknown Bilibili trending list: {target}": "Không có bảng xếp hạng Bilibili này: {target}",
+    "Could not reach Bilibili: {error}": "Không kết nối được Bilibili: {error}",
+    "Bilibili blocked the request ({code}): try again later": "Bilibili chặn yêu cầu ({code}): thử lại sau",
+    "Bilibili returned an error: {error}": "Bilibili báo lỗi: {error}",
     # French dub (dub.py, separate.py)
     "French line": "dòng tiếng Pháp",
     "Dub: {site}": "Lồng tiếng: {site}",
