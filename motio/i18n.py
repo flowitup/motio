@@ -533,8 +533,9 @@ VI = {
     "The video file is no longer here: add it again": "File video không còn ở đây: hãy thêm lại",
     "This video file cannot be read: {error}": "Không đọc được file video này: {error}",
     "This file has no video to use": "File này không có hình để dùng",
-    "Douyin lets only a logged-in browser download this. Download the video yourself and add the file, or set a "
+    "Douyin asks for fresh browser cookies to download this. Download the video yourself and add the file, or set a "
     "cookies file in Settings":
-        "Douyin chỉ cho trình duyệt đã đăng nhập tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt file "
-        "cookie trong Cài đặt",
+        "Douyin yêu cầu cookie trình duyệt còn mới để tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt "
+        "file cookie trong Cài đặt",
+    "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
 }

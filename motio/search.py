@@ -192,8 +192,8 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
             path = Path(y.prepare_filename(info)).with_suffix(".mp4")
     except DownloadError as e:
         if _is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor needs a real browser session
-            raise RuntimeError(tr("Douyin lets only a logged-in browser download this. Download the video yourself and "
-                                  "add the file, or set a cookies file in Settings")) from e
+            raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
+                                  "and add the file, or set a cookies file in Settings")) from e
         raise
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))

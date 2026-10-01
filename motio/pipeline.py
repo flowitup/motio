@@ -15,6 +15,7 @@ from . import (
     delogo,
     dub,
     llm,
+    localfile,
     notify,
     postiz,
     qa,
@@ -559,8 +560,10 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
 def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
     (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
-    credits = "\n".join(f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources)
-    (out / "sources.txt").write_text(credits + "\n", encoding="utf-8")  # luôn lưu nội bộ, không đăng
+    lines = [(s["platform"], f"• {s['platform']} · {s['uploader']} — {s['url']}") for s in sources]
+    (out / "sources.txt").write_text("\n".join(ln for _, ln in lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
+    # a video file added by hand has no uploader or web link to credit: it stays in sources.txt only
+    credits = "\n".join(ln for platform, ln in lines if platform != localfile.PLATFORM)
     desc = plan.get("description", "").strip()
     if credits and config.flag("CREDIT_IN_POST"):
         desc += f"\n\nSources :\n{credits}"

@@ -1,12 +1,14 @@
 """A video file added by hand as a source (motio/localfile.py): upload, link, download-like result, titles."""
 import io
+import os
 import subprocess
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 from yt_dlp.utils import DownloadError
 
-from motio import api, config, db, dub, localfile, pipeline, search, topic
+from motio import api, config, db, dub, localfile, pipeline, qa, search, topic
 
 has_ffmpeg = bool(config.find("ffmpeg") and config.find("ffprobe"))
 needs_ffmpeg = pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
@@ -168,3 +170,74 @@ def test_douyin_without_a_browser_session_says_what_to_do(tmp_path, monkeypatch)
         search.download("https://www.douyin.com/video/7380308675841297704", tmp_path)
     with pytest.raises(DownloadError):  # any other site keeps yt-dlp's own message
         search.download("https://example.com/video/1", tmp_path)
+
+
+@needs_ffmpeg
+def test_a_recording_without_a_stated_duration_is_accepted_and_gets_one(tmp_path):
+    live = tmp_path / "recording.webm"  # a browser or OBS recording: the container does not say how long it is
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x568:rate=25",
+                    "-t", "3", "-c:v", "libvpx", "-live", "1", "-f", "webm", str(live)],
+                   check=True, capture_output=True)
+    assert qa.probe(live)["duration"] < 1.0  # the premise: nothing in the file says it lasts 3 s
+    saved = upload(live)
+    assert 2.5 < saved["duration"] < 3.5
+    uid, _ = localfile.parse(saved["link"])
+    assert 2.5 < qa.probe(localfile.path_of(uid))["duration"] < 3.5
+
+
+@needs_ffmpeg
+def test_a_video_that_is_too_short_is_refused_and_leaves_nothing_behind(tmp_path):
+    with pytest.raises(ValueError, match="too short"):
+        upload(make(tmp_path / "blink.mp4", seconds=0.5))
+    assert not list((config.CACHE / "sources").glob("File_*")) or all(
+        qa.probe(p)["duration"] >= 1 for p in (config.CACHE / "sources").glob("File_*.mp4"))
+    assert not list((config.CACHE / "sources").glob(".upload-*"))
+
+
+@needs_ffmpeg
+def test_the_same_video_added_twice_is_the_same_source(tmp_path):
+    one = upload(make(tmp_path / "a.mp4", seconds=2), "first name.mp4")
+    again = upload(tmp_path / "a.mp4", "other name.mp4")
+    other = upload(make(tmp_path / "b.mp4", seconds=3), "b.mp4")
+    uid = localfile.parse(one["link"])[0]
+    assert localfile.parse(again["link"])[0] == uid != localfile.parse(other["link"])[0]
+    assert len(uid) == 32 and localfile.path_of(uid).is_file()
+    assert localfile.source(again["link"])["id"] == uid  # so qa.repeats compares ("File", uid) with an earlier project
+    pids = []
+    for _ in range(2):
+        pid = db.create_project(None, "t", mode="topic")
+        db.update_project(pid, meta={"sources": [{"platform": "File", "id": uid}]})
+        pids.append(pid)
+    assert [c["id"] for c in qa.repeats(pids[1]) if c["id"] == "repeat_source"] == ["repeat_source"]
+
+
+def test_an_upload_copy_a_stopped_engine_left_behind_is_swept(monkeypatch):
+    folder = config.CACHE / "sources"
+    folder.mkdir(parents=True, exist_ok=True)
+    old, fresh = folder / ".upload-1.mp4", folder / ".upload-2.mp4"
+    for f in (old, fresh):
+        f.write_bytes(b"x")
+    os.utime(old, (time.time() - localfile.STALE_UPLOAD - 60,) * 2)
+    with pytest.raises(ValueError, match="Only video files"):
+        localfile.save("x.txt", io.BytesIO(b""))  # refused before anything is swept
+    assert old.exists() and fresh.exists()
+    with pytest.raises(ValueError, match="cannot be read"):
+        localfile.save("x.mp4", io.BytesIO(b"nope"))
+    assert not old.exists() and fresh.exists()
+    fresh.unlink()
+
+
+def test_a_file_source_is_not_credited_in_the_post_or_on_the_video(tmp_path, monkeypatch):
+    monkeypatch.setenv("CREDIT_IN_POST", "true")
+    uid = "a" * 32
+    sources = [{"platform": "File", "uploader": "", "url": f"file:{uid}/Douyin clip.mp4"},
+               {"platform": "YouTube", "uploader": "Chaîne", "url": "https://youtu.be/x"}]
+    plan = {"title_fr": "Titre", "description": "Desc.", "hashtags": ["#a"]}
+    desc = pipeline.write_post(plan, sources, tmp_path)
+    assert "Douyin clip" not in desc and "• YouTube · Chaîne — https://youtu.be/x" in desc
+    internal = (tmp_path / "sources.txt").read_text(encoding="utf-8")
+    assert "file:" + uid in internal and "https://youtu.be/x" in internal  # the internal list keeps both
+    monkeypatch.setenv("CREDIT_IN_POST", "")
+    only = tmp_path / "only"
+    only.mkdir()
+    assert "Sources" not in pipeline.write_post(plan, sources[:1], only)

@@ -32,8 +32,8 @@ on that page: the ranking of each of 17 categories, Popular, and the weekly must
 only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
 downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
 
-**Douyin**: yt-dlp's Douyin extractor needs a logged-in browser session (`YTDLP_COOKIES_FROM_BROWSER` or
-`YTDLP_COOKIES_FILE`), so a pasted Douyin link only works with one of those. Without it, download the video yourself
+**Douyin**: yt-dlp's Douyin extractor needs fresh browser cookies, not necessarily from a logged-in account
+(`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`), so a pasted Douyin link only works with one of those. Without it, download the video yourself
 (for example with [f2](https://github.com/Johnserf-Seed/f2), Apache 2.0, which fetched Douyin videos without logging in
 when tried on 2026-10-02) and use **Add a video file** (below).
 

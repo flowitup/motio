@@ -127,7 +127,7 @@ on every PR; keep them green.
   paid per new clip (`AI_CLIP_USD_PER_SEC`, recorded in the `usage` table) and stop when the monthly budget is reached.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
-- Douyin: yt-dlp's extractor needs a logged-in browser session, so a Douyin video the engine cannot fetch is added as a file
+- Douyin: yt-dlp's extractor needs fresh browser cookies (a guest session is enough), so a Douyin video the engine cannot fetch is added as a file
   (`localfile.py`). Do not put Douyin's request signing (`a_bogus`, a device-fingerprint `msToken` payload, as f2 does)
   into the engine without the owner's explicit go: the safety check of an auto-mode session refused it on 2026-10-02 and
   the owner has to decide (thread "Studio phim AI, dịch video Trung").
