@@ -62,6 +62,8 @@ services:
       # Engine gọi Postiz qua mạng nội bộ, không đi vòng ra Internet.
       POSTIZ_URL: ${POSTIZ_INTERNAL_URL:-http://postiz:5000/api}
       POSTIZ_API_KEY: ${POSTIZ_API_KEY:-}
+      # true khi TikTok đã audit app TikTok của Postiz; trống = bài TikTok vào hộp thư app TikTok.
+      TIKTOK_DIRECT_POST: ${TIKTOK_DIRECT_POST:-}
     volumes:
       - motio-data:/data
     networks: [edge]

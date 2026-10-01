@@ -512,6 +512,34 @@ engine in the background + Tailscale), no Docker, no network drive.
   the frozen engine's transcription and render on Windows; faster-whisper speed and CUDA (the build does not bundle the CUDA
   libraries); macOS WebView with plain HTTP to the Tailscale address (fallback in the runbook: `tailscale serve` HTTPS).
 
+## Several accounts: TikTok inbox, one TikTok account per video (added 01/10/2026)
+
+The owner plans three brands, each with one TikTok account and one Facebook Page, and asked for posting to handle that,
+with a Slack reminder for TikTok drafts (agreed in the chat of 01/10). Built inside the existing Postiz flow (posting still
+never calls TikTok / Meta directly): channel profiles already give each brand its own badge, voice, hashtags and posting
+times, and Postiz holds one channel per TikTok account and per Facebook Page.
+
+- **TikTok inbox** (`postiz.settings_for`, `postiz.tiktok_direct`): a self-hosted Postiz posts through the owner's TikTok
+  developer app, and TikTok blocks Direct Post to public accounts from an app it hasn't audited. TikTok posts now use
+  Postiz's `content_posting_method = "UPLOAD"` by default: at the posting time the video lands as a draft in the TikTok app
+  inbox, and the owner finishes it within 24 h (TikTok keeps at most 5 such drafts per account per 24 h). TikTok drops every
+  other setting in that mode, the AI flag included, so the owner turns on "AI-generated content" in the app. New setting
+  `TIKTOK_DIRECT_POST` (Settings → Posting → *TikTok Direct Post*, default off): on once TikTok has audited the app, and
+  posts go live with `video_made_with_ai`. Postiz's `tiktok-business` channels are handled like `tiktok`.
+- **Slack reminder** (`notify._inbox`, `notify.tiktok_inbox`): when a scheduled or immediate send includes a TikTok
+  channel in inbox mode (`meta.postiz[i].tiktok_inbox` = channel names), the "Video ready" message of an automatic send
+  gets a line with the time the draft lands (engine's local time) and what to do; a send from the project page gets its
+  own message. A Postiz draft gets no reminder (nothing reaches TikTok until it is published from Postiz).
+- **One TikTok account per video** (`postiz.publish`, `postiz.one_tiktok`, `postiz.tiktok_sent`): a send with two TikTok
+  channels is refused, a channel profile can't list two (checked against Postiz when it answers; the app locks the other
+  TikTok boxes), and a video already scheduled or posted on one TikTok account can't go to another (a Postiz draft doesn't
+  count). Facebook Pages and other channels have no limit: Meta allows the same video on several of your own Pages.
+- README: how to connect several TikTok accounts and Facebook Pages in Postiz and map them to channel profiles.
+- Not included: TikTok audit itself (owner, on developers.tiktok.com), reminders for drafts published later from Postiz,
+  a check that the owner did finish the inbox draft.
+- Not verified: a real Postiz / TikTok / Slack call (tests use mock transports); the Postiz field names and their UPLOAD
+  behaviour are from Postiz's TikTok settings DTO and provider on 01/10/2026; the app on Mac / Windows.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

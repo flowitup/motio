@@ -131,3 +131,47 @@ def test_test_message_route(fake_slack):
         settings.update({"SLACK_WEBHOOK_URL": ""})
         r = c.post("/api/notify/test", headers=H)
         assert r.status_code == 400 and "not set" in r.json()["detail"]
+
+
+def test_done_message_reminds_to_finish_tiktok_inbox_posts(fake_slack):
+    import datetime as dt
+
+    cid = channels.create({"name": "Chine", "postiz": ["tt1", "fb1"], "send_mode": "schedule",
+                              "send_times": ["18:00"]})["id"]
+    pid = db.create_project("douyin:p", "Titre")
+    channels.attach(pid, channels.pick(cid))
+    date = "2030-01-02T17:00:00Z"
+    db.update_project(pid, meta={"postiz": [
+        {"mode": "now", "date": "2029-01-01T00:00:00Z", "tiktok_inbox": ["Autre"]},  # gửi tay, không thuộc kênh
+        {"mode": "schedule", "date": date, "profile": cid, "tiktok_inbox": ["Motio <TikTok>"]},
+        {"mode": "schedule", "date": date, "profile": cid, "version": "wide"}]})
+    notify.project(pid, "done", sent=True)
+    at = dt.datetime.fromisoformat(date).astimezone().strftime("%d/%m %H:%M")
+    assert fake_slack == [
+        ":white_check_mark: Video ready: Titre · Chine\nSent to Postiz (schedule)\n"
+        f":iphone: TikTok Motio &lt;TikTok&gt;: the video lands in the TikTok app inbox at {at}.\n"
+        "Open TikTok within 24 h, finish the post and turn on “AI-generated content”."]
+
+
+def test_manual_send_reminder_only_for_tiktok_inbox_posts(fake_slack):
+    pid = db.create_project("douyin:p", "Titre")
+    notify.tiktok_inbox(pid, {"mode": "now", "tiktok_inbox": []})
+    notify.tiktok_inbox(pid, {"mode": "draft"})
+    assert fake_slack == []
+    notify.tiktok_inbox(pid, {"mode": "now", "tiktok_inbox": ["Motio TikTok"]})
+    settings.update({"UI_LANG": "vi"})
+    notify.tiktok_inbox(pid, {"mode": "now", "tiktok_inbox": ["Motio TikTok"]})
+    assert fake_slack == [
+        ":iphone: Titre\nTikTok Motio TikTok: the video goes to the TikTok app inbox now.\n"
+        "Open TikTok within 24 h, finish the post and turn on “AI-generated content”.",
+        ":iphone: Titre\nTikTok Motio TikTok: video đang vào hộp thư app TikTok.\n"
+        "Mở TikTok trong 24 giờ, hoàn tất bài và bật “Nội dung do AI tạo”."]
+
+
+def test_manual_reminder_never_raises(monkeypatch):
+    def down(req):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr(notify, "_transport", httpx.MockTransport(down))
+    settings.update({"SLACK_WEBHOOK_URL": URL})
+    notify.tiktok_inbox(999999, {"mode": "now", "tiktok_inbox": ["Motio TikTok"]})  # dự án không có, Slack lỗi

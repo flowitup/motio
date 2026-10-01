@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ApiError, type Api, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
+import { ApiError, isTiktok, type Api, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
 import { t } from "@/i18n";
 
 const MODES: PublishMode[] = ["draft", "schedule", "now"];
@@ -31,6 +31,7 @@ export function PublishCard({
     retry: false,
     staleTime: 60_000,
   });
+  const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
   const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<PublishMode>("draft");
   const [when, setWhen] = useState("");
@@ -55,6 +56,15 @@ export function PublishCard({
     send.reset();
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   };
+
+  // Một video chỉ lên một tài khoản TikTok: tài khoản đã lên lịch / đã đăng (nháp không tính) hoặc đang chọn
+  const sentTiktok = new Set(
+    history.filter((h) => h.mode !== "draft").flatMap((h) => h.channels.filter((c) => isTiktok(c.provider)).map((c) => c.id)),
+  );
+  const pickedTiktok = channels?.find((c) => picked.includes(c.id) && isTiktok(c.provider));
+  const tiktokLocked = (id: string) =>
+    (!!pickedTiktok && pickedTiktok.id !== id) || (sentTiktok.size > 0 && !sentTiktok.has(id));
+  const manyTiktok = (channels?.filter((c) => isTiktok(c.provider)).length ?? 0) > 1;
 
   let body: ReactNode;
   if (error) {
@@ -84,13 +94,17 @@ export function PublishCard({
                 type="checkbox"
                 className="size-4 accent-primary"
                 checked={picked.includes(c.id)}
-                disabled={c.disabled}
+                disabled={c.disabled || (isTiktok(c.provider) && tiktokLocked(c.id))}
                 onChange={() => toggle(c.id)}
               />
               <span>{c.name}</span>
               <span className="text-muted-foreground">· {c.provider}</span>
             </label>
           ))}
+          {manyTiktok && <p className="text-xs text-muted-foreground">{t.publish.oneTiktok}</p>}
+          {pickedTiktok && health && !health.tiktok_direct && (
+            <p className="text-xs text-muted-foreground">{t.publish.tiktokInbox}</p>
+          )}
         </div>
 
         {hasWide && (
@@ -154,7 +168,8 @@ export function PublishCard({
                 {t.publish.modes[h.mode]}
                 {h.mode === "schedule" && ` ${t.dateTime(h.date)}`} ·{" "}
                 {h.channels.map((c) => c.name).join(", ")}
-                {h.version === "wide" && ` · ${t.projects.versions.wide}`} · {t.age(h.at)}
+                {h.version === "wide" && ` · ${t.projects.versions.wide}`}
+                {!!h.tiktok_inbox?.length && ` · ${t.publish.inbox}`} · {t.age(h.at)}
               </div>
             ))}
           </div>

@@ -326,6 +326,13 @@ function SettingsForm({ api }: { api: Api }) {
           <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
             {secret("POSTIZ_API_KEY")}
           </Field>
+          <div className="grid gap-1 sm:col-span-2">
+            <label className="flex items-center justify-between gap-4">
+              <span className="text-sm">{t.settings.tiktokDirect}</span>
+              <Switch checked={bool("TIKTOK_DIRECT_POST")} onCheckedChange={(v) => set("TIKTOK_DIRECT_POST", v)} />
+            </label>
+            <p className="text-xs text-muted-foreground">{t.settings.tiktokDirectHint}</p>
+          </div>
         </CardContent>
       </Card>
 

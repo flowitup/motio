@@ -67,3 +67,59 @@ def test_not_configured_and_bad_key(fake_postiz, monkeypatch):
     assert not postiz.configured()
     with pytest.raises(postiz.PostizError):
         postiz.channels()
+
+
+# ---------- TikTok: hộp thư app TikTok khi app chưa audit, một tài khoản TikTok mỗi video ----------
+def test_tiktok_goes_to_the_inbox_until_direct_post_is_on(monkeypatch):
+    for provider in postiz.TIKTOK:
+        tt = postiz.settings_for(provider, "t", [])
+        assert tt["__type"] == provider and tt["content_posting_method"] == "UPLOAD"
+        assert tt["video_made_with_ai"] is True  # Direct Post vẫn dùng; UPLOAD thì chủ kênh bật trong app
+    monkeypatch.setenv("TIKTOK_DIRECT_POST", "true")
+    assert postiz.settings_for("tiktok", "t", [])["content_posting_method"] == "DIRECT_POST"
+
+
+def test_publish_says_which_tiktok_post_lands_in_the_inbox(fake_postiz, tmp_path, monkeypatch):
+    video = tmp_path / "final.mp4"
+    video.write_bytes(b"x")
+    res = postiz.publish(video, "t", "t", [], ["tt1", "fb1"], "now")
+    body = json.loads(fake_postiz[-1].content)
+    assert [p["settings"]["__type"] for p in body["posts"]] == ["tiktok", "facebook"]
+    assert body["posts"][0]["settings"]["content_posting_method"] == "UPLOAD"
+    assert res["tiktok_inbox"] == ["Motio TikTok"]
+    assert postiz.publish(video, "t", "t", [], ["tt1"], "draft")["tiktok_inbox"] == []  # nháp: chưa tới TikTok
+    assert postiz.publish(video, "t", "t", [], ["fb1", "yt1"], "now")["tiktok_inbox"] == []
+    monkeypatch.setenv("TIKTOK_DIRECT_POST", "1")
+    assert postiz.publish(video, "t", "t", [], ["tt1"], "now")["tiktok_inbox"] == []
+
+
+def test_one_tiktok_account_per_video(fake_postiz, tmp_path):
+    video = tmp_path / "final.mp4"
+    video.write_bytes(b"x")
+    with pytest.raises(ValueError, match="one TikTok account"):
+        postiz.publish(video, "t", "t", [], ["tt1", "tt2", "fb1"], "now")
+    with pytest.raises(ValueError, match="already went to TikTok Motio TikTok"):
+        postiz.publish(video, "t", "t", [], ["tt2"], "now", tiktok_sent={"tt1": "Motio TikTok"})
+    assert all(not r.url.path.endswith("/upload") for r in fake_postiz)  # từ chối trước khi tải lên
+    postiz.publish(video, "t", "t", [], ["tt1"], "now", tiktok_sent={"tt1": "Motio TikTok"})  # gửi lại cùng tài khoản
+    postiz.publish(video, "t", "t", [], ["fb1"], "now", tiktok_sent={"tt1": "Motio TikTok"})  # Facebook: không giới hạn
+
+
+def test_tiktok_accounts_already_used_by_a_project():
+    meta = {"postiz": [
+        {"mode": "draft", "channels": [{"id": "tt2", "name": "Chine Insolite", "provider": "tiktok-business"}]},
+        {"mode": "schedule", "channels": [{"id": "tt1", "name": "Motio TikTok", "provider": "tiktok"},
+                                          {"id": "fb1", "name": "Page Chine", "provider": "facebook"}]}]}
+    assert postiz.tiktok_sent(meta) == {"tt1": "Motio TikTok"}  # nháp Postiz không tính
+    assert postiz.tiktok_sent({}) == {}
+
+
+def test_profile_check_allows_one_tiktok_and_skips_when_postiz_is_away(fake_postiz, monkeypatch):
+    postiz.one_tiktok(["tt1", "fb1", "yt1"])
+    postiz.one_tiktok(["tt1", "tt1"])
+    with pytest.raises(ValueError, match="one TikTok account"):
+        postiz.one_tiktok(["tt1", "fb1", "tt2"])
+    monkeypatch.setenv("POSTIZ_API_KEY", "wrong")  # Postiz trả lỗi: không chặn việc lưu hồ sơ
+    postiz.one_tiktok(["tt1", "tt2"])
+    monkeypatch.delenv("POSTIZ_API_KEY")
+    postiz.one_tiktok(["tt1", "tt2"])

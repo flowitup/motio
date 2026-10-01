@@ -247,7 +247,8 @@ def test_cors_preflight(client):
 def test_publish_to_postiz(client, fake_postiz):
     assert client.get("/api/health", headers=H).json()["postiz"] is True
     chans = client.get("/api/postiz/channels", headers=H).json()
-    assert [(c["id"], c["provider"]) for c in chans] == [("tt1", "tiktok"), ("yt1", "youtube")]
+    assert [(c["id"], c["provider"]) for c in chans] == [("tt1", "tiktok"), ("yt1", "youtube"),
+                                                         ("tt2", "tiktok-business"), ("fb1", "facebook")]
 
     pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
     _wait_done(client, pid)
@@ -258,6 +259,36 @@ def test_publish_to_postiz(client, fake_postiz):
     assert p["meta"]["video"] == f"projects/{pid}/final.mp4"  # meta cũ giữ nguyên
 
     bad = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1"], "mode": "schedule"})
+    assert bad.status_code == 400
+
+
+def test_publish_to_tiktok_inbox_reminds_on_slack_and_keeps_one_tiktok_account(client, fake_postiz, fake_slack):
+    assert client.get("/api/health", headers=H).json()["tiktok_direct"] is False
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    fake_slack.clear()
+    r = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt1", "fb1"], "mode": "now"})
+    assert r.status_code == 200 and r.json()["tiktok_inbox"] == ["Motio TikTok"]
+    assert fake_slack[-1].startswith(":iphone: ")
+    assert "TikTok Motio TikTok: the video goes to the TikTok app inbox now" in fake_slack[-1]
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert p["meta"]["postiz"][-1]["tiktok_inbox"] == ["Motio TikTok"]
+
+    other = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["tt2"], "mode": "now"})
+    assert other.status_code == 400 and "already went to TikTok Motio TikTok" in other.json()["detail"]
+    sent = len(fake_slack)
+    fb = client.post(f"/api/projects/{pid}/publish", headers=H, json={"channels": ["fb1"], "mode": "now"})
+    assert fb.status_code == 200
+    assert len(fake_slack) == sent  # không có TikTok: không nhắc
+
+
+def test_channel_profile_takes_one_tiktok_account(client, fake_postiz):
+    two = client.post("/api/channels", headers=H, json={"name": "x", "postiz": ["tt1", "tt2"]})
+    assert two.status_code == 400 and "one TikTok account" in two.json()["detail"]
+    ok = client.post("/api/channels", headers=H, json={"name": "x", "postiz": ["tt1", "fb1", "yt1"]})
+    assert ok.status_code == 201
+    cid = ok.json()["id"]
+    bad = client.put(f"/api/channels/{cid}", headers=H, json={"name": "x", "postiz": ["tt1", "tt2"]})
     assert bad.status_code == 400
 
 

@@ -25,7 +25,8 @@ def clean_settings(monkeypatch):
 
 @pytest.fixture
 def fake_postiz(monkeypatch):
-    """Postiz giả qua httpx.MockTransport: 2 kênh (TikTok, YouTube). Trả danh sách request đã nhận."""
+    """Postiz giả qua httpx.MockTransport: kênh TikTok, YouTube, TikTok Business (tài khoản thứ hai) và một Page
+    Facebook. Trả danh sách request đã nhận."""
     import json
 
     import httpx
@@ -43,7 +44,9 @@ def fake_postiz(monkeypatch):
         if path == "/integrations":
             return httpx.Response(200, json=[
                 {"id": "tt1", "name": "Motio TikTok", "identifier": "tiktok", "disabled": False},
-                {"id": "yt1", "name": "Motio YouTube", "identifier": "youtube", "disabled": False}])
+                {"id": "yt1", "name": "Motio YouTube", "identifier": "youtube", "disabled": False},
+                {"id": "tt2", "name": "Chine Insolite", "identifier": "tiktok-business", "disabled": False},
+                {"id": "fb1", "name": "Page Chine", "identifier": "facebook", "disabled": False}])
         if path == "/upload":
             return httpx.Response(200, json={"id": "m1", "name": "final.mp4",
                                              "path": "https://postiz.test/uploads/final.mp4"})

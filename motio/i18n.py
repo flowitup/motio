@@ -261,6 +261,11 @@ VI = {
     "version must be one of {choices}": "version phải là một trong {choices}",
     "Pick at least one channel": "Chọn ít nhất một kênh",
     "Channels not found in Postiz: {names}": "Kênh không có trong Postiz: {names}",
+    "Pick one TikTok account per video: the same video on several TikTok accounts links them and cuts their reach":
+        "Mỗi video chỉ chọn một tài khoản TikTok: cùng một video trên nhiều tài khoản TikTok làm TikTok gộp chúng lại "
+        "và giảm lượt xem",
+    "This video already went to TikTok {name}: post it on one TikTok account only":
+        "Video này đã lên TikTok {name}: chỉ đăng trên một tài khoản TikTok",
     # render, search, settings, topic, tts, watch
     "ffmpeg failed: {error}": "ffmpeg lỗi: {error}",
     "Invalid link: {url}": "Link không hợp lệ: {url}",
@@ -283,6 +288,11 @@ VI = {
     "Video ready: {title}": "Video đã xong: {title}",
     "Sent to Postiz ({mode})": "Đã gửi sang Postiz ({mode})",
     "Not sent to Postiz: {error}": "Chưa gửi được sang Postiz: {error}",
+    "TikTok {names}: the video lands in the TikTok app inbox at {time}.":
+        "TikTok {names}: video vào hộp thư app TikTok lúc {time}.",
+    "TikTok {names}: the video goes to the TikTok app inbox now.": "TikTok {names}: video đang vào hộp thư app TikTok.",
+    "Open TikTok within 24 h, finish the post and turn on “AI-generated content”.":
+        "Mở TikTok trong 24 giờ, hoàn tất bài và bật “Nội dung do AI tạo”.",
     "Motio test message: Slack alerts are working.": "Tin thử của Motio: thông báo Slack đang hoạt động.",
     "Enter a topic or at least one video link": "Nhập chủ đề hoặc ít nhất một link video",
     "No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY (the macOS voice only works on a Mac).":

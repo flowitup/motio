@@ -332,6 +332,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             "js_runtime": next(iter(config.js_runtimes().values()), {}).get("path"),
             "claude_cli": claude,
             "postiz": postiz.configured(),
+            "tiktok_direct": postiz.tiktok_direct(),
             "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),
             "disk": config.disk(),
@@ -716,6 +717,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     # ---------- kênh (hồ sơ đăng) ----------
     def _channel_data(body: ChannelIn) -> dict:
+        postiz.one_tiktok(body.postiz)  # một tài khoản TikTok mỗi kênh (ValueError → 400)
         return body.model_dump(exclude={"default"})
 
     @app.get("/api/channels", dependencies=[Depends(auth)])
@@ -769,11 +771,13 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                                 else tr("Project has no finished video yet"))
         _need_postiz()
         try:
-            return postiz.publish_project(pid, body.channels, body.mode, body.date, version=body.version)
+            res = postiz.publish_project(pid, body.channels, body.mode, body.date, version=body.version)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:
             raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
+        notify.tiktok_inbox(pid, res)  # bài vào hộp thư TikTok: nhắc chủ kênh tự đăng (không bao giờ ném lỗi)
+        return res
 
     # ---------- thông báo Slack ----------
     @app.post("/api/notify/test", dependencies=[Depends(auth)])
