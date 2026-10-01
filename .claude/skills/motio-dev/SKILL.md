@@ -18,7 +18,7 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
 1. `CLAUDE.md` (repo root): conventions and non-negotiables. Read it every session.
 2. `docs/APP_PLAN.md`: scope and milestones (M1 engine API ✓, M2 desktop app ✓, M3 packaging ✓ (engine in
    the installers), Server + Postiz ✓, In-app updates ✓, Blueprint GĐ0 ✓, "Beyond hot news" A topic mode ✓,
-   B watchlist ✓ → C French dub (GĐ2 parts 1 + 2 ✓), Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
+   B watchlist ✓ → C French dub (GĐ2 parts 1 + 2 ✓), Windows home server (runbook + script + cookie file + disk space) ✓, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
    auto-make ✓, Slack alerts ✓, GĐ3 part 1 AI video (AI pictures + Ken Burns) ✓, GĐ3 part 2 AI clips (fal H3 Max) ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
 3. `docs/DEPLOY.md` for the server, README for release / updater steps.
@@ -86,7 +86,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Change | Files |
 |---|---|
 | Hot-topic fetch, translate, score | `motio/newsnow.py` |
-| Source search / download (yt-dlp), pasted links | `motio/search.py` (`YTDLP_COOKIES_FROM_BROWSER` only for pasted links) |
+| Source search / download (yt-dlp), pasted links | `motio/search.py` (`YTDLP_COOKIES_FROM_BROWSER` only for pasted links and followed Bilibili spaces; `YTDLP_COOKIES_FILE` wins over it and also covers Bilibili search / downloads: `cookie_file`, `check_cookie_file`, `_cookie_opts`, `_file_cookie_opts`, `_own_cookie_copy`); tests `tests/test_search.py` |
 | Transcription | `motio/asr.py` (mlx-whisper on macOS arm64, faster-whisper elsewhere) |
 | Any LLM call | `motio/llm.py` only (`complete`, `ask_json`, `parse_json`) |
 | Voice | `motio/tts.py` (ElevenLabs with timestamps; macOS `say` is a dev fallback only) |
@@ -110,6 +110,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Stats page (ElevenLabs characters and estimated cost per project / channel / tool, monthly budget) | `motio/usage.py` (`context`, `record_tts`, `cost`, `for_project`, `summary`, `over_budget`), `tts.synthesize` records, `db.usage` table, `GET /api/stats`, `app/src/pages/stats.tsx`; tests `tests/test_usage.py` |
 | AI video mode (scenes from a topic, AI pictures, Ken Burns) | `motio/creator.py` (`create`, `tidy`, `prompt`, `pictures`, `timeline`, `render_args`, `needs_review`, `view`), `motio/images.py` (`make`, `generate`, `check_ready`, `cost`, `key`, `REVIEW_PROVIDERS`, `_transport` test hook), `render.Piece.motion` / `kenburns()`, `pipeline._step_ai_script` / `_finish_script` / `_voice_render_post`, `edit.reroll_picture`, `POST /api/ai`, `POST /api/projects/{id}/scenes/{i}/redo`, `IMAGE_PROVIDER` / `FAL_KEY` (secret) / `IMAGE_STYLE`, `AiForm` in `app/src/pages/projects.tsx`, scene rows in `app/src/components/script-card.tsx`; tests `tests/test_creator.py` (motion render needs FFmpeg) |
 | AI clips (some scenes of an AI video become fal H3 Max clips) | `motio/aiclips.py` (`pick`, `limit`, `prompt`, `make`, `generate`, `check_ready`, `cost`, `used`, `_transport` test hook), `creator.animate` / `creator.timeline(scenes)`, `pipeline._voice_render_post` (after the voice), `usage.record_clip` / `clip_price` / `for_project().clip_usd`, channel field `ai_clips`, project `meta.ai.clip_limit` / `clips`, `AI_CLIP_USD_PER_SEC`; tests in `tests/test_creator.py` (`clip_fake`) |
+| Windows PC at home as the 24/7 engine (Mac = remote client, nothing stored on the Mac) | `tools/windows/motio-server.ps1` (Task Scheduler task "Motio engine", Tailscale-only bind, firewall rule, launcher + token under `%LOCALAPPDATA%\MotioServer`), runbook `docs/WINDOWS_SERVER.md`; `config.disk()` → `/api/health` `disk`, shown in `HealthCard` (`app/src/pages/settings.tsx`) |
 | Slack alerts (review / done / failed, one-way Incoming Webhook) | `motio/notify.py` (`valid`, `send`, `project`, `escape`), hooks in `pipeline._await_review` / `_deliver` / `approve_video` / failure handlers, `SLACK_WEBHOOK_URL` (secret), `POST /api/notify/test`, Settings card in `app/src/pages/settings.tsx`; tests `tests/test_notify.py`, `fake_slack` fixture |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
@@ -238,7 +239,7 @@ it was not run. Updater manifest logic lives in `tools/updater_manifest.py` with
 ```bash
 # 1. Engine lint + tests (CI runs these on Ubuntu and Windows)
 uv run ruff check motio tests          # add tools/ when you touch it; CI doesn't lint it
-uv run pytest                          # 321 passed with FFmpeg on PATH (30/09); some FFmpeg tests skip without it
+uv run pytest                          # 387 passed with FFmpeg on PATH (01/10); some FFmpeg tests skip without it
 # 2. UI typecheck + build
 cd app && pnpm build && cd ..
 # 3. Rust (Linux needs libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf first)
@@ -342,6 +343,17 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - Stale `running` projects are marked `failed` on engine start; don't rely on resuming them.
 - Release asset names feed `tools/updater_manifest.py`: renaming bundles or changing `bundles:` in
   `release.yml` breaks updates unless the manifest targets and its test change too.
+- yt-dlp rewrites the file given as `cookiefile` when `YoutubeDL` closes, and the engine runs several threads at once (pipeline
+  worker, tools, fetch, scheduler). `search._own_cookie_copy` therefore hands each thread its own temporary copy of
+  `YTDLP_COOKIES_FILE`; never pass the configured path to yt-dlp directly. `/media` refuses that file (the token holder must
+  not be able to download login cookies), and `settings.update` validates it with yt-dlp's own jar loader.
+- Windows home server (`docs/WINDOWS_SERVER.md`, `tools/windows/motio-server.ps1`): written in a Linux sandbox, so only the
+  PowerShell parse (`pwsh` `Parser::ParseFile`) and the generated launcher were checked; nothing ran on Windows. `--headless`
+  only sets `headless: true` in `/api/health`. The app's updater does not update the Windows engine (reinstall the MSI, rerun
+  the script). The frozen Windows engine does not bundle CUDA (`tools/build_engine.py` collects only `faster_whisper` and
+  `ctranslate2`), so GPU transcription needs CUDA 12 + cuDNN 9 installed on the PC. Old projects copied from a Mac keep
+  absolute Mac paths in `meta.sources[i].path`: `pipeline._load_sources` re-finds plain sources by video id, delogo / dub
+  views do not.
 - `.claude/settings.json` denies `Read(./.env.*)` and `cat .env*`, which also blocks `.env.example`: Claude
   sessions can't add key names there. Put new keys in the PR body for the owner.
 - Homebrew FFmpeg has no libass, so captions are not burned with `subtitles=`: Pillow draws each karaoke

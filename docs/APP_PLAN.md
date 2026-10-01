@@ -485,6 +485,33 @@ at most 6 clips of 5 s per video, the post says so.
   its price is fal's list price, not checked against an invoice; H3 Max's licence for monetized channels was not checked, so
   clip videos follow the channel's own gates; the app on Mac / Windows.
 
+## Windows PC at home as the server (added 01/10/2026)
+
+The owner asked for the home Windows PC (5 TB) to run the engine and keep every downloaded and produced video, with the Mac
+only monitoring. Remote-engine mode already does that (no engine and no data folder on the Mac; `/media` streams with Range;
+uploads go to the engine; "Open folder" is hidden); what was missing is running it: option A of the brainstorm (installed
+engine in the background + Tailscale), no Docker, no network drive.
+
+- **Runbook and script**: `docs/WINDOWS_SERVER.md` and `tools/windows/motio-server.ps1` (elevated PowerShell): finds
+  `motio-engine.exe`, writes a launcher (sets `MOTIO_DATA`, `HF_HOME`, `MOTIO_TOKEN`, keeps logs next to the data), registers
+  the Task Scheduler task "Motio engine" (at log on, restarts every minute when the engine stops, e.g. Tailscale not up yet),
+  binds the engine to the Tailscale address only, opens the port for `100.64.0.0/10` only, optional `-KeepAwake`; `-Status`,
+  `-Uninstall`. The token file and launcher are readable by the current user only.
+- **`YTDLP_COOKIES_FILE`** (Settings → Cookie file): a Netscape `cookies.txt` for an engine without a browser. Checked when
+  saved (`search.check_cookie_file`, loaded with yt-dlp's own jar). Used for pasted links (any site), and for Bilibili search,
+  Bilibili downloads and followed Bilibili spaces; it wins over `YTDLP_COOKIES_FROM_BROWSER`, which behaves as before. yt-dlp
+  rewrites the jar when it closes, so every thread gets its own temporary copy (`search._own_cookie_copy`) and the original
+  is never touched; `/media` refuses the configured file even inside the data folder.
+- **Disk space**: `GET /api/health` has `disk: {free, total}` (bytes, the drive of the data folder); Settings → Engine
+  status shows it, and the remote engine card says where the videos live.
+- Not included: a script that imports the Mac `data/` folder and rewrites the absolute source paths in `meta` (finished
+  videos play after a plain copy; delogo-cleaned sources and the dub compare player lose their link); a hosted ASR provider
+  (Groq) if faster-whisper on the PC is too slow; a slim client build without the bundled engine; updating the Windows engine
+  from the Mac app.
+- Not verified: the script and the whole flow on a real Windows PC (the PowerShell is only parse-checked with `pwsh`);
+  the frozen engine's transcription and render on Windows; faster-whisper speed and CUDA (the build does not bundle the CUDA
+  libraries); macOS WebView with plain HTTP to the Tailscale address (fallback in the runbook: `tailscale serve` HTTPS).
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel
