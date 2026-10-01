@@ -334,6 +334,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             "postiz": postiz.configured(),
             "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),
+            "disk": config.disk(),
         }
 
     @app.get("/api/stats", dependencies=[Depends(auth)])
@@ -919,7 +920,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def media(path: str):
         root = config.DATA.resolve()
         f = (root / path).resolve()
-        if not f.is_relative_to(root) or not f.is_file() or f.name == settings.path().name:
+        cookies = search.cookie_file()  # cookie đăng nhập: không phục vụ dù đặt trong thư mục dữ liệu
+        if (not f.is_relative_to(root) or not f.is_file() or f.name == settings.path().name
+                or (cookies and f == cookies.resolve())):
             raise HTTPException(404, tr("File not found"))
         return FileResponse(f)
 

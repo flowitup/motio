@@ -76,6 +76,7 @@ function EngineCard() {
             <Field label={t.settings.engineToken}>
               <Input type="password" value={cfg.token} onChange={(e) => setCfg({ ...cfg, token: e.target.value })} />
             </Field>
+            <p className="text-xs text-muted-foreground">{t.settings.engineRemoteHint}</p>
           </>
         )}
         <div className="flex items-center gap-2">
@@ -166,6 +167,16 @@ function UpdateCard() {
   );
 }
 
+function bytes(n: number) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1000 && i < units.length - 1) {
+    n /= 1000;
+    i++;
+  }
+  return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)} ${units[i]}`;
+}
+
 function HealthCard({ api }: { api: Api }) {
   const { data: h, error } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), refetchInterval: 30_000 });
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
@@ -182,6 +193,7 @@ function HealthCard({ api }: { api: Api }) {
     ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
     [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
+    [t.settings.disk, h.disk ? t.settings.diskFree(bytes(h.disk.free), bytes(h.disk.total)) : "—"],
   ];
   return (
     <Card>
@@ -452,6 +464,9 @@ function SettingsForm({ api }: { api: Api }) {
               ]}
               className="w-48"
             />
+          </Field>
+          <Field label={t.settings.cookiesFile} hint={t.settings.cookiesFileHint}>
+            {text("YTDLP_COOKIES_FILE", "C:\\Motio\\cookies.txt")}
           </Field>
         </CardContent>
       </Card>

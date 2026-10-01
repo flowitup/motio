@@ -46,6 +46,15 @@ def flag(key: str, default: bool = False) -> bool:
     return env(key, "true" if default else "false").lower() in ("1", "true", "yes", "on")
 
 
+def disk() -> dict | None:
+    """Dung lượng ổ chứa thư mục dữ liệu (byte). App nối engine từ xa cần biết máy chủ còn bao nhiêu chỗ."""
+    try:
+        u = shutil.disk_usage(DATA)
+    except OSError:
+        return None
+    return {"free": u.free, "total": u.total}
+
+
 # ---------- tìm binary ----------
 def _bundled_bin() -> Path:
     """Thư mục bin/ cạnh engine (bản đóng gói) hoặc ở gốc repo (dev)."""

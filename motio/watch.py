@@ -30,7 +30,8 @@ _YT_CHANNEL = re.compile(r"^/(@[^/]+|channel/UC[\w-]+|c/[^/]+|user/[^/]+)")
 NOT_A_LIST = "This is a link to a single video: paste a channel or playlist link, or use Projects → New video"
 UNSUPPORTED = ("Only YouTube channels and playlists, Bilibili spaces or search keywords can be followed. "
                "Douyin, Facebook: paste each video link in Projects → New video")
-BILI_BLOCKED = "Bilibili blocks requests without a login: pick a browser in Settings → Browser cookies"
+BILI_BLOCKED = ("Bilibili blocks requests without a login: pick a browser or set a cookie file in "
+                "Settings → Browser cookies")
 _BLOCK = re.compile(r"\b(412|352|401)\b")
 
 # Bilibili: số av → mã BV (thuật toán công khai của Bilibili), để cùng một video từ tìm kiếm (av) và không gian (BV)
