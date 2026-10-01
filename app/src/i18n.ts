@@ -280,6 +280,11 @@ const en = {
     none: "No channel",
     pick: "Channel",
   },
+  qa: {
+    card: "Quality check",
+    level: { ok: "Passed", warn: "Look at it", fail: "Problem found" } as Record<string, string>,
+    failNote: "The video is not sent to Postiz by itself because of the problems marked below. Watch it, then approve it or fix it and re-render.",
+  },
   review: {
     script: "Script awaiting your approval",
     scriptHint: "Read the narration in the Script card below, edit it if needed (click Save), then click Approve to record the voice and render the video.",
@@ -960,6 +965,11 @@ const vi: Messages = {
     summaryClips: (n: number) => `${n} clip AI mỗi video`,
     none: "Không dùng kênh",
     pick: "Kênh",
+  },
+  qa: {
+    card: "Kiểm tra chất lượng",
+    level: { ok: "Đạt", warn: "Nên xem lại", fail: "Có lỗi" } as Record<string, string>,
+    failNote: "Video không tự gửi sang Postiz vì các lỗi đánh dấu bên dưới. Xem lại video rồi duyệt, hoặc sửa và dựng lại.",
   },
   review: {
     script: "Kịch bản đang chờ bạn duyệt",

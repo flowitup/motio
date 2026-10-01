@@ -77,3 +77,12 @@ def fake_slack(monkeypatch):
     monkeypatch.setattr(notify, "_transport", httpx.MockTransport(handler))
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T0/B0/xyz")
     return texts
+
+
+@pytest.fixture(autouse=True)
+def quiet_qa(monkeypatch):
+    """Tests that fake the render have no video file to look at: the media part of the quality check (ffprobe and
+    FFmpeg) says "all fine". tests/test_qa.py keeps the real function (`real_run`) and runs it on real files."""
+    from motio import qa
+
+    monkeypatch.setattr(qa, "run", lambda path, lo, hi: {"level": "ok", "checks": [], "at": 0.0})

@@ -3,11 +3,13 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  CircleCheck,
   Copy,
   Eraser,
   FolderOpen,
   Link2,
   Loader2,
+  OctagonAlert,
   Play,
   RotateCcw,
   Send,
@@ -111,6 +113,35 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
           />
         </Field>
         {rights.error && <p className="text-destructive">{rights.error.message}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Kết quả kiểm tra chất lượng của lần dựng gần nhất (qa.py): mức chung và từng mục. */
+function QualityCard({ qa }: { qa: NonNullable<ProjectDetail["meta"]["qa"]> }) {
+  const tone = { ok: "text-emerald-700 dark:text-emerald-400", warn: "text-amber-700 dark:text-amber-400", fail: "text-destructive" };
+  const Icon = { ok: CircleCheck, warn: TriangleAlert, fail: OctagonAlert };
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>{t.qa.card}</CardTitle>
+        <span className={`text-sm font-medium ${tone[qa.level]}`}>{t.qa.level[qa.level] ?? qa.level}</span>
+      </CardHeader>
+      <CardContent className="grid gap-1.5 text-sm">
+        {qa.level === "fail" && <p className="text-muted-foreground">{t.qa.failNote}</p>}
+        {qa.checks
+          .filter((c) => c.level !== "ok")
+          .map((c) => {
+            const I = Icon[c.level];
+            return (
+              <div key={`${c.id}-${c.msg}`} className={`flex items-start gap-2 ${tone[c.level]}`}>
+                <I className="mt-0.5 size-4 shrink-0" />
+                <span>{c.msg}</span>
+              </div>
+            );
+          })}
+        {qa.checks.every((c) => c.level === "ok") && <p className="text-muted-foreground">{qa.checks.map((c) => c.msg).join(" · ")}</p>}
       </CardContent>
     </Card>
   );
@@ -352,6 +383,8 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-5">
+          {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} />}
+
           {post && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">

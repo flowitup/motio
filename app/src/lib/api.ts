@@ -107,6 +107,14 @@ export type ToolJob = {
   folder: string; // thư mục kết quả trên máy chạy engine
 };
 
+export type QaLevel = "ok" | "warn" | "fail";
+/** Kiểm tra chất lượng sau mỗi lần dựng: từng mục (đã dịch sang ngôn ngữ giao diện) và mức chung. */
+export type QaResult = {
+  level: QaLevel; // fail = video chưa đủ tốt để tự gửi Postiz
+  checks: { id: string; level: QaLevel; msg: string }[];
+  at: number;
+};
+
 export type ProjectMeta = {
   topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
   subject?: { title_fr: string; angle: string };
@@ -125,6 +133,7 @@ export type ProjectMeta = {
   elapsed?: number;
   postiz?: PublishRecord[];
   channel?: number; // hồ sơ kênh (Kênh), không có = chạy như trước
+  qa?: QaResult; // kiểm tra chất lượng lần dựng gần nhất
   review?: Review | null; // đang chờ duyệt gì (status = "review")
   send_error?: string | null; // lần tự gửi Postiz gần nhất bị lỗi
   approved_at?: number;
