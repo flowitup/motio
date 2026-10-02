@@ -655,3 +655,13 @@ def test_a_cdn_that_answers_with_an_error_is_not_a_missing_connection(douyin_api
 def test_one_cdn_link_that_still_works_after_a_cut_off_one_gives_the_video(douyin_api, tmp_path):
     douyin_api["drop"] = {"cdn-a.example"}
     assert douyin.download("https://www.douyin.com/video/1", tmp_path)["id"] == "7686432847778982833"
+
+
+def test_an_http_client_that_cannot_be_built_leaves_the_fallback_to_yt_dlp(douyin_api, tmp_path, monkeypatch):
+    """ALL_PROXY=socks5://… without the socksio package makes httpx.Client() raise ImportError."""
+    def broken(headers, **kw):
+        raise ImportError("Using SOCKS proxy, but the 'socksio' package is not installed.")
+
+    monkeypatch.setattr(douyin, "_client", broken)
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path, post_id="1") is None
+    assert not list(tmp_path.glob("Douyin_*"))

@@ -361,7 +361,7 @@ def _save(urls: list[str], dest: Path, headers: dict, hooks: list | None) -> boo
             os.replace(part, dest)
             _tell(hooks, "finished", got, got)
             return True
-        except (httpx.HTTPError, OSError) as e:
+        except (httpx.HTTPError, OSError, ImportError) as e:  # ImportError: no httpx client (SOCKS without socksio)
             log.warning("Douyin stream %s failed: %s", urlparse(u).hostname, e)
             if _is_network_error(e):
                 offline = e

@@ -77,7 +77,9 @@ local machine worked), long-term stability, keyword search, an author's video li
   load runs at a time, and a failed or timed-out one is not started again until `_F2_RETRY_AFTER` (two minutes) after it
   failed, so after the connection is back a download within those two minutes still skips f2 (and, with yt-dlp
   failing too, still says it could not connect). A server that accepts the connection and never answers costs about 20 s
-  inside f2 and is cut at the same 15 s; a refused or missing connection fails in 1 to 3 s. yt-dlp can still add up to 30 s
+  inside f2 and is cut at the same 15 s; a refused connection (a proxy that refuses everything) fails in under 3 s. With no
+  route out at all, a short link or a Share sentence shows the connection message at once, but a full link takes about 17 s
+  (f2 retries its token request with back-off until the 15 s cap, then yt-dlp fails). yt-dlp can still add up to 30 s
   on top before the error shows, and so can following a short link (30 s); a Cancel is only noticed once the import has been
   given up on or has finished (15 s at most).
 - **The error used to blame cookies.** With no connection at all, yt-dlp's Douyin extractor still says fresh cookies are
