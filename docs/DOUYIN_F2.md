@@ -56,11 +56,12 @@ local machine worked), long-term stability, keyword search, an author's video li
   10 days (median), on PyPI once of four. Douyin also began gating `aweme/detail` in mid-September 2026; the pinned build
   works today from a home connection, which is what the tests above show. Expect it to be down sometimes: that is why the
   fallback chain and **Add a video file** stay.
-- **A stalled network is slow to fail.** When connections open but nothing answers, importing f2 retries its `msToken`
-  request for about 135 s (twelve attempts inside f2's own `model.py`) and yt-dlp then adds about 30 s, so the first download
-  fails after roughly three minutes; the lock around the import makes other Douyin downloads wait too. A network that fails
-  at once is fine (1 to 3 s, and later jobs skip f2 for two minutes). A short probe before the import, or a deadline on it,
-  would bound this.
+- **A stalled network is slow to fail.** When the packets to Douyin's token server are silently dropped (the connection
+  never opens), importing f2 retries its `msToken` request for about 135 s (twelve attempts inside f2's own `model.py`) and
+  yt-dlp then adds up to 30 s, so the first download fails after roughly three minutes; the lock around the import makes other
+  Douyin downloads wait too, and a Cancel is only noticed once the import is over. A server that accepts the connection and
+  never answers costs about 20 s; a refused or missing connection fails at once (1 to 3 s, and later jobs skip f2 for two
+  minutes). A short probe before the import, or a deadline on it, would bound this.
 - **The error can blame cookies.** With no connection at all, yt-dlp's Douyin extractor still says fresh cookies are needed,
   and `search.download` shows that text; the real cause (f2's network error) is only in the log.
 - **TLS.** f2 turns certificate checking off for its own calls (an on-path attacker could forge Douyin's reply). Motio only

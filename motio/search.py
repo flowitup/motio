@@ -81,7 +81,8 @@ _LINK_IN_TEXT = re.compile(r"https?://[^\s\u3000-\u303f\u4e00-\u9fff\uff00-\uffe
 
 def clean_links(links: list[str]) -> list[str]:
     """Link http(s) hợp lệ, bỏ trùng, giữ thứ tự. Sai định dạng thì ValueError. Dán cả câu chia sẻ của app Douyin
-    ("7.43 复制打开抖音… https://v.douyin.com/xxx/ 复制此链接…") thì lấy link trong câu."""
+    ("7.43 复制打开抖音… https://v.douyin.com/xxx/ 复制此链接…") thì lấy link trong câu, nhưng chỉ khi câu có đúng một
+    link: hai link trên một dòng vẫn là lỗi, không lặng lẽ bỏ link thứ hai."""
     out = []
     for raw in links:
         url = (raw or "").strip()
@@ -89,8 +90,8 @@ def clean_links(links: list[str]) -> list[str]:
             continue
         if localfile.parse(url):  # a video file added in the app
             url = localfile.check(url)
-        elif re.search(r"\s", url) and (m := _LINK_IN_TEXT.search(url)):
-            url = m.group(0).rstrip(".,;:!?)]}>\"'")
+        elif re.search(r"\s", url) and len(found := _LINK_IN_TEXT.findall(url)) == 1:
+            url = found[0].rstrip(".,;:!?)]}>\"'")
         if not localfile.parse(url) and not _LINK.match(url):
             raise ValueError(tr("Invalid link: {url}", url=(raw or "").strip()[:120]))
         if url not in out:

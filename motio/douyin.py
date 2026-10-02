@@ -40,7 +40,7 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 _POST_ID = re.compile(r"/(?:video|note|slides)/(\d+)")
 _ID_PARAMS = ("modal_id", "vid")
 _NOT_USED = ("browser_cookie3", "execjs")
-_F2_RETRY_AFTER = 120  # giây: nạp f2 hỏng thì chưa thử nạp lại ngay, mỗi lần nạp hỏng mất cả chục giây chờ mạng
+_F2_RETRY_AFTER = 120  # giây: nạp f2 hỏng thì chưa thử nạp lại ngay (mạng nuốt gói tin: ~135 s/lần)
 
 _f2_lock = threading.Lock()
 _f2_loaded: tuple | None = None
