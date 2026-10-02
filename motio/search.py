@@ -173,6 +173,11 @@ def _cookie_opts() -> dict:
     return {"cookiesfrombrowser": (browser,)} if browser in BROWSERS else {}
 
 
+def _cannot_reach_douyin() -> RuntimeError:
+    return RuntimeError(tr("Could not connect to Douyin. Check your internet connection (or VPN, proxy, DNS filter), "
+                           "then try again"))
+
+
 def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bool = False,
              hooks: list | None = None) -> dict:
     """Tải 1 video (≤ max_height, mp4; không nói thì 720, riêng Douyin là 1080). Trả metadata + đường dẫn file.
@@ -182,13 +187,21 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     ném lỗi trong hàm thì dừng tải."""
     if localfile.parse(url):
         return localfile.source(url)
+    offline = None  # f2 không kết nối được tới Douyin: yt-dlp vẫn được thử, nhưng nếu nó cũng hỏng thì báo lỗi mạng
     if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được
-        info = douyin.download(url, out_dir, max_height or douyin.DEFAULT_HEIGHT, hooks)
-        if info:
-            return info
-        post_id = douyin._post_id(url)
+        post_id = None
+        try:
+            post_id = douyin.find_id(url)  # link rút gọn (câu chia sẻ của app Douyin) theo chuyển hướng một lần, ở đây
+            if post_id:
+                info = douyin.download(url, out_dir, max_height or douyin.DEFAULT_HEIGHT, hooks, post_id)
+                if info:
+                    return info
+        except douyin.Unreachable as e:
+            offline = e
         if post_id:  # yt-dlp chỉ hiểu dạng www.douyin.com/video/<id>
             url = f"https://www.douyin.com/video/{post_id}"
+        elif offline:  # link không có mã mà không theo được (mất mạng): yt-dlp không làm gì được với nó, khỏi thử
+            raise _cannot_reach_douyin() from offline
     height = max_height or 720
     out_dir.mkdir(parents=True, exist_ok=True)
     cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
@@ -205,9 +218,11 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
             path = Path(y.prepare_filename(info)).with_suffix(".mp4")
     except DownloadError as e:
         if douyin.is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor wants a browser session
+            if offline:  # nó đòi cookie cả khi mất mạng; f2 không tới được Douyin thì nguyên nhân thật là mạng
+                raise _cannot_reach_douyin() from e
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
-        raise
+        raise  # lỗi khác của yt-dlp (403, video đã xoá…) là câu trả lời thật của Douyin: giữ nguyên
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))
         if not matches:

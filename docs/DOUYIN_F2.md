@@ -8,8 +8,9 @@ tries it first for every Douyin link and falls back to yt-dlp when f2 cannot.
 
 1. `search.clean_links` picks the link out of whatever was pasted, including the whole sentence the Douyin app copies on
    Share ("7.43 复制打开抖音… https://v.douyin.com/xxx/ 复制此链接…").
-2. `douyin._resolve_id` finds the post id: in the link (`/video|note|slides/<id>`, `?modal_id=`, `?vid=`) or, for a
-   `v.douyin.com` short link, by following the redirect hop by hop inside Douyin's own hosts.
+2. `douyin.find_id` finds the post id: in the link (`/video|note|slides/<id>`, `?modal_id=`, `?vid=`) or, for a
+   `v.douyin.com` short link, by following the redirect hop by hop inside Douyin's own hosts (`_resolve_id`). It is done
+   once, in `search.download`, which hands the id to `douyin.download` and keeps it for the yt-dlp fallback.
 3. `douyin._ask` asks Douyin for the post through f2 (an anonymous `ttwid`, a fresh `msToken`, a signed request). It asks up
    to three times: a passing 403, or a list of sizes thinner than usual (Douyin sometimes leaves out the 720 H.264 rung of a
    video whose source is bigger), is worth another try.
@@ -23,10 +24,20 @@ tries it first for every Douyin link and falls back to yt-dlp when f2 cannot.
 
 Fallback chain: f2 → yt-dlp on the plain `douyin.com/video/<id>` link (needs fresh browser cookies) → **Add a video file**.
 A removed, private or photo-only post is final: Douyin gives the reason, so nothing else is tried. An answer with neither a
-post nor a reason is not a verdict and falls back. The plain link is built only from an id found in the pasted link
-(`search.download` calls `douyin._post_id` on it): a `v.douyin.com` short link, which is what a Share sentence holds, goes to
-yt-dlp unchanged, and yt-dlp has no extractor for it, so when f2 cannot read a short link only **Add a video file** is left
-(`douyin.download` resolves the id but does not hand it back; fixing that is a follow-up).
+post nor a reason is not a verdict and falls back. The plain link is built from the id `find_id` found, so a `v.douyin.com`
+short link, which is what a Share sentence holds, reaches yt-dlp as `douyin.com/video/<id>` too (yt-dlp has no extractor for
+the short form). A link with no id (a user page, a live room, a short link that leads elsewhere) goes to yt-dlp unchanged
+while Douyin answers.
+
+When f2 could not connect to Douyin at all, `douyin.Unreachable` is raised: every try of `_ask` failed on a network error (no
+connection, DNS, a timeout, a proxy that refuses; one answer from Douyin, even a strange one, means it was reachable), or
+every CDN link of `_save` did (a link that answered with an error, an empty file or a refused address does not count).
+`search.download` still tries yt-dlp, because a DNS filter or firewall can block f2's token server (`mssdk.bytedance.com`)
+while `douyin.com` answers; if yt-dlp then fails with its "fresh cookies" message, which it gives even with no network, the
+error is "Could not connect to Douyin. Check your internet connection (or VPN, proxy, DNS filter), then try again" instead.
+Any other yt-dlp error (a 403, a removed video) is Douyin's real answer and is shown as it is. A link that has no id and
+cannot be fetched for lack of a connection (a short link, a user page) stops there with the same message: yt-dlp could do
+nothing with it.
 
 ## What was tested (2026-10-02, the owner's Mac, home network, guest only)
 
@@ -44,6 +55,7 @@ yt-dlp unchanged, and yt-dlp has no extractor for it, so when f2 cannot read a s
 | Engine API | Tools → Download: progress, cancel mid-download (status `cancelled`, no fallback), removed video |
 | PyInstaller | a frozen build with the engine's flags downloads from an empty working directory. The release workflow's macOS and Windows builds of this change passed (engine freeze with the f2 bundle check, installers); running the built app against Douyin was not done |
 | Frozen engine on Linux (Python 3.12 and 3.13), no real Douyin | starts without contacting Douyin; a full link and a Share sentence download through f2 against a local stand-in; a removed video gives its message; no `./logs` folder; with the network cut it fails in 1 to 3 s |
+| Offline and stalled network (after v0.7.13, real f2 and yt-dlp, no real Douyin) | a proxy that refuses every connection: full link, then short link, then the full link again all say "Could not connect to Douyin" within 3 s (the short link in 0.5 s, and it never reaches yt-dlp); a token-server address whose accept queue is full (SYNs dropped): the first `_f2()` gives up at 15.0 s, the next two at 0.0 s |
 
 Not tested: Windows, the Hetzner server (a datacenter address may be refused: an f2 user reported a server blocked while a
 local machine worked), long-term stability, keyword search, an author's video list.
@@ -56,14 +68,22 @@ local machine worked), long-term stability, keyword search, an author's video li
   10 days (median), on PyPI once of four. Douyin also began gating `aweme/detail` in mid-September 2026; the pinned build
   works today from a home connection, which is what the tests above show. Expect it to be down sometimes: that is why the
   fallback chain and **Add a video file** stay.
-- **A stalled network is slow to fail.** When the packets to Douyin's token server are silently dropped (the connection
-  never opens), importing f2 retries its `msToken` request for about 135 s (twelve attempts inside f2's own `model.py`) and
-  yt-dlp then adds up to 30 s, so the first download fails after roughly three minutes; the lock around the import makes other
-  Douyin downloads wait too, and a Cancel is only noticed once the import is over. A server that accepts the connection and
-  never answers costs about 20 s; a refused or missing connection fails at once (1 to 3 s, and later jobs skip f2 for two
-  minutes). A short probe before the import, or a deadline on it, would bound this.
-- **The error can blame cookies.** With no connection at all, yt-dlp's Douyin extractor still says fresh cookies are needed,
-  and `search.download` shows that text; the real cause (f2's network error) is only in the log.
+- **A stalled network.** When the packets to Douyin's token server are silently dropped (the connection never opens),
+  importing f2 would retry its `msToken` request for about 135 s (twelve attempts inside f2's own `model.py`). The import
+  runs in a background thread and `douyin._f2` waits for it at most 15 s (`_F2_LOAD_WAIT`): measured with the real f2 and a
+  port whose accept queue was full, the first call gives up after 15.0 s (it was about 135 s) and the next ones fail at once.
+  The load keeps going: if it ends well the next download uses f2 at once, if it fails the real error is kept (a load that
+  stops without a result, for instance f2 calling `sys.exit` on a broken config file, is a failure, not a timeout). Only one
+  load runs at a time, and a failed or timed-out one is not started again until `_F2_RETRY_AFTER` (two minutes) after it
+  failed, so after the connection is back a download within those two minutes still skips f2 (and, with yt-dlp
+  failing too, still says it could not connect). A server that accepts the connection and never answers costs about 20 s
+  inside f2 and is cut at the same 15 s; a refused or missing connection fails in 1 to 3 s. yt-dlp can still add up to 30 s
+  on top before the error shows, and so can following a short link (30 s); a Cancel is only noticed once the import has been
+  given up on or has finished (15 s at most).
+- **The error used to blame cookies.** With no connection at all, yt-dlp's Douyin extractor still says fresh cookies are
+  needed; see `douyin.Unreachable` above: that case now says "Could not connect to Douyin". If a DNS filter blocks only
+  `mssdk.bytedance.com`, f2 cannot start (and if yt-dlp fails too the message says it could not connect) while yt-dlp may
+  still work with cookies: unblock that host.
 - **TLS.** f2 turns certificate checking off for its own calls (an on-path attacker could forge Douyin's reply). Motio only
   follows https links to public addresses, so a forged reply cannot reach local services; it could still hand over wrong
   metadata or another public file. The CDN download itself checks certificates.

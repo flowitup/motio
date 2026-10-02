@@ -540,6 +540,8 @@ VI = {
     "cookies file in Settings":
         "Douyin yêu cầu cookie trình duyệt còn mới để tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt "
         "file cookie trong Cài đặt",
+    "Could not connect to Douyin. Check your internet connection (or VPN, proxy, DNS filter), then try again":
+        "Không kết nối được tới Douyin. Hãy kiểm tra mạng (hoặc VPN, proxy, bộ lọc DNS) rồi thử lại",
     # Douyin through f2 (douyin.py)
     "This Douyin video was removed": "Video Douyin này đã bị xoá",
     "This Douyin video is private or restricted": "Video Douyin này ở chế độ riêng tư hoặc bị hạn chế",
