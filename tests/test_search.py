@@ -184,6 +184,15 @@ def test_clean_links_still_refuses_text_without_a_link(text):
         search.clean_links([text])
 
 
+def test_clean_links_refuses_two_links_on_one_line_instead_of_dropping_one():
+    """The app splits the box on new lines only: two links pasted on one line were refused in 0.7.12 and must not
+    lose the second one without a word now that a link is taken out of a sentence."""
+    for text in ("https://a.example/x https://b.example/y", "https://a.example/x, https://b.example/y",
+                 SHARE + " https://v.douyin.com/other/"):
+        with pytest.raises(ValueError, match="Invalid link"):
+            search.clean_links([text])
+
+
 def test_without_a_height_other_sites_stay_at_720(tmp_path):
     search.download("https://www.youtube.com/watch?v=abc", tmp_path)
     search.download("https://www.youtube.com/watch?v=abc", tmp_path, 1080)
