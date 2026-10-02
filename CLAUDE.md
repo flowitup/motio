@@ -29,6 +29,10 @@ as authoritative for scope and milestones.
     `creator.animate` picks scenes (`pick`), makes them after the voice, cached in `out/clips/`; a clip that fails or goes
     over `MONTHLY_BUDGET_USD` leaves the scene as it was; HeyGen clips force the video gate (`REVIEW_PROVIDERS`); CLI
     `clipcheck` makes one paid trial clip to compare providers
+  - `series.py` AI video series: a channel's `cast` (`Name: look` lines, fictional characters; the look is kept in
+    `plan["cast"]` and put in front of every picture prompt that names the character, `creator.prompt`) and `series` (premise;
+    each AI episode is written knowing the recaps of the channel's earlier ones, `meta.ai.episode` / `recap`); same words, not a
+    face guarantee
   - `qa.py` quality check after every render (ffprobe + FFmpeg blackdetect / silencedetect / ebur128, saved as `meta.qa`) and
     warnings for a source, title or script used in the last 30 days; a `fail` holds the video at the gate when the channel
     has Postiz (`pipeline._why_held`), a warning is only shown

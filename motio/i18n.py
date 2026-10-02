@@ -467,6 +467,9 @@ VI = {
     "AI clips need your fal key: add it in Settings → Image provider, or set AI clips to 0":
         "Clip AI cần khoá fal của bạn: hãy nhập trong Cài đặt → Nhà cung cấp ảnh, hoặc đặt số clip AI về 0",
     "AI clips per video must be a number": "Số clip AI mỗi video phải là một số",
+    "Cast line {n} must look like “Name: how they look”, with a name not used before":
+        "Dòng nhân vật {n} phải có dạng “Tên: ngoại hình”, và tên chưa dùng ở dòng nào trước đó",
+    "At most {n} characters in the cast": "Tối đa {n} nhân vật trong danh sách",
     "AI clips per video must be between 0 and {n}": "Số clip AI mỗi video phải từ 0 đến {n}",
     "AI clips need your HeyGen key: add it in Settings → AI pictures, or set AI clips to 0":
         "Clip AI cần khoá HeyGen của bạn: hãy nhập trong Cài đặt → Ảnh AI, hoặc đặt số clip AI về 0",

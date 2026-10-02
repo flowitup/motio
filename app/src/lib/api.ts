@@ -162,6 +162,8 @@ export type ChannelInput = {
   auto_score: number; // tự làm video khi tin hot đạt điểm này; 0 = tắt
   auto_daily: number; // tối đa số video tự làm mỗi ngày
   ai_clips: number; // video AI: số cảnh thành clip AI mỗi video (0–10); 0 = chỉ ảnh chuyển động
+  series: string; // video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
+  cast: string; // video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu)
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
@@ -240,6 +242,8 @@ export type AiView = {
   clips: number | null; // số cảnh đang dùng clip AI ở lần dựng gần nhất
   clip_limit: number | null; // số clip riêng của video này; null = theo kênh
   clip_provider: string | null; // nhà cung cấp của các clip ở lần dựng gần nhất (fal | heygen)
+  episode: number | null; // số tập trong loạt phim của kênh (kênh có "series"); null = video riêng lẻ
+  recap: string | null; // tóm tắt tập này do Claude viết, để tập sau viết tiếp
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 

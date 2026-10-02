@@ -10,12 +10,13 @@ import re
 import time
 from pathlib import Path
 
-from . import aiclips, config, db, images, render, topic, usage
+from . import aiclips, config, db, images, render, series, topic, usage
 from .i18n import tr
 
 MODE = "ai"
 DURATIONS = topic.DURATIONS  # 70 | 80 | 90 s: every video is 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
 MAX_PROMPT = 600
+MAX_RECAP = 500
 RETRY_WAIT = 2.0  # seconds before the one retry of a picture the provider failed to make
 PICTURES_FROM, PICTURES_TO = 30, 62  # progress bar range of the pictures step
 CLIPS_AT = 70  # progress of the clips step: after the voice (≤ 69), where the render starts (70)
@@ -41,7 +42,7 @@ SCRIPT_PROMPT = """Sujet : {topic}
   Un personnage qui revient garde exactement la même description d'une image à l'autre.
 - « motion » : le mouvement lent de la caméra sur l'image, parmi zoom_in, zoom_out, pan_left, pan_right (alterne).
 - « style » : une phrase en anglais (10 à 20 mots) qui fixe le style visuel commun à toutes les images (type de
-  photo, palette, lumière), pour que la vidéo soit cohérente.
+  photo, palette, lumière), pour que la vidéo soit cohérente.{extra}
 
 Réponds avec :
 {{"title_fr": "titre final (max 80 caractères)", "style": "...",
@@ -109,12 +110,17 @@ def tidy(plan: dict) -> dict:
         if isinstance(ln.get("seed"), int) and ln["seed"] > 0:
             out["seed"] = ln["seed"]
         lines.append(out)
-    return {**plan, "style": _one(plan.get("style"))[:300], "lines": lines}
+    tidy_plan = {**plan, "style": _one(plan.get("style"))[:300], "lines": lines}
+    if "recap" in plan:
+        tidy_plan["recap"] = _one(plan["recap"])[:MAX_RECAP]
+    return tidy_plan
 
 
 def prompt(plan: dict, ln: dict) -> str:
-    """The text the image model gets: the scene, the video's visual style, then the global style of Settings."""
+    """The text the image model gets: the scene (with the look of every named recurring character in front of it), the
+    video's visual style, then the global style of Settings."""
     scene = ln.get("image") or f"{plan.get('title_fr') or ''}: {ln.get('text') or ''}"
+    scene = series.with_cast(scene, plan.get("cast"))  # a recurring character is always described in the same words
     parts = [scene, plan.get("style") or "", images.style()]
     return ". ".join(p.strip().rstrip(".") for p in parts if p and p.strip()) + "."
 
@@ -237,7 +243,8 @@ def render_args(plan: dict, scenes: list[dict], nar: dict, min_total: float) -> 
 
 
 def view(proj: dict) -> dict | None:
-    """What the project page shows: provider, whether the video gate is forced, what the pictures cost so far."""
+    """What the project page shows: provider, whether the video gate is forced, what the pictures cost so far, and
+    the episode number with its recap when the channel has a series."""
     if not is_ai(proj):
         return None
     meta = proj.get("meta") or {}
@@ -245,7 +252,8 @@ def view(proj: dict) -> dict | None:
     name = ai.get("provider") or images.provider()
     return {"topic": meta.get("topic"), "provider": name, "needs_review": needs_review(proj),
             "cost": ai.get("cost"), "scenes": ai.get("scenes"), "clips": ai.get("clips"),
-            "clip_limit": ai.get("clip_limit"), "clip_provider": ai.get("clip_provider")}
+            "clip_limit": ai.get("clip_limit"), "clip_provider": ai.get("clip_provider"),
+            "episode": ai.get("episode"), "recap": ai.get("recap")}
 
 
 def media(path: Path) -> str | None:

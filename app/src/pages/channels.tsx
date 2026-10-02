@@ -42,6 +42,8 @@ const BLANK: ChannelInput = {
   auto_score: 0,
   auto_daily: 2,
   ai_clips: 0,
+  series: "",
+  cast: "",
   default: false,
 };
 const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
@@ -334,6 +336,24 @@ function ChannelForm({
               onChange={(e) => set("ai_clips", Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0))))}
             />
           </Field>
+          <Field label={t.channels.series} hint={t.channels.seriesHint}>
+            <Textarea
+              value={d.series}
+              maxLength={1500}
+              onChange={(e) => set("series", e.target.value)}
+              placeholder={t.channels.seriesPlaceholder}
+              className="min-h-20 text-sm"
+            />
+          </Field>
+          <Field label={t.channels.cast} hint={t.channels.castHint}>
+            <Textarea
+              value={d.cast}
+              maxLength={2500}
+              onChange={(e) => set("cast", e.target.value)}
+              placeholder={t.channels.castPlaceholder}
+              className="min-h-24 font-mono text-xs"
+            />
+          </Field>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
@@ -385,6 +405,7 @@ function Summary({ c: raw }: { c: Channel }) {
     c.wide_postiz.length ? t.channels.summaryWide(c.wide_postiz.length) : "",
     c.auto_score ? t.channels.summaryAuto(c.auto_score, c.auto_daily) : "",
     c.ai_clips ? t.channels.summaryClips(c.ai_clips) : "",
+    c.series.trim() || c.cast.trim() ? t.channels.summarySeries(c.cast.split("\n").filter((l) => l.trim()).length) : "",
     t.projects.durations[String(c.duration)],
   ].filter(Boolean);
   return <div className="text-sm text-muted-foreground">{bits.join(" · ")}</div>;

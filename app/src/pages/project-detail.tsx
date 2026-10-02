@@ -450,7 +450,12 @@ export default function ProjectDetailPage() {
                 <CardTitle>{t.ai.card}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
-                {p.ai.topic && <div>{p.ai.topic}</div>}
+                {p.ai.topic && <div>{p.ai.episode ? `${t.ai.episode(p.ai.episode)} · ${p.ai.topic}` : p.ai.topic}</div>}
+                {p.ai.recap && (
+                  <div className="text-xs text-muted-foreground">
+                    {t.ai.recap}: {p.ai.recap}
+                  </div>
+                )}
                 <div className="text-muted-foreground">
                   {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
                   {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
