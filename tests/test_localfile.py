@@ -221,6 +221,11 @@ def test_an_upload_copy_a_stopped_engine_left_behind_is_swept(monkeypatch):
     with pytest.raises(ValueError, match="Only video files"):
         localfile.save("x.txt", io.BytesIO(b""))  # refused before anything is swept
     assert old.exists() and fresh.exists()
+
+    def unreadable(path):  # no ffprobe needed: CI has none
+        raise RuntimeError("not a video")
+
+    monkeypatch.setattr(qa, "probe", unreadable)
     with pytest.raises(ValueError, match="cannot be read"):
         localfile.save("x.mp4", io.BytesIO(b"nope"))
     assert not old.exists() and fresh.exists()
