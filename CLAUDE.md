@@ -138,8 +138,9 @@ on every PR; keep them green.
   dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`); never copy that signing code into this
   repo, so a newer f2 brings the new signatures when Douyin changes them. Douyin has to say why a post is gone (removed,
   private, photos) for the download to be final; every other failure (offline, signature out of date, a 403, an answer
-  with no post and no reason) falls back to yt-dlp on the plain `douyin.com/video/<id>` link, whose extractor needs fresh
-  browser cookies (a guest session is enough), and last to a video file added by hand (`localfile.py`). f2 is imported
+  with no post and no reason) falls back to yt-dlp on the plain `douyin.com/video/<id>` link (built only from an id found
+  in the pasted link: a short link goes to yt-dlp unchanged, a known gap), whose extractor needs fresh browser cookies (a
+  guest session is enough), and last to a video file added by hand (`localfile.py`). f2 is imported
   lazily and once (importing it asks Douyin for an `msToken`; a failed import is not retried for two minutes), its logger
   is parked on a `NullHandler` so it makes no `./logs` folder, it gets empty stand-in modules for `browser_cookie3` and
   `execjs` (not installed: LGPL cookie-store reader and a JavaScript runner for livestreams), and tests switch it off
