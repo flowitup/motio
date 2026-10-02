@@ -138,10 +138,15 @@ on every PR; keep them green.
   dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`); never copy that signing code into this
   repo, so a newer f2 brings the new signatures when Douyin changes them. Douyin has to say why a post is gone (removed,
   private, photos) for the download to be final; every other failure (offline, signature out of date, a 403, an answer
-  with no post and no reason) falls back to yt-dlp on the plain `douyin.com/video/<id>` link (built only from an id found
-  in the pasted link: a short link goes to yt-dlp unchanged, a known gap), whose extractor needs fresh browser cookies (a
-  guest session is enough), and last to a video file added by hand (`localfile.py`). f2 is imported
-  lazily and once (importing it asks Douyin for an `msToken`; a failed import is not retried for two minutes), its logger
+  with no post and no reason) falls back to yt-dlp on the plain `douyin.com/video/<id>` link (the id comes from
+  `douyin.find_id`, which follows a short link once; `search.download` hands it to f2 and builds the link from it), whose
+  extractor needs fresh browser cookies (a guest session is enough), and last to a video file added by hand
+  (`localfile.py`). When f2 could not connect at all (`douyin.Unreachable`), yt-dlp still gets its turn, but if it fails
+  with its cookie hint the error says "Could not connect to Douyin" instead (yt-dlp asks for cookies even when offline;
+  any other yt-dlp error is shown as it is); a link with no id that cannot be fetched without a connection stops there.
+  f2 is imported lazily and once, in a background thread that `_f2()` waits for 15 s at most (importing it asks Douyin
+  for an `msToken`, and f2 itself retries for ~135 s when packets are dropped; the load goes on and is used by the next
+  download if it ends well; a failed import is not started again for two minutes), its logger
   is parked on a `NullHandler` so it makes no `./logs` folder, it gets empty stand-in modules for `browser_cookie3` and
   `execjs` (not installed: LGPL cookie-store reader and a JavaScript runner for livestreams), and tests switch it off
   (`conftest.py`). f2 does not check TLS certificates, so a stream link from its reply is fetched only when it is https to

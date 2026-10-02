@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from yt_dlp.utils import DownloadError
 
 from motio import douyin, search, settings
 
@@ -13,6 +14,7 @@ JAR = ("# Netscape HTTP Cookie File\n"
 class FakeYDL:
     opts: list = []
     urls: list = []
+    fail: Exception | None = None  # extract_info raises it (a download that fails)
 
     def __init__(self, opts):
         FakeYDL.opts.append(opts)
@@ -26,6 +28,8 @@ class FakeYDL:
 
     def extract_info(self, url, download=False, process=True):
         FakeYDL.urls.append(url)
+        if FakeYDL.fail:
+            raise FakeYDL.fail
         if not download:
             return {"entries": []}
         (self.out / "Fake_1.mp4").write_bytes(b"video")
@@ -37,11 +41,30 @@ class FakeYDL:
 
 @pytest.fixture(autouse=True)
 def fake_ydl(monkeypatch, tmp_path):
-    FakeYDL.opts, FakeYDL.urls = [], []
+    FakeYDL.opts, FakeYDL.urls, FakeYDL.fail = [], [], None
     monkeypatch.setattr(search, "YoutubeDL", FakeYDL)
     monkeypatch.setattr(search.config, "ffmpeg", lambda: "ffmpeg")
     monkeypatch.setattr(search, "_jar_dir", None)  # thư mục bản sao riêng của từng test
     search._jar.__dict__.clear()
+
+
+SHORT = "https://v.douyin.com/iNUBcHxM/"
+
+
+@pytest.fixture(autouse=True)
+def short_links(monkeypatch):
+    """A short link is followed over the network (douyin._resolve_id): here it is a table, and the calls are counted.
+    A link that is not in the table has no id, like a short link that leads nowhere. No waiting between f2's tries."""
+    monkeypatch.setattr(douyin, "_pause", lambda: None)
+    table = {SHORT: "7683844732023911406"}
+    calls = []
+
+    def resolve(url):
+        calls.append(url)
+        return douyin._post_id(url) or table.get(url)
+
+    monkeypatch.setattr(douyin, "_resolve_id", resolve)
+    return calls
 
 
 @pytest.fixture
@@ -118,15 +141,15 @@ def test_each_thread_gets_its_own_copy_and_the_original_stays_untouched(jar):
 def test_douyin_links_try_f2_first_and_skip_yt_dlp_when_it_works(monkeypatch, tmp_path):
     calls = []
 
-    def fake(url, out_dir, max_height, hooks):
-        calls.append((url, max_height))
+    def fake(url, out_dir, max_height, hooks, post_id=None):
+        calls.append((url, max_height, post_id))
         return {"path": str(out_dir / "Douyin_1.mp4"), "id": "1", "platform": "Douyin"}
 
     monkeypatch.setattr(douyin, "download", fake)
-    info = search.download("https://v.douyin.com/iNUBcHxM/", tmp_path, 480, cookies=True)
-    assert info["id"] == "1" and calls == [("https://v.douyin.com/iNUBcHxM/", 480)] and FakeYDL.opts == []
-    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)  # không nói cỡ: Douyin lấy bản lớn nhất đến 1080
-    assert calls[-1] == ("https://v.douyin.com/iNUBcHxM/", 1080)
+    info = search.download(SHORT, tmp_path, 480, cookies=True)
+    assert info["id"] == "1" and calls == [(SHORT, 480, "7683844732023911406")] and FakeYDL.opts == []
+    search.download(SHORT, tmp_path)  # không nói cỡ: Douyin lấy bản lớn nhất đến 1080
+    assert calls[-1] == (SHORT, 1080, "7683844732023911406")
 
 
 def test_douyin_links_fall_back_to_yt_dlp_when_f2_cannot(tmp_path):
@@ -151,13 +174,83 @@ def test_other_sites_never_go_through_f2(monkeypatch, tmp_path):
     assert len(FakeYDL.opts) == 2
 
 
-def test_yt_dlp_gets_the_plain_video_link_when_f2_cannot(tmp_path):
-    """yt-dlp only knows www.douyin.com/video/<id>: the other forms are turned into it before the fallback."""
+def test_yt_dlp_gets_the_plain_video_link_when_f2_cannot(tmp_path, short_links):
+    """yt-dlp only knows www.douyin.com/video/<id>: the other forms, a short link too, are turned into it before the
+    fallback, and the short link is followed once for both f2 and yt-dlp."""
     search.download("https://www.douyin.com/jingxuan?modal_id=7686432847778982833", tmp_path)
     search.download("https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN", tmp_path)
-    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)  # no id without following the redirect: as it was
+    assert short_links == [  # a link that already holds its id is not looked up on the network
+        "https://www.douyin.com/jingxuan?modal_id=7686432847778982833",
+        "https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN"]
+    del short_links[:]
+    search.download(SHORT, tmp_path)  # what the app's Share sentence holds
+    assert short_links == [SHORT]
     assert FakeYDL.urls == ["https://www.douyin.com/video/7686432847778982833",
-                            "https://www.douyin.com/video/7683844732023911406", "https://v.douyin.com/iNUBcHxM/"]
+                            "https://www.douyin.com/video/7683844732023911406",
+                            "https://www.douyin.com/video/7683844732023911406"]
+
+
+def test_a_short_link_that_leads_nowhere_goes_to_yt_dlp_as_it_was(tmp_path):
+    search.download("https://v.douyin.com/unknown/", tmp_path)
+    assert FakeYDL.urls == ["https://v.douyin.com/unknown/"]
+
+
+NO_CONNECTION = "Could not connect to Douyin"
+
+
+def test_no_connection_to_douyin_is_blamed_on_the_network_not_on_cookies(monkeypatch, tmp_path):
+    """f2 could not connect and yt-dlp then asks for cookies (it does so even with no network at all)."""
+    def offline(*a, **k):
+        raise douyin.Unreachable("no route")
+
+    monkeypatch.setattr(douyin, "download", offline)
+    FakeYDL.fail = DownloadError("ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed")
+    with pytest.raises(RuntimeError, match=NO_CONNECTION):
+        search.download("https://www.douyin.com/video/1", tmp_path)
+    assert FakeYDL.urls == ["https://www.douyin.com/video/1"]  # yt-dlp still had its turn
+
+
+def test_a_real_answer_from_douyin_is_not_relabelled_as_no_connection(monkeypatch, tmp_path):
+    """Only yt-dlp's cookie hint is ambiguous: a 403 or a removed video is what Douyin said, whatever f2 saw."""
+    def offline(*a, **k):
+        raise douyin.Unreachable("no route")
+
+    monkeypatch.setattr(douyin, "download", offline)
+    FakeYDL.fail = DownloadError("ERROR: [Douyin] 1: HTTP Error 403: Forbidden")
+    with pytest.raises(DownloadError, match="403"):
+        search.download("https://www.douyin.com/video/1", tmp_path)
+
+
+def test_yt_dlp_can_still_save_the_video_when_only_f2_was_cut_off(monkeypatch, tmp_path):
+    """A DNS filter or a firewall can block f2's token server while douyin.com itself answers."""
+    def offline(*a, **k):
+        raise douyin.Unreachable("token server blocked")
+
+    monkeypatch.setattr(douyin, "download", offline)
+    assert search.download("https://www.douyin.com/video/1", tmp_path)["id"] == "1"
+
+
+def test_no_connection_while_following_a_short_link_stops_there(monkeypatch, tmp_path):
+    """yt-dlp has no extractor for a short link, so it is not asked about one that could not even be followed."""
+    def offline(url):
+        raise douyin.Unreachable("no route")
+
+    monkeypatch.setattr(douyin, "find_id", offline)
+    with pytest.raises(RuntimeError, match=NO_CONNECTION):
+        search.download(SHORT, tmp_path)
+    assert FakeYDL.urls == []
+
+
+def test_the_cookie_hint_stays_when_f2_was_not_cut_off(tmp_path):
+    FakeYDL.fail = DownloadError("ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed")
+    with pytest.raises(RuntimeError, match="fresh browser cookies"):  # conftest: f2 is off, not a network error
+        search.download("https://www.douyin.com/video/1", tmp_path)
+
+
+def test_other_sites_keep_their_own_download_error(tmp_path):
+    FakeYDL.fail = DownloadError("ERROR: Unsupported URL")
+    with pytest.raises(DownloadError):
+        search.download("https://example.com/video/1", tmp_path)
 
 
 SHARE = ("7.43 复制打开抖音，看看【某某的作品】标题 # 话题 https://v.douyin.com/iR2syBRn/ L@s.Fw 06/11 "

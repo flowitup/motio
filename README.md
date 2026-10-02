@@ -40,9 +40,11 @@ Share (Motio picks the link out of it). You get the video, its title, author and
 offers up to 1080 p (Tools → Download uses the quality you pick, 720 p by default; Motio asks again when the list of sizes
 it gets back is thinner than usual). A removed, private or photo-only post is reported as such. If f2 cannot (Douyin changed
 its request signing and f2 is not updated yet, or you are offline) Motio tries yt-dlp on the plain `douyin.com/video/<id>`
-link when the pasted link carries the id (a short `v.douyin.com` link goes to yt-dlp as it is, and yt-dlp does not know it);
-yt-dlp needs fresh browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or
-`YTDLP_COOKIES_FILE`). Last resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
+link (the id comes from the pasted link, or from following a short `v.douyin.com` link once: yt-dlp does not know the short
+form itself); yt-dlp needs fresh browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or
+`YTDLP_COOKIES_FILE`). With no connection to Douyin at all (offline, VPN or proxy down) the download says so ("Could not
+connect to Douyin") instead of asking for cookies; Motio waits at most 15 s for f2 to start on a connection that swallows
+packets (details in `docs/DOUYIN_F2.md`). Last resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
 not supported. How it works, what was tested and how to update f2: [docs/DOUYIN_F2.md](docs/DOUYIN_F2.md).
 
 **Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)

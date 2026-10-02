@@ -4,8 +4,10 @@ Douyin ký mọi request (a_bogus, msToken, ttwid) nên yt-dlp hay đòi cookie 
 chỉ gọi f2 như một thư viện, không chép mã ký của nó: lên bản f2 mới là có chữ ký mới khi Douyin đổi cách ký.
 
 `download` trả cùng dạng với `search.download`. Douyin nói rõ video không còn / riêng tư / là bài ảnh thì ném
-`Unavailable`; f2 hỏng, mất mạng, Douyin từ chối hoặc trả lời không rõ lý do thì trả None để `search.download` quay về
-yt-dlp. Lỗi ném từ hook tiến độ (huỷ việc đang tải) đi thẳng ra ngoài, không bị coi là f2 hỏng.
+`Unavailable`; f2 hỏng, Douyin từ chối hoặc trả lời không rõ lý do thì trả None để `search.download` quay về yt-dlp.
+Không kết nối được tới Douyin (mất mạng, DNS, quá thời gian) thì ném `Unreachable`: `search.download` vẫn thử yt-dlp,
+nhưng nếu yt-dlp cũng hỏng thì báo lỗi mạng chứ không đổ cho cookie. Lỗi ném từ hook tiến độ (huỷ việc đang tải) đi
+thẳng ra ngoài, không bị coi là f2 hỏng.
 
 f2 không kiểm tra chứng chỉ TLS của chính nó, nên link tải trong trả lời của Douyin chỉ được dùng khi là https tới địa
 chỉ công khai (kể cả sau chuyển hướng). Motio không dùng browser_cookie3 và execjs của f2 (đọc cookie trình duyệt, chạy
@@ -40,15 +42,34 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 _POST_ID = re.compile(r"/(?:video|note|slides)/(\d+)")
 _ID_PARAMS = ("modal_id", "vid")
 _NOT_USED = ("browser_cookie3", "execjs")
-_F2_RETRY_AFTER = 120  # giây: nạp f2 hỏng thì chưa thử nạp lại ngay (mạng nuốt gói tin: ~135 s/lần)
+_F2_RETRY_AFTER = 120  # giây: nạp f2 hỏng thì chưa thử nạp lại ngay
+_F2_LOAD_WAIT = 15  # giây chờ f2 nạp xong. Nạp xin msToken của Douyin; mạng nuốt gói tin thì f2 tự thử lại ~135 s
+_NETWORK_ERRORS = (httpx.TransportError, ConnectionError, TimeoutError, socket.gaierror)
+_F2_NETWORK_ERRORS = ("APIConnectionError", "APITimeoutError")  # f2 bọc lỗi mạng của httpx thành hai lỗi này
 
 _f2_lock = threading.Lock()
 _f2_loaded: tuple | None = None
 _f2_failed: tuple[float, Exception] | None = None
+_f2_thread: threading.Thread | None = None
 
 
 class Unavailable(RuntimeError):
     """Douyin trả lời được, nhưng link này không có video nào để lấy."""
+
+
+class Unreachable(RuntimeError):
+    """Không kết nối được tới Douyin (mất mạng, DNS, quá thời gian): khác với Douyin từ chối hay trả lời lạ."""
+
+
+def _is_network_error(error: BaseException) -> bool:
+    """Lỗi mạng, kể cả khi f2 hay lớp khác bọc nó lại (lỗi gốc nằm ở __cause__ / __context__)."""
+    for _ in range(6):
+        if isinstance(error, _NETWORK_ERRORS) or type(error).__name__ in _F2_NETWORK_ERRORS:
+            return True
+        error = error.__cause__ or error.__context__
+        if error is None:
+            return False
+    return False
 
 
 def is_douyin(url: str) -> bool:
@@ -91,6 +112,9 @@ def _client(headers: dict, *, follow: bool = True, transport: httpx.BaseTranspor
 
 def _resolve_id(url: str) -> str | None:
     """Mã bài của link. Link rút gọn (v.douyin.com/xxx) thì theo chuyển hướng từng chặng, chỉ trong host của Douyin."""
+    post_id = _post_id(url)
+    if post_id or not is_douyin(url):  # link đã có mã: khỏi dựng client, khỏi mạng
+        return post_id
     with _client({"User-Agent": UA}, follow=False) as client:
         for _ in range(6):
             post_id = _post_id(url)
@@ -101,6 +125,18 @@ def _resolve_id(url: str) -> str | None:
                     return None
                 url = urljoin(url, r.headers.get("location", ""))
     return None
+
+
+def find_id(url: str) -> str | None:
+    """Mã bài của link Douyin; link rút gọn thì theo chuyển hướng (một lần: người gọi giữ mã để khỏi hỏi lại). None khi
+    link không chỉ tới bài nào hoặc không theo được; mất mạng thì ném Unreachable."""
+    try:
+        return _resolve_id(url)
+    except Exception as e:
+        log.warning("could not find the Douyin post id of %s: %s", url, e)
+        if _is_network_error(e):
+            raise Unreachable(f"could not follow {url}: {e}") from e
+        return None
 
 
 def _run(coro):
@@ -121,33 +157,66 @@ def _park_f2_logger() -> None:
     lg.propagate = False
 
 
-def _f2():
-    """f2, nạp một lần (an toàn khi nhiều luồng cùng tải). Nạp cũng gọi Douyin xin một msToken, nên mất mạng thì ném
-    lỗi; nạp hỏng thì mấy phút sau mới thử lại, để mỗi video không phải chờ mạng cả chục giây."""
+def _import_f2() -> tuple:
+    """Nạp f2. Chậm khi mạng chậm: nạp là f2 xin ngay một msToken của Douyin (mất mạng thì ném lỗi)."""
+    _park_f2_logger()
+    stubs = {name: types.ModuleType(name) for name in _NOT_USED if name not in sys.modules}
+    sys.modules.update(stubs)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from f2.apps.douyin.crawler import DouyinCrawler
+            from f2.apps.douyin.model import PostDetail
+            from f2.apps.douyin.utils import ClientConfManager, TokenManager
+    finally:
+        for name, stub in stubs.items():  # f2 đã giữ tham chiếu, khỏi để module rỗng trong sys.modules
+            if sys.modules.get(name) is stub:
+                del sys.modules[name]
+    return DouyinCrawler, PostDetail, ClientConfManager, TokenManager
+
+
+def _load_f2() -> None:
+    """Chạy ở luồng riêng (xem _f2): nạp f2 rồi ghi kết quả, nạp được hay lỗi."""
     global _f2_loaded, _f2_failed
+    try:
+        loaded = _import_f2()
+    except BaseException as e:  # f2 gọi sys.exit khi file cấu hình hỏng: luồng không được chết mà không để lại gì
+        failure = e if isinstance(e, Exception) else RuntimeError(f"f2 stopped while loading: {e!r}")
+        with _f2_lock:
+            _f2_failed = (time.monotonic(), failure)
+        return
+    with _f2_lock:
+        _f2_loaded, _f2_failed = loaded, None
+
+
+def _f2():
+    """f2, nạp một lần (an toàn khi nhiều luồng cùng tải). Nạp chạy ở luồng riêng và chỉ chờ _F2_LOAD_WAIT giây: mạng
+    nuốt gói tin thì f2 tự thử lại cả hai phút, mà người dùng không phải đợi hết; nạp vẫn chạy tiếp, xong thì lần tải
+    sau dùng được. Nạp hỏng hay quá hạn thì _F2_RETRY_AFTER giây sau mới thử lại, để mỗi video không phải chờ thêm."""
+    global _f2_thread, _f2_failed
     with _f2_lock:
         if _f2_loaded:
             return _f2_loaded
-        if _f2_failed and time.monotonic() - _f2_failed[0] < _F2_RETRY_AFTER:
-            raise RuntimeError(f"f2 could not be loaded a moment ago: {_f2_failed[1]}")
-        _park_f2_logger()
-        stubs = {name: types.ModuleType(name) for name in _NOT_USED if name not in sys.modules}
-        sys.modules.update(stubs)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                from f2.apps.douyin.crawler import DouyinCrawler
-                from f2.apps.douyin.model import PostDetail
-                from f2.apps.douyin.utils import ClientConfManager, TokenManager
-        except Exception as e:
-            _f2_failed = (time.monotonic(), e)
-            raise
-        finally:
-            for name, stub in stubs.items():  # f2 đã giữ tham chiếu, khỏi để module rỗng trong sys.modules
-                if sys.modules.get(name) is stub:
-                    del sys.modules[name]
-        _f2_loaded = (DouyinCrawler, PostDetail, ClientConfManager, TokenManager)
-        return _f2_loaded
+        running = _f2_thread is not None and _f2_thread.is_alive()
+        if _f2_failed and (running or time.monotonic() - _f2_failed[0] < _F2_RETRY_AFTER):
+            raise RuntimeError(f"f2 could not be loaded a moment ago: {_f2_failed[1]}") from _f2_failed[1]
+        if not running:
+            _f2_failed = None
+            _f2_thread = threading.Thread(target=_load_f2, name="motio-f2-load", daemon=True)
+            _f2_thread.start()
+        thread = _f2_thread
+    thread.join(_F2_LOAD_WAIT)
+    with _f2_lock:
+        if _f2_loaded:
+            return _f2_loaded
+        if _f2_failed is None:
+            if thread.is_alive():  # còn đang nạp: bỏ cuộc lần này, nạp vẫn chạy tiếp
+                failure = TimeoutError(f"f2 was still loading after {_F2_LOAD_WAIT} s")
+            else:  # luồng đã dừng mà không để lại kết quả: không phải lỗi mạng
+                failure = RuntimeError("f2 stopped loading without a result")
+            _f2_failed = (time.monotonic(), failure)
+        failure = _f2_failed[1]
+    raise failure
 
 
 async def _fetch(post_id: str) -> tuple[dict, dict]:
@@ -213,8 +282,11 @@ def _pause() -> None:
 
 def _ask(post_id: str, max_height: int) -> tuple[dict, dict, dict | None] | None:
     """Hỏi Douyin tối đa TRIES lần, dừng khi có bản đủ tốt. Trả (trả lời, header, luồng) của lần tốt nhất; trả lời có
-    lý do rõ (video không còn, bài ảnh) thì trả ngay, không hỏi lại. None khi lần nào cũng hỏng."""
+    lý do rõ (video không còn, bài ảnh) thì trả ngay, không hỏi lại. None khi lần nào cũng hỏng; Unreachable khi lần nào
+    cũng hỏng vì mạng (Douyin chưa trả lời lần nào)."""
     best: tuple[dict, dict, dict] | None = None
+    offline: Exception | None = None  # lỗi mạng gần nhất
+    reached = False  # Douyin đã trả lời (hay f2 hỏng vì lý do khác mạng) ít nhất một lần
     for attempt in range(TRIES):
         if attempt:
             _pause()
@@ -222,9 +294,14 @@ def _ask(post_id: str, max_height: int) -> tuple[dict, dict, dict | None] | None
             raw, headers = _run(_fetch(post_id))
         except Exception as e:
             log.warning("f2 could not read Douyin post %s (try %d/%d): %s", post_id, attempt + 1, TRIES, e)
+            if _is_network_error(e):
+                offline = e
+                continue
+            reached = True
             if type(e).__name__ == "APIRetryExhaustedError":  # f2 đã tự thử lại, hỏi tiếp chỉ kéo dài thêm
                 break
             continue
+        reached = True
         detail = raw.get("aweme_detail") if isinstance(raw, dict) else None
         if not detail:
             if isinstance(raw, dict) and (raw.get("filter_detail") or {}).get("filter_reason"):
@@ -241,6 +318,8 @@ def _ask(post_id: str, max_height: int) -> tuple[dict, dict, dict | None] | None
             best = (raw, headers, stream)
         if _enough(video, stream, max_height):
             break
+    if best is None and offline is not None and not reached:
+        raise Unreachable(f"could not connect to Douyin for post {post_id}: {offline}") from offline
     return best
 
 
@@ -254,8 +333,11 @@ def _too_big() -> Unavailable:
 
 
 def _save(urls: list[str], dest: Path, headers: dict, hooks: list | None) -> bool:
-    """Tải về dest.part rồi đổi tên, thử lần lượt các link CDN. False khi link nào cũng lỗi."""
+    """Tải về dest.part rồi đổi tên, thử lần lượt các link CDN. False khi link nào cũng lỗi; Unreachable khi link nào
+    cũng lỗi vì mạng (CDN trả lời lỗi, file rỗng, địa chỉ bị chặn thì không tính)."""
     part = dest.with_name(dest.name + ".part")
+    offline: Exception | None = None  # lỗi mạng gần nhất, giữ khi mọi link đến giờ đều hỏng vì mạng
+    only_network = True
     for u in urls:
         try:
             with _client(headers) as client, client.stream("GET", u) as r:
@@ -281,19 +363,24 @@ def _save(urls: list[str], dest: Path, headers: dict, hooks: list | None) -> boo
             return True
         except (httpx.HTTPError, OSError) as e:
             log.warning("Douyin stream %s failed: %s", urlparse(u).hostname, e)
+            if _is_network_error(e):
+                offline = e
+            else:
+                only_network = False
         finally:
             part.unlink(missing_ok=True)
+    if offline is not None and only_network:
+        raise Unreachable(f"could not download from Douyin's servers: {offline}") from offline
     return False
 
 
-def download(url: str, out_dir: Path, max_height: int = DEFAULT_HEIGHT, hooks: list | None = None) -> dict | None:
+def download(url: str, out_dir: Path, max_height: int = DEFAULT_HEIGHT, hooks: list | None = None,
+             post_id: str | None = None) -> dict | None:
     """Tải 1 video Douyin (H.264, cạnh ngắn lớn nhất không quá max_height) vào out_dir/Douyin_<id>.mp4. Cùng kiểu trả
-    về với search.download; None khi f2 không làm được (người gọi thử yt-dlp)."""
-    try:
-        post_id = _resolve_id(url)
-    except Exception as e:
-        log.warning("could not find the Douyin post id of %s: %s", url, e)
-        return None
+    về với search.download; None khi f2 không làm được (người gọi thử yt-dlp); Unreachable khi không kết nối được tới
+    Douyin. post_id: mã đã tìm bằng find_id (không nói thì tìm ở đây, link rút gọn thì theo chuyển hướng)."""
+    if post_id is None:
+        post_id = find_id(url)
     answer = _ask(post_id, max_height) if post_id else None
     if not answer:
         return None

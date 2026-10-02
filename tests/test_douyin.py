@@ -4,7 +4,10 @@ import importlib.abc
 import importlib.machinery
 import importlib.util
 import logging
+import socket
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -51,7 +54,7 @@ def _raw(video: dict | None = None, ladder=None, **detail) -> dict:
 def douyin_api(monkeypatch):
     """Giả f2 (trả lời của Douyin, lần lượt từng phần tử nếu là list) và CDN (httpx.MockTransport)."""
     state = {"raw": _raw(), "asked": [], "requests": [], "size": 4096, "down": set(), "type": "video/mp4",
-             "hosts": {}, "redirects": {}}
+             "hosts": {}, "redirects": {}, "drop": set()}
 
     async def fake_fetch(post_id):
         state["asked"].append(post_id)
@@ -66,6 +69,8 @@ def douyin_api(monkeypatch):
         state["requests"].append(request)
         if request.url.host in state["redirects"]:
             return httpx.Response(302, headers={"location": state["redirects"][request.url.host]})
+        if request.url.host in state["drop"]:
+            raise httpx.ConnectError("no route to host")
         if request.url.host in state["down"]:
             return httpx.Response(503)
         return httpx.Response(200, content=b"v" * state["size"], headers={"content-type": state["type"]})
@@ -255,9 +260,106 @@ def test_a_failure_f2_already_retried_is_not_asked_again(douyin_api, tmp_path):
 
 
 def test_download_gives_up_quietly_when_f2_keeps_failing(douyin_api, tmp_path):
-    douyin_api["raw"] = ConnectionError("offline")
+    douyin_api["raw"] = RuntimeError("f2 broke")  # not a network error: yt-dlp is worth a try
     assert douyin.download("https://www.douyin.com/video/1", tmp_path) is None
     assert len(douyin_api["asked"]) == douyin.TRIES
+
+
+def test_download_says_unreachable_when_every_try_fails_on_the_network(douyin_api, tmp_path):
+    douyin_api["raw"] = ConnectionError("offline")
+    with pytest.raises(douyin.Unreachable, match="offline"):
+        douyin.download("https://www.douyin.com/video/1", tmp_path)
+    assert len(douyin_api["asked"]) == douyin.TRIES
+
+
+def test_one_answer_from_douyin_means_it_was_reachable(douyin_api, tmp_path):
+    """A network error on the first try, then Douyin answers with something odd: that is not 'no connection'."""
+    douyin_api["raw"] = [ConnectionError("blip"), {}]
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path) is None
+
+
+def test_a_network_blip_is_retried_and_the_video_still_comes(douyin_api, tmp_path):
+    douyin_api["raw"] = [TimeoutError("slow"), _raw()]
+    info = douyin.download("https://www.douyin.com/video/1", tmp_path)
+    assert info["id"] == "7686432847778982833" and len(douyin_api["asked"]) == 2
+
+
+def test_a_failure_that_is_not_the_network_keeps_the_fallback_even_after_a_network_error(douyin_api, tmp_path):
+    class APIResponseError(Exception):
+        pass
+
+    douyin_api["raw"] = [ConnectionError("blip"), APIResponseError("bad status"), ConnectionError("blip")]
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path) is None
+
+
+class APIConnectionError(Exception):  # f2's own error, named as f2 names it
+    pass
+
+
+class APITimeoutError(Exception):
+    pass
+
+
+def _wrapped(outer: Exception, inner: Exception) -> Exception:
+    try:
+        try:
+            raise inner
+        except Exception:
+            raise outer from None  # implicit __context__ stays, like f2 raising inside its except block
+    except Exception as e:
+        return e
+
+
+@pytest.mark.parametrize("error, expected", [
+    (ConnectionRefusedError(), True), (TimeoutError(), True), (socket.gaierror(-3, "Temporary failure"), True),
+    (httpx.ConnectError("no route"), True), (httpx.ReadTimeout("slow"), True), (httpx.ProxyError("proxy"), True),
+    (APIConnectionError("f2"), True), (APITimeoutError("f2"), True),
+    (_wrapped(RuntimeError("f2 could not be loaded a moment ago"), httpx.ConnectError("x")), True),
+    (_wrapped(RuntimeError("wrapper"), APITimeoutError("f2")), True),
+    (RuntimeError("f2 broke"), False), (OSError("host is not a public address"), False),
+    (FileNotFoundError("conf.yaml"), False), (ValueError("bad json"), False),
+    (_wrapped(RuntimeError("wrapper"), ValueError("not the network")), False),
+])
+def test_what_counts_as_a_network_error(error, expected):
+    assert douyin._is_network_error(error) is expected
+
+
+def test_a_cause_chain_that_loops_does_not_hang():
+    a, b = RuntimeError("a"), RuntimeError("b")
+    a.__cause__, b.__cause__ = b, a
+    assert douyin._is_network_error(a) is False
+
+
+def test_download_with_the_id_already_found_does_not_look_it_up_again(douyin_api, tmp_path, monkeypatch):
+    def never(url):
+        raise AssertionError("the id was handed over")
+
+    monkeypatch.setattr(douyin, "_resolve_id", never)
+    info = douyin.download("https://v.douyin.com/iNUBcHxM/", tmp_path, post_id="7686432847778982833")
+    assert douyin_api["asked"] == ["7686432847778982833"] and info["id"] == "7686432847778982833"
+
+
+def test_find_id_follows_a_short_link(douyin_api):
+    douyin_api["redirects"] = {"v.douyin.com": "https://www.iesdouyin.com/share/video/7683844732023911406/"}
+    assert douyin.find_id("https://v.douyin.com/iNUBcHxM/") == "7683844732023911406"
+    assert douyin.find_id("https://www.douyin.com/video/55") == "55"
+
+
+def test_find_id_says_unreachable_when_the_short_link_cannot_be_followed(monkeypatch):
+    def offline(url):
+        raise socket.gaierror(-3, "Temporary failure in name resolution")
+
+    monkeypatch.setattr(douyin, "_resolve_id", offline)
+    with pytest.raises(douyin.Unreachable):
+        douyin.find_id("https://v.douyin.com/iNUBcHxM/")
+
+
+def test_find_id_gives_no_id_for_a_failure_that_is_not_the_network(monkeypatch):
+    def refused(url):
+        raise OSError("v.douyin.com is not a public address")
+
+    monkeypatch.setattr(douyin, "_resolve_id", refused)
+    assert douyin.find_id("https://v.douyin.com/iNUBcHxM/") is None
 
 
 @pytest.mark.parametrize("raw", [{}, {"status_code": 5}, {"aweme_detail": None}, "<html>",
@@ -371,6 +473,8 @@ class FakeF2(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
     def __init__(self):
         self.fail, self.loads, self.stubs_seen = False, 0, {}
+        self.hold: threading.Event | None = None  # đặt vào thì f2 giả đứng chờ nó, như mạng nuốt gói tin
+        self.imports = 0  # số lần _import_f2 được gọi: mỗi lần là một luồng nạp
 
     def find_spec(self, name, path=None, target=None):
         if name in self.NAMES:
@@ -386,6 +490,8 @@ class FakeF2(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             self.stubs_seen = {n: n in sys.modules for n in ("browser_cookie3", "execjs")}
             module.DouyinCrawler = object
         elif name == "f2.apps.douyin.model":
+            if self.hold is not None:
+                self.hold.wait(10)
             if self.fail:
                 raise ConnectionError("msToken endpoint unreachable")
             module.PostDetail = object
@@ -405,7 +511,19 @@ def fake_f2(monkeypatch):
     monkeypatch.setattr(sys, "meta_path", [finder, *sys.meta_path])
     monkeypatch.setattr(douyin, "_f2_loaded", None)
     monkeypatch.setattr(douyin, "_f2_failed", None)
-    return finder
+    monkeypatch.setattr(douyin, "_f2_thread", None)
+    real_import = douyin._import_f2
+
+    def counted():
+        finder.imports += 1
+        return real_import()
+
+    monkeypatch.setattr(douyin, "_import_f2", counted)
+    yield finder
+    if finder.hold is not None:  # đừng để luồng nạp giả treo sang test sau
+        finder.hold.set()
+    if douyin._f2_thread is not None:
+        douyin._f2_thread.join(5)
 
 
 def test_f2_is_loaded_once_with_empty_stand_ins_for_the_two_packages_motio_does_not_install(fake_f2):
@@ -418,7 +536,7 @@ def test_f2_is_loaded_once_with_empty_stand_ins_for_the_two_packages_motio_does_
 def test_f2_loads_safely_from_several_threads(fake_f2):
     with ThreadPoolExecutor(8) as pool:
         results = list(pool.map(lambda _: REAL_F2(), range(8)))
-    assert fake_f2.loads == 1 and all(r is results[0] for r in results)
+    assert fake_f2.loads == 1 and fake_f2.imports == 1 and all(r is results[0] for r in results)
 
 
 def test_f2_that_failed_to_load_is_not_retried_straight_away(fake_f2, monkeypatch):
@@ -436,3 +554,104 @@ def test_f2_that_failed_to_load_is_not_retried_straight_away(fake_f2, monkeypatc
     for name in [n for n in sys.modules if n.startswith("f2.apps.douyin.")]:
         monkeypatch.delitem(sys.modules, name)  # lần nạp hỏng để lại module nửa vời; nạp lại từ đầu
     assert REAL_F2() and fake_f2.loads == 2
+
+
+def test_a_failed_load_keeps_its_cause_so_the_network_is_recognised(fake_f2):
+    fake_f2.fail = True
+    with pytest.raises(ConnectionError):
+        REAL_F2()
+    with pytest.raises(RuntimeError, match="a moment ago") as again:
+        REAL_F2()
+    assert isinstance(again.value.__cause__, ConnectionError) and douyin._is_network_error(again.value)
+
+
+def test_a_load_that_stalls_is_given_up_after_the_wait_and_not_waited_for_again(fake_f2, monkeypatch):
+    """f2 asks Douyin for a token as soon as it is imported: packets dropped on the way make that take minutes."""
+    fake_f2.hold = threading.Event()
+    monkeypatch.setattr(douyin, "_F2_LOAD_WAIT", 0.2)
+    start = time.monotonic()
+    with pytest.raises(TimeoutError, match="still loading") as first:
+        REAL_F2()
+    assert time.monotonic() - start < 5 and douyin._is_network_error(first.value)
+    start = time.monotonic()
+    with pytest.raises(RuntimeError, match="a moment ago") as second:
+        REAL_F2()  # the load is still going: no second wait, no second load
+    assert time.monotonic() - start < 0.15 and douyin._is_network_error(second.value) and fake_f2.imports == 1
+
+
+def test_a_stalled_load_is_not_started_again_when_the_retry_window_is_over(fake_f2, monkeypatch):
+    fake_f2.hold = threading.Event()
+    monkeypatch.setattr(douyin, "_F2_LOAD_WAIT", 0.1)
+    monkeypatch.setattr(douyin, "_F2_RETRY_AFTER", 0)
+    for _ in range(3):
+        with pytest.raises((TimeoutError, RuntimeError)):
+            REAL_F2()
+    assert fake_f2.imports == 1  # one load at a time, however many downloads ask
+
+
+def test_a_load_that_ends_after_the_wait_serves_the_next_download(fake_f2, monkeypatch):
+    fake_f2.hold = threading.Event()
+    monkeypatch.setattr(douyin, "_F2_LOAD_WAIT", 0.1)
+    with pytest.raises(TimeoutError):
+        REAL_F2()
+    fake_f2.hold.set()
+    douyin._f2_thread.join(5)
+    assert REAL_F2() and fake_f2.imports == 1  # f2 is there now: nothing is loaded again
+
+
+def test_a_load_that_fails_after_the_wait_replaces_the_timeout_with_the_real_error(fake_f2, monkeypatch):
+    fake_f2.hold = threading.Event()
+    fake_f2.fail = True
+    monkeypatch.setattr(douyin, "_F2_LOAD_WAIT", 0.1)
+    with pytest.raises(TimeoutError):
+        REAL_F2()
+    fake_f2.hold.set()
+    douyin._f2_thread.join(5)
+    with pytest.raises(RuntimeError, match="msToken endpoint unreachable"):
+        REAL_F2()
+
+
+def test_a_load_that_calls_sys_exit_is_a_failure_not_a_timeout(fake_f2, monkeypatch):
+    """f2 calls sys.exit(1) when its config file is broken: the thread must still leave a real failure behind."""
+    def exits():
+        raise SystemExit(1)
+
+    monkeypatch.setattr(douyin, "_import_f2", exits)
+    with pytest.raises(RuntimeError, match="stopped while loading") as failure:
+        REAL_F2()
+    assert not isinstance(failure.value, TimeoutError) and not douyin._is_network_error(failure.value)
+
+
+def test_a_load_thread_that_ends_without_a_result_is_not_blamed_on_the_network(fake_f2, monkeypatch):
+    monkeypatch.setattr(douyin, "_load_f2", lambda: None)
+    with pytest.raises(RuntimeError, match="without a result") as failure:
+        REAL_F2()
+    assert not douyin._is_network_error(failure.value)
+
+
+def test_a_link_that_holds_its_id_needs_no_http_client(monkeypatch):
+    """A broken certificate path or a SOCKS proxy without its package makes httpx.Client fail to build."""
+    def broken(*a, **k):
+        raise FileNotFoundError("SSL_CERT_FILE")
+
+    monkeypatch.setattr(douyin, "_client", broken)
+    share = "https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN"
+    assert douyin.find_id(share) == "7683844732023911406"
+    assert douyin.find_id("https://www.douyin.com/jingxuan?modal_id=7686432847778982833") == "7686432847778982833"
+
+
+def test_every_cdn_link_failing_on_the_network_is_unreachable(douyin_api, tmp_path):
+    douyin_api["drop"] = {"cdn-a.example", "cdn-b.example"}
+    with pytest.raises(douyin.Unreachable):
+        douyin.download("https://www.douyin.com/video/1", tmp_path)
+    assert not list(tmp_path.glob("Douyin_*"))
+
+
+def test_a_cdn_that_answers_with_an_error_is_not_a_missing_connection(douyin_api, tmp_path):
+    douyin_api["drop"], douyin_api["down"] = {"cdn-a.example"}, {"cdn-b.example"}  # one cut off, one says 503
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path) is None
+
+
+def test_one_cdn_link_that_still_works_after_a_cut_off_one_gives_the_video(douyin_api, tmp_path):
+    douyin_api["drop"] = {"cdn-a.example"}
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path)["id"] == "7686432847778982833"
