@@ -8,11 +8,8 @@ import { EngineProvider } from "./lib/engine";
 import { UpdaterProvider } from "./lib/updater";
 import "./index.css";
 
-// Theo chế độ sáng / tối của hệ điều hành.
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-const applyTheme = () => document.documentElement.classList.toggle("dark", dark.matches);
-applyTheme();
-dark.addEventListener("change", applyTheme);
+// Giao diện "Studio" chỉ có chế độ tối (index.css đặt màu ở :root; lớp .dark giữ cho các biến thể dark: của shadcn).
+document.documentElement.classList.add("dark");
 
 /** Switching language rebuilds the screens so every string is read again. */
 function Root() {

@@ -1,13 +1,31 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+/* Studio type: IBM Plex Sans (UI) and Mono (numbers, ids, timecode), bundled so the app works offline.
+   Latin + Latin Extended cover French, Vietnamese its own file; Chinese uses the system font (PingFang SC / Microsoft YaHei). */
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-400.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-500.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-600.css";
+@import "@fontsource/ibm-plex-sans/vietnamese-400.css";
+@import "@fontsource/ibm-plex-sans/vietnamese-500.css";
+@import "@fontsource/ibm-plex-sans/vietnamese-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-400.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-500.css";
+@import "@fontsource/ibm-plex-mono/vietnamese-400.css";
+@import "@fontsource/ibm-plex-mono/vietnamese-500.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --font-zh: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +57,25 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    /* Studio surfaces: the fill ladder is the only depth (no shadows). */
+    --color-ground: var(--ground);
+    --color-panel: var(--panel);
+    --color-strip: var(--strip);
+    --color-raised: var(--raised);
+    --color-lift: var(--lift);
+    --color-pressed: var(--pressed);
+    --color-monitor: var(--monitor);
+    --color-hairline: var(--hairline);
+    --color-hairline-strong: var(--hairline-strong);
+    --color-field: var(--field);
+    --color-amber: var(--amber);
+    --color-amber-hover: var(--amber-hover);
+    --color-amber-pressed: var(--amber-pressed);
+    --color-on-amber: var(--on-amber);
+    --color-cyan: var(--cyan);
+    --color-cyan-hover: var(--cyan-hover);
+    --color-mint: var(--mint);
+    --color-coral: var(--coral);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -48,83 +85,96 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Direction "Studio" (docs/design: dark editing suite). Dark only: the app sets .dark on <html>.
+   Every contrast pair below was checked at 4.5:1 (text) / 3:1 (controls); muted text never goes dimmer than --muted-foreground. */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-}
+    color-scheme: dark;
+    --ground: #121418;
+    --panel: #1A1D23;
+    --strip: #1E2128;
+    --raised: #22262E;
+    --lift: #2A2F38;
+    --pressed: #323843;
+    --monitor: #0B0C0F;
+    --hairline: rgb(255 255 255 / 0.09);
+    --hairline-strong: rgb(255 255 255 / 0.16);
+    --field: #6B7280;
+    --amber: #FFB224;
+    --amber-hover: #FFC247;
+    --amber-pressed: #E89F0B;
+    --on-amber: #17120A;
+    --cyan: #5CC8F5;
+    --cyan-hover: #9BE0FA;
+    --mint: #5FD6A0;
+    --coral: #FF8A80;
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: var(--ground);
+    --foreground: #E8EAEE;
+    --card: var(--panel);
+    --card-foreground: #E8EAEE;
+    --popover: var(--raised);
+    --popover-foreground: #E8EAEE;
+    --primary: var(--amber);
+    --primary-foreground: var(--on-amber);
+    --secondary: var(--raised);
+    --secondary-foreground: #E8EAEE;
+    --muted: var(--strip);
+    --muted-foreground: #9CA3B0;
+    --accent: var(--lift);
+    --accent-foreground: #E8EAEE;
+    --destructive: var(--coral);
+    --border: var(--hairline);
+    --input: var(--field);
+    --ring: var(--cyan);
+    --chart-1: var(--cyan);
+    --chart-2: var(--amber);
+    --chart-3: var(--mint);
+    --chart-4: var(--coral);
+    --chart-5: #9CA3B0;
+    --radius: 0.25rem;
+    --sidebar: var(--ground);
+    --sidebar-foreground: #E8EAEE;
+    --sidebar-primary: var(--amber);
+    --sidebar-primary-foreground: var(--on-amber);
+    --sidebar-accent: var(--raised);
+    --sidebar-accent-foreground: #E8EAEE;
+    --sidebar-border: var(--hairline);
+    --sidebar-ring: var(--cyan);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
-    }
   html {
     @apply font-sans;
+    }
+  /* Body text is 13 / 20 px; the root stays 16 px so every Tailwind size (h-10 = 40 px) means what the design says. */
+  body {
+    @apply bg-background text-foreground;
+    font-size: 13px;
+    line-height: 20px;
+    }
+  /* Chinese text keeps its own face wherever it sits. */
+  :lang(zh) {
+    font-family: var(--font-zh);
+    }
+  /* The focus ring is always visible on keyboard focus (cyan, 2 px, offset 2 px). */
+  :focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+    }
+  ::selection {
+    background: rgb(92 200 245 / 0.3);
+    }
+  a {
+    color: var(--cyan);
+    }
+  a:hover {
+    color: var(--cyan-hover);
+    }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.2) transparent;
     }
 }
