@@ -15,6 +15,8 @@ as authoritative for scope and milestones.
 - `motio/` — Python 3.12 engine (uv, `package = false`).
   - `config.py` env + paths · `db.py` SQLite (trend, project) · `newsnow.py` fetch/translate/score trends
   - `search.py` yt-dlp search/download (cookies: `YTDLP_COOKIES_FILE` per-thread copy, else browser) · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
+  - `douyin.py` public Douyin videos without a login through the `f2` package (it does Douyin's request signing; Motio only
+    calls it): `search.download` tries it first for Douyin links and falls back to yt-dlp when f2 cannot
   - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
@@ -127,10 +129,13 @@ on every PR; keep them green.
   paid per new clip (`AI_CLIP_USD_PER_SEC`, recorded in the `usage` table) and stop when the monthly budget is reached.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
-- Douyin: yt-dlp's extractor needs fresh browser cookies (a guest session is enough), so a Douyin video the engine cannot fetch is added as a file
-  (`localfile.py`). Do not put Douyin's request signing (`a_bogus`, a device-fingerprint `msToken` payload, as f2 does)
-  into the engine without the owner's explicit go: the safety check of an auto-mode session refused it on 2026-10-02 and
-  the owner has to decide (thread "Studio phim AI, dịch video Trung").
+- Douyin: `motio/douyin.py` downloads public videos with the `f2` package (Johnserf-Seed/f2, Apache-2.0), added on the
+  owner's go of 2026-10-02. f2 is a pinned dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`);
+  never copy that signing code into this repo, so a newer f2 brings the new signatures when Douyin changes them. When f2
+  cannot (offline, signature out of date, Douyin refuses) the download falls back to yt-dlp, whose Douyin extractor needs
+  fresh browser cookies (a guest session is enough), and last to a video file added by hand (`localfile.py`). A removed,
+  private or photo-only post is final: no fallback. f2 is imported lazily (importing it asks Douyin for an `msToken`), its
+  logger is parked on a `NullHandler` so it makes no `./logs` folder, and tests switch it off (`conftest.py`).
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /

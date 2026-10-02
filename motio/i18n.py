@@ -537,6 +537,12 @@ VI = {
     "cookies file in Settings":
         "Douyin yêu cầu cookie trình duyệt còn mới để tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt "
         "file cookie trong Cài đặt",
+    # Douyin through f2 (douyin.py)
+    "This Douyin video was removed": "Video Douyin này đã bị xoá",
+    "This Douyin video is private or restricted": "Video Douyin này ở chế độ riêng tư hoặc bị hạn chế",
+    "Douyin did not give a video for this link ({reason})": "Douyin không trả video cho link này ({reason})",
+    "This Douyin post is photos, not a video": "Bài Douyin này là ảnh, không phải video",
+    "This video is larger than {mb} MB": "Video này lớn hơn {mb} MB",
     "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
     "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
 }

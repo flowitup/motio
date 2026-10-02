@@ -544,9 +544,17 @@ project files. Built in this batch:
   Douyin's web API with an anonymous `ttwid`, signing each request with `a_bogus`; `v.douyin.com/<code>` redirects to
   `iesdouyin.com/share/video/<id>/`. yt-dlp, jiji262/douyin-downloader (blocked by Douyin per its README) and the web page
   do not work without a browser session; Evil0ctal v5 (Docker + Postgres + Redis) and TikTokDownloader (GPL-3.0, cookie)
-  were not run. Not tested: keyword search, an author's video list. Calling f2's way from the engine needs Douyin's request
-  signing and a device-fingerprint token payload inside Motio; the auto-mode safety check refused to add that, so it waits for
-  the owner's decision (pinning f2's version and a live test would be needed, Douyin changes the signature often).
+  were not run. Not tested: keyword search, an author's video list.
+- **Douyin through f2 (02/10)**: on the owner's go ("Gắn f2 đi rồi test lại"), `motio/douyin.py` calls f2 as a pinned
+  dependency (`f2==0.0.1.7`; its signing code is not copied into the repo). `search.download` tries it first for Douyin
+  links (full, `iesdouyin.com/share/video/<id>`, `?modal_id=`; `v.douyin.com` is resolved by f2) with an anonymous `ttwid`
+  and a fresh `msToken`, picks an H.264 stream (short side ≤ the requested height; Douyin's list of sizes differs from one
+  request to the next, so a 720 p stream is not always offered), saves `Douyin_<id>.mp4` and returns the same metadata as
+  the yt-dlp path. f2 failing returns `None` and yt-dlp takes over; a removed / private / photo post raises
+  `douyin.Unavailable` and is final. f2 pins exact versions (even pytest and black), so `pyproject.toml` gives uv its run-time
+  requirements through `[[tool.uv.dependency-metadata]]` with lower bounds only; the engine's other packages are unchanged.
+  The engine build carries f2's yaml / locale files (`--collect-all f2`) and checks them. Tested live on the Mac with four
+  public videos (portrait and landscape, three link forms) from a throwaway data dir, and from a frozen PyInstaller build.
 - Not verified: a real HeyGen call and the H3 / HeyGen comparison, a Bilibili list through the app on the Mac, the quality
   check on a Mac-rendered video, the file upload of a large video through the Tauri webview.
 - Not included: consistent characters across clips and a series with many episodes (chosen by the owner for next), hints for

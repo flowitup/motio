@@ -113,7 +113,8 @@ cd app && pnpm install && cd ..              # only if touching the app
 | HeyGen Video 1 clips (second `aiclips` provider, forces the video gate) | `aiclips.py` (`PROVIDERS`, `provider`, `_heygen_clip`, `trial`, `REVIEW_PROVIDERS`, `_transport` / `_sleep` hooks), `usage.clip_price(provider)`, `CLIP_PROVIDER` / `HEYGEN_API_KEY` (secret) in `settings.py`, CLI `clipcheck`, `creator.clips_need_review`; tests `tests/test_heygen_clips.py` |
 | Quality check after the render | `motio/qa.py` (`run`, `findings`, `repeats`, `check_project`, `failed`), hook in `pipeline._voice_render_post` + `pipeline._why_held` / `_deliver`, `meta.qa`, `QualityCard` in `app/src/pages/project-detail.tsx`; tests `tests/test_qa.py` (real FFmpeg files; `conftest.py` stubs `qa.run` for the tests that fake the render) |
 | Bilibili trending lists as followed sources | `motio/trending.py` (`parse`, `fetch`, `usable`, `clip`, `_transport`), source kind in `watch.py` / `db.py`, quick-add in `app/src/pages/clips.tsx`; tests `tests/test_trending.py` |
-| A video file added by hand as a source (Douyin etc.) | `motio/localfile.py` (`save`, `parse`, `check`, `source`), `search.clean_links` / `search.download` / `search._is_douyin`, `POST /api/uploads`, `app/src/components/add-video-file.tsx` (New video, project sources, trend links); tests `tests/test_localfile.py` |
+| Douyin links downloaded through the f2 package (no cookies) | `motio/douyin.py` (`download`, `pick_stream`, `is_douyin`, `Unavailable`, `_fetch` / `_client` test hooks), hook in `search.download` (f2 first, then yt-dlp), `[[tool.uv.dependency-metadata]]` for `f2` in `pyproject.toml`, `--collect-all f2` in `tools/build_engine.py`; tests `tests/test_douyin.py`, `conftest.py` switches `douyin._f2` off so no test calls Douyin |
+| A video file added by hand as a source (Douyin etc.) | `motio/localfile.py` (`save`, `parse`, `check`, `source`), `search.clean_links` / `search.download`, `douyin.is_douyin`, `POST /api/uploads`, `app/src/components/add-video-file.tsx` (New video, project sources, trend links); tests `tests/test_localfile.py` |
 | Windows PC at home as the 24/7 engine (Mac = remote client, nothing stored on the Mac) | `tools/windows/motio-server.ps1` (Task Scheduler task "Motio engine", Tailscale-only bind, firewall rule, launcher + token under `%LOCALAPPDATA%\MotioServer`), runbook `docs/WINDOWS_SERVER.md`; `config.disk()` → `/api/health` `disk`, shown in `HealthCard` (`app/src/pages/settings.tsx`) |
 | Slack alerts (review / done / failed, one-way Incoming Webhook) | `motio/notify.py` (`valid`, `send`, `project`, `escape`), hooks in `pipeline._await_review` / `_deliver` / `approve_video` / failure handlers, `SLACK_WEBHOOK_URL` (secret), `POST /api/notify/test`, Settings card in `app/src/pages/settings.tsx`; tests `tests/test_notify.py`, `fake_slack` fixture |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
@@ -363,7 +364,8 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 - Homebrew FFmpeg has no libass, so captions are not burned with `subtitles=`: Pillow draws each karaoke
   frame and they go on as one timed PNG stream. `captions.ass` is an export only.
 - yt-dlp can't search Douyin or X: those come in as pasted links (`{links, links_only}` on produce,
-  `POST /api/projects/{id}/links`), with browser cookies from `YTDLP_COOKIES_FROM_BROWSER`.
+  `POST /api/projects/{id}/links`). Douyin links go through f2 first (`douyin.py`); X and the yt-dlp fallback use
+  browser cookies from `YTDLP_COOKIES_FROM_BROWSER`.
 - French runs long: shorten the script rather than speed up TTS (and stay within 62–90 s, §4).
 - Installers run the engine frozen by PyInstaller, not uv. A new dependency that loads data files or plugins
   at runtime may need `--collect-all` in `tools/build_engine.py`; `motio.web` (legacy dashboard) is excluded

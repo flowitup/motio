@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from motio import search, settings
+from motio import douyin, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -111,3 +111,37 @@ def test_each_thread_gets_its_own_copy_and_the_original_stays_untouched(jar):
     assert "yt-dlp saved" in open(mine, encoding="utf-8").read()
     jar.write_text(JAR + ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tbuvid3\tx\n", encoding="utf-8")
     assert "buvid3" in open(search._cookie_opts()["cookiefile"], encoding="utf-8").read()  # file gốc đổi: chép lại
+
+
+def test_douyin_links_try_f2_first_and_skip_yt_dlp_when_it_works(monkeypatch, tmp_path):
+    calls = []
+
+    def fake(url, out_dir, max_height, hooks):
+        calls.append((url, max_height))
+        return {"path": str(out_dir / "Douyin_1.mp4"), "id": "1", "platform": "Douyin"}
+
+    monkeypatch.setattr(douyin, "download", fake)
+    info = search.download("https://v.douyin.com/iNUBcHxM/", tmp_path, 480, cookies=True)
+    assert info["id"] == "1" and calls == [("https://v.douyin.com/iNUBcHxM/", 480)] and FakeYDL.opts == []
+
+
+def test_douyin_links_fall_back_to_yt_dlp_when_f2_cannot(tmp_path):
+    info = search.download("https://www.douyin.com/video/1", tmp_path)  # conftest: f2 tắt trong test
+    assert info["id"] == "1" and len(FakeYDL.opts) == 1
+
+
+def test_a_douyin_video_that_is_gone_is_not_retried_with_yt_dlp(monkeypatch, tmp_path):
+    def gone(*a, **k):
+        raise douyin.Unavailable("This Douyin video was removed")
+
+    monkeypatch.setattr(douyin, "download", gone)
+    with pytest.raises(douyin.Unavailable, match="removed"):
+        search.download("https://www.douyin.com/video/1", tmp_path, cookies=True)
+    assert FakeYDL.opts == []
+
+
+def test_other_sites_never_go_through_f2(monkeypatch, tmp_path):
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: pytest.fail("f2 is for Douyin only"))
+    search.download("https://www.youtube.com/watch?v=abc", tmp_path)
+    search.download("https://www.bilibili.com/video/BV1x", tmp_path)
+    assert len(FakeYDL.opts) == 2

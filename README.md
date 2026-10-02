@@ -33,10 +33,15 @@ and a score, and "Make video" makes a French explainer from it. Bilibili's own t
 only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
 downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
 
-**Douyin**: yt-dlp's Douyin extractor needs fresh browser cookies, not necessarily from a logged-in account
-(`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`), so a pasted Douyin link only works with one of those. Without it, download the video yourself
-(for example with [f2](https://github.com/Johnserf-Seed/f2), Apache 2.0, which fetched Douyin videos without logging in
-when tried on 2026-10-02) and use **Add a video file** (below).
+**Douyin**: a pasted Douyin link (full `douyin.com/video/…`, the `v.douyin.com` share link, `?modal_id=…`) is fetched with
+[f2](https://github.com/Johnserf-Seed/f2) (Apache 2.0), which needs no login and no cookies; it gets the video, its title,
+author and length at up to 720 p (H.264). If f2 cannot (Douyin changed its request signing and f2 is not updated yet, or
+you are offline) Motio tries yt-dlp, which needs fresh browser cookies, not necessarily from a logged-in account
+(`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`). A removed, private or photo-only post is reported as such. Last
+resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
+not supported.
+
+**Add a video file** (below).
 
 **Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
 sends a video you already have, from Douyin or anywhere else, to the engine and uses it like a link: dubbed, or used as

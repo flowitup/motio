@@ -15,7 +15,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, localfile
+from . import config, douyin, localfile
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -154,11 +154,6 @@ def _is_bilibili(url: str) -> bool:
     return host == "b23.tv" or host == "bilibili.com" or host.endswith(".bilibili.com")
 
 
-def _is_douyin(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return host.endswith(("douyin.com", "iesdouyin.com"))
-
-
 def _cookie_opts() -> dict:
     """Cookie đăng nhập cho yt-dlp (Douyin, X, không gian Bilibili hay đòi): file YTDLP_COOKIES_FILE nếu có, không thì
     phiên của trình duyệt trong YTDLP_COOKIES_FROM_BROWSER (chrome…)."""
@@ -171,11 +166,16 @@ def _cookie_opts() -> dict:
 
 def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False, hooks: list | None = None) -> dict:
     """Tải 1 video (≤ max_height, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay (cookie file hoặc
-    trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu có.
+    trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu có. Link Douyin: f2 trước (motio/douyin.py),
+    yt-dlp sau.
     hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
     ném lỗi trong hàm thì dừng tải."""
     if localfile.parse(url):
         return localfile.source(url)
+    if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được
+        info = douyin.download(url, out_dir, max_height, hooks)
+        if info:
+            return info
     out_dir.mkdir(parents=True, exist_ok=True)
     cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
     opts = {**_base(),
@@ -191,7 +191,7 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
             info = y.extract_info(url, download=True)
             path = Path(y.prepare_filename(info)).with_suffix(".mp4")
     except DownloadError as e:
-        if _is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor needs a real browser session
+        if douyin.is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor wants a browser session
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
         raise

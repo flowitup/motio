@@ -23,6 +23,18 @@ def clean_settings(monkeypatch):
     settings.path().unlink(missing_ok=True)
 
 
+@pytest.fixture(autouse=True)
+def no_douyin_network(monkeypatch):
+    """f2 asks Douyin for a token as soon as it is imported, so no test loads it: a Douyin link falls back to the
+    (faked) yt-dlp. tests/test_douyin.py fakes douyin._fetch and the CDN instead."""
+    from motio import douyin
+
+    def off():
+        raise RuntimeError("f2 is switched off in tests")
+
+    monkeypatch.setattr(douyin, "_f2", off)
+
+
 @pytest.fixture
 def fake_postiz(monkeypatch):
     """Postiz giả qua httpx.MockTransport: 2 kênh (TikTok, YouTube). Trả danh sách request đã nhận."""

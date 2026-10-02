@@ -11,6 +11,7 @@ dependencies = [
   "httpx>=0.27",
   "python-dotenv>=1.0",
   "yt-dlp[default]>=2026.8.19",
+  "f2==0.0.1.7",
   "pillow>=10.4",
   "numpy>=2.0",
   "onnxruntime>=1.20",
@@ -21,6 +22,34 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+# f2 (Douyin client, motio/douyin.py) pins exact versions of everything, even pytest and black which it never imports.
+# That clashes with the engine's own (pytest, yt-dlp's websockets>=13, ...), so list here what f2 needs at run time,
+# with lower bounds only. It runs on the versions uv.lock picks for the engine (live-checked, see docs/APP_PLAN.md).
+[[tool.uv.dependency-metadata]]
+name = "f2"
+version = "0.0.1.7"
+requires-dist = [
+  "aiofiles>=24.1",
+  "aiosqlite>=0.20",
+  "babel>=2.13",
+  "browser-cookie3>=0.20.1",
+  "click>=8.1",
+  "cryptography>=44",
+  "gmssl>=3.2.2",
+  "httpx>=0.27",
+  "importlib-resources>=6.4",
+  "jsonpath-ng>=1.6.1",
+  "m3u8>=3.6",
+  "protobuf>=5.28",
+  "pydantic>=2.9",
+  "pyexecjs>=1.5.1",
+  "pyyaml>=6",
+  "qrcode>=8",
+  "rich>=13.9",
+  "websockets>=13",
+  "websockets-proxy>=0.1.2",
+]
 
 [dependency-groups]
 build = [
