@@ -79,6 +79,7 @@ def main() -> None:
             "--paths", str(ROOT),
             "--collect-submodules", "motio", "--collect-submodules", "yt_dlp",
             "--collect-submodules", "uvicorn", "--collect-all", "yt_dlp_ejs",
+            "--collect-all", "f2",  # f2 reads its yaml config and locale files from disk
             "--exclude-module", "tkinter", "--exclude-module", "motio.web"]
     if platform.system() == "Darwin":
         # torch chỉ dùng trong mlx_whisper.torch_whisper (chuyển đổi model), không cần khi bóc lời
@@ -97,6 +98,8 @@ def main() -> None:
     subprocess.run([str(OUT / NAME / "bin" / ("deno.exe" if win else "deno")), "--version"], check=True)
     if not any("yt_dlp_ejs" in f.parts for f in (OUT / NAME).rglob("*.js")):
         raise SystemExit("yt-dlp-ejs scripts are missing from the bundle: YouTube downloads will fail")
+    if not any(p.parent.parent.name == "f2" for p in (OUT / NAME).rglob("conf.yaml")):
+        raise SystemExit("f2 config files are missing from the bundle: Douyin downloads will fall back to yt-dlp")
     exe = OUT / NAME / (NAME + (".exe" if win else ""))
     print(f"Engine: {exe}")
 

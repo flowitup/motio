@@ -68,13 +68,13 @@ Các lệnh khác: `.\motio-server.ps1 -Status` (trạng thái tác vụ + engin
 chặn HTTP tới địa chỉ ngoài máy (chưa ai thử), dùng HTTPS của Tailscale: trên Windows chạy
 `tailscale serve --bg --https=443 http://100.x.y.z:8765` rồi nhập URL `https://<tên-máy>.<tailnet>.ts.net`.
 
-## 4. Cookie cho Bilibili và Douyin
+## 4. Cookie cho Bilibili (Douyin không cần)
 
 Engine đọc cookie trình duyệt **trên máy nó chạy**, tức Windows, không phải Mac, và Chrome / Edge trên Windows thường
 mã hoá cookie khiến yt-dlp không đọc được. Cách ổn định hơn là một file `cookies.txt`:
 
-1. Đăng nhập Bilibili (và Douyin nếu cần) trên trình duyệt bất kỳ, xuất `cookies.txt` bằng một tiện ích xuất cookie (định dạng
-   Netscape; chỉ chọn bilibili.com / douyin.com).
+1. Đăng nhập Bilibili (và X nếu cần) trên trình duyệt bất kỳ, xuất `cookies.txt` bằng một tiện ích xuất cookie (định dạng
+   Netscape; chỉ chọn bilibili.com / x.com).
 2. Chép file sang máy Windows, **ngoài thư mục dữ liệu**, ví dụ `D:\Motio\cookies.txt` (Taildrop:
    `tailscale file cp cookies.txt <tên-máy-windows>:`).
 3. Cài đặt → **File cookie (cookies.txt)** → nhập đường dẫn trên máy Windows → Lưu. Engine kiểm tra file đọc được rồi mới lưu.
@@ -82,7 +82,8 @@ mã hoá cookie khiến yt-dlp không đọc được. Cách ổn định hơn l
 Dùng cho: link dán tay (mọi trang), tìm kiếm và tải video Bilibili, danh sách Bilibili ở trang "Video mới". Được ưu tiên
 hơn "Cookie trình duyệt"; YouTube tự tìm không dùng cookie. Cookie hết hạn thì xuất lại và chép đè. Engine dùng bản sao
 tạm (yt-dlp ghi lại file khi đóng) nên file gốc không bị sửa, và `/media` không bao giờ phục vụ file này. Coi nó như
-mật khẩu. Cookie chưa chắc đủ cho Douyin: yt-dlp có báo cáo lỗi "Fresh cookies are needed" dù cookie còn hạn.
+mật khẩu. Douyin không cần cookie: engine lấy video công khai bằng f2 (xem `docs/DOUYIN_F2.md`); cookie chỉ là đường dự phòng
+của yt-dlp khi f2 không làm được, và chưa chắc đủ (yt-dlp có báo cáo lỗi "Fresh cookies are needed" dù cookie còn hạn).
 
 ## 5. Vận hành
 

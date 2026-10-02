@@ -551,9 +551,18 @@ project files. Built in this batch:
   Douyin's web API with an anonymous `ttwid`, signing each request with `a_bogus`; `v.douyin.com/<code>` redirects to
   `iesdouyin.com/share/video/<id>/`. yt-dlp, jiji262/douyin-downloader (blocked by Douyin per its README) and the web page
   do not work without a browser session; Evil0ctal v5 (Docker + Postgres + Redis) and TikTokDownloader (GPL-3.0, cookie)
-  were not run. Not tested: keyword search, an author's video list. Calling f2's way from the engine needs Douyin's request
-  signing and a device-fingerprint token payload inside Motio; the auto-mode safety check refused to add that, so it waits for
-  the owner's decision (pinning f2's version and a live test would be needed, Douyin changes the signature often).
+  were not run. Not tested: keyword search, an author's video list.
+- **Douyin through f2 (02/10)**: on the owner's go ("Gắn f2 đi rồi test lại"), `motio/douyin.py` calls f2 as a pinned
+  dependency (`f2==0.0.1.7`; its signing code is not copied into the repo). `search.download` tries it first for Douyin
+  links (any form, the `v.douyin.com` short link and the pasted share sentence included), asks Douyin up to three times
+  (a passing 403, or a thinner list of sizes than usual), takes the largest H.264 stream up to 1080 p on the short side
+  (owner's choice, 02/10; Tools → Download can cap it lower), saves `Douyin_<id>.mp4` and returns the same metadata as the
+  yt-dlp path. f2 failing returns `None` and yt-dlp takes over; a removed / private / photo post is final. f2 pins exact
+  versions (even pytest and black), so `pyproject.toml` gives uv its run-time requirements through
+  `[[tool.uv.dependency-metadata]]` with lower bounds; browser-cookie3 (LGPL) and pyexecjs are left out and f2 gets empty
+  stand-in modules. Reviewed by independent reviewers and tested live: 32/32 videos of a 38-post stratified sample
+  downloaded (yt-dlp without cookies: 0/11), link forms, repeats, threads, downstream use and a frozen build. Numbers,
+  risks and how to update f2: `docs/DOUYIN_F2.md`.
 - Not verified: a real HeyGen call and the H3 / HeyGen comparison, a Bilibili list through the app on the Mac, the quality
   check on a Mac-rendered video, the file upload of a large video through the Tauri webview.
 - Not included: consistent characters across clips and a series with many episodes (chosen by the owner for next), hints for

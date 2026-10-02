@@ -33,10 +33,16 @@ and a score, and "Make video" makes a French explainer from it. Bilibili's own t
 only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
 downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
 
-**Douyin**: yt-dlp's Douyin extractor needs fresh browser cookies, not necessarily from a logged-in account
-(`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`), so a pasted Douyin link only works with one of those. Without it, download the video yourself
-(for example with [f2](https://github.com/Johnserf-Seed/f2), Apache 2.0, which fetched Douyin videos without logging in
-when tried on 2026-10-02) and use **Add a video file** (below).
+**Douyin**: a pasted Douyin link is fetched with [f2](https://github.com/Johnserf-Seed/f2) (Apache 2.0), which needs no
+login and no cookies. Any form works: `douyin.com/video/…` (also `/note/`, `/slides/`, `?modal_id=…`, `?vid=…`),
+`iesdouyin.com/share/video/…`, the short `v.douyin.com/…` link, or the whole sentence the Douyin app copies when you tap
+Share (Motio picks the link out of it). You get the video, its title, author and length as H.264, the largest size Douyin
+offers up to 1080 p (Tools → Download lets you choose a lower cap; Motio asks again when the list of sizes it gets back is
+thinner than usual). A removed, private or photo-only post is reported as such. If f2 cannot (Douyin changed its request signing and
+f2 is not updated yet, or you are offline) Motio tries yt-dlp on the plain `douyin.com/video/<id>` link; yt-dlp needs fresh
+browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`). Last
+resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
+not supported. How it works, what was tested and how to update f2: [docs/DOUYIN_F2.md](docs/DOUYIN_F2.md).
 
 **Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
 sends a video you already have, from Douyin or anywhere else, to the engine and uses it like a link: dubbed, or used as
@@ -250,7 +256,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
 | `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |
-| `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (Douyin, X…) with that browser's login |
+| `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (X, and Douyin when f2 cannot) with that browser's login |
 | `YTDLP_COOKIES_FILE` | Path (on the engine's machine) of a `cookies.txt` exported from a browser, for an engine without a browser (server, Windows PC): used for pasted links and for Bilibili (search, downloads, followed spaces); wins over the browser; checked when saved, never served by `/media` |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |

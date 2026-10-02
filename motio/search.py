@@ -15,7 +15,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, localfile
+from . import config, douyin, localfile
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -74,8 +74,14 @@ MAX_LINKS = 10
 BROWSERS = ("chrome", "firefox", "safari", "edge", "brave", "chromium", "opera", "vivaldi")
 
 
+_LINK = re.compile(r"^https?://[^\s/]+\.[^\s]+$")
+# Link trong câu người dùng dán: dừng ở khoảng trắng và chữ Hán / dấu câu toàn chiều rộng đứng sát link
+_LINK_IN_TEXT = re.compile(r"https?://[^\s\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+")
+
+
 def clean_links(links: list[str]) -> list[str]:
-    """Link http(s) hợp lệ, bỏ trùng, giữ thứ tự. Sai định dạng thì ValueError."""
+    """Link http(s) hợp lệ, bỏ trùng, giữ thứ tự. Sai định dạng thì ValueError. Dán cả câu chia sẻ của app Douyin
+    ("7.43 复制打开抖音… https://v.douyin.com/xxx/ 复制此链接…") thì lấy link trong câu."""
     out = []
     for raw in links:
         url = (raw or "").strip()
@@ -83,8 +89,10 @@ def clean_links(links: list[str]) -> list[str]:
             continue
         if localfile.parse(url):  # a video file added in the app
             url = localfile.check(url)
-        elif not re.match(r"^https?://[^\s/]+\.[^\s]+$", url):
-            raise ValueError(tr("Invalid link: {url}", url=url[:120]))
+        elif re.search(r"\s", url) and (m := _LINK_IN_TEXT.search(url)):
+            url = m.group(0).rstrip(".,;:!?)]}>\"'")
+        if not localfile.parse(url) and not _LINK.match(url):
+            raise ValueError(tr("Invalid link: {url}", url=(raw or "").strip()[:120]))
         if url not in out:
             out.append(url)
     if len(out) > MAX_LINKS:
@@ -154,11 +162,6 @@ def _is_bilibili(url: str) -> bool:
     return host == "b23.tv" or host == "bilibili.com" or host.endswith(".bilibili.com")
 
 
-def _is_douyin(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return host.endswith(("douyin.com", "iesdouyin.com"))
-
-
 def _cookie_opts() -> dict:
     """Cookie đăng nhập cho yt-dlp (Douyin, X, không gian Bilibili hay đòi): file YTDLP_COOKIES_FILE nếu có, không thì
     phiên của trình duyệt trong YTDLP_COOKIES_FROM_BROWSER (chrome…)."""
@@ -169,18 +172,27 @@ def _cookie_opts() -> dict:
     return {"cookiesfrombrowser": (browser,)} if browser in BROWSERS else {}
 
 
-def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = False, hooks: list | None = None) -> dict:
-    """Tải 1 video (≤ max_height, mp4). Trả metadata + đường dẫn file. cookies=True: link dán tay (cookie file hoặc
-    trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu có.
+def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bool = False,
+             hooks: list | None = None) -> dict:
+    """Tải 1 video (≤ max_height, mp4; không nói thì 720, riêng Douyin là 1080). Trả metadata + đường dẫn file.
+    cookies=True: link dán tay (cookie file hoặc trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu
+    có. Link Douyin: f2 trước (motio/douyin.py), yt-dlp sau.
     hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
     ném lỗi trong hàm thì dừng tải."""
     if localfile.parse(url):
         return localfile.source(url)
+    if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được
+        info = douyin.download(url, out_dir, max_height or douyin.DEFAULT_HEIGHT, hooks)
+        if info:
+            return info
+        post_id = douyin._post_id(url)
+        if post_id:  # yt-dlp chỉ hiểu dạng www.douyin.com/video/<id>
+            url = f"https://www.douyin.com/video/{post_id}"
+    height = max_height or 720
     out_dir.mkdir(parents=True, exist_ok=True)
     cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
     opts = {**_base(),
-            "format": f"bv*[height<={max_height}][ext=mp4]+ba[ext=m4a]/bv*[height<={max_height}]+ba/"
-                      f"b[height<={max_height}]/b",
+            "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/bv*[height<={height}]+ba/b[height<={height}]/b",
             "merge_output_format": "mp4",
             "outtmpl": str(out_dir / "%(extractor_key)s_%(id)s.%(ext)s"),
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,
@@ -191,7 +203,7 @@ def download(url: str, out_dir: Path, max_height: int = 720, cookies: bool = Fal
             info = y.extract_info(url, download=True)
             path = Path(y.prepare_filename(info)).with_suffix(".mp4")
     except DownloadError as e:
-        if _is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor needs a real browser session
+        if douyin.is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor wants a browser session
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
         raise
