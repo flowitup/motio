@@ -5,7 +5,7 @@ import type { Api } from "@/lib/api";
 import { t } from "@/i18n";
 
 /** Thêm file video có sẵn (tự tải từ Douyin hay nơi khác) làm nguồn: gửi lên engine rồi trả link `file:…` để dùng như link. */
-export function AddVideoFile({ api, onAdded, disabled }: { api: Api; onAdded: (link: string) => void; disabled?: boolean }) {
+export function AddVideoFile({ api, onAdded, disabled, size = "default" }: { api: Api; onAdded: (link: string) => void; disabled?: boolean; size?: "default" | "lg" }) {
   const input = useRef<HTMLInputElement>(null);
   const [pct, setPct] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +42,11 @@ export function AddVideoFile({ api, onAdded, disabled }: { api: Api; onAdded: (l
           if (f) void send(f);
         }}
       />
-      <Button type="button" size="sm" variant="outline" disabled={disabled || pct !== null} onClick={() => input.current?.click()}>
+      <Button type="button" size={size} variant="secondary" disabled={disabled || pct !== null} onClick={() => input.current?.click()}>
         {pct !== null ? <Loader2 className="animate-spin" /> : <Upload />}
         {pct !== null ? t.upload.uploading(pct) : t.upload.add}
       </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {error && <span className="text-xs text-coral">{error}</span>}
     </div>
   );
 }

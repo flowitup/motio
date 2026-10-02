@@ -7,6 +7,7 @@ import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { ScoreBadge } from "@/components/status-chip";
 import { Badge } from "@/components/ui/badge";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -321,86 +322,90 @@ export default function ClipsPage() {
   const errors = Object.keys(last?.errors ?? {}).length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-6">
-      <header className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-2xl font-semibold tracking-tight">{t.clips.title}</h1>
-        <Select value={watchId} onValueChange={(v) => setWatchId(v ?? ALL)}>
-          <SelectTrigger className="w-52">
-            <SelectValue>
-              {(v: string) => {
-                const w = list.find((x) => String(x.id) === v);
-                return w ? watchName(w) : t.clips.allWatches;
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t.clips.allWatches}</SelectItem>
-            {list.map((w) => (
-              <SelectItem key={w.id} value={String(w.id)}>
-                {watchName(w)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button onClick={() => check.mutate()} disabled={watching || check.isPending || list.length === 0}>
-          {watching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-          {watching ? t.clips.checking : t.clips.check}
-        </Button>
-      </header>
+    <>
+      <TopBar>
+        <PageTitle>{t.clips.title}</PageTitle>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <Select value={watchId} onValueChange={(v) => setWatchId(v ?? ALL)}>
+            <SelectTrigger className="w-52">
+              <SelectValue>
+                {(v: string) => {
+                  const w = list.find((x) => String(x.id) === v);
+                  return w ? watchName(w) : t.clips.allWatches;
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t.clips.allWatches}</SelectItem>
+              {list.map((w) => (
+                <SelectItem key={w.id} value={String(w.id)}>
+                  {watchName(w)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => check.mutate()} disabled={watching || check.isPending || list.length === 0}>
+            {watching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {watching ? t.clips.checking : t.clips.check}
+          </Button>
+        </div>
+      </TopBar>
+      <div className="mx-auto max-w-5xl space-y-5 p-6">
 
-      <p className="text-sm text-muted-foreground">
-        {t.clips.lastCheck}: {t.age(state.data?.last_watch)}
-        {" · "}
-        {state.data?.refresh_every_min ? (
-          <>
-            {t.clips.autoCheck(state.data.refresh_every_min)}
-            {state.data.next_watch && ` (${t.clips.next} ${t.clock(state.data.next_watch)})`}
-          </>
-        ) : (
-          t.clips.manualCheck
-        )}
-        {last?.new !== undefined && ` · ${t.clips.found(last.new)}`}
-        {last?.error && <span className="text-destructive"> · {t.clips.checkError}: {last.error}</span>}
-        {errors > 0 && <span className="text-destructive"> · {t.clips.checkError}: {errors}</span>}
-        {last?.score_error && <span className="text-destructive"> · {t.clips.scoreError}: {last.score_error}</span>}
-      </p>
+        <p className="text-sm text-muted-foreground">
+          {t.clips.lastCheck}: {t.age(state.data?.last_watch)}
+          {" · "}
+          {state.data?.refresh_every_min ? (
+            <>
+              {t.clips.autoCheck(state.data.refresh_every_min)}
+              {state.data.next_watch && ` (${t.clips.next} ${t.clock(state.data.next_watch)})`}
+            </>
+          ) : (
+            t.clips.manualCheck
+          )}
+          {last?.new !== undefined && ` · ${t.clips.found(last.new)}`}
+          {last?.error && <span className="text-destructive"> · {t.clips.checkError}: {last.error}</span>}
+          {errors > 0 && <span className="text-destructive"> · {t.clips.checkError}: {errors}</span>}
+          {last?.score_error && <span className="text-destructive"> · {t.clips.scoreError}: {last.score_error}</span>}
+        </p>
 
-      <Card className={cn(!open && "gap-0")}>
-        <CardHeader>
-          <CardTitle>
-            {t.watches.title} ({list.length})
-          </CardTitle>
-          <CardAction>
-            <Button variant="ghost" size="icon" aria-expanded={open} aria-label={t.watches.title} onClick={() => setShowWatches(!open)}>
-              <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
-            </Button>
-          </CardAction>
-        </CardHeader>
-        {open && <WatchesCard api={api} watches={list} />}
-      </Card>
+        <Card className={cn(!open && "gap-0")}>
+          <CardHeader>
+            <CardTitle>
+              {t.watches.title} ({list.length})
+            </CardTitle>
+            <CardAction>
+              <Button variant="ghost" size="icon" aria-expanded={open} aria-label={t.watches.title} onClick={() => setShowWatches(!open)}>
+                <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+              </Button>
+            </CardAction>
+          </CardHeader>
+          {open && <WatchesCard api={api} watches={list} />}
+        </Card>
 
-      <div className="flex gap-1 border-b">
-        {TABS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setTab(s)}
-            className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
-              tab === s ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.clips.tabs[s]}
-          </button>
-        ))}
+        <div className="flex gap-1 border-b">
+          {TABS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setTab(s)}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
+                tab === s ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.clips.tabs[s]}
+            </button>
+          ))}
+        </div>
+
+        {clips.error && <p className="text-sm text-destructive">{clips.error.message}</p>}
+        <div className="space-y-3">
+          {clips.isLoading && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+          {clips.data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.clips.empty[tab]}</p>}
+          {clips.data?.map((c) => <ClipCard key={c.id} api={api} clip={c} />)}
+        </div>
       </div>
-
-      {clips.error && <p className="text-sm text-destructive">{clips.error.message}</p>}
-      <div className="space-y-3">
-        {clips.isLoading && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
-        {clips.data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.clips.empty[tab]}</p>}
-        {clips.data?.map((c) => <ClipCard key={c.id} api={api} clip={c} />)}
-      </div>
-    </div>
+    </>
   );
 }

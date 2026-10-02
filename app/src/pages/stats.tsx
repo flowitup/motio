@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, type Stats } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -27,10 +28,10 @@ function BudgetBanner({ budget }: { budget: Stats["budget"] }) {
     <div
       className={cn(
         "flex items-start gap-3 rounded-lg border px-4 py-3 text-sm",
-        over ? "border-destructive/40 bg-destructive/10" : "border-amber-500/40 bg-amber-500/10",
+        over ? "border-coral/40 bg-coral/10" : "border-amber/40 bg-amber/10",
       )}
     >
-      <TriangleAlert className={cn("mt-0.5 size-4 shrink-0", over ? "text-destructive" : "text-amber-600")} />
+      <TriangleAlert className={cn("mt-0.5 size-4 shrink-0", over ? "text-coral" : "text-amber")} />
       <div className="space-y-1">
         <p className="font-medium">
           {over ? t.stats.budgetOver(budget.usd) : t.stats.budgetWarn(Math.round(budget.ratio * 100), budget.usd)}
@@ -125,37 +126,39 @@ export default function StatsPage() {
   const perVideo = data && data.month.videos > 0 ? t.stats.perVideo(data.month.usd / data.month.videos) : undefined;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t.stats.title}</h1>
-      </header>
-      <p className="text-sm text-muted-foreground">{t.stats.hint}</p>
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-      {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
-      {data && (
-        <>
-          <BudgetBanner budget={data.budget} />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric
-              label={t.stats.monthCost}
-              value={usd(data.month.usd)}
-              note={data.budget.usd > 0 ? t.stats.ofBudget(data.budget.usd) : undefined}
-            />
-            <Metric label={t.stats.monthVideos} value={String(data.month.videos)} note={perVideo} />
-            <Metric label={t.stats.monthChars} value={num(data.month.chars)} />
-            <Metric label={t.stats.total} value={usd(data.total.usd)} note={`${num(data.total.chars)}`} />
-          </div>
-          <DayChart days={data.days} />
-          <section className="space-y-2">
-            <h2 className="text-sm font-medium">{t.stats.byChannel}</h2>
-            <ChannelTable rows={data.channels} />
-          </section>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>{t.stats.price(data.price_per_1k)}</p>
-            <p>{t.stats.notTracked}</p>
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      <TopBar>
+        <PageTitle>{t.stats.title}</PageTitle>
+      </TopBar>
+      <div className="mx-auto max-w-4xl space-y-5 p-6">
+        <p className="text-sm text-muted-foreground">{t.stats.hint}</p>
+        {error && <p className="text-sm text-destructive">{error.message}</p>}
+        {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
+        {data && (
+          <>
+            <BudgetBanner budget={data.budget} />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Metric
+                label={t.stats.monthCost}
+                value={usd(data.month.usd)}
+                note={data.budget.usd > 0 ? t.stats.ofBudget(data.budget.usd) : undefined}
+              />
+              <Metric label={t.stats.monthVideos} value={String(data.month.videos)} note={perVideo} />
+              <Metric label={t.stats.monthChars} value={num(data.month.chars)} />
+              <Metric label={t.stats.total} value={usd(data.total.usd)} note={`${num(data.total.chars)}`} />
+            </div>
+            <DayChart days={data.days} />
+            <section className="space-y-2">
+              <h2 className="text-sm font-medium">{t.stats.byChannel}</h2>
+              <ChannelTable rows={data.channels} />
+            </section>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>{t.stats.price(data.price_per_1k)}</p>
+              <p>{t.stats.notTracked}</p>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }

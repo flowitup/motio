@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Choice, Field } from "@/components/form";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -495,17 +496,21 @@ function SettingsForm({ api }: { api: Api }) {
 export default function SettingsPage() {
   const api = useApi();
   return (
-    <div className="mx-auto max-w-3xl space-y-5 p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
-      <LanguageCard />
-      <EngineCard />
-      <UpdateCard />
-      {api && (
-        <>
-          <HealthCard api={api} />
-          <SettingsForm api={api} />
-        </>
-      )}
-    </div>
+    <>
+      <TopBar>
+        <PageTitle>{t.settings.title}</PageTitle>
+      </TopBar>
+      <div className="mx-auto max-w-3xl space-y-5 p-6">
+        <LanguageCard />
+        <EngineCard />
+        <UpdateCard />
+        {api && (
+          <>
+            <HealthCard api={api} />
+            <SettingsForm api={api} />
+          </>
+        )}
+      </div>
+    </>
   );
 }

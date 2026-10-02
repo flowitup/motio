@@ -1,9 +1,10 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
+import { Led } from "@/components/studio";
 import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
 import { useUpdater } from "@/lib/updater";
@@ -16,31 +17,68 @@ import ProjectDetailPage from "@/pages/project-detail";
 import ProjectsPage from "@/pages/projects";
 import SettingsPage from "@/pages/settings";
 import StatsPage from "@/pages/stats";
+import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 
-const NAV: { to: string; label: keyof Messages["nav"]; icon: typeof Flame }[] = [
-  { to: "/trends", label: "trends", icon: Flame },
-  { to: "/clips", label: "clips", icon: Rss },
-  { to: "/projects", label: "projects", icon: FolderKanban },
-  { to: "/channels", label: "channels", icon: Tv },
-  { to: "/delogo", label: "delogo", icon: Eraser },
-  { to: "/tools", label: "tools", icon: Wrench },
-  { to: "/stats", label: "stats", icon: ChartColumn },
-  { to: "/settings", label: "settings", icon: SettingsIcon },
+type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame };
+/** The rail's groups, separated by thin dividers. Settings sits at the bottom, above the engine status. */
+const NAV: NavItem[][] = [
+  [
+    { to: "/trends", label: "trends", icon: Flame },
+    { to: "/clips", label: "clips", icon: Rss },
+    { to: "/projects", label: "projects", icon: FolderKanban },
+  ],
+  [{ to: "/channels", label: "channels", icon: Tv }],
+  [
+    { to: "/delogo", label: "delogo", icon: Eraser },
+    { to: "/tools", label: "tools", icon: Wrench },
+  ],
+  [{ to: "/stats", label: "stats", icon: ChartColumn }],
 ];
+
+const railItem =
+  "relative flex h-14 flex-col items-center justify-center gap-1 text-[11px] leading-[14px] font-medium tracking-[0.01em] whitespace-nowrap transition-colors";
+
+function RailItem({ to, label, icon: Icon, count }: { to: string; label: string; icon: typeof Flame; count?: number }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) => cn(railItem, isActive ? "bg-raised text-foreground" : "text-muted-foreground hover:bg-raised/60 hover:text-foreground")}
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && <span className="absolute inset-y-0 left-0 w-0.5 bg-amber" />}
+          <span className="relative">
+            <Icon className={cn("size-5", isActive && "text-amber")} />
+            {!!count && (
+              <span
+                role="img"
+                aria-label={t.studio.needsYouCount(count)}
+                className="absolute -top-1.5 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 font-mono text-[10px] leading-none font-medium text-on-amber tabular-nums"
+              >
+                {count}
+              </span>
+            )}
+          </span>
+          <span>{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 function EngineBadge() {
   const { info } = useEngine();
-  const color = { ready: "bg-emerald-500", starting: "bg-amber-500", error: "bg-red-500" }[info.status];
+  const status = { ready: "done", starting: "review", error: "failed" }[info.status] as "done" | "review" | "failed";
   const label = { ready: t.engine.ready, starting: t.engine.starting, error: t.engine.error }[info.status];
   return (
     <div
-      className="flex items-center gap-2 px-3 text-xs text-muted-foreground"
+      className="flex flex-col items-center gap-1.5 px-2 pt-3 pb-4"
       title={info.error ? t.native(info.error) : info.url}
     >
-      <span className={cn("size-2 rounded-full", color)} />
-      <span className="truncate">{label}</span>
+      <Led status={status} />
+      <span className="w-14 text-center text-[11px] leading-[14px] font-medium text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -52,10 +90,11 @@ function UpdateNotice() {
   return (
     <NavLink
       to="/settings"
-      className="mx-2 mb-3 flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-emerald-500/20"
+      title={t.update.available(result.version)}
+      className={cn(railItem, "text-mint hover:bg-raised/60 hover:text-mint")}
     >
-      <Download className="size-4 shrink-0" />
-      <span className="truncate">{t.update.available(result.version)}</span>
+      <Download className="size-5" />
+      <span>{t.update.short}</span>
     </NavLink>
   );
 }
@@ -112,36 +151,47 @@ export default function App() {
   useProjectNotifications();
   useEngineLang();
 
+  const api = useApi();
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => api!.projects(),
+    enabled: !!api,
+    refetchInterval: 4_000,
+  });
+  const needsYou = (projects ?? []).filter((p) => p.status === "review").length;
+
   return (
     <div className="flex h-screen bg-background text-foreground">
-      <aside className="flex w-52 shrink-0 flex-col border-r bg-muted/30 py-4">
-        <div className="px-5 pb-6 text-lg font-semibold tracking-tight">{t.appName}</div>
-        <nav className="flex flex-1 flex-col gap-1 px-2">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-                  isActive && "bg-accent font-medium",
-                )
-              }
-            >
-              <Icon className="size-4" />
-              {t.nav[label]}
-            </NavLink>
+      <nav aria-label={t.studio.mainNav} className="flex w-[76px] shrink-0 flex-col border-r bg-ground">
+        <div className="flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--amber)" />
+            <path d="M10 7.5v9l6.5-4.5z" fill="var(--on-amber)" />
+          </svg>
+          <span className="font-mono text-[11px] leading-3 font-medium tracking-[0.02em]">{t.appName}</span>
+        </div>
+        <div className="flex flex-1 flex-col overflow-y-auto pt-2">
+          {NAV.map((group, i) => (
+            <div key={i} className={cn("flex flex-col", i > 0 && "mt-2 border-t pt-2")}>
+              {group.map(({ to, label, icon }) => (
+                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} count={to === "/projects" ? needsYou : undefined} />
+              ))}
+            </div>
           ))}
-        </nav>
-        <UpdateNotice />
-        <EngineBadge />
-      </aside>
+        </div>
+        <div className="flex flex-col border-t">
+          <UpdateNotice />
+          <RailItem to="/settings" label={t.nav.settings} icon={SettingsIcon} />
+          <EngineBadge />
+        </div>
+      </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Navigate to="/trends" replace />} />
           <Route path="/trends" element={<EngineGate><TrendsPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />
+          <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
           <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />

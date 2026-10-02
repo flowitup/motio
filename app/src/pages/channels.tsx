@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -425,52 +426,56 @@ export default function ChannelsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-6">
-      <header className="flex items-center gap-3">
-        <h1 className="mr-auto text-2xl font-semibold tracking-tight">{t.channels.title}</h1>
-        {saved && (
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Check className="size-4" />
-            {t.channels.saved}
-          </span>
-        )}
-        {editing === null && (
-          <Button onClick={() => setEditing("new")}>
-            <Plus />
-            {t.channels.add}
-          </Button>
-        )}
-      </header>
-      <p className="text-sm text-muted-foreground">{t.channels.intro}</p>
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-      {editing === "new" && <ChannelForm api={api} initial={null} hasKey={hasKey} first={!data?.length} onDone={done} />}
-      {isLoading && <Skeleton className="h-24 w-full rounded-xl" />}
-      {data?.length === 0 && editing !== "new" && <p className="py-12 text-center text-muted-foreground">{t.channels.empty}</p>}
-      <div className="space-y-3">
-        {data?.map((c) =>
-          editing === c.id ? (
-            <ChannelForm key={c.id} api={api} initial={c} hasKey={hasKey} onDone={done} />
-          ) : (
-            <Card key={c.id} className="gap-2 p-4">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{c.name}</span>
-                    {c.badge && <span className="rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">{c.badge}</span>}
-                    {c.default && <Badge variant="secondary">{t.channels.defaultBadge}</Badge>}
+    <>
+      <TopBar>
+        <PageTitle>{t.channels.title}</PageTitle>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {saved && (
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Check className="size-4" />
+              {t.channels.saved}
+            </span>
+          )}
+          {editing === null && (
+            <Button onClick={() => setEditing("new")}>
+              <Plus />
+              {t.channels.add}
+            </Button>
+          )}
+        </div>
+      </TopBar>
+      <div className="mx-auto max-w-4xl space-y-5 p-6">
+        <p className="text-sm text-muted-foreground">{t.channels.intro}</p>
+        {error && <p className="text-sm text-destructive">{error.message}</p>}
+        {editing === "new" && <ChannelForm api={api} initial={null} hasKey={hasKey} first={!data?.length} onDone={done} />}
+        {isLoading && <Skeleton className="h-24 w-full rounded-xl" />}
+        {data?.length === 0 && editing !== "new" && <p className="py-12 text-center text-muted-foreground">{t.channels.empty}</p>}
+        <div className="space-y-3">
+          {data?.map((c) =>
+            editing === c.id ? (
+              <ChannelForm key={c.id} api={api} initial={c} hasKey={hasKey} onDone={done} />
+            ) : (
+              <Card key={c.id} className="gap-2 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{c.name}</span>
+                      {c.badge && <span className="rounded-xs bg-[#C8102E] px-1.5 py-0.5 text-xs font-bold text-white">{c.badge}</span>}
+                      {c.default && <Badge variant="secondary">{t.channels.defaultBadge}</Badge>}
+                    </div>
+                    <Summary c={c} />
+                    {c.style && <p className="line-clamp-2 text-sm">{c.style}</p>}
                   </div>
-                  <Summary c={c} />
-                  {c.style && <p className="line-clamp-2 text-sm">{c.style}</p>}
+                  <Button variant="outline" size="sm" onClick={() => setEditing(c.id)} disabled={editing !== null}>
+                    <Pencil />
+                    {t.channels.edit}
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setEditing(c.id)} disabled={editing !== null}>
-                  <Pencil />
-                  {t.channels.edit}
-                </Button>
-              </div>
-            </Card>
-          ),
-        )}
+              </Card>
+            ),
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

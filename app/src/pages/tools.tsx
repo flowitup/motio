@@ -18,6 +18,7 @@ import { useRef, useState } from "react";
 import { Choice, Field } from "@/components/form";
 import { VoicePicker } from "@/components/voice-picker";
 import { Badge } from "@/components/ui/badge";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -260,11 +261,11 @@ function JobRow({ api, job, onUse }: { api: Api; job: ToolJob; onUse: (kind: Too
   const Icon = ICON[job.kind];
   const fileUrl = (o: ToolOutput) => api.mediaUrl(o.path.split("/").map(encodeURIComponent).join("/"));
   const tone = {
-    done: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-    failed: "bg-red-500/15 text-red-700 dark:text-red-300",
-    running: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-    queued: "bg-muted text-muted-foreground",
-    cancelled: "bg-muted text-muted-foreground",
+    done: "bg-mint/12 text-mint",
+    failed: "bg-coral/12 text-coral",
+    running: "bg-cyan/12 text-cyan",
+    queued: "bg-raised text-muted-foreground",
+    cancelled: "bg-raised text-muted-foreground",
   }[job.status];
 
   return (
@@ -360,40 +361,42 @@ export default function ToolsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t.tools.title}</h1>
+    <>
+      <TopBar>
+        <PageTitle>{t.tools.title}</PageTitle>
+      </TopBar>
+      <div className="mx-auto max-w-4xl space-y-5 p-6">
         <p className="text-sm text-muted-foreground">{t.tools.hint}</p>
-      </header>
-      <div className="flex flex-wrap gap-2">
-        {TOOLS.map(({ kind: k, icon: Icon }) => (
-          <Button key={k} variant={k === kind ? "default" : "outline"} onClick={() => setKind(k)}>
-            <Icon />
-            {t.tools.kinds[k]}
-          </Button>
-        ))}
+        <div className="flex flex-wrap gap-2">
+          {TOOLS.map(({ kind: k, icon: Icon }) => (
+            <Button key={k} variant={k === kind ? "default" : "outline"} onClick={() => setKind(k)}>
+              <Icon />
+              {t.tools.kinds[k]}
+            </Button>
+          ))}
+        </div>
+        <ToolForm
+          key={`${kind}-${preset?.kind === kind ? preset.n : 0}`}
+          api={api}
+          kind={kind}
+          jobs={list}
+          preset={preset?.kind === kind ? preset : null}
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.tools.jobs}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {jobs.isLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : list.length ? (
+              list.map((j) => <JobRow key={j.id} api={api} job={j} onUse={use} />)
+            ) : (
+              <p className="text-sm text-muted-foreground">{t.tools.noJobs}</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
-      <ToolForm
-        key={`${kind}-${preset?.kind === kind ? preset.n : 0}`}
-        api={api}
-        kind={kind}
-        jobs={list}
-        preset={preset?.kind === kind ? preset : null}
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.tools.jobs}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {jobs.isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : list.length ? (
-            list.map((j) => <JobRow key={j.id} api={api} job={j} onUse={use} />)
-          ) : (
-            <p className="text-sm text-muted-foreground">{t.tools.noJobs}</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    </>
   );
 }
