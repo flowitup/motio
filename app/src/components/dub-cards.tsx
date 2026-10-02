@@ -3,7 +3,7 @@ import { Clapperboard, Eraser, Loader2, Mic, Pause, Play, RotateCcw } from "luci
 import { type PointerEvent, type RefObject, useRef, useState } from "react";
 import { Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/studio";
 import { Input } from "@/components/ui/input";
 import { VoicePicker } from "@/components/voice-picker";
 import type { Api, BlurBox, ProjectDetail } from "@/lib/api";
@@ -75,12 +75,8 @@ export function DubCompareCard({
   const changed = (start ?? null) !== (d.start ?? null) || (end ?? null) !== (d.end ?? null);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.dub.compare}</CardTitle>
-        <CardDescription>{t.dub.compareHint}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm">
+    <Panel title={t.dub.compare} bodyClassName="grid gap-3 text-[13px]">
+      <p className="text-xs leading-[18px] text-muted-foreground">{t.dub.compareHint}</p>
         <div className="overflow-hidden rounded-lg bg-black">
           <video
             ref={orig}
@@ -124,11 +120,10 @@ export function DubCompareCard({
             {t.dub.usePart}
           </Button>
         </div>
-        {changed && <p className="text-xs text-amber-700 dark:text-amber-400">{t.dub.partRedo}</p>}
+        {changed && <p className="text-xs text-amber">{t.dub.partRedo}</p>}
         {badTime && <p className="text-xs text-destructive">{t.dub.badTime}</p>}
         {redo.error && <p className="text-destructive">{redo.error.message}</p>}
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }
 
@@ -177,12 +172,8 @@ export function DubBlurCard({
   const tooSmall = !!box && (box[2] < 0.02 || box[3] < 0.02);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.dub.blur}</CardTitle>
-        <CardDescription>{t.dub.blurHint}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm">
+    <Panel title={t.dub.blur} bodyClassName="grid gap-3 text-[13px]">
+      <p className="text-xs leading-[18px] text-muted-foreground">{t.dub.blurHint}</p>
         <div className="relative overflow-hidden rounded-lg bg-black">
           <video
             ref={vid}
@@ -204,7 +195,7 @@ export function DubBlurCard({
           >
             {box && (
               <div
-                className="pointer-events-none absolute border-2 border-dashed border-amber-400 bg-amber-400/25"
+                className="pointer-events-none absolute border-2 border-dashed border-amber bg-amber/25"
                 style={{ left: `${box[0] * 100}%`, top: `${box[1] * 100}%`, width: `${box[2] * 100}%`, height: `${box[3] * 100}%` }}
               />
             )}
@@ -236,8 +227,7 @@ export function DubBlurCard({
             {t.dub.blurSave}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }
 
@@ -270,12 +260,8 @@ export function DubVoicesCard({
   if (speakers.length < 2) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.dub.voices}</CardTitle>
-        <CardDescription>{hasKey ? t.dub.voicesHint : t.dub.voicesNeedKey}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm">
+    <Panel title={t.dub.voices} bodyClassName="grid gap-3 text-[13px]">
+      <p className="text-xs leading-[18px] text-muted-foreground">{hasKey ? t.dub.voicesHint : t.dub.voicesNeedKey}</p>
         {speakers.map((s) => (
           <div key={s.label} className="grid items-center gap-2 sm:grid-cols-[1fr_1fr]">
             <div className="min-w-0">
@@ -307,7 +293,6 @@ export function DubVoicesCard({
             {t.dub.voicesSave}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }

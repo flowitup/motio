@@ -1,352 +1,165 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Film, Loader2, Plus, Sparkles, Trash2, Video, X } from "lucide-react";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { CircleAlert, Clock, Film, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { AddVideoFile } from "@/components/add-video-file";
-import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { DeleteProjectDialog } from "@/components/delete-project";
-import { Choice, Field } from "@/components/form";
-import { StatusChip } from "@/components/status-chip";
+import { FilterChip, Led, LedLabel, PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { parseClock } from "@/components/dub-cards";
-import { useApi, type Api, type Project, type Rights } from "@/lib/api";
+import { useApi, type Api, type Project, type ProjectStatus } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
-const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
-const PICTURE_USD: Record<string, string> = { fal: "0.50", modal: "0.15", placeholder: "0" }; // một video 12 cảnh, ước tính
+type Filter = "all" | ProjectStatus;
+const FILTERS: Filter[] = ["all", "review", "running", "queued", "failed", "done"];
 
-/** Video mới: giải thích một chủ đề / link video, hoặc lồng tiếng Pháp một video. */
-function CreateCard({ api, onClose }: { api: Api; onClose: () => void }) {
-  const [kind, setKind] = useState<"topic" | "dub" | "ai">("topic");
+/** What the poster shows while there is no picture yet: the step that is running, the gate, or where it stopped. */
+function PosterPlaceholder({ p }: { p: Project }) {
+  const busy = p.status === "running" || p.status === "queued";
+  const icon =
+    p.status === "running" ? (
+      <Loader2 className="size-6 animate-spin text-cyan" />
+    ) : p.status === "queued" ? (
+      <Clock className="size-6 text-foreground" />
+    ) : p.status === "failed" ? (
+      <CircleAlert className="size-6 text-coral" />
+    ) : p.status === "review" ? (
+      <Sparkles className="size-6 text-amber" />
+    ) : (
+      <Film className="size-6 text-muted-foreground" />
+    );
+  const text =
+    busy || p.status === "failed"
+      ? p.step
+      : p.status === "review"
+        ? t.studio.scriptGate
+        : t.studio.noVideoYet;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.projects.create}</CardTitle>
-        <CardAction className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {(["topic", "ai", "dub"] as const).map((k) => (
-              <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} onClick={() => setKind(k)}>
-                {t.dub.kinds[k]}
-              </Button>
-            ))}
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t.projects.cancel}>
-            <X />
-          </Button>
-        </CardAction>
-      </CardHeader>
-      {kind === "topic" ? <TopicForm api={api} /> : kind === "ai" ? <AiForm api={api} /> : <DubForm api={api} />}
-    </Card>
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+      {icon}
+      <span className="text-[13px] leading-[18px] font-medium">{text}</span>
+      {busy && <span className="font-mono text-xs text-muted-foreground tabular-nums">{p.pct}%</span>}
+    </div>
   );
 }
 
-/** Video làm hoàn toàn bằng ảnh AI từ một chủ đề: Claude viết lời và prompt từng cảnh, mô hình ảnh làm ảnh. */
-function AiForm({ api }: { api: Api }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [topic, setTopic] = useState("");
-  const [duration, setDuration] = useState("80");
-  const [clips, setClips] = useState(""); // trống = theo kênh
-  const choice = useChannelChoice(api);
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
-  const provider = settings?.IMAGE_PROVIDER?.value || "fal";
-  const needsKey = !!settings && provider === "fal" && !settings.FAL_KEY?.value;
-  const clipProvider = settings?.CLIP_PROVIDER?.value === "heygen" ? "heygen" : "fal";
-  const clipKey = clipProvider === "heygen" ? settings?.HEYGEN_API_KEY?.value : settings?.FAL_KEY?.value;
-  const needsClipKey = !!settings && Number(clips) > 0 && !clipKey;
-  const clipUsd = (5 * Number(settings?.AI_CLIP_USD_PER_SEC?.value || (clipProvider === "heygen" ? "0.02" : "0.08"))).toFixed(2);
-  const create = useMutation({
-    mutationFn: () =>
-      api.createAi({
-        topic: topic.trim(),
-        duration: Number(duration),
-        channel: choice.channel,
-        ...(clips !== "" ? { clips: Number(clips) } : {}),
-      }),
-    onSuccess: ({ project_id }) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project_id}`);
-    },
-  });
+function ProjectCard({
+  api,
+  p,
+  channelName,
+  onDelete,
+}: {
+  api: Api;
+  p: Project;
+  channelName?: string;
+  onDelete: () => void;
+}) {
+  const title = p.meta.title || p.title;
+  const busy = p.status === "running" || p.status === "queued";
+  const kind = [t.projects.modes[p.mode] ?? p.mode, channelName].filter(Boolean).join(" · ");
   return (
-    <CardContent className="grid gap-4">
-      <Field label={t.ai.topic} hint={t.ai.topicHint}>
-        <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.ai.topicPlaceholder} />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-[160px_auto]">
-        <Field label={t.projects.duration} hint={t.projects.durationHint}>
-          <Choice
-            value={duration}
-            onChange={setDuration}
-            options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
-          />
-        </Field>
-        {choice.channels.length > 0 && (
-          <Field label={t.channels.pick}>
-            <ChannelChoice choice={choice} className="w-full sm:w-56" />
-          </Field>
-        )}
-      </div>
-      <Field label={t.ai.clips} hint={t.ai.clipsHint(clipUsd)}>
-        <Input
-          type="number"
-          min={0}
-          max={6}
-          className="w-28"
-          value={clips}
-          onChange={(e) => setClips(e.target.value === "" ? "" : String(Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0)))))}
-          placeholder={t.ai.clipsPlaceholder}
-          aria-label={t.ai.clips}
-        />
-      </Field>
-      <p className={needsKey || needsClipKey ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>
-        {needsKey
-          ? t.ai.needsKey
-          : needsClipKey
-            ? t.ai.needsClipKey(clipProvider === "heygen" ? "HeyGen" : "fal")
-            : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
-      </p>
-      <div className="flex items-center justify-end gap-3">
-        {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
-        <Button onClick={() => create.mutate()} disabled={!topic.trim() || needsKey || needsClipKey || create.isPending}>
-          {create.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
-          {t.ai.make}
-        </Button>
-      </div>
-    </CardContent>
-  );
-}
-
-/** Lồng tiếng Pháp một video (Douyin, Bilibili, YouTube…), tuỳ chọn đặt đoạn cần lồng. */
-function DubForm({ api }: { api: Api }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [link, setLink] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [rights, setRights] = useState<Rights>("unknown");
-  const choice = useChannelChoice(api);
-  const start = parseClock(from);
-  const end = parseClock(to);
-  const badTime = Number.isNaN(start) || Number.isNaN(end);
-  const create = useMutation({
-    mutationFn: () =>
-      api.createDub({
-        link: link.trim(),
-        ...(start != null ? { start } : {}),
-        ...(end != null ? { end } : {}),
-        rights,
-        channel: choice.channel,
-      }),
-    onSuccess: ({ project_id }) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project_id}`);
-    },
-  });
-  return (
-    <CardContent className="grid gap-4">
-      <Field label={t.dub.link} hint={t.dub.linkHint}>
-        <div className="grid gap-2">
-          <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
-          <AddVideoFile api={api} onAdded={setLink} />
-        </div>
-      </Field>
-      <Field
-        label={t.dub.part}
-        hint={<span className={badTime ? "text-destructive" : undefined}>{badTime ? t.dub.badTime : t.dub.partHint}</span>}
+    <li className="group relative">
+      <Link
+        to={`/projects/${p.id}`}
+        aria-label={t.studio.openProject(title)}
+        className="block rounded-lg text-foreground hover:text-foreground"
       >
-        <div className="grid grid-cols-2 gap-3 sm:max-w-xs">
-          <Input aria-label={t.dub.from} value={from} onChange={(e) => setFrom(e.target.value)} placeholder={`${t.dub.from} 0:40`} />
-          <Input aria-label={t.dub.to} value={to} onChange={(e) => setTo(e.target.value)} placeholder={`${t.dub.to} 1:50`} />
-        </div>
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-        <Field label={t.projects.rights} hint={t.projects.rightsHint}>
-          <Choice
-            value={rights}
-            onChange={(v) => setRights(v as Rights)}
-            options={RIGHTS.map((r) => [r, t.projects.rightsOptions[r]])}
-          />
-        </Field>
-        {choice.channels.length > 0 && (
-          <Field label={t.channels.pick}>
-            <ChannelChoice choice={choice} className="w-full sm:w-56" />
-          </Field>
-        )}
-      </div>
-      <div className="flex items-center justify-end gap-3">
-        {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
-        <Button onClick={() => create.mutate()} disabled={!link.trim() || badTime || create.isPending}>
-          {create.isPending ? <Loader2 className="animate-spin" /> : <Film />}
-          {t.dub.make}
-        </Button>
-      </div>
-    </CardContent>
-  );
-}
-
-/** Video giải thích từ một chủ đề bất kỳ và / hoặc link video, không cần tin hot. */
-function TopicForm({ api }: { api: Api }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [topic, setTopic] = useState("");
-  const [text, setText] = useState("");
-  const [linksOnly, setLinksOnly] = useState(false);
-  const [duration, setDuration] = useState("80");
-  const [rights, setRights] = useState<Rights>("unknown");
-  const choice = useChannelChoice(api);
-  const links = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const create = useMutation({
-    mutationFn: () =>
-      api.createTopic({
-        topic: topic.trim(),
-        links,
-        links_only: linksOnly,
-        duration: Number(duration),
-        rights,
-        channel: choice.channel,
-      }),
-    onSuccess: ({ project_id }) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project_id}`);
-    },
-  });
-  return (
-    <>
-      <CardContent className="grid gap-4">
-        <Field label={t.projects.topic} hint={t.projects.topicHint}>
-          <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.projects.topicPlaceholder} />
-        </Field>
-        <Field label={t.projects.links} hint={`${t.projects.linksHint} ${t.upload.hint}`}>
-          <div className="grid gap-2">
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
-              className="min-h-20 font-mono text-xs"
-            />
-            <AddVideoFile api={api} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
+        <div className="rounded-lg border border-hairline-strong bg-monitor p-2">
+          <div className="relative aspect-[9/16] overflow-hidden rounded-xs bg-monitor">
+            {p.meta.thumb ? (
+              <img src={api.mediaUrl(p.meta.thumb, p.updated_at)} alt="" className="size-full object-cover" loading="lazy" />
+            ) : (
+              <PosterPlaceholder p={p} />
+            )}
+            <span className="absolute top-2 left-2 inline-flex h-6 items-center rounded-lg border border-hairline-strong bg-monitor px-2">
+              <LedLabel status={p.status}>{t.projects.status[p.status] ?? p.status}</LedLabel>
+            </span>
+            {busy && (
+              <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/12">
+                <div className="h-full bg-cyan" style={{ width: `${p.pct}%` }} />
+              </div>
+            )}
           </div>
-        </Field>
-        {topic.trim() && links.length > 0 && (
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={linksOnly} onCheckedChange={setLinksOnly} />
-            {t.projects.linksOnly}
-          </label>
-        )}
-        <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
-          <Field label={t.projects.duration} hint={t.projects.durationHint}>
-            <Choice
-              value={duration}
-              onChange={setDuration}
-              options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
-            />
-          </Field>
-          <Field label={t.projects.rights} hint={t.projects.rightsHint}>
-            <Choice
-              value={rights}
-              onChange={(v) => setRights(v as Rights)}
-              options={RIGHTS.map((r) => [r, t.projects.rightsOptions[r]])}
-            />
-          </Field>
         </div>
-        {choice.channels.length > 0 && (
-          <Field label={t.channels.pick}>
-            <ChannelChoice choice={choice} className="w-full sm:w-56" />
-          </Field>
-        )}
-        <div className="flex items-center justify-end gap-3">
-          {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
-          <Button onClick={() => create.mutate()} disabled={(!topic.trim() && !links.length) || create.isPending}>
-            {create.isPending ? <Loader2 className="animate-spin" /> : <Video />}
-            {t.projects.make}
-          </Button>
+        <div className="space-y-1 pt-3">
+          <div className="line-clamp-2 min-h-9 text-[13px] leading-[18px] font-semibold">{title}</div>
+          {busy && <div className="truncate text-xs leading-4 text-cyan">{p.step}</div>}
+          <div className="truncate font-mono text-xs leading-4 text-muted-foreground">
+            #{p.id} · {t.age(p.updated_at)}
+          </div>
+          <div className="truncate text-xs leading-4 text-muted-foreground">{kind}</div>
         </div>
-      </CardContent>
-    </>
+      </Link>
+      {!busy && (
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={onDelete}
+          aria-label={t.projects.delete}
+          title={t.projects.delete}
+          className="absolute top-4 right-4 border-hairline-strong bg-monitor text-coral opacity-0 group-hover:opacity-100 hover:bg-lift focus-visible:opacity-100"
+        >
+          <Trash2 />
+        </Button>
+      )}
+    </li>
   );
 }
 
 export default function ProjectsPage() {
   const api = useApi()!;
-  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
+  const [filter, setFilter] = useState<Filter>("all");
   const [deleting, setDeleting] = useState<Project | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ["projects"],
     queryFn: () => api.projects(),
     refetchInterval: 4_000,
   });
+  const channels = useQuery({ queryKey: ["channels"], queryFn: () => api.channels(), staleTime: 30_000 });
+  const channelName = useMemo(() => new Map((channels.data ?? []).map((c) => [c.id, c.name])), [channels.data]);
+
+  const count = (f: Filter) => (data ?? []).filter((p) => f === "all" || p.status === f).length;
+  const shown = (data ?? []).filter((p) => filter === "all" || p.status === filter);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 p-6">
-      <header className="flex items-center gap-3">
-        <h1 className="mr-auto text-2xl font-semibold tracking-tight">{t.projects.title}</h1>
-        {!creating && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus />
-            {t.projects.create}
-          </Button>
-        )}
-      </header>
-      {creating && <CreateCard api={api} onClose={() => setCreating(false)} />}
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-      {data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.projects.empty}</p>}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-        {isLoading && Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-xl" />)}
-        {data?.map((p) => (
-          <div key={p.id} className="group relative">
-            <Link to={`/projects/${p.id}`} className="block">
-              <Card className="gap-0 overflow-hidden p-0 transition-shadow group-hover:shadow-md">
-                <div className="relative aspect-[9/16] bg-muted">
-                  {p.meta.thumb ? (
-                    <img
-                      src={api.mediaUrl(p.meta.thumb, p.updated_at)}
-                      alt=""
-                      className="size-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <Film className="absolute inset-0 m-auto size-10 text-muted-foreground/50" />
-                  )}
-                  <StatusChip status={p.status} className="absolute top-2 left-2" />
-                </div>
-                <div className="space-y-2 p-3">
-                  <div className="line-clamp-2 text-sm font-medium leading-snug">{p.meta.title || p.title}</div>
-                  {(p.status === "running" || p.status === "queued") && (
-                    <>
-                      <Progress value={p.pct} />
-                      <div className="text-xs text-muted-foreground">{p.step}</div>
-                    </>
-                  )}
-                  <div className="text-xs text-muted-foreground">
-                    #{p.id} · {t.age(p.updated_at)}
-                  </div>
-                </div>
-              </Card>
-            </Link>
-            {p.status !== "running" && p.status !== "queued" && (
-              <Button
-                size="icon-sm"
-                variant="secondary"
-                onClick={() => setDeleting(p)}
-                aria-label={t.projects.delete}
-                title={t.projects.delete}
-                className="absolute top-2 right-2 opacity-0 shadow-sm group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
-              >
-                <Trash2 />
-              </Button>
-            )}
-          </div>
+    <div className="flex min-h-full flex-col">
+      <TopBar>
+        <PageTitle>{t.projects.title}</PageTitle>
+        <Button size="lg" className="ml-auto" onClick={() => navigate("/projects/new")}>
+          <Plus />
+          {t.projects.create}
+        </Button>
+      </TopBar>
+      <div className="sticky top-14 z-10 flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b bg-ground px-6">
+        {FILTERS.map((f) => (
+          <FilterChip
+            key={f}
+            on={filter === f}
+            onClick={() => setFilter(f)}
+            count={count(f)}
+            led={f !== "all" && <Led status={f} />}
+          >
+            {f === "all" ? t.studio.filterAll : f === "review" ? t.studio.filterNeedsYou : t.projects.status[f]}
+          </FilterChip>
         ))}
+      </div>
+      <div className={cn("flex-1 p-6", !shown.length && !isLoading && "flex items-center justify-center")}>
+        {error && <p className="mb-4 text-[13px] text-coral">{error.message}</p>}
+        {data?.length === 0 && <p className="text-muted-foreground">{t.projects.empty}</p>}
+        {!!data?.length && !shown.length && <p className="text-muted-foreground">{t.studio.filterEmpty}</p>}
+        <ul className="grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-6 gap-y-8 empty:hidden">
+          {isLoading && Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-lg" />)}
+          {shown.map((p) => (
+            <ProjectCard
+              key={p.id}
+              api={api}
+              p={p}
+              channelName={p.meta.channel ? channelName.get(p.meta.channel) : undefined}
+              onDelete={() => setDeleting(p)}
+            />
+          ))}
+        </ul>
       </div>
       {deleting && (
         <DeleteProjectDialog

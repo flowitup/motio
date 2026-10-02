@@ -3,7 +3,7 @@ import { Check, Loader2, Send } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, Segmented } from "@/components/studio";
 import { Input } from "@/components/ui/input";
 import { ApiError, type Api, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
 import { t } from "@/i18n";
@@ -60,95 +60,95 @@ export function PublishCard({
   if (error) {
     body =
       error instanceof ApiError && error.status === 409 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           {t.publish.notConfigured}{" "}
-          <Link to="/settings" className="underline">
+          <Link to="/settings" className="font-medium">
             {t.nav.settings}
           </Link>
         </p>
       ) : (
-        <p className="text-sm text-destructive">{error.message}</p>
+        <p className="text-[13px] text-coral">{error.message}</p>
       );
   } else if (!channels) {
     body = <Loader2 className="size-4 animate-spin" />;
   } else if (!channels.length) {
-    body = <p className="text-sm text-muted-foreground">{t.publish.noChannels}</p>;
+    body = <p className="text-[13px] text-muted-foreground">{t.publish.noChannels}</p>;
   } else {
     body = (
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <div className="text-sm font-medium">{t.publish.channels}</div>
+        <div className="space-y-1">
+          <div className="text-[13px] font-medium">{t.publish.channels}</div>
           {channels.map((c) => (
-            <label key={c.id} className="flex items-center gap-2 text-sm">
+            <label key={c.id} className="flex min-h-10 items-center gap-3 text-[13px]">
               <input
                 type="checkbox"
-                className="size-4 accent-primary"
+                className="size-[18px] accent-amber"
                 checked={picked.includes(c.id)}
                 disabled={c.disabled}
                 onChange={() => toggle(c.id)}
               />
               <span>{c.name}</span>
-              <span className="text-muted-foreground">· {c.provider}</span>
+              <span className="font-mono text-xs text-muted-foreground">· {c.provider}</span>
             </label>
           ))}
         </div>
 
         {hasWide && (
-          <div className="space-y-1.5">
-            <div className="text-sm font-medium">{t.publish.version}</div>
-            <div className="flex flex-wrap gap-2">
-              {VERSIONS.map((v) => (
-                <Button key={v} size="sm" variant={version === v ? "default" : "outline"} onClick={() => setVersion(v)}>
-                  {t.projects.versions[v]}
-                </Button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">{t.publish.versionHint}</p>
+          <div className="space-y-2">
+            <div className="text-[13px] font-medium">{t.publish.version}</div>
+            <Segmented
+              label={t.publish.version}
+              value={version}
+              onChange={setVersion}
+              className="h-10 w-full"
+              options={VERSIONS.map((v) => ({ value: v, label: t.projects.versions[v] }))}
+            />
+            <p className="text-xs leading-[18px] text-muted-foreground">{t.publish.versionHint}</p>
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap gap-2">
-            {MODES.map((m) => (
-              <Button key={m} size="sm" variant={mode === m ? "default" : "outline"} onClick={() => setMode(m)}>
-                {t.publish.modes[m]}
-              </Button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">{t.publish.modeHint[mode]}</p>
+        <div className="space-y-2">
+          <div className="text-[13px] font-medium">{t.publish.sendAs}</div>
+          <Segmented
+            label={t.publish.sendAs}
+            value={mode}
+            onChange={setMode}
+            className="h-10 w-full"
+            options={MODES.map((m) => ({ value: m, label: t.publish.modes[m] }))}
+          />
+          <p className="text-xs leading-[18px] text-muted-foreground">{t.publish.modeHint[mode]}</p>
         </div>
 
         {mode === "schedule" && (
-          <label className="grid gap-1.5 text-sm">
+          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
             {t.publish.when}
-            <Input type="datetime-local" className="w-60" value={when} onChange={(e) => setWhen(e.target.value)} />
+            <Input type="datetime-local" className="w-60 font-mono" value={when} onChange={(e) => setWhen(e.target.value)} />
           </label>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="grid gap-2">
           <Button
+            variant="secondary"
+            size="lg"
+            className="w-full"
             onClick={() => send.mutate()}
             disabled={!picked.length || send.isPending || (mode === "schedule" && !when)}
           >
             {send.isPending ? <Loader2 className="animate-spin" /> : send.isSuccess ? <Check /> : <Send />}
             {send.isSuccess ? t.publish.sent : t.publish.send}
           </Button>
-          {send.error && <span className="text-sm text-destructive">{send.error.message}</span>}
+          {send.error && <span className="text-[13px] text-coral">{send.error.message}</span>}
         </div>
       </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.publish.title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Panel title={t.publish.title} bodyClassName="space-y-4">
         {body}
         {history.length > 0 && (
-          <div className="space-y-1 border-t pt-3 text-sm">
-            <div className="font-medium">{t.publish.history}</div>
+          <div className="space-y-1 border-t pt-3 text-xs leading-[18px]">
+            <div className="text-[13px] font-medium">{t.publish.history}</div>
             {[...history].reverse().map((h) => (
               <div key={h.at} className="text-muted-foreground">
                 {t.publish.modes[h.mode]}
@@ -159,7 +159,6 @@ export function PublishCard({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </Panel>
   );
 }

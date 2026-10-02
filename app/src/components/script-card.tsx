@@ -13,18 +13,18 @@ import {
   Undo2,
 } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
-import { Choice, Field } from "@/components/form";
+import { Choice } from "@/components/form";
+import { Panel } from "@/components/studio";
+import { lineAt, mmss, type Mark } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Api, Motion, Script, ScriptLine, ScriptView } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const MIN_LINES = 3; // như engine (edit.MIN_LINES)
-
-const clockOf = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
 type Row = ScriptLine & { key: number; was?: string }; // was: prompt ảnh đã lưu (ảnh hiện có ứng với prompt này)
 
@@ -74,11 +74,17 @@ export function ScriptCard({
   id,
   active,
   canRender,
+  measured,
+  playhead = 0,
+  onSeek,
 }: {
   api: Api;
   id: number;
   active: boolean;
   canRender: boolean; // engine: giọng đã đọc còn khớp kịch bản đã lưu (chạy lại được từ bước dựng)
+  measured?: Mark[] | null; // spans of the lines of the last voice, when it matches the saved script
+  playhead?: number; // seconds into the video the player is at
+  onSeek?: (sec: number) => void;
 }) {
   const { data, error } = useQuery({ queryKey: ["script", id], queryFn: () => api.script(id) });
   const [justSaved, setJustSaved] = useState(false); // ở ngoài form: form được dựng lại sau mỗi lần lưu
@@ -88,12 +94,9 @@ export function ScriptCard({
   };
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.script.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-destructive">{error.message}</CardContent>
-      </Card>
+      <Panel title={t.script.title}>
+        <p className="text-[13px] text-coral">{error.message}</p>
+      </Panel>
     );
   }
   if (!data) return null;
@@ -108,6 +111,9 @@ export function ScriptCard({
       canRender={canRender}
       justSaved={justSaved}
       onSaved={onSaved}
+      measured={measured}
+      playhead={playhead}
+      onSeek={onSeek}
     />
   );
 }
@@ -120,6 +126,9 @@ function ScriptForm({
   canRender,
   justSaved,
   onSaved,
+  measured,
+  playhead,
+  onSeek,
 }: {
   api: Api;
   id: number;
@@ -128,6 +137,9 @@ function ScriptForm({
   canRender: boolean;
   justSaved: boolean;
   onSaved: () => void;
+  measured?: Mark[] | null;
+  playhead: number;
+  onSeek?: (sec: number) => void;
 }) {
   const qc = useQueryClient();
   const saved = view.script;
@@ -205,161 +217,215 @@ function ScriptForm({
     setTags(saved.hashtags.join(" "));
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.script.title}</CardTitle>
-        <CardDescription>{isAi ? t.ai.scriptHint : isDub ? t.script.dubHint : t.script.hint}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-sm">
-        <Field label={t.script.videoTitle}>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={100}
-            disabled={busy}
-            aria-label={t.script.videoTitle}
-          />
-        </Field>
+  // Start of each line: the measured voice when the rows are what was voiced, otherwise counted from the words (≈).
+  const exact = !dirty && !!measured && measured.length === rows.length;
+  const spans: Mark[] = exact
+    ? measured!
+    : rows.reduce<Mark[]>((acc, r) => {
+        const start = acc.length ? acc[acc.length - 1].end : 0;
+        return [...acc, { start, end: start + countWords(r.text) / view.words_per_sec }];
+      }, []);
+  const startOf = (i: number, r: Row) => (isDub && r.at != null ? r.at : spans[i]?.start);
+  const playRow = lineAt(spans, playhead);
+  const [editing, setEditing] = useState<number | null>(null); // row being edited (focus is inside it)
+  const current = editing ?? (playhead > 0 ? playRow : -1);
 
+  return (
+    <section className="flex flex-col border-b bg-panel">
+      <PanelHead title={t.script.title} aside={t.studio.lineCount(rows.length)} />
+      <p className="px-4 pt-4 text-xs leading-[18px] text-muted-foreground">{isAi ? t.ai.scriptHint : isDub ? t.script.dubHint : t.script.hint}</p>
+      <div className="grid gap-4 p-4">
+        <Field label={t.script.videoTitle}>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} disabled={busy} aria-label={t.script.videoTitle} />
+        </Field>
         {isAi && (
           <Field label={t.ai.style} hint={t.ai.styleHint}>
             <Input value={style} onChange={(e) => setStyle(e.target.value)} maxLength={300} disabled={busy} aria-label={t.ai.style} />
           </Field>
         )}
+      </div>
 
-        <div className="grid gap-2">
-          <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-            <span className="font-medium">{t.script.lines}</span>
-            {isDub && view.dub?.register && (
-              <span className="text-xs text-muted-foreground">
-                {t.dub.register}: {view.dub.register}
-              </span>
-            )}
-          </div>
-          <ol className="grid gap-2">
-            {rows.map((r, i) => (
-              <li key={r.key} className="flex items-start gap-2">
-                <span className="w-5 shrink-0 pt-2 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</span>
-                {isAi && (
-                  <div className="aspect-[9/16] w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-                    {r.picture ? (
-                      <img
-                        src={api.mediaUrl(r.picture, view.version)}
-                        alt=""
-                        loading="lazy"
-                        className={cn("size-full object-cover", r.image !== r.was && "opacity-40")}
-                      />
+      <div className="flex h-9 items-center justify-between gap-3 border-y bg-ground px-4 font-mono text-[11px] leading-4 tracking-[0.06em] text-muted-foreground uppercase">
+        <span>
+          {t.script.lines}
+          {isDub && view.dub?.register && <span className="ml-3 normal-case tracking-normal">{t.dub.register}: {view.dub.register}</span>}
+        </span>
+        {!isDub && <span className="normal-case tracking-normal">{t.studio.wordsClips}</span>}
+      </div>
+      <ol onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setEditing(null)}>
+        {rows.map((r, i) => {
+          const on = i === current;
+          const start = startOf(i, r);
+          return (
+            <li
+              key={r.key}
+              onFocus={() => setEditing(i)}
+              className={cn("relative grid grid-cols-[28px_52px_minmax(0,1fr)_auto] items-start gap-x-3 border-b px-4 py-3", on ? "bg-raised" : "bg-panel")}
+            >
+              {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-amber" />}
+              <span className={cn("pt-2 font-mono text-xs tabular-nums", on ? "text-amber" : "text-muted-foreground")}>{String(i + 1).padStart(2, "0")}</span>
+              <button
+                type="button"
+                disabled={!onSeek || start == null}
+                onClick={() => start != null && onSeek?.(start)}
+                title={t.studio.seekTo}
+                className={cn("mt-1.5 h-6 text-left font-mono text-xs tabular-nums", on ? "text-cyan" : "text-muted-foreground", onSeek && "hover:text-cyan")}
+              >
+                {start != null ? `${exact || (isDub && r.at != null) ? "" : "≈"}${mmss(start)}` : ""}
+              </button>
+              <div className="min-w-0 space-y-2">
+                {isDub && (
+                  <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                    {r.kind === "intro" || r.kind === "outro" ? (
+                      <span className="font-medium">{r.kind === "intro" ? t.script.intro : t.script.outro}</span>
                     ) : (
-                      <span className="grid size-full place-items-center p-1 text-center text-[10px] leading-tight text-muted-foreground">
-                        {t.ai.noPicture}
+                      r.speaker && <span className="font-medium">{r.speaker}</span>
+                    )}
+                    {r.zh && (
+                      <span className="min-w-0 truncate" title={r.zh} lang="zh">
+                        {t.script.original}: {r.zh}
                       </span>
                     )}
                   </div>
                 )}
-                <div className="min-w-0 flex-1 space-y-1">
-                  {isDub && (
-                    <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-                      {r.at != null && <span className="tabular-nums">{clockOf(r.at)}</span>}
-                      {r.kind === "intro" || r.kind === "outro" ? (
-                        <span className="font-medium">{r.kind === "intro" ? t.script.intro : t.script.outro}</span>
+                {isAi && (
+                  <div className="flex gap-3">
+                    <div className="aspect-[9/16] w-14 shrink-0 overflow-hidden rounded-xs border bg-monitor">
+                      {r.picture ? (
+                        <img
+                          src={api.mediaUrl(r.picture, view.version)}
+                          alt=""
+                          loading="lazy"
+                          className={cn("size-full object-cover", r.image !== r.was && "opacity-40")}
+                        />
                       ) : (
-                        r.speaker && <span className="font-medium">{r.speaker}</span>
-                      )}
-                      {r.zh && (
-                        <span className="min-w-0 truncate" title={r.zh} lang="zh">
-                          {t.script.original}: {r.zh}
+                        <span className="grid size-full place-items-center p-1 text-center text-[10px] leading-tight text-muted-foreground">
+                          {t.ai.noPicture}
                         </span>
                       )}
                     </div>
-                  )}
+                    <div className="min-w-0 flex-1">
+                      <Textarea
+                        value={r.text}
+                        onChange={(e) => edit(i, e.target.value)}
+                        className={rowField(on)}
+                        rows={2}
+                        disabled={busy}
+                        aria-label={`${t.script.lines} ${i + 1}`}
+                      />
+                    </div>
+                  </div>
+                )}
+                {!isAi && (
                   <Textarea
                     value={r.text}
                     onChange={(e) => edit(i, e.target.value)}
-                    className="min-h-0 text-sm"
+                    className={rowField(on)}
                     rows={2}
                     disabled={busy}
                     aria-label={`${t.script.lines} ${i + 1}`}
                   />
-                  {isAi && (
-                    <>
-                      <Textarea
-                        value={r.image ?? ""}
-                        onChange={(e) => patch(i, { image: e.target.value })}
-                        className="min-h-0 text-xs text-muted-foreground"
-                        rows={2}
-                        disabled={busy}
-                        placeholder={t.ai.imagePlaceholder}
-                        aria-label={`${t.ai.image} ${i + 1}`}
+                )}
+                {isAi && (
+                  <>
+                    <Textarea
+                      value={r.image ?? ""}
+                      onChange={(e) => patch(i, { image: e.target.value })}
+                      className="min-h-0 font-mono text-xs leading-5 text-muted-foreground"
+                      rows={2}
+                      disabled={busy}
+                      placeholder={t.ai.imagePlaceholder}
+                      aria-label={`${t.ai.image} ${i + 1}`}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Choice
+                        value={r.motion ?? "zoom_in"}
+                        onChange={(v) => patch(i, { motion: v as Motion })}
+                        options={MOTIONS.map((m) => [m, t.ai.motions[m]])}
+                        className="h-8 w-36 text-xs"
                       />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Choice
-                          value={r.motion ?? "zoom_in"}
-                          onChange={(v) => patch(i, { motion: v as Motion })}
-                          options={MOTIONS.map((m) => [m, t.ai.motions[m]])}
-                          className="h-7 w-32 text-xs"
-                        />
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => redo.mutate(i)}
-                          disabled={busy || dirty}
-                          title={dirty ? t.ai.saveFirst : t.ai.newPictureTitle}
-                        >
-                          <RefreshCw />
-                          {t.ai.newPicture}
-                        </Button>
-                        {!r.picture && !!r.seed && <span className="text-xs text-muted-foreground">{t.ai.pending}</span>}
-                      </div>
-                    </>
-                  )}
-                  <div
-                    className={cn(
-                      "text-xs text-muted-foreground",
-                      isDub && r.max_chars != null && r.text.length > r.max_chars && "text-amber-700 dark:text-amber-400",
-                    )}
-                  >
-                    {isDub && r.max_chars != null
-                      ? t.script.chars(r.text.length, r.max_chars)
-                      : isAi
-                        ? t.script.words(countWords(r.text))
-                        : `${t.script.words(countWords(r.text))} · ${t.script.clips(r.clips.length)}`}
-                  </div>
-                </div>
-                {!isDub && (
-                  <div className="grid shrink-0 grid-cols-2 gap-0.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => redo.mutate(i)}
+                        disabled={busy || dirty}
+                        title={dirty ? t.ai.saveFirst : t.ai.newPictureTitle}
+                      >
+                        <RefreshCw />
+                        {t.ai.newPicture}
+                      </Button>
+                      {!r.picture && !!r.seed && <span className="text-xs text-muted-foreground">{t.ai.pending}</span>}
+                    </div>
+                  </>
+                )}
+                {!isDub && on && (
+                  <div className="flex items-center gap-1">
                     <IconAction label={t.script.moveUp} onClick={() => move(i, -1)} disabled={busy || i === 0}>
                       <ArrowUp />
-                    </IconAction>
-                    <IconAction label={t.script.insertBelow} onClick={() => insert(i + 1)} disabled={busy}>
-                      <ListPlus />
                     </IconAction>
                     <IconAction label={t.script.moveDown} onClick={() => move(i, 1)} disabled={busy || i === rows.length - 1}>
                       <ArrowDown />
                     </IconAction>
-                    <IconAction label={t.script.removeLine} onClick={() => remove(i)} disabled={busy} className="hover:text-destructive">
+                    <IconAction label={t.script.insertBelow} onClick={() => insert(i + 1)} disabled={busy}>
+                      <ListPlus />
+                    </IconAction>
+                    <IconAction label={t.script.removeLine} onClick={() => remove(i)} disabled={busy} className="text-coral hover:text-coral">
                       <Trash2 />
                     </IconAction>
                   </div>
                 )}
-              </li>
-            ))}
-          </ol>
-          {!isDub && (
-            <div>
-              <Button size="sm" variant="outline" onClick={() => insert(rows.length)} disabled={busy}>
-                <Plus />
-                {t.script.addLine}
-              </Button>
-            </div>
-          )}
+              </div>
+              <div
+                className={cn(
+                  "w-[112px] pt-2 text-right font-mono text-[11px] leading-4 tabular-nums text-muted-foreground",
+                  isDub && r.max_chars != null && r.text.length > r.max_chars && "text-amber",
+                )}
+              >
+                {isDub && r.max_chars != null ? (
+                  t.script.chars(r.text.length, r.max_chars)
+                ) : isAi ? (
+                  t.script.words(countWords(r.text))
+                ) : (
+                  <>
+                    {t.script.words(countWords(r.text))}
+                    <br />
+                    {t.script.clips(r.clips.length)}
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="flex min-h-12 items-center justify-between gap-3 border-b px-4">
+        {!isDub ? (
+          <Button variant="ghost" onClick={() => insert(rows.length)} disabled={busy}>
+            <Plus />
+            {t.script.addLine}
+          </Button>
+        ) : (
+          <span />
+        )}
+        {!isDub && (
+          <span className={cn("font-mono text-xs tabular-nums", inRange ? "text-muted-foreground" : "text-amber")}>
+            {t.script.words(words)} · {t.script.estimate(est)}
+          </span>
+        )}
+      </div>
+      {(!inRange && !isDub) || (!isDub && filled.length < MIN_LINES) || (view.stale && !dirty) ? (
+        <div className="grid gap-1 border-b px-4 py-3 text-xs leading-[18px]">
+          {!isDub && !inRange && <div className="text-amber">{t.script.outOfRange(view.min_seconds, view.max_seconds)}</div>}
+          {!isDub && filled.length < MIN_LINES && <div className="text-coral">{t.script.minLines(MIN_LINES)}</div>}
+          {view.stale && !dirty && <div className="text-amber">{t.script.stale}</div>}
         </div>
+      ) : null}
 
+      <div className="grid gap-4 border-b p-4">
         <Field label={t.script.description}>
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="min-h-16 text-sm"
+            className="min-h-16"
             disabled={busy}
             aria-label={t.script.description}
           />
@@ -367,46 +433,55 @@ function ScriptForm({
         <Field label={t.script.hashtags} hint={t.script.hashtagsHint}>
           <Input value={tags} onChange={(e) => setTags(e.target.value)} disabled={busy} aria-label={t.script.hashtags} />
         </Field>
+      </div>
 
-        <div className="grid gap-1 text-xs">
-          {!isDub && (
-            <>
-              <div className={cn("text-muted-foreground", !inRange && "text-amber-700 dark:text-amber-400")}>
-                {t.script.words(words)} · {t.script.estimate(est)}
-              </div>
-              {!inRange && (
-                <div className="text-amber-700 dark:text-amber-400">{t.script.outOfRange(view.min_seconds, view.max_seconds)}</div>
-              )}
-              {filled.length < MIN_LINES && <div className="text-destructive">{t.script.minLines(MIN_LINES)}</div>}
-            </>
-          )}
-          {view.stale && !dirty && <div className="text-amber-700 dark:text-amber-400">{t.script.stale}</div>}
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2 bg-strip p-4">
+        {(save.error || render.error || redo.error) && (
+          <p className="mr-auto text-[13px] text-coral">{(save.error ?? render.error ?? redo.error)?.message}</p>
+        )}
+        {dirty && (
+          <Button variant="ghost" className="mr-auto" onClick={reset} disabled={busy}>
+            <Undo2 />
+            {t.script.reset}
+          </Button>
+        )}
+        <Button variant="secondary" onClick={() => save.mutate()} disabled={busy || !dirty || !valid}>
+          {save.isPending ? <Loader2 className="animate-spin" /> : justSaved ? <Check /> : <Save />}
+          {justSaved ? t.script.saved : t.script.save}
+        </Button>
+        <Button
+          size="lg"
+          variant={dirty || view.stale ? "default" : "secondary"}
+          onClick={() => render.mutate()}
+          disabled={busy || !valid}
+        >
+          {render.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+          {dirty ? t.script.saveAndRender : t.script.render}
+        </Button>
+      </div>
+    </section>
+  );
+}
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {(save.error || render.error || redo.error) && (
-            <p className="mr-auto text-destructive">{(save.error ?? render.error ?? redo.error)?.message}</p>
-          )}
-          {dirty && (
-            <Button variant="ghost" onClick={reset} disabled={busy}>
-              <Undo2 />
-              {t.script.reset}
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => save.mutate()} disabled={busy || !dirty || !valid}>
-            {save.isPending ? <Loader2 className="animate-spin" /> : justSaved ? <Check /> : <Save />}
-            {justSaved ? t.script.saved : t.script.save}
-          </Button>
-          <Button
-            variant={dirty || view.stale ? "default" : "outline"}
-            onClick={() => render.mutate()}
-            disabled={busy || !valid}
-          >
-            {render.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-            {dirty ? t.script.saveAndRender : t.script.render}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+/** A line's text box: it blends into the row until it is the one being edited. */
+const rowField = (on: boolean) =>
+  cn("min-h-0 resize-none px-2.5 py-1.5 leading-5", on ? "bg-ground" : "border-transparent bg-transparent hover:border-hairline-strong");
+
+function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label>{label}</Label>
+      {children}
+      {hint && <p className="text-xs leading-[18px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function PanelHead({ title, aside }: { title: string; aside?: ReactNode }) {
+  return (
+    <header className="flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4">
+      <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{title}</h2>
+      {aside && <span className="font-mono text-xs text-muted-foreground tabular-nums">{aside}</span>}
+    </header>
   );
 }

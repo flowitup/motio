@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Choice } from "@/components/form";
+import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -119,7 +120,7 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
                 <button type="button" className={row(u.target === selected)} onClick={() => onPick(u.target)}>
                   <span className="truncate">{u.name}</span>
                   {u.status === "done" && (
-                    <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">{t.delogo.cleaned}</span>
+                    <span className="shrink-0 text-xs text-mint">{t.delogo.cleaned}</span>
                   )}
                 </button>
                 <Button
@@ -156,7 +157,7 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
                         {i + 1}. {s.platform} · {s.uploader || s.title || s.url}
                       </span>
                       {s.delogo && (
-                        <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">
+                        <span className="shrink-0 text-xs text-mint">
                           {t.delogo.cleaned}
                         </span>
                       )}
@@ -236,11 +237,11 @@ function BoxCanvas({
     >
       <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full" />
       {boxes.map((b, i) => (
-        <div key={i} className="absolute border-2 border-red-500 bg-red-500/20" style={pos(b)}>
+        <div key={i} className="absolute border-2 border-coral bg-coral/20" style={pos(b)}>
           {!disabled && (
             <button
               type="button"
-              className="absolute -top-2.5 -right-2.5 flex size-5 items-center justify-center rounded-full bg-red-500 text-white shadow"
+              className="absolute -top-2.5 -right-2.5 flex size-5 items-center justify-center rounded-full bg-coral text-monitor"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onChange(boxes.filter((_, j) => j !== i))}
               aria-label={t.delogo.removeBox}
@@ -251,7 +252,7 @@ function BoxCanvas({
           )}
         </div>
       ))}
-      {draft && <div className="absolute border-2 border-dashed border-red-400 bg-red-400/10" style={pos(draft)} />}
+      {draft && <div className="absolute border-2 border-dashed border-coral bg-coral/10" style={pos(draft)} />}
     </div>
   );
 }
@@ -588,21 +589,23 @@ export default function DelogoPage() {
   const target = params.get("target");
   const pick = (key: string | null) => setParams(key ? { target: key } : {});
   return (
-    <div className="mx-auto max-w-6xl space-y-5 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t.delogo.title}</h1>
+    <>
+      <TopBar>
+        <PageTitle>{t.delogo.title}</PageTitle>
+      </TopBar>
+      <div className="mx-auto max-w-6xl space-y-5 p-6">
         <p className="text-sm text-muted-foreground">{t.delogo.hint}</p>
-      </header>
-      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <PickCard api={api} selected={target} onPick={pick} />
-        {target ? (
-          <Editor key={target} api={api} target={target} onGone={() => pick(null)} />
-        ) : (
-          <Card>
-            <CardContent className="py-16 text-center text-sm text-muted-foreground">{t.delogo.empty}</CardContent>
-          </Card>
-        )}
+        <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <PickCard api={api} selected={target} onPick={pick} />
+          {target ? (
+            <Editor key={target} api={api} target={target} onGone={() => pick(null)} />
+          ) : (
+            <Card>
+              <CardContent className="py-16 text-center text-sm text-muted-foreground">{t.delogo.empty}</CardContent>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
