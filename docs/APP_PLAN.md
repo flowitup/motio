@@ -530,6 +530,13 @@ project files. Built in this batch:
   Default price $0.02/s (HeyGen's page says $0.01/s until the end of October and $0.02/s at 768p with sound, OpenRouter shows
   $0.015 after the discount; sources disagree, so the budget uses the list price). Its commercial terms are not confirmed, so HeyGen clips force the video gate
   (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10).
+- **Series and recurring characters** (`motio/series.py`, channel fields `series` / `cast`): the owner picked "AI film
+  characters" (option C, 01/10). Chosen design: text first. The cast (one `Name: look` line per fictional character, up to 8)
+  is saved in the script (`plan["cast"]`) and `creator.prompt` puts the look of every character a scene names in front of its
+  picture prompt, so the same words reach the image model each time (cache keys follow the prompt: an edited look redraws only
+  those scenes). The series premise plus a recap per episode (`meta.ai.episode` / `recap`, written by Claude in the script
+  JSON) make each AI video the next episode of the channel (last 6 recaps). Not included: reference images / character sheets
+  for a true same-face guarantee (next level), a per-video cast, characters in news / topic / dub videos.
 - **Quality check after every render** (`motio/qa.py`, `meta.qa`, `QualityCard` on the project page): length 62–90 s,
   H.264 1080×1920 / AAC, loudness near -14 LUFS without clipping, silence over 1.5 s inside the video, a black start (the
   cover) or black stretch; `fail` (no sound, almost silent, wrong length, black start, unreadable file) holds the video at the

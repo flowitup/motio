@@ -108,6 +108,15 @@ Settings → AI pictures (default $0.08 for fal, $0.02 for HeyGen), and the mont
 budget, leaves its scene with the picture and camera move. The post then says "Images et vidéos générées par IA."; the
 platforms' AI flags stay on. Needs the fal key (or the HeyGen key) as well as the one for the pictures.
 
+**Series and recurring characters** (Channels → *Series* and *Cast*, AI videos only). *Cast* is one character per line,
+`Name: how they look` (English, fictional people only, up to 8). The look is saved with each script, and every scene whose
+picture prompt names a character gets that exact description put in front of its prompt, so the image model always reads
+the same words (Claude writes only the name, never re-describes the person). It makes the characters alike, it does not
+guarantee the same face: a reference-image step would be the next level. A changed look makes the pictures of those scenes
+again, the others stay cached. *Series* is the premise and rules of a story: each new AI video of the channel is written as
+the next episode, knowing the short recap Claude kept for the last six, and the project page shows its episode number and
+recap. Leave both empty for stand-alone videos.
+
 **Quality check** runs after every render (FFmpeg and ffprobe, nothing is sent anywhere): the length is 62–90 s, the
 picture is 1080×1920 H.264, there is a sound track at about -14 LUFS without clipping, no silence longer than 1.5 s
 inside the video, and the first picture is not black (the cover would be). The project page shows the result; a
@@ -269,6 +278,7 @@ motio/topic.py     topic mode: explainer from any topic or video links, source r
 motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
 motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
 motio/aiclips.py   AI clips: fal H3 Max or HeyGen Video 1 image-to-video for some scenes of an AI video, cached per scene, cost estimate
+motio/series.py    AI video series: a channel's cast (fixed looks put in front of picture prompts) and episode recaps
 motio/qa.py        quality check after each render (length, picture, loudness, silence, black start) + repeat warnings
 motio/trending.py  Bilibili ranking / popular / weekly lists as followed sources
 motio/localfile.py a video file added by hand, used as a source like a link

@@ -277,6 +277,15 @@ const en = {
     aiClipsHint:
       "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each, or HeyGen Video 1, about $0.10 each: pick the provider in Settings) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the key of the chosen provider in Settings.",
     summaryClips: (n: number) => `${plural(n, "AI clip")} per video`,
+    series: "Series (AI videos)",
+    seriesHint:
+      "The premise and rules of a story that goes on from video to video. Each new AI video of this channel is written as the next episode, knowing the short recap Claude kept for the earlier ones. Leave empty for stand-alone videos.",
+    seriesPlaceholder: "A small robot and a stray cat explore a city that never sleeps. One mystery per episode, a light tone, no villains.",
+    cast: "Cast (AI videos)",
+    castHint:
+      "Recurring characters, one per line as “Name: how they look” (English, fictional people only, up to 8). Every picture of a scene that names a character gets this same description in front of its prompt, so the face and clothes stay alike.",
+    castPlaceholder: "Mina: a girl of about 10 with short black hair, round yellow glasses, a red raincoat and white boots\nBolt: a small round robot with a dented silver body and one blue lamp eye",
+    summarySeries: (n: number) => (n ? `Series with ${plural(n, "character")}` : "Series"),
     none: "No channel",
     pick: "Channel",
   },
@@ -451,6 +460,8 @@ const en = {
       `How many scenes become short AI video clips instead of a camera move on the picture (0–6). Leave empty to use the channel's setting. About $${usd} a clip, paid only for clips that are new.`,
     clipsPlaceholder: "Channel",
     clipsMade: (n: number) => plural(n, "AI clip"),
+    episode: (n: number) => `Episode ${n}`,
+    recap: "Recap",
     make: "Make AI video",
     card: "AI video",
     provider: "Pictures from",
@@ -968,6 +979,15 @@ const vi: Messages = {
     aiClipsHint:
       "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip, hoặc HeyGen Video 1, khoảng $0,10 một clip: chọn nhà cung cấp trong Cài đặt) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá của nhà cung cấp đã chọn trong Cài đặt.",
     summaryClips: (n: number) => `${n} clip AI mỗi video`,
+    series: "Loạt phim (video AI)",
+    seriesHint:
+      "Tiền đề và luật của một câu chuyện chạy qua nhiều video. Mỗi video AI mới của kênh này được viết như tập tiếp theo, dựa trên bản tóm tắt ngắn Claude đã lưu cho các tập trước. Để trống nếu mỗi video đứng riêng.",
+    seriesPlaceholder: "Một chú robot nhỏ và một chú mèo hoang khám phá thành phố không ngủ. Mỗi tập một bí ẩn, giọng nhẹ nhàng, không có kẻ xấu.",
+    cast: "Nhân vật (video AI)",
+    castHint:
+      "Nhân vật xuất hiện lặp lại, mỗi dòng một người theo dạng “Tên: ngoại hình” (viết tiếng Anh, chỉ nhân vật hư cấu, tối đa 8). Ảnh của mọi cảnh có nhắc tên nhân vật đều được thêm đúng mô tả này vào đầu prompt, nên khuôn mặt và quần áo giữ nguyên.",
+    castPlaceholder: "Mina: a girl of about 10 with short black hair, round yellow glasses, a red raincoat and white boots\nBolt: a small round robot with a dented silver body and one blue lamp eye",
+    summarySeries: (n: number) => (n ? `Loạt phim, ${n} nhân vật` : "Loạt phim"),
     none: "Không dùng kênh",
     pick: "Kênh",
   },
@@ -1142,6 +1162,8 @@ const vi: Messages = {
       `Bao nhiêu cảnh thành clip video AI ngắn thay vì chuyển động máy quay trên ảnh (0–6). Để trống thì theo cài đặt của kênh. Khoảng $${usd} một clip, chỉ tính clip mới làm.`,
     clipsPlaceholder: "Theo kênh",
     clipsMade: (n: number) => `${n} clip AI`,
+    episode: (n: number) => `Tập ${n}`,
+    recap: "Tóm tắt",
     make: "Làm video AI",
     card: "Video AI",
     provider: "Ảnh từ",
