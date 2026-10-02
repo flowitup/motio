@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import captions, config, scenes
+from . import captions, config, localfile, scenes
 from .asr import has_audio
 from .i18n import tr
 
@@ -348,7 +348,8 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     for j, p in enumerate(pieces):
         src = sources[p.src]
         credit = (f"Source : {src['platform']} / {src['uploader']}".strip(" /")
-                  if config.flag("CREDIT_ON_VIDEO") and not p.motion else "")  # ảnh AI không có nguồn để ghi
+                  if config.flag("CREDIT_ON_VIDEO") and not p.motion and src.get("platform") != localfile.PLATFORM
+                  else "")  # ảnh AI và file thêm tay không có nguồn để ghi
         if credit not in overlays:
             overlays[credit] = overlay_png(work / f"{pre}ov_{len(overlays):03d}.png", title=title, credit=credit,
                                           badge=badge, layout=layout)

@@ -512,6 +512,46 @@ engine in the background + Tailscale), no Docker, no network drive.
   the frozen engine's transcription and render on Windows; faster-whisper speed and CUDA (the build does not bundle the CUDA
   libraries); macOS WebView with plain HTTP to the Tailscale address (fallback in the runbook: `tailscale serve` HTTPS).
 
+## AI film studio batch (added 01/10/2026)
+
+The owner wants a studio that dubs or comments on trending Douyin / Bilibili / Chinese film-platform videos and makes AI
+films, and to start using it on 02/10. Research and the ranked feature list: `plans/brainstorm-261001-ai-studio.md` in the
+project files. Built in this batch:
+
+- **Bilibili trending lists as followed sources** (`motio/trending.py`): `bilibili:ranking:<rid>` (17 categories),
+  `bilibili:popular`, `bilibili:weekly`. Plain JSON, no login and no signature (the weekly list wants anonymous buvid
+  cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing "no reprint" or paid, nothing
+  under 15 s; rights stay *unknown*. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
+- **HeyGen Video 1 as a second AI clip provider** (`aiclips.py`, `CLIP_PROVIDER`, `HEYGEN_API_KEY`): `POST /v3/models/videos`
+  `image_to_video` with the scene picture as the first frame, 5 s, 768p, polled every 3 s up to 420 s, sound dropped. The
+  output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is
+  sent. The job is paid once it exists: its id is kept in `<clip>.job` until the clip is saved, a failed look (429 / 5xx /
+  network, up to 6 in a row) is retried, and a timeout or a retry resumes the same job instead of paying for a second one.
+  Default price $0.02/s (HeyGen's page says $0.01/s until the end of October and $0.02/s at 768p with sound, OpenRouter shows
+  $0.015 after the discount; sources disagree, so the budget uses the list price). Its commercial terms are not confirmed, so HeyGen clips force the video gate
+  (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10).
+- **Quality check after every render** (`motio/qa.py`, `meta.qa`, `QualityCard` on the project page): length 62–90 s,
+  H.264 1080×1920 / AAC, loudness near -14 LUFS without clipping, silence over 1.5 s inside the video, a black start (the
+  cover) or black stretch; `fail` (no sound, almost silent, wrong length, black start, unreadable file) holds the video at the
+  gate when the channel has Postiz. Warnings only for the rest and for a source, title or script used in the last 30 days
+  (`qa.repeats`; the owner declined a source ledger, so this is a warning, not a record).
+- **Add a video file** (`motio/localfile.py`, `POST /api/uploads`, `AddVideoFile` in the app): the way to use a Douyin video
+  (or any file) yt-dlp cannot fetch. Stored as `cache/sources/File_<id>.mp4` so source lookups keep working; the link
+  `file:<id>/<name>` goes wherever links go. A pasted Douyin link that yt-dlp refuses for lack of cookies now says to add the
+  file or set a cookies file.
+- **Douyin findings (02/10)**: tried by the owner's Mac session, guest only (no login, none of the owner's cookies): **f2**
+  (Apache 2.0, https://github.com/Johnserf-Seed/f2) fetched video details and playable mp4 addresses 11 of 11 times through
+  Douyin's web API with an anonymous `ttwid`, signing each request with `a_bogus`; `v.douyin.com/<code>` redirects to
+  `iesdouyin.com/share/video/<id>/`. yt-dlp, jiji262/douyin-downloader (blocked by Douyin per its README) and the web page
+  do not work without a browser session; Evil0ctal v5 (Docker + Postgres + Redis) and TikTokDownloader (GPL-3.0, cookie)
+  were not run. Not tested: keyword search, an author's video list. Calling f2's way from the engine needs Douyin's request
+  signing and a device-fingerprint token payload inside Motio; the auto-mode safety check refused to add that, so it waits for
+  the owner's decision (pinning f2's version and a live test would be needed, Douyin changes the signature often).
+- Not verified: a real HeyGen call and the H3 / HeyGen comparison, a Bilibili list through the app on the Mac, the quality
+  check on a Mac-rendered video, the file upload of a large video through the Tauri webview.
+- Not included: consistent characters across clips and a series with many episodes (chosen by the owner for next), hints for
+  Whisper in Chinese and a glossary for dubs, Douyin keyword search or author lists.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

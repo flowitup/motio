@@ -303,6 +303,10 @@ VI = {
         "Chỉ tìm được trên YouTube hoặc Bilibili, không phải {site}",
     "This source is already in the list": "Nguồn này đã có trong danh sách",
     "At most {n} sources": "Tối đa {n} nguồn",
+    "Unknown Bilibili trending list: {target}": "Không có bảng xếp hạng Bilibili này: {target}",
+    "Could not reach Bilibili: {error}": "Không kết nối được Bilibili: {error}",
+    "Bilibili blocked the request ({code}): try again later": "Bilibili chặn yêu cầu ({code}): thử lại sau",
+    "Bilibili returned an error: {error}": "Bilibili báo lỗi: {error}",
     # French dub (dub.py, separate.py)
     "French line": "dòng tiếng Pháp",
     "Dub: {site}": "Lồng tiếng: {site}",
@@ -443,6 +447,7 @@ VI = {
     "pictures": "ảnh",
     "camera moves": "chuyển động máy quay",
     "IMAGE_PROVIDER must be one of {choices}": "IMAGE_PROVIDER phải là một trong: {choices}",
+    "CLIP_PROVIDER must be one of {choices}": "CLIP_PROVIDER phải là một trong: {choices}",
     "Add your fal key in Settings → Image provider (or choose the Placeholder provider to try the flow)":
         "Hãy nhập khoá fal trong Cài đặt → Nhà cung cấp ảnh (hoặc chọn Ảnh giữ chỗ để thử luồng này)",
     "The Modal provider needs the `modal` Python package and a Modal login: it runs from the dev engine or the server, "
@@ -463,6 +468,21 @@ VI = {
         "Clip AI cần khoá fal của bạn: hãy nhập trong Cài đặt → Nhà cung cấp ảnh, hoặc đặt số clip AI về 0",
     "AI clips per video must be a number": "Số clip AI mỗi video phải là một số",
     "AI clips per video must be between 0 and {n}": "Số clip AI mỗi video phải từ 0 đến {n}",
+    "AI clips need your HeyGen key: add it in Settings → AI pictures, or set AI clips to 0":
+        "Clip AI cần khoá HeyGen của bạn: hãy nhập trong Cài đặt → Ảnh AI, hoặc đặt số clip AI về 0",
+    "Could not reach HeyGen: {error}": "Không kết nối được HeyGen: {error}",
+    "HeyGen refused the request ({error}): check the API key":
+        "HeyGen từ chối yêu cầu ({error}): hãy kiểm tra khoá API",
+    "HeyGen has no credit left: top up the API balance in your HeyGen account":
+        "HeyGen hết tiền: hãy nạp thêm vào số dư API trong tài khoản HeyGen",
+    "HeyGen could not make the clip: {error}": "HeyGen không làm được clip: {error}",
+    "HeyGen returned no clip": "HeyGen không trả clip nào",
+    "HeyGen took too long to make the clip": "HeyGen làm clip quá lâu",
+    "Could not download the clip from HeyGen: {error}": "Không tải được clip từ HeyGen: {error}",
+    "The clip from HeyGen is not a readable video": "Clip từ HeyGen không phải video đọc được",
+    " (clips from a provider whose terms for monetized channels are not checked yet: approve the video yourself "
+    "before it goes out)":
+        " (clip của nhà cung cấp chưa kiểm tra điều khoản cho kênh kiếm tiền: bạn phải tự duyệt video trước khi đăng)",
     "Could not reach fal: {error}": "Không kết nối được fal: {error}",
     "fal could not make the clip: {error}": "fal không làm được clip: {error}",
     "fal returned no clip (the prompt may have been filtered)": "fal không trả clip nào (prompt có thể bị lọc)",
@@ -474,4 +494,49 @@ VI = {
     "Monthly budget reached: the other scenes keep their camera move":
         "Đã hết ngân sách tháng: các cảnh còn lại giữ chuyển động máy quay",
     "{made} of {total} AI clips ready · about ${cost}": "Đã có {made} / {total} clip AI · khoảng ${cost}",
+    # Quality check after the render (qa.py)
+    "Quality check passed": "Kiểm tra chất lượng: đạt",
+    "Quality check: {problems}": "Kiểm tra chất lượng: {problems}",
+    " (quality check failed: {problems}; fix it, or approve the video yourself before it goes out)":
+        " (kiểm tra chất lượng không đạt: {problems}; hãy sửa, hoặc tự duyệt video trước khi đăng)",
+    "Length {seconds} s": "Độ dài {seconds} s",
+    "Length {seconds} s: it must be {lo} to {hi} s": "Độ dài {seconds} s: phải từ {lo} đến {hi} s",
+    "No picture track": "Không có luồng hình",
+    "Picture {size}, H.264": "Hình {size}, H.264",
+    "Picture is {codec} {size} {pix}: platforms expect H.264 {want} yuv420p":
+        "Hình là {codec} {size} {pix}: các nền tảng cần H.264 {want} yuv420p",
+    "No sound track": "Không có luồng tiếng",
+    "Sound track present": "Có luồng tiếng",
+    "Sound is {codec}: platforms expect AAC": "Tiếng là {codec}: các nền tảng cần AAC",
+    "The video is almost silent ({share}% silence)": "Video gần như im lặng ({share}% là im lặng)",
+    "Loudness {lufs} LUFS": "Độ to {lufs} LUFS",
+    "Loudness {lufs} LUFS: Motio aims for {target}": "Độ to {lufs} LUFS: Motio nhắm tới {target}",
+    "Sound peaks at {peak} dBFS: it may clip": "Đỉnh âm thanh {peak} dBFS: có thể bị vỡ tiếng",
+    "No long silence": "Không có đoạn im lặng dài",
+    "Silence of {seconds} s at {at}": "Im lặng {seconds} s lúc {at}",
+    " (and {n} more)": " (và {n} đoạn nữa)",
+    "No black picture": "Không có hình đen",
+    "Black picture for {seconds} s at {at}": "Hình đen {seconds} s lúc {at}",
+    "The first picture is black for {seconds} s: the cover would be black":
+        "Hình đầu tiên đen {seconds} s: ảnh bìa sẽ bị đen",
+    "The video file cannot be read: {error}": "Không đọc được file video: {error}",
+    "Could not check sound and black pictures: {error}": "Không kiểm tra được tiếng và hình đen: {error}",
+    "Could not compare with earlier videos: {error}": "Không so sánh được với các video trước: {error}",
+    "The same source video was already used in project #{n} ({days} d ago)":
+        "Video nguồn này đã được dùng ở dự án #{n} ({days} ngày trước)",
+    "The title is almost the same as project #{n} ({days} d ago)":
+        "Tiêu đề gần giống dự án #{n} ({days} ngày trước)",
+    "The script is very close to project #{n} ({days} d ago)":
+        "Kịch bản rất giống dự án #{n} ({days} ngày trước)",
+    # A video file added by hand as a source (localfile.py)
+    "video file": "file video",
+    "The video file is no longer here: add it again": "File video không còn ở đây: hãy thêm lại",
+    "This video file cannot be read: {error}": "Không đọc được file video này: {error}",
+    "This file has no video to use": "File này không có hình để dùng",
+    "Douyin asks for fresh browser cookies to download this. Download the video yourself and add the file, or set a "
+    "cookies file in Settings":
+        "Douyin yêu cầu cookie trình duyệt còn mới để tải video này. Hãy tự tải video rồi thêm file vào, hoặc đặt "
+        "file cookie trong Cài đặt",
+    "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
+    "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
 }

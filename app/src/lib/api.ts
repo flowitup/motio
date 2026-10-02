@@ -107,6 +107,14 @@ export type ToolJob = {
   folder: string; // thư mục kết quả trên máy chạy engine
 };
 
+export type QaLevel = "ok" | "warn" | "fail";
+/** Kiểm tra chất lượng sau mỗi lần dựng: từng mục (đã dịch sang ngôn ngữ giao diện) và mức chung. */
+export type QaResult = {
+  level: QaLevel; // fail = video chưa đủ tốt để tự gửi Postiz
+  checks: { id: string; level: QaLevel; msg: string }[];
+  at: number;
+};
+
 export type ProjectMeta = {
   topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
   subject?: { title_fr: string; angle: string };
@@ -125,6 +133,7 @@ export type ProjectMeta = {
   elapsed?: number;
   postiz?: PublishRecord[];
   channel?: number; // hồ sơ kênh (Kênh), không có = chạy như trước
+  qa?: QaResult; // kiểm tra chất lượng lần dựng gần nhất
   review?: Review | null; // đang chờ duyệt gì (status = "review")
   send_error?: string | null; // lần tự gửi Postiz gần nhất bị lỗi
   approved_at?: number;
@@ -177,6 +186,9 @@ export type PublishRecord = {
 };
 export type VideoVersion = "vertical" | "wide";
 
+/** Video có sẵn đã gửi lên engine: `link` dán vào chỗ nào nhận link (dạng `file:…`). */
+export type UploadedVideo = { link: string; name: string; duration: number; width: number | null; height: number | null; size: number };
+
 export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
 
 export type Project = {
@@ -227,6 +239,7 @@ export type AiView = {
   scenes: number | null;
   clips: number | null; // số cảnh đang dùng clip AI ở lần dựng gần nhất
   clip_limit: number | null; // số clip riêng của video này; null = theo kênh
+  clip_provider: string | null; // nhà cung cấp của các clip ở lần dựng gần nhất (fal | heygen)
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 
@@ -315,15 +328,15 @@ export type RefreshState = {
   last_auto: { at: number; projects: number[] } | null; // lượt tự làm gần nhất (sau lượt tự cập nhật)
 };
 
-export type WatchKind = "channel" | "playlist" | "space" | "search";
+export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending";
 export type Site = "youtube" | "bilibili";
 
-/** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu. */
+/** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
 export type Watch = {
   id: number;
   kind: WatchKind;
   site: Site;
-  target: string; // URL, hoặc từ khoá khi kind = search
+  target: string; // URL, từ khoá khi kind = search, hoặc "bilibili:ranking:181" / "bilibili:popular" / "bilibili:weekly" khi kind = trending
   name: string | null;
   rights: Rights;
   enabled: boolean;
@@ -340,6 +353,8 @@ export type Clip = {
   id: string;
   watch_id: number | null;
   watch_name: string | null;
+  watch_kind?: string | null; // "trending" = a Bilibili list: the app translates its name from watch_target
+  watch_target?: string | null;
   site: Site;
   url: string;
   title: string;
@@ -348,6 +363,10 @@ export type Clip = {
   uploader: string | null;
   duration: number | null;
   views: number | null;
+  likes: number | null; // chỉ có ở video từ bảng xếp hạng
+  pubdate: number | null; // giờ đăng gốc (giây Unix), chỉ có ở video từ bảng xếp hạng
+  category: string | null; // chuyên mục Bilibili
+  rank: number | null; // thứ hạng trong bảng
   thumbnail: string | null;
   score: number | null;
   first_seen: number;
@@ -413,10 +432,12 @@ export function makeApi(url: string, token: string) {
     });
   }
   /** Gửi form multipart (công cụ lẻ) bằng XHR để có tiến trình tải file lên. */
-  function postForm<T>(path: string, form: FormData, onProgress?: (pct: number) => void): Promise<T> {
+  function postForm<T>(path: string, form: FormData, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<T> {
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
       x.open("POST", url + path);
+      signal?.addEventListener("abort", () => x.abort());
+      x.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
       x.setRequestHeader("Authorization", `Bearer ${token}`);
       x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((100 * e.loaded) / e.total));
       x.onload = () => {
@@ -434,6 +455,12 @@ export function makeApi(url: string, token: string) {
     });
   }
   return {
+    /** Thêm file video có sẵn (tự tải từ Douyin hay nơi khác) làm nguồn. */
+    uploadVideo: (file: File, onProgress?: (pct: number) => void, signal?: AbortSignal) => {
+      const form = new FormData();
+      form.append("file", file);
+      return postForm<UploadedVideo>("/api/uploads", form, onProgress, signal);
+    },
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),
     trends: (source?: string) =>

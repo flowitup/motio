@@ -3,11 +3,13 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  CircleCheck,
   Copy,
   Eraser,
   FolderOpen,
   Link2,
   Loader2,
+  OctagonAlert,
   Play,
   RotateCcw,
   Send,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { AddVideoFile } from "@/components/add-video-file";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
@@ -63,14 +66,20 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
             {sources.map((s, i) => (
               <li key={s.url} className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <ExternalA href={s.url} className="break-all">
-                    {s.platform} · {s.uploader || s.url}
-                  </ExternalA>
+                  {s.url.startsWith("file:") ? (
+                    <span className="break-all">
+                      {s.platform} · {s.title || s.url}
+                    </span>
+                  ) : (
+                    <ExternalA href={s.url} className="break-all">
+                      {s.platform} · {s.uploader || s.url}
+                    </ExternalA>
+                  )}
                   {pinned.has(s.url) && <span className="text-xs text-muted-foreground"> · {t.projects.pasted}</span>}
                   {s.delogo && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400"> · {t.delogo.cleaned}</span>
                   )}
-                  {s.title && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
+                  {s.title && !s.url.startsWith("file:") && <div className="truncate text-xs text-muted-foreground">{s.title}</div>}
                 </div>
                 <Link
                   to={`/delogo?target=p${p.id}-${i}`}
@@ -92,6 +101,7 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
               className="min-h-16 font-mono text-xs"
               aria-label={t.projects.addLinks}
             />
+            <AddVideoFile api={api} disabled={active} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
             <div className="flex flex-wrap items-center gap-3">
               <p className="mr-auto text-xs text-muted-foreground">{t.projects.addLinksHint}</p>
               <Button size="sm" variant="outline" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
@@ -116,6 +126,35 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
   );
 }
 
+/** Kết quả kiểm tra chất lượng của lần dựng gần nhất (qa.py): mức chung và từng mục. */
+function QualityCard({ qa, held }: { qa: NonNullable<ProjectDetail["meta"]["qa"]>; held: boolean }) {
+  const tone = { ok: "text-emerald-700 dark:text-emerald-400", warn: "text-amber-700 dark:text-amber-400", fail: "text-destructive" };
+  const Icon = { ok: CircleCheck, warn: TriangleAlert, fail: OctagonAlert };
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>{t.qa.card}</CardTitle>
+        <span className={`text-sm font-medium ${tone[qa.level]}`}>{t.qa.level[qa.level] ?? qa.level}</span>
+      </CardHeader>
+      <CardContent className="grid gap-1.5 text-sm">
+        {qa.level === "fail" && held && <p className="text-muted-foreground">{t.qa.failNote}</p>}
+        {qa.checks
+          .filter((c) => c.level !== "ok")
+          .map((c) => {
+            const I = Icon[c.level];
+            return (
+              <div key={`${c.id}-${c.msg}`} className={`flex items-start gap-2 ${tone[c.level]}`}>
+                <I className="mt-0.5 size-4 shrink-0" />
+                <span>{c.msg}</span>
+              </div>
+            );
+          })}
+        {qa.checks.every((c) => c.level === "ok") && <p className="text-muted-foreground">{qa.checks.map((c) => c.msg).join(" · ")}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Dự án dừng ở cổng duyệt của kênh: duyệt kịch bản (đọc giọng và dựng) hoặc duyệt video (gửi Postiz). */
 function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; channel: Channel | undefined; onDone: () => void }) {
   const approve = useMutation({ mutationFn: (send: boolean) => api.approve(p.id, send), onSuccess: onDone });
@@ -132,7 +171,11 @@ function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; c
           {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
         </p>
         {video && targets > 0 && p.dub?.needs_review && <p className="text-muted-foreground">{t.dub.reviewNote}</p>}
-        {video && targets > 0 && p.ai?.needs_review && <p className="text-muted-foreground">{t.ai.reviewNote}</p>}
+        {video && targets > 0 && p.ai?.needs_review && (
+          <p className="text-muted-foreground">
+            {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {video ? (
             <>
@@ -348,6 +391,8 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-5">
+          {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} held={p.status === "review" && p.meta.review === "video"} />}
+
           {post && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">
@@ -409,10 +454,14 @@ export default function ProjectDetailPage() {
                 <div className="text-muted-foreground">
                   {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
                   {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
-                  {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}`}
+                  {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}${p.ai.clip_provider ? ` (${t.ai.clipProviders[p.ai.clip_provider] ?? p.ai.clip_provider})` : ""}`}
                   {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}
                 </div>
-                {p.ai.needs_review && <div className="text-amber-700 dark:text-amber-400">{t.ai.reviewNote}</div>}
+                {p.ai.needs_review && (
+                  <div className="text-amber-700 dark:text-amber-400">
+                    {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

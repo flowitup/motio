@@ -3,6 +3,7 @@ import { ExternalLink, Link2, Loader2, RefreshCw, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
+import { AddVideoFile } from "@/components/add-video-file";
 import { ExternalA } from "@/components/external-link";
 import { ScoreBadge } from "@/components/status-chip";
 import { Badge } from "@/components/ui/badge";
@@ -167,6 +168,7 @@ export default function TrendsPage() {
                   placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
                   className="min-h-20 font-mono text-xs"
                 />
+                <AddVideoFile api={api} onAdded={(l) => setLinksText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
                 <p className="text-xs text-muted-foreground">{t.trends.linksHint}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="mr-auto flex items-center gap-2 text-sm">

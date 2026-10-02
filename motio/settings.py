@@ -13,8 +13,9 @@ KEYS = ("LLM_PROVIDER", "LLM_MODEL", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", 
         "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "YTDLP_COOKIES_FILE",
         "UI_LANG",
         "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
-        "IMAGE_STYLE", "AI_CLIP_USD_PER_SEC")
-SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL", "FAL_KEY")
+        "IMAGE_STYLE", "AI_CLIP_USD_PER_SEC", "CLIP_PROVIDER", "HEYGEN_API_KEY")
+SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL", "FAL_KEY",
+           "HEYGEN_API_KEY")
 MASK = "••••"
 
 _lock = threading.Lock()
@@ -83,6 +84,7 @@ def _normalize(v) -> str | None:
 
 def update(changes: dict) -> dict[str, dict]:
     """Ghi các khoá mới. Giá trị đã che (bắt đầu bằng ••••) bị bỏ qua; None xoá ghi đè (quay về .env)."""
+    from .aiclips import PROVIDERS as CLIP_PROVIDERS
     from .i18n import LANGS, tr  # i18n, notify và images đọc settings: nhập muộn cho khỏi vòng lặp import
     from .images import PROVIDERS
     from .notify import valid
@@ -94,6 +96,8 @@ def update(changes: dict) -> dict[str, dict]:
         raise ValueError(tr("UI_LANG must be one of {choices}", choices=", ".join(LANGS)))
     if changes.get("IMAGE_PROVIDER") not in (None, "", *PROVIDERS):
         raise ValueError(tr("IMAGE_PROVIDER must be one of {choices}", choices=", ".join(PROVIDERS)))
+    if changes.get("CLIP_PROVIDER") not in (None, "", *CLIP_PROVIDERS):
+        raise ValueError(tr("CLIP_PROVIDER must be one of {choices}", choices=", ".join(CLIP_PROVIDERS)))
     cookies = _normalize(changes.get("YTDLP_COOKIES_FILE"))
     if cookies:
         from .search import check_cookie_file

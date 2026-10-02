@@ -431,7 +431,7 @@ def clip_fake(fake, monkeypatch):
         c.execute("DELETE FROM usage")
     seen = {"calls": [], "fail": set()}
 
-    def generate(picture, text, seed=0):
+    def generate(picture, text, seed=0, **kw):
         seen["calls"].append((os.path.basename(picture), text, seed))
         if len(seen["calls"]) in seen["fail"]:
             raise aiclips.ClipError("fal said no")
@@ -578,6 +578,42 @@ def test_a_rerender_reuses_the_clips_and_does_not_pay_again(clip_fake):
     assert _clip_scenes(clip_fake) == [0, 5] and p["meta"]["ai"]["clips"] == 2
     assert p["meta"]["ai"]["cost"] == pytest.approx(0.8)
     assert "2 of 2 AI clips ready · about $0.00" in p["log"]
+
+
+def test_heygen_clips_never_go_out_without_approval(clip_fake, fake_postiz, monkeypatch):
+    _fal(monkeypatch)  # the pictures are from the cleared provider: only the clips are in question
+    monkeypatch.setenv("CLIP_PROVIDER", "heygen")
+    monkeypatch.setenv("HEYGEN_API_KEY", "hg-key")
+    pid = creator.create("Les pandas", 80, 2)
+    channels.attach(pid, _channel())  # no video gate and a Postiz channel: a normal video would be sent at once
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "video" and _posts(fake_postiz) == 0
+    assert p["meta"]["ai"]["clip_provider"] == "heygen" and creator.view(p)["clip_provider"] == "heygen"
+    assert "terms for monetized channels are not checked yet" in p["log"]
+    assert usage.for_project(pid)["clip_usd"] == pytest.approx(0.2)  # 2 clips × 5 s × $0.02
+    pipeline.approve_video(pid)
+    assert db.get_project(pid)["status"] == "done" and _posts(fake_postiz) == 1
+
+
+def test_a_settings_change_in_the_middle_of_a_render_does_not_mix_two_clip_providers(clip_fake, monkeypatch):
+    _fal(monkeypatch)  # the pictures are from the cleared provider: only the clips are in question
+    real = aiclips.generate
+
+    def switch_after_the_first(picture, text, seed=0, **kw):
+        out = real(picture, text, seed, **kw)
+        monkeypatch.setenv("CLIP_PROVIDER", "heygen")  # the owner changes the provider while the render runs
+        monkeypatch.setenv("HEYGEN_API_KEY", "hg-key")
+        return out
+
+    monkeypatch.setattr(aiclips, "generate", switch_after_the_first)
+    pid = creator.create("Les pandas", 80, 3)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert p["meta"]["ai"]["clips"] == 3 and p["meta"]["ai"]["clip_provider"] == "fal"
+    assert usage.for_project(pid)["clip_usd"] == pytest.approx(1.2)  # 3 × 5 s × fal's $0.08, none at HeyGen's $0.02
+    assert not creator.clips_need_review(p)  # all three clips came from fal, whatever Settings says now
 
 
 def test_a_clip_fal_cannot_make_keeps_its_camera_move_and_the_video_finishes(clip_fake):
@@ -874,7 +910,7 @@ def test_real_clip_loses_its_sound_and_a_long_scene_holds_the_last_frame(monkeyp
     _tone_clip(src)
     assert "audio" in _streams(src)
     monkeypatch.setenv("FAL_KEY", "fal-key")
-    monkeypatch.setattr(aiclips, "generate", lambda picture, text, seed=0: src.read_bytes())
+    monkeypatch.setattr(aiclips, "generate", lambda picture, text, seed=0, **kw: src.read_bytes())
     pic, _ = images.make("Scene 0", 0, tmp_path / "scenes", "placeholder")
     clip, new = aiclips.make(pic, "A panda.", 0, tmp_path / "clips")
     assert new and _streams(clip) == ["video"]

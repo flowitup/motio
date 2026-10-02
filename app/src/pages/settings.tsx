@@ -344,13 +344,23 @@ function SettingsForm({ api }: { api: Api }) {
           <Field label="FAL_KEY" hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
             {secret("FAL_KEY")}
           </Field>
+          <Field label={t.settings.clipProvider} hint={src("CLIP_PROVIDER") ?? t.settings.clipProviderHint}>
+            <Choice
+              value={val("CLIP_PROVIDER") || "fal"}
+              onChange={(v) => set("CLIP_PROVIDER", v)}
+              options={(["fal", "heygen"] as const).map((k) => [k, t.ai.clipProviders[k]])}
+            />
+          </Field>
+          <Field label="HEYGEN_API_KEY" hint={src("HEYGEN_API_KEY") ?? t.settings.heygenKeyHint}>
+            {secret("HEYGEN_API_KEY")}
+          </Field>
           <Field label={t.settings.clipPrice} hint={t.settings.clipPriceHint}>
             <Input
               type="number"
               min={0}
               step="0.01"
               className="w-32"
-              value={val("AI_CLIP_USD_PER_SEC") || "0.08"}
+              value={val("AI_CLIP_USD_PER_SEC") || (val("CLIP_PROVIDER") === "heygen" ? "0.02" : "0.08")}
               onChange={(e) => set("AI_CLIP_USD_PER_SEC", e.target.value)}
             />
           </Field>

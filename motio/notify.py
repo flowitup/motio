@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from . import channels, db, settings
+from . import channels, db, qa, settings
 from .i18n import tr
 
 log = logging.getLogger("motio.notify")
@@ -66,8 +66,12 @@ def _text(p: dict, event: str, sent: bool | None, error: str) -> str:
     ch = channels.for_project(p)
     where = f" · {escape(ch['name'])}" if ch else ""
     if event == "review":
-        return ":eyes: " + tr("Script ready for your approval: {title}" if meta.get("review") == "script"
+        text = ":eyes: " + tr("Script ready for your approval: {title}" if meta.get("review") == "script"
                               else "Video ready for your approval: {title}", title=title) + where
+        if meta.get("review") != "script" and qa.failed(p):  # held by the quality check: say what it found
+            problems = " · ".join(c["msg"] for c in meta["qa"]["checks"] if c["level"] == "fail")
+            text += "\n" + tr("Quality check failed: {problems}", problems=escape(problems[:300]))
+        return text
     if event == "failed":
         head = ":x: " + tr("Video failed: {title}", title=title) + where
         return head + (f"\n{escape(error.strip().splitlines()[0][:200])}" if error.strip() else "")

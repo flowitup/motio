@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Plus, Sparkles, Trash2, Video, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice, Field } from "@/components/form";
@@ -56,8 +57,10 @@ function AiForm({ api }: { api: Api }) {
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
   const provider = settings?.IMAGE_PROVIDER?.value || "fal";
   const needsKey = !!settings && provider === "fal" && !settings.FAL_KEY?.value;
-  const needsClipKey = !!settings && Number(clips) > 0 && !settings.FAL_KEY?.value;
-  const clipUsd = (5 * Number(settings?.AI_CLIP_USD_PER_SEC?.value || "0.08")).toFixed(2);
+  const clipProvider = settings?.CLIP_PROVIDER?.value === "heygen" ? "heygen" : "fal";
+  const clipKey = clipProvider === "heygen" ? settings?.HEYGEN_API_KEY?.value : settings?.FAL_KEY?.value;
+  const needsClipKey = !!settings && Number(clips) > 0 && !clipKey;
+  const clipUsd = (5 * Number(settings?.AI_CLIP_USD_PER_SEC?.value || (clipProvider === "heygen" ? "0.02" : "0.08"))).toFixed(2);
   const create = useMutation({
     mutationFn: () =>
       api.createAi({
@@ -103,9 +106,11 @@ function AiForm({ api }: { api: Api }) {
         />
       </Field>
       <p className={needsKey || needsClipKey ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>
-        {needsKey || needsClipKey
+        {needsKey
           ? t.ai.needsKey
-          : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
+          : needsClipKey
+            ? t.ai.needsClipKey(clipProvider === "heygen" ? "HeyGen" : "fal")
+            : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0")}
       </p>
       <div className="flex items-center justify-end gap-3">
         {create.error && <p className="mr-auto text-sm text-destructive">{create.error.message}</p>}
@@ -147,7 +152,10 @@ function DubForm({ api }: { api: Api }) {
   return (
     <CardContent className="grid gap-4">
       <Field label={t.dub.link} hint={t.dub.linkHint}>
-        <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
+        <div className="grid gap-2">
+          <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t.dub.linkPlaceholder} />
+          <AddVideoFile api={api} onAdded={setLink} />
+        </div>
       </Field>
       <Field
         label={t.dub.part}
@@ -218,13 +226,16 @@ function TopicForm({ api }: { api: Api }) {
         <Field label={t.projects.topic} hint={t.projects.topicHint}>
           <Input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.projects.topicPlaceholder} />
         </Field>
-        <Field label={t.projects.links} hint={t.projects.linksHint}>
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
-            className="min-h-20 font-mono text-xs"
-          />
+        <Field label={t.projects.links} hint={`${t.projects.linksHint} ${t.upload.hint}`}>
+          <div className="grid gap-2">
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"https://www.douyin.com/video/…\nhttps://www.bilibili.com/video/BV…\nhttps://www.facebook.com/reel/…"}
+              className="min-h-20 font-mono text-xs"
+            />
+            <AddVideoFile api={api} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
+          </div>
         </Field>
         {topic.trim() && links.length > 0 && (
           <label className="flex items-center gap-2 text-sm">

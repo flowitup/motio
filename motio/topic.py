@@ -1,7 +1,7 @@
 """Chế độ "Chủ đề": video giải thích tiếng Pháp về một chủ đề bất kỳ hoặc từ link video, không cần tin hot."""
 from urllib.parse import urlparse
 
-from . import db, llm, search
+from . import db, llm, localfile, search
 from .i18n import tr
 
 MODE = "topic"
@@ -91,7 +91,8 @@ def create(topic: str = "", links: list[str] | None = None, links_only: bool = F
     title = topic
     if not title:
         more = f" (+{len(links) - 1})" if len(links) > 1 else ""
-        title = tr("Video from {site}", site=urlparse(links[0]).hostname or "link") + more
+        site = localfile.title(links[0]) if localfile.parse(links[0]) else urlparse(links[0]).hostname or "link"
+        title = tr("Video from {site}", site=site) + more
     pid = db.create_project(None, title, mode=MODE)
     db.update_project(pid, log=tr("Topic: {topic} · links: {links} · {duration} s", topic=topic or tr("(links only)"),
                                   links=len(links), duration=duration),

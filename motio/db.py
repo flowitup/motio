@@ -66,8 +66,21 @@ def conn() -> sqlite3.Connection:
     return c
 
 
+# Columns added after a table first shipped: installed databases get them with ALTER TABLE.
+NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER"}}
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    for table, cols in NEW_COLUMNS.items():
+        have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols.items():
+            if name not in have:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
 with conn() as _c:
     _c.executescript(SCHEMA)
+    _migrate(_c)
 
 
 def _row(r):
@@ -294,7 +307,8 @@ def known_clip_ids(ids: list[str]) -> set[str]:
 
 def insert_clips(clips: list[dict]) -> None:
     now = time.time()
-    keys = ("id", "watch_id", "site", "url", "title", "uploader", "duration", "views", "thumbnail", "status")
+    keys = ("id", "watch_id", "site", "url", "title", "uploader", "duration", "views", "thumbnail", "status",
+            "likes", "pubdate", "category", "rank")
     with _lock, conn() as c:
         c.executemany(f"INSERT OR IGNORE INTO clip ({', '.join(keys)}, first_seen) "
                       f"VALUES ({', '.join(':' + k for k in keys)}, :now)",
@@ -307,7 +321,8 @@ def score_clip(cid: str, title_fr: str | None, score: int | None, reason: str | 
 
 
 def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 200) -> list[dict]:
-    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.rights AS rights "
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target, "
+           "watch.rights AS rights "
            "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.status = ?")
     args: list = [status]
     if watch_id:

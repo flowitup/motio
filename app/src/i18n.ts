@@ -91,6 +91,9 @@ const en = {
     openProject: "Open project",
     views: (n: number) =>
       (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`) + (n === 1 ? " view" : " views"),
+    likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} likes`,
+    rank: (n: number) => `#${n} in the list`,
+    posted: "posted",
     sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
   },
   watches: {
@@ -103,9 +106,34 @@ const en = {
     enabled: "Enabled",
     remove: "Remove source",
     confirmRemove: (name: string) => `Remove “${name}”? Videos from this source that you haven't made yet are removed too.`,
-    kinds: { channel: "Channel", playlist: "Playlist", space: "Space", search: "Search" } as Record<string, string>,
+    kinds: { channel: "Channel", playlist: "Playlist", space: "Space", search: "Search", trending: "Trending" } as Record<string, string>,
     newCount: (n: number) => `${n} new`,
     notChecked: "not checked yet",
+    trending: "Bilibili trending",
+    trendingHint:
+      "Follow what is hot on Bilibili: a category ranking, the popular list or the weekly must-watch. Reposts and videos whose creator marked them “no reprint” are left out. Whether you may reuse a video stays your call (rights: Unknown).",
+    trendingAdd: "Follow list",
+    lists: {
+      "bilibili:ranking:181": "Ranking · Film & TV",
+      "bilibili:ranking:0": "Ranking · All categories",
+      "bilibili:ranking:5": "Ranking · Entertainment",
+      "bilibili:ranking:36": "Ranking · Knowledge",
+      "bilibili:ranking:188": "Ranking · Tech",
+      "bilibili:ranking:160": "Ranking · Life",
+      "bilibili:ranking:211": "Ranking · Food",
+      "bilibili:ranking:217": "Ranking · Animals",
+      "bilibili:ranking:223": "Ranking · Cars",
+      "bilibili:ranking:234": "Ranking · Sports",
+      "bilibili:ranking:155": "Ranking · Fashion",
+      "bilibili:ranking:4": "Ranking · Games",
+      "bilibili:ranking:1": "Ranking · Animation",
+      "bilibili:ranking:168": "Ranking · Chinese animation",
+      "bilibili:ranking:3": "Ranking · Music",
+      "bilibili:ranking:129": "Ranking · Dance",
+      "bilibili:ranking:119": "Ranking · Memes",
+      "bilibili:popular": "Popular",
+      "bilibili:weekly": "Weekly must-watch",
+    } as Record<string, string>,
   },
   projects: {
     title: "Projects",
@@ -247,10 +275,20 @@ const en = {
     summaryAuto: (score: number, n: number) => `Auto-makes topics scoring ${score}+ (up to ${n} a day)`,
     aiClips: "AI clips per video",
     aiClipsHint:
-      "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the fal key in Settings.",
+      "AI videos only. This many scenes become short AI video clips (fal H3 Max, about $0.40 each, or HeyGen Video 1, about $0.10 each: pick the provider in Settings) instead of a camera move on the picture; 0 means pictures only. A video can set its own number when you make it. Needs the key of the chosen provider in Settings.",
     summaryClips: (n: number) => `${plural(n, "AI clip")} per video`,
     none: "No channel",
     pick: "Channel",
+  },
+  upload: {
+    add: "Add a video file",
+    uploading: (pct: number) => `Sending… ${pct} %`,
+    hint: "Downloaded the video yourself (Douyin, a screen recording, anywhere)? Add the file: it is used like a link.",
+  },
+  qa: {
+    card: "Quality check",
+    level: { ok: "Passed", warn: "Look at it", fail: "Problem found" } as Record<string, string>,
+    failNote: "The video is not sent to Postiz by itself because of the problems marked below. Watch it, then approve it or fix it and re-render.",
   },
   review: {
     script: "Script awaiting your approval",
@@ -407,6 +445,7 @@ const en = {
     providerHint: (name: string, usd: string) =>
       `Pictures come from ${name} (Settings → AI pictures): about $${usd} for a 12-scene video.`,
     needsKey: "Add your fal key in Settings → AI pictures first (or choose the placeholder there to try the flow).",
+    needsClipKey: (name: string) => `Add your ${name} key in Settings → AI pictures first, or set AI clips to 0.`,
     clips: "AI clips",
     clipsHint: (usd: string) =>
       `How many scenes become short AI video clips instead of a camera move on the picture (0–6). Leave empty to use the channel's setting. About $${usd} a clip, paid only for clips that are new.`,
@@ -424,6 +463,10 @@ const en = {
     cost: (usd: number, clips: boolean) => `${clips ? "Pictures and clips" : "Pictures"} so far: about $${usd.toFixed(2)}`,
     reviewNote:
       "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself, or choose fal in Settings → AI pictures and remake the pictures.",
+    clipReviewNote:
+      "The clips come from a provider whose terms for monetized channels aren't checked yet, so Motio doesn't send this video on its own. Approve it yourself, or choose fal as the clip provider in Settings → AI pictures and remake the clips.",
+    clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
+    clipsFrom: "Clips from",
     scriptHint:
       "Each line is a scene: what the voice says, the English prompt of its picture and a slow camera move. Edit what you like, then click “Save and re-render”: only scenes whose prompt changed get a new picture.",
     style: "Visual style",
@@ -607,7 +650,11 @@ const en = {
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
     clipPrice: "AI clip price ($ per second)",
     clipPriceHint:
-      "fal H3 Max at 768p is about $0.08 a second and every clip lasts 5 seconds. Used for the cost estimate and the monthly budget.",
+      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02 ($0.01 until the end of October 2026); every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the clip provider chosen above.",
+    clipProvider: "Clip provider",
+    clipProviderHint:
+      "Who turns a scene's picture into a 5-second clip. HeyGen Video 1 is much cheaper, but its terms for monetized channels are not checked yet, so videos with HeyGen clips stop at the video approval.",
+    heygenKeyHint: "From app.heygen.com → Developers → API. Pay-as-you-go: top up the API balance ($5 minimum).",
     slackTest: "Send a test message",
     slackSaveFirst: "Save first",
     slackSent: "Sent, check Slack",
@@ -736,6 +783,9 @@ const vi: Messages = {
     unhide: "Hiện lại",
     openProject: "Mở dự án",
     views: (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`) + " lượt xem",
+    likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} lượt thích`,
+    rank: (n: number) => `hạng ${n} trong bảng`,
+    posted: "đăng",
     sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
   },
   watches: {
@@ -748,9 +798,34 @@ const vi: Messages = {
     enabled: "Bật",
     remove: "Xoá nguồn",
     confirmRemove: (name: string) => `Xoá “${name}”? Các video chưa làm của nguồn này cũng bị xoá.`,
-    kinds: { channel: "Kênh", playlist: "Playlist", space: "Không gian", search: "Tìm kiếm" } as Record<string, string>,
+    kinds: { channel: "Kênh", playlist: "Playlist", space: "Không gian", search: "Tìm kiếm", trending: "Xu hướng" } as Record<string, string>,
     newCount: (n: number) => `${n} mới`,
     notChecked: "chưa kiểm tra",
+    trending: "Xu hướng Bilibili",
+    trendingHint:
+      "Theo dõi video đang hot trên Bilibili: bảng xếp hạng theo chuyên mục, mục thịnh hành hoặc “mỗi tuần một xem”. Video đăng lại và video mà tác giả đánh dấu “cấm đăng lại” bị bỏ qua. Có được dùng lại video hay không vẫn do bạn quyết (quyền: Chưa rõ).",
+    trendingAdd: "Theo dõi bảng này",
+    lists: {
+      "bilibili:ranking:181": "Xếp hạng · Phim ảnh",
+      "bilibili:ranking:0": "Xếp hạng · Toàn bộ",
+      "bilibili:ranking:5": "Xếp hạng · Giải trí",
+      "bilibili:ranking:36": "Xếp hạng · Kiến thức",
+      "bilibili:ranking:188": "Xếp hạng · Công nghệ",
+      "bilibili:ranking:160": "Xếp hạng · Đời sống",
+      "bilibili:ranking:211": "Xếp hạng · Ẩm thực",
+      "bilibili:ranking:217": "Xếp hạng · Động vật",
+      "bilibili:ranking:223": "Xếp hạng · Xe",
+      "bilibili:ranking:234": "Xếp hạng · Thể thao",
+      "bilibili:ranking:155": "Xếp hạng · Thời trang",
+      "bilibili:ranking:4": "Xếp hạng · Game",
+      "bilibili:ranking:1": "Xếp hạng · Hoạt hình",
+      "bilibili:ranking:168": "Xếp hạng · Hoạt hình Trung Quốc",
+      "bilibili:ranking:3": "Xếp hạng · Âm nhạc",
+      "bilibili:ranking:129": "Xếp hạng · Nhảy",
+      "bilibili:ranking:119": "Xếp hạng · Meme",
+      "bilibili:popular": "Thịnh hành",
+      "bilibili:weekly": "Nên xem mỗi tuần",
+    } as Record<string, string>,
   },
   projects: {
     title: "Dự án",
@@ -891,10 +966,20 @@ const vi: Messages = {
     summaryAuto: (score: number, n: number) => `Tự làm tin từ ${score} điểm (tối đa ${n} video mỗi ngày)`,
     aiClips: "Số clip AI mỗi video",
     aiClipsHint:
-      "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá fal trong Cài đặt.",
+      "Chỉ cho video AI. Từng ấy cảnh sẽ là clip video AI ngắn (fal H3 Max, khoảng $0,40 một clip, hoặc HeyGen Video 1, khoảng $0,10 một clip: chọn nhà cung cấp trong Cài đặt) thay vì chuyển động máy quay trên ảnh; 0 là chỉ dùng ảnh. Mỗi video có thể đặt số riêng khi làm. Cần khoá của nhà cung cấp đã chọn trong Cài đặt.",
     summaryClips: (n: number) => `${n} clip AI mỗi video`,
     none: "Không dùng kênh",
     pick: "Kênh",
+  },
+  upload: {
+    add: "Thêm file video",
+    uploading: (pct: number) => `Đang gửi… ${pct} %`,
+    hint: "Đã tự tải video về (Douyin, quay màn hình, bất kỳ đâu)? Thêm file vào đây: dùng như một link.",
+  },
+  qa: {
+    card: "Kiểm tra chất lượng",
+    level: { ok: "Đạt", warn: "Nên xem lại", fail: "Có lỗi" } as Record<string, string>,
+    failNote: "Video không tự gửi sang Postiz vì các lỗi đánh dấu bên dưới. Xem lại video rồi duyệt, hoặc sửa và dựng lại.",
   },
   review: {
     script: "Kịch bản đang chờ bạn duyệt",
@@ -1051,6 +1136,7 @@ const vi: Messages = {
     providerHint: (name: string, usd: string) =>
       `Ảnh lấy từ ${name} (Cài đặt → Ảnh AI): khoảng $${usd} cho video 12 cảnh.`,
     needsKey: "Hãy nhập khoá fal ở Cài đặt → Ảnh AI trước (hoặc chọn ảnh giữ chỗ ở đó để thử luồng này).",
+    needsClipKey: (name: string) => `Hãy nhập khoá ${name} ở Cài đặt → Ảnh AI trước, hoặc đặt số clip AI về 0.`,
     clips: "Clip AI",
     clipsHint: (usd: string) =>
       `Bao nhiêu cảnh thành clip video AI ngắn thay vì chuyển động máy quay trên ảnh (0–6). Để trống thì theo cài đặt của kênh. Khoảng $${usd} một clip, chỉ tính clip mới làm.`,
@@ -1068,6 +1154,10 @@ const vi: Messages = {
     cost: (usd: number, clips: boolean) => `${clips ? "Tiền ảnh và clip" : "Tiền ảnh"} đến giờ: khoảng $${usd.toFixed(2)}`,
     reviewNote:
       "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal trong Cài đặt → Ảnh AI rồi làm lại ảnh.",
+    clipReviewNote:
+      "Các clip đến từ nhà cung cấp chưa kiểm tra điều khoản cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal làm nhà cung cấp clip trong Cài đặt → Ảnh AI rồi làm lại clip.",
+    clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
+    clipsFrom: "Clip từ",
     scriptHint:
       "Mỗi dòng là một cảnh: lời đọc, prompt ảnh tiếng Anh và chuyển động máy quay chậm. Sửa tuỳ ý rồi bấm “Lưu và dựng lại”: chỉ cảnh nào đổi prompt mới được làm ảnh mới.",
     style: "Phong cách hình",
@@ -1251,7 +1341,11 @@ const vi: Messages = {
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
     clipPrice: "Giá clip AI ($ mỗi giây)",
     clipPriceHint:
-      "fal H3 Max ở 768p khoảng $0,08 một giây và mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng.",
+      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02 ($0,01 đến hết tháng 10/2026); mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp clip đã chọn ở trên.",
+    clipProvider: "Nhà cung cấp clip",
+    clipProviderHint:
+      "Nơi biến ảnh của cảnh thành clip 5 giây. HeyGen Video 1 rẻ hơn nhiều nhưng chưa kiểm tra điều khoản cho kênh kiếm tiền, nên video có clip HeyGen dừng ở bước duyệt video.",
+    heygenKeyHint: "Lấy ở app.heygen.com → Developers → API. Trả theo dùng: nạp số dư API (tối thiểu $5).",
     slackTest: "Gửi tin thử",
     slackSaveFirst: "Lưu trước",
     slackSent: "Đã gửi, xem Slack",

@@ -1,7 +1,8 @@
-"""Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu → trang "Video mới".
+"""Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, xếp hạng Bilibili → trang "Video mới".
 
 yt-dlp chỉ liệt kê được kênh và tìm kiếm trên YouTube, Bilibili; Douyin, Facebook chỉ tải từng video (dán link
 vào Tạo video). Danh sách phẳng (extract_flat) không có ngày đăng, nên "mới" = chưa thấy bao giờ.
+Bảng xếp hạng / thịnh hành / "mỗi tuần một xem" của Bilibili (kind "trending") đọc qua API công khai, xem trending.py.
 """
 import json
 import re
@@ -11,12 +12,13 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 
 from yt_dlp import YoutubeDL
 
-from . import db, llm, search, topic
+from . import db, llm, search, topic, trending
 from .i18n import tr
 
-KINDS = ("channel", "playlist", "space", "search")
+KINDS = ("channel", "playlist", "space", "search", "trending")
 SITES = ("youtube", "bilibili")
 FIRST_TAKE = 10  # nguồn mới thêm: hiện 10 video mới nhất mỗi danh sách, phần còn lại coi như đã thấy
+TRENDING_TAKE = 20  # bảng xếp hạng mới thêm: hiện 20 video đầu bảng
 PER_LIST = 15  # mỗi lần kiểm tra đọc tối đa 15 mục đầu của mỗi danh sách
 MAX_DETAILS = 20  # số trang video tối đa đọc thêm mỗi lượt (Bilibili chỉ trả link, không có tiêu đề)
 MAX_WATCHES = 50
@@ -46,6 +48,8 @@ def classify(text: str, site: str = "youtube") -> dict:
     text = " ".join((text or "").split())
     if not text:
         raise ValueError(tr("Paste a channel / playlist link or enter search keywords"))
+    if text.startswith(trending.PREFIX):  # "bilibili:ranking:181", "bilibili:popular", "bilibili:weekly"
+        return {"kind": "trending", "site": "bilibili", "target": text, "name": trending.name(text)}
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
             raise ValueError(tr("Search works only on YouTube or Bilibili, not {site}", site=site))
@@ -108,6 +112,8 @@ def _opts(site: str, n: int | None = None) -> dict:
 
 
 def _urls(w: dict) -> list[str]:
+    if w["kind"] == "trending":  # đọc bằng trending.fetch, không qua yt-dlp
+        return []
     if w["kind"] == "channel" and w["site"] == "youtube":
         return [f"{w['target']}/{tab}" for tab in YT_TABS]
     if w["kind"] == "search":
@@ -192,6 +198,15 @@ def check(w: dict) -> dict:
     first = not w["last_checked"]
     found: dict[str, dict] = {}
     owner, errors, ok = None, [], False
+    if w["kind"] == "trending":
+        try:
+            batch = trending.fetch(w["target"])
+        except (trending.TrendingError, ValueError) as e:
+            errors.append(str(e)[:300])
+        else:
+            ok = True
+            for i, c in enumerate(batch):
+                found[c["id"]] = {**c, "watch_id": w["id"], "status": "old" if first and i >= TRENDING_TAKE else "new"}
     for url in _urls(w):
         try:
             with YoutubeDL(_opts(w["site"], PER_LIST)) as y:
@@ -239,6 +254,9 @@ SCORE_PROMPT = """Voici de nouvelles vidéos publiées par des chaînes et des r
 - reason : 5–12 mots expliquant le score
 
 Une durée null est inconnue (fréquent pour les Shorts) : ne baisse pas le score pour autant.
+Pour une vidéo d'un classement Bilibili (catégorie, likes, âge en heures), le score mesure aussi le potentiel d'un
+doublage ou d'un commentaire en français : paroles claires et courtes, situation compréhensible sans connaître la
+Chine, peu de texte incrusté. Un classement dit ce qui buzze, pas ce qu'on a le droit de reprendre : ne le suppose pas.
 
 Réponds avec une liste JSON d'objets {{"id", "title_fr", "score", "reason"}}.
 
@@ -253,13 +271,21 @@ def _int(v) -> int | None:
         return None
 
 
+def _trend_fields(c: dict) -> dict:
+    """Catégorie, likes et âge d'une vidéo de classement (absents des autres sources)."""
+    out = {"catégorie": c.get("category"), "likes": c.get("likes"),
+           "âge_h": round((time.time() - c["pubdate"]) / 3600) if c.get("pubdate") else None}
+    return {k: v for k, v in out.items() if v is not None}
+
+
 def score(clips: list[dict]) -> int:
     """Tiêu đề Pháp + điểm cho video mới: một lần gọi Claude (effort thấp) mỗi lô 20, 4 lô song song."""
     def run(batch: list[dict]) -> int:
         lines = "\n".join(json.dumps({"id": c["id"], "plateforme": c["site"], "chaîne": c["uploader"],
                                       "format": "Short" if "/shorts/" in (c["url"] or "") else "vidéo",
                                       "durée_s": int(c["duration"]) if c["duration"] else None,
-                                      "vues": c["views"], "titre": c["title"]}, ensure_ascii=False) for c in batch)
+                                      "vues": c["views"], "titre": c["title"],
+                                      **_trend_fields(c)}, ensure_ascii=False) for c in batch)
         result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low")
         by_id = {r.get("id"): r for r in result if isinstance(r, dict)} if isinstance(result, list) else {}
         for c in batch:
