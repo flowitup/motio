@@ -268,16 +268,17 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
 
 
 def _step_download(chosen: list[dict], step) -> list[dict]:
-    sources = []
+    sources, last_error = [], ""
     for i, c in enumerate(chosen):
         step("Download", 12 + int(20 * i / len(chosen)), tr("Downloading {url}", url=c["url"]))
         try:
             sources.append(search.download(c["url"], config.CACHE / "sources", cookies=bool(c.get("pinned"))))
         except Exception as e:
-            step("Download", 12 + int(20 * i / len(chosen)),
-                 tr("Skipped (download error): {error}", error=str(e)[:160]))
+            last_error = str(e)[:160]
+            step("Download", 12 + int(20 * i / len(chosen)), tr("Skipped (download error): {error}", error=last_error))
     if not sources:
-        raise RuntimeError(tr("Could not download any source video"))
+        # the reason (a removed or private Douyin video, no cookies…) goes in the headline, not only in the log
+        raise RuntimeError(tr("Could not download any source video") + (f": {last_error}" if last_error else ""))
     step("Download", 32, tr("Downloaded {sources}", sources=tr_n(len(sources), "source")),
          sources=[{k: s[k] for k in ("path", "url", "id", "platform", "uploader", "uploader_url", "title",
                                      "duration", "license", "upload_date")} for s in sources])

@@ -12,6 +12,7 @@ JAR = ("# Netscape HTTP Cookie File\n"
 
 class FakeYDL:
     opts: list = []
+    urls: list = []
 
     def __init__(self, opts):
         FakeYDL.opts.append(opts)
@@ -24,6 +25,7 @@ class FakeYDL:
         return False
 
     def extract_info(self, url, download=False, process=True):
+        FakeYDL.urls.append(url)
         if not download:
             return {"entries": []}
         (self.out / "Fake_1.mp4").write_bytes(b"video")
@@ -35,7 +37,7 @@ class FakeYDL:
 
 @pytest.fixture(autouse=True)
 def fake_ydl(monkeypatch, tmp_path):
-    FakeYDL.opts = []
+    FakeYDL.opts, FakeYDL.urls = [], []
     monkeypatch.setattr(search, "YoutubeDL", FakeYDL)
     monkeypatch.setattr(search.config, "ffmpeg", lambda: "ffmpeg")
     monkeypatch.setattr(search, "_jar_dir", None)  # thư mục bản sao riêng của từng test
@@ -123,6 +125,8 @@ def test_douyin_links_try_f2_first_and_skip_yt_dlp_when_it_works(monkeypatch, tm
     monkeypatch.setattr(douyin, "download", fake)
     info = search.download("https://v.douyin.com/iNUBcHxM/", tmp_path, 480, cookies=True)
     assert info["id"] == "1" and calls == [("https://v.douyin.com/iNUBcHxM/", 480)] and FakeYDL.opts == []
+    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)  # không nói cỡ: Douyin lấy bản lớn nhất đến 1080
+    assert calls[-1] == ("https://v.douyin.com/iNUBcHxM/", 1080)
 
 
 def test_douyin_links_fall_back_to_yt_dlp_when_f2_cannot(tmp_path):
@@ -145,3 +149,42 @@ def test_other_sites_never_go_through_f2(monkeypatch, tmp_path):
     search.download("https://www.youtube.com/watch?v=abc", tmp_path)
     search.download("https://www.bilibili.com/video/BV1x", tmp_path)
     assert len(FakeYDL.opts) == 2
+
+
+def test_yt_dlp_gets_the_plain_video_link_when_f2_cannot(tmp_path):
+    """yt-dlp only knows www.douyin.com/video/<id>: the other forms are turned into it before the fallback."""
+    search.download("https://www.douyin.com/jingxuan?modal_id=7686432847778982833", tmp_path)
+    search.download("https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN", tmp_path)
+    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)  # no id without following the redirect: as it was
+    assert FakeYDL.urls == ["https://www.douyin.com/video/7686432847778982833",
+                            "https://www.douyin.com/video/7683844732023911406", "https://v.douyin.com/iNUBcHxM/"]
+
+
+SHARE = ("7.43 复制打开抖音，看看【某某的作品】标题 # 话题 https://v.douyin.com/iR2syBRn/ L@s.Fw 06/11 "
+         "复制此链接，打开Dou音搜索，直接观看视频！")
+
+
+@pytest.mark.parametrize("text, expected", [
+    (SHARE, "https://v.douyin.com/iR2syBRn/"),
+    ("https://v.douyin.com/iR2syBRn/ 复制此链接", "https://v.douyin.com/iR2syBRn/"),
+    ("看看 https://v.douyin.com/abc/复制此链接，打开", "https://v.douyin.com/abc/"),  # chữ Hán dính sát link
+    ("see (https://example.com/video/1).", "https://example.com/video/1"),
+    ("https://www.douyin.com/video/7686432847778982833", "https://www.douyin.com/video/7686432847778982833"),
+    ("https://example.com/视频/1", "https://example.com/视频/1"),  # link thuần có chữ Hán trong đường dẫn: giữ nguyên
+])
+def test_clean_links_takes_the_link_out_of_a_pasted_share_sentence(text, expected):
+    assert search.clean_links([text]) == [expected]
+    assert search.clean_links([text, expected]) == [expected]  # cùng link thì chỉ giữ một
+
+
+@pytest.mark.parametrize("text", ["7.43 复制打开抖音，没有链接 www.douyin.com", "复制此链接", "ftp://example.com/x y",
+                                  "a b"])
+def test_clean_links_still_refuses_text_without_a_link(text):
+    with pytest.raises(ValueError, match="Invalid link"):
+        search.clean_links([text])
+
+
+def test_without_a_height_other_sites_stay_at_720(tmp_path):
+    search.download("https://www.youtube.com/watch?v=abc", tmp_path)
+    search.download("https://www.youtube.com/watch?v=abc", tmp_path, 1080)
+    assert "height<=720" in FakeYDL.opts[0]["format"] and "height<=1080" in FakeYDL.opts[1]["format"]

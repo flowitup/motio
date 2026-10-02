@@ -79,7 +79,7 @@ def main() -> None:
             "--paths", str(ROOT),
             "--collect-submodules", "motio", "--collect-submodules", "yt_dlp",
             "--collect-submodules", "uvicorn", "--collect-all", "yt_dlp_ejs",
-            "--collect-all", "f2", "--collect-all", "execjs",  # f2 reads its yaml config and locale files from disk
+            "--collect-all", "f2",  # f2 reads its yaml config and locale files from disk
             "--exclude-module", "tkinter", "--exclude-module", "motio.web"]
     if platform.system() == "Darwin":
         # torch chỉ dùng trong mlx_whisper.torch_whisper (chuyển đổi model), không cần khi bóc lời

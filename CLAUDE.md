@@ -130,12 +130,17 @@ on every PR; keep them green.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Douyin: `motio/douyin.py` downloads public videos with the `f2` package (Johnserf-Seed/f2, Apache-2.0), added on the
-  owner's go of 2026-10-02. f2 is a pinned dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`);
-  never copy that signing code into this repo, so a newer f2 brings the new signatures when Douyin changes them. When f2
-  cannot (offline, signature out of date, Douyin refuses) the download falls back to yt-dlp, whose Douyin extractor needs
-  fresh browser cookies (a guest session is enough), and last to a video file added by hand (`localfile.py`). A removed,
-  private or photo-only post is final: no fallback. f2 is imported lazily (importing it asks Douyin for an `msToken`), its
-  logger is parked on a `NullHandler` so it makes no `./logs` folder, and tests switch it off (`conftest.py`).
+  owner's go of 2026-10-02 (what it does, the test results and how to bump f2: `docs/DOUYIN_F2.md`). f2 is a pinned
+  dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`); never copy that signing code into this
+  repo, so a newer f2 brings the new signatures when Douyin changes them. Douyin has to say why a post is gone (removed,
+  private, photos) for the download to be final; every other failure (offline, signature out of date, a 403, an answer
+  with no post and no reason) falls back to yt-dlp on the plain `douyin.com/video/<id>` link, whose extractor needs fresh
+  browser cookies (a guest session is enough), and last to a video file added by hand (`localfile.py`). f2 is imported
+  lazily and once (importing it asks Douyin for an `msToken`; a failed import is not retried for two minutes), its logger
+  is parked on a `NullHandler` so it makes no `./logs` folder, it gets empty stand-in modules for `browser_cookie3` and
+  `execjs` (not installed: LGPL cookie-store reader and a JavaScript runner for livestreams), and tests switch it off
+  (`conftest.py`). f2 does not check TLS certificates, so a stream link from its reply is fetched only when it is https to
+  a public address, redirects included; keep that check when touching `_save`.
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /

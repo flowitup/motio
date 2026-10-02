@@ -547,14 +547,15 @@ project files. Built in this batch:
   were not run. Not tested: keyword search, an author's video list.
 - **Douyin through f2 (02/10)**: on the owner's go ("Gắn f2 đi rồi test lại"), `motio/douyin.py` calls f2 as a pinned
   dependency (`f2==0.0.1.7`; its signing code is not copied into the repo). `search.download` tries it first for Douyin
-  links (full, `iesdouyin.com/share/video/<id>`, `?modal_id=`; `v.douyin.com` is resolved by f2) with an anonymous `ttwid`
-  and a fresh `msToken`, picks an H.264 stream (short side ≤ the requested height; Douyin's list of sizes differs from one
-  request to the next, so a 720 p stream is not always offered), saves `Douyin_<id>.mp4` and returns the same metadata as
-  the yt-dlp path. f2 failing returns `None` and yt-dlp takes over; a removed / private / photo post raises
-  `douyin.Unavailable` and is final. f2 pins exact versions (even pytest and black), so `pyproject.toml` gives uv its run-time
-  requirements through `[[tool.uv.dependency-metadata]]` with lower bounds only; the engine's other packages are unchanged.
-  The engine build carries f2's yaml / locale files (`--collect-all f2`) and checks them. Tested live on the Mac with four
-  public videos (portrait and landscape, three link forms) from a throwaway data dir, and from a frozen PyInstaller build.
+  links (any form, the `v.douyin.com` short link and the pasted share sentence included), asks Douyin up to three times
+  (a passing 403, or a thinner list of sizes than usual), takes the largest H.264 stream up to 1080 p on the short side
+  (owner's choice, 02/10; Tools → Download can cap it lower), saves `Douyin_<id>.mp4` and returns the same metadata as the
+  yt-dlp path. f2 failing returns `None` and yt-dlp takes over; a removed / private / photo post is final. f2 pins exact
+  versions (even pytest and black), so `pyproject.toml` gives uv its run-time requirements through
+  `[[tool.uv.dependency-metadata]]` with lower bounds; browser-cookie3 (LGPL) and pyexecjs are left out and f2 gets empty
+  stand-in modules. Reviewed by independent reviewers and tested live: 32/32 videos of a 38-post stratified sample
+  downloaded (yt-dlp without cookies: 0/11), link forms, repeats, threads, downstream use and a frozen build. Numbers,
+  risks and how to update f2: `docs/DOUYIN_F2.md`.
 - Not verified: a real HeyGen call and the H3 / HeyGen comparison, a Bilibili list through the app on the Mac, the quality
   check on a Mac-rendered video, the file upload of a large video through the Tauri webview.
 - Not included: consistent characters across clips and a series with many episodes (chosen by the owner for next), hints for

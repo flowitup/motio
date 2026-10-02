@@ -638,3 +638,12 @@ def test_slack_down_does_not_fail_the_video(fake, monkeypatch):
     pid = _new()
     pipeline.produce(pid)
     assert db.get_project(pid)["status"] == "done"
+
+
+def test_the_reason_a_download_failed_is_in_the_headline(monkeypatch):
+    def gone(*a, **k):
+        raise RuntimeError("This Douyin video was removed")
+
+    monkeypatch.setattr(pipeline.search, "download", gone)
+    with pytest.raises(RuntimeError, match="Could not download any source video: This Douyin video was removed"):
+        pipeline._step_download([{"url": "https://www.douyin.com/video/1"}], lambda *a, **k: None)
