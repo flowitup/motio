@@ -1,4 +1,5 @@
 """A video file added by hand as a source (motio/localfile.py): upload, link, download-like result, titles."""
+import hashlib
 import io
 import os
 import subprocess
@@ -230,6 +231,34 @@ def test_an_upload_copy_a_stopped_engine_left_behind_is_swept(monkeypatch):
         localfile.save("x.mp4", io.BytesIO(b"nope"))
     assert not old.exists() and fresh.exists()
     fresh.unlink()
+
+
+def test_a_conversion_cut_short_never_leaves_a_half_written_source(monkeypatch):
+    class Killed(BaseException):  # the engine stopping: no cleanup of ours is guaranteed to run
+        pass
+
+    def probe(path):  # no ffprobe needed: CI has none. The webm states no duration; the converted mp4 does.
+        return {"video": {"width": 320, "height": 568}, "duration": 3.0 if path.read_bytes() == b"ok" else 0.0}
+
+    def dies(src, dst):
+        dst.write_bytes(b"half")
+        raise Killed
+
+    def converts(src, dst):
+        dst.write_bytes(b"ok")
+
+    folder = config.CACHE / "sources"
+    uid = hashlib.sha256(b"raw").hexdigest()[:32]
+    monkeypatch.setattr(qa, "probe", probe)
+    monkeypatch.setattr(localfile, "_remux", dies)
+    with pytest.raises(Killed):
+        localfile.save("recording.webm", io.BytesIO(b"raw"))
+    assert not (folder / f"File_{uid}.mp4").exists()  # the same video must still be addable
+    monkeypatch.setattr(localfile, "_remux", converts)
+    saved = localfile.save("recording.webm", io.BytesIO(b"raw"))
+    assert localfile.parse(saved["link"])[0] == uid
+    assert localfile.path_of(uid).read_bytes() == b"ok" and saved["duration"] == 3.0
+    assert not list(folder.glob(".upload-*"))
 
 
 def test_a_file_source_is_not_credited_in_the_post_or_on_the_video(tmp_path, monkeypatch):
