@@ -36,7 +36,7 @@ as authoritative for scope and milestones.
   - `qa.py` quality check after every render (ffprobe + FFmpeg blackdetect / silencedetect / ebur128, saved as `meta.qa`) and
     warnings for a source, title or script used in the last 30 days; a `fail` holds the video at the gate when the channel
     has Postiz (`pipeline._why_held`), a warning is only shown
-  - `trending.py` Bilibili's own ranking (17 categories), popular and weekly lists as followed sources in `watch.py`
+  - `trending.py` Bilibili's own ranking (16 categories or all), popular and weekly lists as followed sources in `watch.py`
     (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
@@ -98,7 +98,7 @@ uv run python -m motio serve                # legacy dashboard on :8765
 uv run python -m motio engine --port 0 --token <t>
 # after M2:
 cd app && pnpm install && pnpm tauri dev
-# release: bump version in app/src-tauri/tauri.conf.json, then
+# release: bump the version (files listed in the dev skill, §9; tests/test_version.py checks them), then
 git tag vX.Y.Z && git push origin vX.Y.Z   # CI builds .dmg/.msi into a draft GitHub Release
 ```
 
