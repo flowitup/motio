@@ -4,7 +4,10 @@ import importlib.abc
 import importlib.machinery
 import importlib.util
 import logging
+import socket
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -12,7 +15,8 @@ import pytest
 
 from motio import douyin
 
-REAL_F2 = douyin._f2  # conftest tắt douyin._f2 trong mỗi test; bản thật lấy ở đây lúc nạp module test
+REAL_F2 = douyin._f2  # conftest tắt douyin._f2 và reachable trong mỗi test; bản thật lấy ở đây
+REAL_REACHABLE = douyin.reachable
 
 HEADERS = {"Referer": "https://www.douyin.com/", "User-Agent": "UA/1.0"}
 CDN = "https://cdn-a.example/v.mp4"
@@ -405,6 +409,7 @@ def fake_f2(monkeypatch):
     monkeypatch.setattr(sys, "meta_path", [finder, *sys.meta_path])
     monkeypatch.setattr(douyin, "_f2_loaded", None)
     monkeypatch.setattr(douyin, "_f2_failed", None)
+    monkeypatch.setattr(douyin, "_f2_loading", None)
     return finder
 
 
@@ -436,3 +441,79 @@ def test_f2_that_failed_to_load_is_not_retried_straight_away(fake_f2, monkeypatc
     for name in [n for n in sys.modules if n.startswith("f2.apps.douyin.")]:
         monkeypatch.delitem(sys.modules, name)  # lần nạp hỏng để lại module nửa vời; nạp lại từ đầu
     assert REAL_F2() and fake_f2.loads == 2
+
+
+def test_a_short_link_becomes_the_full_link_yt_dlp_understands(douyin_api):
+    douyin_api["redirects"] = {"v.douyin.com": "https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN"}
+    full = "https://www.douyin.com/video/7683844732023911406"
+    assert douyin.canonical_url("https://v.douyin.com/iNUBcHxM/") == full
+    assert douyin.canonical_url("https://www.douyin.com/jingxuan?modal_id=7683844732023911406") == full
+    assert len(douyin_api["requests"]) == 1  # the second link carries its id; the first lookup is not repeated
+
+
+def test_a_short_link_looked_up_once_is_not_followed_again(douyin_api):
+    douyin_api["redirects"] = {"v.douyin.com": "https://www.iesdouyin.com/share/video/7683844732023911406/"}
+    assert douyin._resolve_id("https://v.douyin.com/iNUBcHxM/") == "7683844732023911406"
+    douyin_api["redirects"] = {}  # the network is gone
+    assert douyin._resolve_id("https://v.douyin.com/iNUBcHxM/") == "7683844732023911406"
+    assert len(douyin_api["requests"]) == 1
+
+
+def test_a_link_with_no_post_id_has_no_canonical_link(douyin_api):
+    douyin_api["redirects"] = {"v.douyin.com": "https://login.example/?next=1"}
+    assert douyin.canonical_url("https://v.douyin.com/abc/") is None
+    assert douyin.canonical_url("https://www.douyin.com/user/MS4wLjAB") is None
+
+
+def _network_gone(monkeypatch):
+    def no_dns(host):
+        raise socket.gaierror("no network")
+
+    monkeypatch.setattr(douyin, "_resolve_host", no_dns)
+
+
+def test_a_lookup_that_fails_is_not_remembered(douyin_api, monkeypatch):
+    _network_gone(monkeypatch)
+    assert douyin.canonical_url("https://v.douyin.com/iNUBcHxM/") is None
+    assert douyin._ids == {}
+
+
+def test_reachable_is_true_for_any_answer_and_false_for_a_network_failure(douyin_api, monkeypatch):
+    assert REAL_REACHABLE()
+    douyin_api["down"] = {"www.douyin.com"}  # a 503 is still an answer
+    assert REAL_REACHABLE()
+    _network_gone(monkeypatch)
+    assert not REAL_REACHABLE()
+
+
+def test_f2_that_loads_too_slowly_is_given_up_on_and_used_once_it_arrives(fake_f2, monkeypatch):
+    """Dropped packets make the msToken request hang for minutes: the first Douyin link must not wait for it."""
+    gate, started = threading.Event(), threading.Event()
+    original = douyin._import_f2
+
+    def slow():
+        started.set()
+        gate.wait(5)
+        return original()
+
+    monkeypatch.setattr(douyin, "_import_f2", slow)
+    monkeypatch.setattr(douyin, "_F2_LOAD_TIMEOUT", 0.2)
+    began = time.monotonic()
+    with pytest.raises(TimeoutError):
+        REAL_F2()
+    assert time.monotonic() - began < 3 and started.is_set()
+    with pytest.raises(RuntimeError, match="a moment ago"):
+        REAL_F2()  # the next video does not wait again
+    gate.set()
+    for _ in range(100):
+        if douyin._f2_loaded:
+            break
+        time.sleep(0.05)
+    assert REAL_F2()  # the load finished in the background: f2 works from now on
+    assert fake_f2.loads == 1
+
+
+def test_a_timeout_from_f2_is_not_asked_again(douyin_api, tmp_path):
+    douyin_api["raw"] = TimeoutError("f2 did not load within 25 s")
+    assert douyin.download("https://www.douyin.com/video/1", tmp_path) is None
+    assert douyin_api["asked"] == ["1"]  # one try, not three

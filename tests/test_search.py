@@ -151,13 +151,14 @@ def test_other_sites_never_go_through_f2(monkeypatch, tmp_path):
     assert len(FakeYDL.opts) == 2
 
 
-def test_yt_dlp_gets_the_plain_video_link_when_f2_cannot(tmp_path):
+def test_yt_dlp_gets_the_plain_video_link_when_f2_cannot(monkeypatch, tmp_path):
     """yt-dlp only knows www.douyin.com/video/<id>: the other forms are turned into it before the fallback."""
     search.download("https://www.douyin.com/jingxuan?modal_id=7686432847778982833", tmp_path)
     search.download("https://www.iesdouyin.com/share/video/7683844732023911406/?region=CN", tmp_path)
-    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)  # no id without following the redirect: as it was
+    monkeypatch.setattr(douyin, "_resolve_id", lambda url: "42")  # the redirect of the short link, followed
+    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)
     assert FakeYDL.urls == ["https://www.douyin.com/video/7686432847778982833",
-                            "https://www.douyin.com/video/7683844732023911406", "https://v.douyin.com/iNUBcHxM/"]
+                            "https://www.douyin.com/video/7683844732023911406", "https://www.douyin.com/video/42"]
 
 
 SHARE = ("7.43 复制打开抖音，看看【某某的作品】标题 # 话题 https://v.douyin.com/iR2syBRn/ L@s.Fw 06/11 "
@@ -197,3 +198,32 @@ def test_without_a_height_other_sites_stay_at_720(tmp_path):
     search.download("https://www.youtube.com/watch?v=abc", tmp_path)
     search.download("https://www.youtube.com/watch?v=abc", tmp_path, 1080)
     assert "height<=720" in FakeYDL.opts[0]["format"] and "height<=1080" in FakeYDL.opts[1]["format"]
+
+
+def test_a_short_douyin_link_reaches_yt_dlp_as_the_full_link(monkeypatch, tmp_path):
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: None)  # f2 could not
+    monkeypatch.setattr(douyin, "canonical_url", lambda url: "https://www.douyin.com/video/77")
+    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)
+    assert FakeYDL.urls == ["https://www.douyin.com/video/77"]
+
+
+def test_a_short_douyin_link_with_no_id_is_left_as_it_is(monkeypatch, tmp_path):
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: None)
+    monkeypatch.setattr(douyin, "canonical_url", lambda url: None)
+    search.download("https://v.douyin.com/iNUBcHxM/", tmp_path)
+    assert FakeYDL.urls == ["https://v.douyin.com/iNUBcHxM/"]
+
+
+@pytest.mark.parametrize("online, message", [(False, "Cannot reach Douyin"), (True, "add the file")])
+def test_a_douyin_failure_blames_the_network_when_it_is_down_and_the_cookies_when_it_is_not(
+        monkeypatch, tmp_path, online, message):
+    """With no network yt-dlp's Douyin extractor also says "fresh cookies": do not send the user to cookies."""
+    from yt_dlp.utils import DownloadError
+
+    def boom(self, url, download=False, process=True):
+        raise DownloadError("ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed")
+
+    monkeypatch.setattr(FakeYDL, "extract_info", boom)
+    monkeypatch.setattr(douyin, "reachable", lambda timeout=5: online)
+    with pytest.raises(RuntimeError, match=message):
+        search.download("https://www.douyin.com/video/1", tmp_path)

@@ -33,6 +33,8 @@ def no_douyin_network(monkeypatch):
         raise RuntimeError("f2 is switched off in tests")
 
     monkeypatch.setattr(douyin, "_f2", off)
+    monkeypatch.setattr(douyin, "reachable", lambda timeout=5: True)
+    monkeypatch.setattr(douyin, "_ids", {})
 
 
 @pytest.fixture

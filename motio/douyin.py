@@ -41,10 +41,14 @@ _POST_ID = re.compile(r"/(?:video|note|slides)/(\d+)")
 _ID_PARAMS = ("modal_id", "vid")
 _NOT_USED = ("browser_cookie3", "execjs")
 _F2_RETRY_AFTER = 120  # giây: nạp f2 hỏng thì chưa thử nạp lại ngay (mạng nuốt gói tin: ~135 s/lần)
+_F2_LOAD_TIMEOUT = 25  # giây: chờ nạp f2 tối đa chừng này rồi quay về yt-dlp; nạp xong sau thì lần tải sau dùng được
+_NETWORK_ERRORS = ("APIRetryExhaustedError", "APITimeoutError", "APIConnectionError")  # f2 đã thử lại rồi
 
 _f2_lock = threading.Lock()
 _f2_loaded: tuple | None = None
 _f2_failed: tuple[float, Exception] | None = None
+_f2_loading: threading.Event | None = None  # đang có luồng nạp f2: cờ xong của nó
+_ids: dict[str, str] = {}  # link rút gọn → mã bài (chỉ lần tra thành công), khỏi theo chuyển hướng lần nữa
 
 
 class Unavailable(RuntimeError):
@@ -84,23 +88,52 @@ def _only_public_https(request: httpx.Request) -> None:
         raise OSError(f"{host} is not a public address")
 
 
-def _client(headers: dict, *, follow: bool = True, transport: httpx.BaseTransport | None = None) -> httpx.Client:
-    return httpx.Client(follow_redirects=follow, timeout=30, headers=headers, transport=transport,
+def _client(headers: dict, *, follow: bool = True, transport: httpx.BaseTransport | None = None,
+            timeout: float = 30) -> httpx.Client:
+    return httpx.Client(follow_redirects=follow, timeout=timeout, headers=headers, transport=transport,
                         event_hooks={"request": [_only_public_https]})
 
 
 def _resolve_id(url: str) -> str | None:
     """Mã bài của link. Link rút gọn (v.douyin.com/xxx) thì theo chuyển hướng từng chặng, chỉ trong host của Douyin."""
+    short = url
+    if short in _ids:
+        return _ids[short]
     with _client({"User-Agent": UA}, follow=False) as client:
         for _ in range(6):
             post_id = _post_id(url)
             if post_id or not is_douyin(url):
+                if post_id and url != short:
+                    if len(_ids) > 256:
+                        _ids.clear()
+                    _ids[short] = post_id
                 return post_id
             with client.stream("GET", url) as r:
                 if not r.is_redirect:
                     return None
                 url = urljoin(url, r.headers.get("location", ""))
     return None
+
+
+def canonical_url(url: str) -> str | None:
+    """https://www.douyin.com/video/<id> cho mọi link Douyin có mã bài, kể cả link rút gọn (theo chuyển hướng); yt-dlp
+    chỉ hiểu dạng này. None khi không tìm ra mã (mất mạng, link không phải bài)."""
+    try:
+        post_id = _resolve_id(url)
+    except Exception as e:
+        log.warning("could not find the Douyin post id of %s: %s", url, e)
+        return None
+    return f"https://www.douyin.com/video/{post_id}" if post_id else None
+
+
+def reachable(timeout: float = 5) -> bool:
+    """Máy này có nói chuyện được với Douyin không? Trả lời HTTP nào cũng tính là có; lỗi mạng, quá hạn thì không."""
+    try:
+        with _client({"User-Agent": UA}, follow=False, timeout=timeout) as client:
+            client.get("https://www.douyin.com/")
+        return True
+    except (httpx.HTTPError, OSError):
+        return False
 
 
 def _run(coro):
@@ -121,33 +154,63 @@ def _park_f2_logger() -> None:
     lg.propagate = False
 
 
+def _import_f2() -> tuple:
+    _park_f2_logger()
+    stubs = {name: types.ModuleType(name) for name in _NOT_USED if name not in sys.modules}
+    sys.modules.update(stubs)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from f2.apps.douyin.crawler import DouyinCrawler
+            from f2.apps.douyin.model import PostDetail
+            from f2.apps.douyin.utils import ClientConfManager, TokenManager
+    finally:
+        for name, stub in stubs.items():  # f2 đã giữ tham chiếu, khỏi để module rỗng trong sys.modules
+            if sys.modules.get(name) is stub:
+                del sys.modules[name]
+    return DouyinCrawler, PostDetail, ClientConfManager, TokenManager
+
+
+def _load_f2(done: threading.Event) -> None:
+    global _f2_loaded, _f2_failed, _f2_loading
+    try:
+        loaded = _import_f2()
+    except Exception as e:
+        with _f2_lock:
+            _f2_failed = (time.monotonic(), e)
+    else:
+        with _f2_lock:
+            _f2_loaded = loaded
+    finally:
+        with _f2_lock:
+            _f2_loading = None
+        done.set()
+
+
 def _f2():
     """f2, nạp một lần (an toàn khi nhiều luồng cùng tải). Nạp cũng gọi Douyin xin một msToken, nên mất mạng thì ném
-    lỗi; nạp hỏng thì mấy phút sau mới thử lại, để mỗi video không phải chờ mạng cả chục giây."""
-    global _f2_loaded, _f2_failed
+    lỗi; nạp hỏng thì mấy phút sau mới thử lại, để mỗi video không phải chờ mạng cả chục giây. Mạng nuốt gói tin thì nạp
+    mất cả hai phút: nạp ở luồng riêng, chỉ chờ _F2_LOAD_TIMEOUT giây; luồng đó chạy tiếp, xong thì lần sau dùng."""
+    global _f2_failed, _f2_loading
     with _f2_lock:
         if _f2_loaded:
             return _f2_loaded
         if _f2_failed and time.monotonic() - _f2_failed[0] < _F2_RETRY_AFTER:
             raise RuntimeError(f"f2 could not be loaded a moment ago: {_f2_failed[1]}")
-        _park_f2_logger()
-        stubs = {name: types.ModuleType(name) for name in _NOT_USED if name not in sys.modules}
-        sys.modules.update(stubs)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                from f2.apps.douyin.crawler import DouyinCrawler
-                from f2.apps.douyin.model import PostDetail
-                from f2.apps.douyin.utils import ClientConfManager, TokenManager
-        except Exception as e:
-            _f2_failed = (time.monotonic(), e)
-            raise
-        finally:
-            for name, stub in stubs.items():  # f2 đã giữ tham chiếu, khỏi để module rỗng trong sys.modules
-                if sys.modules.get(name) is stub:
-                    del sys.modules[name]
-        _f2_loaded = (DouyinCrawler, PostDetail, ClientConfManager, TokenManager)
-        return _f2_loaded
+        if _f2_loading is None:
+            _f2_loading = done = threading.Event()
+            threading.Thread(target=_load_f2, args=(done,), daemon=True, name="f2-load").start()
+        done = _f2_loading
+    if not done.wait(_F2_LOAD_TIMEOUT):
+        with _f2_lock:
+            if _f2_loaded:
+                return _f2_loaded
+            _f2_failed = (time.monotonic(), TimeoutError(f"f2 did not load within {_F2_LOAD_TIMEOUT} s"))
+        raise _f2_failed[1]
+    with _f2_lock:
+        if _f2_loaded:
+            return _f2_loaded
+        raise _f2_failed[1]
 
 
 async def _fetch(post_id: str) -> tuple[dict, dict]:
@@ -222,7 +285,7 @@ def _ask(post_id: str, max_height: int) -> tuple[dict, dict, dict | None] | None
             raw, headers = _run(_fetch(post_id))
         except Exception as e:
             log.warning("f2 could not read Douyin post %s (try %d/%d): %s", post_id, attempt + 1, TRIES, e)
-            if type(e).__name__ == "APIRetryExhaustedError":  # f2 đã tự thử lại, hỏi tiếp chỉ kéo dài thêm
+            if type(e).__name__ in _NETWORK_ERRORS or isinstance(e, TimeoutError):  # hỏi tiếp chỉ kéo dài thêm
                 break
             continue
         detail = raw.get("aweme_detail") if isinstance(raw, dict) else None

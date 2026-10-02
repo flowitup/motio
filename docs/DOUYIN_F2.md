@@ -23,10 +23,10 @@ tries it first for every Douyin link and falls back to yt-dlp when f2 cannot.
 
 Fallback chain: f2 → yt-dlp on the plain `douyin.com/video/<id>` link (needs fresh browser cookies) → **Add a video file**.
 A removed, private or photo-only post is final: Douyin gives the reason, so nothing else is tried. An answer with neither a
-post nor a reason is not a verdict and falls back. The plain link is built only from an id found in the pasted link
-(`search.download` calls `douyin._post_id` on it): a `v.douyin.com` short link, which is what a Share sentence holds, goes to
-yt-dlp unchanged, and yt-dlp has no extractor for it, so when f2 cannot read a short link only **Add a video file** is left
-(`douyin.download` resolves the id but does not hand it back; fixing that is a follow-up).
+post nor a reason is not a verdict and falls back. The plain link is built by `douyin.canonical_url`, which finds the id in
+the pasted link or, for a `v.douyin.com` short link (what a Share sentence holds), by following the redirect inside Douyin's
+own hosts; an id found once for a short link is remembered, so the fallback does not follow it again. If no id can be found
+(no network, not a post) the link goes to yt-dlp unchanged and only **Add a video file** is left.
 
 ## What was tested (2026-10-02, the owner's Mac, home network, guest only)
 
@@ -56,14 +56,14 @@ local machine worked), long-term stability, keyword search, an author's video li
   10 days (median), on PyPI once of four. Douyin also began gating `aweme/detail` in mid-September 2026; the pinned build
   works today from a home connection, which is what the tests above show. Expect it to be down sometimes: that is why the
   fallback chain and **Add a video file** stay.
-- **A stalled network is slow to fail.** When the packets to Douyin's token server are silently dropped (the connection
-  never opens), importing f2 retries its `msToken` request for about 135 s (twelve attempts inside f2's own `model.py`) and
-  yt-dlp then adds up to 30 s, so the first download fails after roughly three minutes; the lock around the import makes other
-  Douyin downloads wait too, and a Cancel is only noticed once the import is over. A server that accepts the connection and
-  never answers costs about 20 s; a refused or missing connection fails at once (1 to 3 s, and later jobs skip f2 for two
-  minutes). A short probe before the import, or a deadline on it, would bound this.
-- **The error can blame cookies.** With no connection at all, yt-dlp's Douyin extractor still says fresh cookies are needed,
-  and `search.download` shows that text; the real cause (f2's network error) is only in the log.
+- **A stalled network fails after at most 25 s.** When the packets to Douyin's token server are silently dropped, importing
+  f2 retries its `msToken` request for about 135 s. `douyin._f2` now loads f2 in its own thread and waits `_F2_LOAD_TIMEOUT`
+  (25 s); after that the download falls back to yt-dlp, later Douyin jobs skip f2 for two minutes, and if the load finishes in
+  the background f2 is used from then on. A Cancel is noticed once that wait is over. A server that accepts the connection
+  and never answers costs about 20 s; a refused or missing connection fails at once.
+- **The error says what is wrong.** When yt-dlp fails on a Douyin link, `search.download` first checks that Douyin answers
+  (`douyin.reachable`, 5 s); if it does not, the message is "Cannot reach Douyin" (check the internet, VPN or proxy) instead
+  of the cookie hint, which yt-dlp also prints when there is no connection at all.
 - **TLS.** f2 turns certificate checking off for its own calls (an on-path attacker could forge Douyin's reply). Motio only
   follows https links to public addresses, so a forged reply cannot reach local services; it could still hand over wrong
   metadata or another public file. The CDN download itself checks certificates.
