@@ -72,6 +72,23 @@ local machine worked), long-term stability, keyword search, an author's video li
 4. If the new f2 only exists on a git branch, pin a commit SHA and keep its wheel; do not follow a branch.
 5. Rebuild the engine (`tools/build_engine.py` checks that f2's yaml files are bundled).
 
+## Alternatives looked at
+
+- **Evil0ctal/Douyin_TikTok_Download_API (DTK) v5** (Apache-2.0, 20k stars; rewrite released 2026-09-10, v5.1.3 on
+  2026-10-02): read in depth, never run. It is a Docker service, not a library: API, worker, PostgreSQL + TimescaleDB, Redis,
+  a Go downloader and a browser container that mints guest identities with a proprietary stealth Chromium (CloakBrowser).
+  `POST /api/v1/parse` with `include_raw` returns the same `aweme_detail` plus direct CDN URLs, so a `DTK_URL` backend in
+  `douyin.py` would be a small adapter (size M). Not the default because: it does not embed (desktops would need Docker
+  Desktop, about 6 GB of images and 2.6 to 4 GB of RAM; the 8 GB Hetzner box already runs Postiz, Temporal, Elasticsearch
+  and Whisper); "maintained" rests on 22 days and one person (v4 was silent for 11 months) and nothing in its CI touches the
+  live gateway; CloakBrowser's licence forbids redistribution and TimescaleDB's TSL and Redis 8 cannot ship in the
+  installers; the browser container needs `SYS_ADMIN` and mints identities in the background all day, which is more ToS
+  exposure than f2's one signed request. If f2 breaks for good, or the Hetzner address is refused, add it as an optional
+  second tier on the server only (after f2, before yt-dlp), pinned to a version tag.
+- jiji262/douyin-downloader (needs a logged-in cookie; its README says plain requests are blocked), DTK v4 (cookie pasted by
+  hand), JoeanAmier/TikTokDownloader (GPL-3.0, cookie, signing removed in 2026-08): none works anonymously. yt-dlp: needs
+  fresh cookies (0/11 here).
+
 ## Not done (options)
 
 A Settings switch to turn f2 off; a "Test Douyin" button that fetches one fixed public video and shows the last result; a
