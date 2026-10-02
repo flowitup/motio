@@ -122,11 +122,17 @@ def save(name: str, stream) -> dict:
             if ext == ".mp4" and info["duration"] >= MIN_SECONDS:
                 raw.replace(dest)
             else:  # another container, or a duration the file does not state (a screen recording): the mp4 writes it
-                _remux(raw, dest)
+                mux = raw.with_name(f"{raw.name}.mp4")  # swept like `raw` if the engine stops: dest only appears whole
                 try:
-                    info = qa.probe(dest)
-                except RuntimeError as e:
-                    raise ValueError(tr("This video file cannot be read: {error}", error=str(e)[:160])) from e
+                    _remux(raw, mux)
+                    try:
+                        info = qa.probe(mux)
+                    except RuntimeError as e:
+                        raise ValueError(tr("This video file cannot be read: {error}", error=str(e)[:160])) from e
+                    if info["duration"] >= MIN_SECONDS:
+                        mux.replace(dest)
+                finally:
+                    mux.unlink(missing_ok=True)
         if info["duration"] < MIN_SECONDS:
             raise ValueError(tr("This video is too short to use (under {n} s)", n=int(MIN_SECONDS)))
         meta.write_text(json.dumps({"name": base[:200], "created_at": time.time()}), encoding="utf-8")

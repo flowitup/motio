@@ -518,7 +518,7 @@ The owner wants a studio that dubs or comments on trending Douyin / Bilibili / C
 films, and to start using it on 02/10. Research and the ranked feature list: `plans/brainstorm-261001-ai-studio.md` in the
 project files. Built in this batch:
 
-- **Bilibili trending lists as followed sources** (`motio/trending.py`): `bilibili:ranking:<rid>` (17 categories),
+- **Bilibili trending lists as followed sources** (`motio/trending.py`): `bilibili:ranking:<rid>` (16 categories or all),
   `bilibili:popular`, `bilibili:weekly`. Plain JSON, no login and no signature (the weekly list wants anonymous buvid
   cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing "no reprint" or paid, nothing
   under 15 s; rights stay *unknown*. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
@@ -529,7 +529,7 @@ project files. Built in this batch:
   network, up to 6 in a row) is retried, and a timeout or a retry resumes the same job instead of paying for a second one.
   Default price $0.02/s (HeyGen's page says $0.01/s until the end of October and $0.02/s at 768p with sound, OpenRouter shows
   $0.015 after the discount; sources disagree, so the budget uses the list price). Its commercial terms are not confirmed, so HeyGen clips force the video gate
-  (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10).
+  (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10 with heygen, $0.40 with fal).
 - **Series and recurring characters** (`motio/series.py`, channel fields `series` / `cast`): the owner picked "AI film
   characters" (option C, 01/10). Chosen design: text first. The cast (one `Name: look` line per fictional character, up to 8)
   is saved in the script (`plan["cast"]`) and `creator.prompt` puts the look of every character a scene names in front of its

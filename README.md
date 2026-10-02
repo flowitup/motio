@@ -28,7 +28,7 @@ Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 
 Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Check now"; a new source shows
 its latest 10 videos (a Bilibili list, its top 20), then only videos it hasn't seen. Claude gives each one a French title
 and a score, and "Make video" makes a French explainer from it. Bilibili's own trending lists can be followed too
-(**Bilibili trending** on that page: the ranking of each of 17 categories, Popular, and the weekly must-watch, then
+(**Bilibili trending** on that page: the ranking of each of 16 categories or of all of them, Popular, and the weekly must-watch, then
 **Follow list**): no login, original uploads
 only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
 downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.

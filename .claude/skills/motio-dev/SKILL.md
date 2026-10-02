@@ -303,7 +303,11 @@ Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <
 
 ## 9. Release + in-app updates
 
-1. Bump `version` in `app/src-tauri/tauri.conf.json` **and** `app/package.json` (same number), PR, merge.
+1. Bump the same number in `app/src-tauri/tauri.conf.json`, `app/package.json`, `app/src-tauri/Cargo.toml` (and the
+   `motio` entry of `Cargo.lock`) **and** `motio/__init__.py` (the engine reports it: Settings → Engine status shows it,
+   which is how an out-of-date remote engine shows; `tests/test_version.py` fails when they differ), add
+   `docs/releases/vX.Y.Z.md`, PR, merge. The in-app update replaces only the engine inside the app: a remote engine
+   (Hetzner, the Windows PC) is updated separately, and the notes say so.
 2. `git tag vX.Y.Z && git push origin vX.Y.Z` (owner's go). The tag must equal that version; a tag build
    without the signing secret fails on purpose.
 3. The workflow leaves a **draft** Release with installers and `latest.json`. Installed apps only see an
