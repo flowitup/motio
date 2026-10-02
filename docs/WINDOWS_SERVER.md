@@ -82,7 +82,8 @@ mã hoá cookie khiến yt-dlp không đọc được. Cách ổn định hơn l
 Dùng cho: link dán tay (mọi trang), tìm kiếm và tải video Bilibili, danh sách Bilibili ở trang "Video mới". Được ưu tiên
 hơn "Cookie trình duyệt"; YouTube tự tìm không dùng cookie. Cookie hết hạn thì xuất lại và chép đè. Engine dùng bản sao
 tạm (yt-dlp ghi lại file khi đóng) nên file gốc không bị sửa, và `/media` không bao giờ phục vụ file này. Coi nó như
-mật khẩu. Douyin không cần cookie: engine lấy video công khai bằng f2 (xem `docs/DOUYIN_F2.md`); cookie chỉ là đường dự phòng
+mật khẩu. Douyin không cần cookie: engine lấy video công khai bằng f2 (xem `docs/DOUYIN_F2.md`; chưa thử trên Windows, và
+engine phải là bản 0.7.13 trở lên); cookie chỉ là đường dự phòng
 của yt-dlp khi f2 không làm được, và chưa chắc đủ (yt-dlp có báo cáo lỗi "Fresh cookies are needed" dù cookie còn hạn).
 
 ## 5. Vận hành

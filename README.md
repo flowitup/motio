@@ -37,11 +37,12 @@ downloads single videos there): paste those links into "New video". Bilibili spa
 login and no cookies. Any form works: `douyin.com/video/…` (also `/note/`, `/slides/`, `?modal_id=…`, `?vid=…`),
 `iesdouyin.com/share/video/…`, the short `v.douyin.com/…` link, or the whole sentence the Douyin app copies when you tap
 Share (Motio picks the link out of it). You get the video, its title, author and length as H.264, the largest size Douyin
-offers up to 1080 p (Tools → Download lets you choose a lower cap; Motio asks again when the list of sizes it gets back is
-thinner than usual). A removed, private or photo-only post is reported as such. If f2 cannot (Douyin changed its request signing and
-f2 is not updated yet, or you are offline) Motio tries yt-dlp on the plain `douyin.com/video/<id>` link; yt-dlp needs fresh
-browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`). Last
-resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
+offers up to 1080 p (Tools → Download uses the quality you pick, 720 p by default; Motio asks again when the list of sizes
+it gets back is thinner than usual). A removed, private or photo-only post is reported as such. If f2 cannot (Douyin changed
+its request signing and f2 is not updated yet, or you are offline) Motio tries yt-dlp on the plain `douyin.com/video/<id>`
+link when the pasted link carries the id (a short `v.douyin.com` link goes to yt-dlp as it is, and yt-dlp does not know it);
+yt-dlp needs fresh browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or
+`YTDLP_COOKIES_FILE`). Last resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
 not supported. How it works, what was tested and how to update f2: [docs/DOUYIN_F2.md](docs/DOUYIN_F2.md).
 
 **Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
