@@ -164,9 +164,15 @@ export default function App() {
     <div className="flex h-screen bg-background text-foreground">
       <nav aria-label={t.studio.mainNav} className="flex w-[76px] shrink-0 flex-col border-r bg-ground">
         <div className="flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--amber)" />
-            <path d="M10 7.5v9l6.5-4.5z" fill="var(--on-amber)" />
+          {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
+          <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">
+            <g stroke="var(--amber)">
+              <path d="M11 31v38M27 13v74M43 24v52" />
+            </g>
+            <path d="M59 40v20" stroke="var(--foreground)" />
+            <g stroke="var(--cyan)">
+              <path d="M75 24v52M91 13v74M107 31v38" />
+            </g>
           </svg>
           <span className="font-mono text-[11px] leading-3 font-medium tracking-[0.02em]">{t.appName}</span>
         </div>
