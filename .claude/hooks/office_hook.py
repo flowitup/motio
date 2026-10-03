@@ -92,7 +92,7 @@ def main():
         "event": ev,
         "tool": tool,
         "detail": summarize_input(tool, p.get("tool_input")),
-        "prompt": (p.get("prompt") or "")[:300] or None,         # UserPromptSubmit
+        "prompt": (p.get("prompt") or "")[:4000] or None,         # UserPromptSubmit
         "message": (p.get("message") or "")[:300] or None,       # Notification
         "notification_type": p.get("notification_type"),
         "source": p.get("source"),                               # SessionStart: startup/resume/compact

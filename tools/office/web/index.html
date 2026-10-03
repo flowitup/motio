@@ -956,7 +956,7 @@ function entryHTML(e) {
     const first = esc(String(e.text).split('\n')[0].slice(0, 90));
     body = `<details><summary>${e.error ? 'Error: ' : ''}${first}</summary><div class="txt">${esc(e.text)}</div></details>`;
   } else body = `<div class="txt">${esc(e.text)}</div>`;
-  return `<div class="entry ${e.kind}${e.error ? ' err' : ''}${sub}" data-k="${e.kind}"><time>${tm}</time><div class="body">${e.kind === 'result' ? '' : `<div class="who">${WHO[e.kind] || e.kind}</div>`}${body}</div></div>`;
+  return `<div class="entry ${e.kind}${e.error ? ' err' : ''}${sub}" data-k="${e.kind}"><time>${tm}</time><div class="body">${e.kind === 'result' ? '' : `<div class="who">${WHO[e.kind] || e.kind}${e.author ? ' · ' + esc(e.author) : ''}</div>`}${body}</div></div>`;
 }
 const passes = (e) => logFilter === 'all' || (logFilter === 'msg' ? ['user', 'assistant'].includes(e.kind) : ['tool', 'result'].includes(e.kind));
 function renderLog(scroll) {
