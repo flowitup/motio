@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Motio Office hook — reports Claude Code session activity to the office server.
+"""Flowitup Office hook — reports Claude Code session activity to the office server.
+
+Lives in each project repo at .claude/hooks/office_hook.py (install with install-hook.py from
+github.com/flowitup/office). The project is the repo's name, so every repo shows up as its own room.
 
 Runs on every hook event configured in .claude/settings.json. It:
   1. posts a small event (who, what tool, which branch) to   POST $OFFICE_URL/api/event
@@ -11,13 +14,13 @@ Settings (cloud environment; with OFFICE_URL unset the hook does nothing):
   OFFICE_TOKEN    optional. Leave it unset in the cloud environment and add an API credential
                   (Bearer <token>, for office.flowitup.com) instead, so the session never sees it.
                   Set it for local runs (Work locally / a terminal session).
-  OFFICE_PROJECT  optional, default "Motio".
+  OFFICE_PROJECT  optional; default is the GitHub repo name (origin remote), else the folder name.
 """
 import json, os, subprocess, sys, tempfile, urllib.request
 
 URL = os.environ.get("OFFICE_URL", "").rstrip("/")
 TOKEN = os.environ.get("OFFICE_TOKEN", "")
-PROJECT = os.environ.get("OFFICE_PROJECT", "Motio")
+PROJECT = os.environ.get("OFFICE_PROJECT", "")
 TIMEOUT = 4  # seconds per request
 MAX_CHUNK = 2 * 1024 * 1024  # don't ship more than 2 MB per call
 
@@ -30,6 +33,22 @@ def post(path, body, ctype):
     req = urllib.request.Request(URL + path, data=body, method="POST", headers=headers)
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         r.read()
+
+
+def project_name(cwd):
+    """The repo name from the origin remote (…/flowitup/motio.git → motio), else the project folder's name."""
+    if PROJECT:
+        return PROJECT
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or cwd or "."
+    try:
+        url = subprocess.run(["git", "-C", root, "config", "--get", "remote.origin.url"],
+                             capture_output=True, text=True, timeout=2).stdout.strip()
+        if url:
+            name = url.rstrip("/").split("/")[-1].split(":")[-1]
+            return name[:-4] if name.endswith(".git") else name
+    except Exception:
+        pass
+    return os.path.basename(os.path.abspath(root)) or "unknown"
 
 
 def branch(cwd):
@@ -87,7 +106,7 @@ def main():
         return
     tool = p.get("tool_name")
     event = {
-        "project": PROJECT,
+        "project": project_name(p.get("cwd")),
         "session_id": sid,
         "event": ev,
         "tool": tool,

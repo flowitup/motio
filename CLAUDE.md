@@ -71,7 +71,8 @@ as authoritative for scope and milestones.
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
 - `deploy/` + `Dockerfile` — Hetzner server stack (engine + Postiz + Caddy), runbook `docs/DEPLOY.md`.
-- `tools/office/` — Motio Office, a 3D view of this project's Claude threads at office.flowitup.com; fed by `.claude/hooks/office_hook.py`. Setup in `tools/office/README.md`.
+- `.claude/hooks/office_hook.py` — reports this project's Claude threads to the Flowitup Office (office.flowitup.com); the
+  office lives in `github.com/flowitup/office`, which also holds the hook's source and `install-hook.py` to refresh it here.
 - `tools/windows/motio-server.ps1` — runs the installed engine 24/7 on a Windows PC at home (Task Scheduler, Tailscale
   only), runbook `docs/WINDOWS_SERVER.md`; the app uses it as a Remote engine and keeps no video on the Mac.
 - `tools/` — dev scripts. `docs/` — plans and notes.
