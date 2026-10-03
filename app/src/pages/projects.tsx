@@ -38,7 +38,9 @@ function PosterPlaceholder({ p }: { p: Project }) {
     busy || p.status === "failed"
       ? p.step
       : p.status === "review"
-        ? t.studio.scriptGate
+        ? p.meta.review === "shots"
+          ? t.studio.shotsGate
+          : t.studio.scriptGate
         : t.studio.noVideoYet;
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">

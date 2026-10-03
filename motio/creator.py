@@ -59,10 +59,11 @@ def is_ai(proj: dict | None) -> bool:
     return bool(proj) and proj.get("mode") == MODE
 
 
-def create(topic_text: str, duration: int = 80, clip_limit: int | None = None) -> int:
+def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, review_shots: bool = False) -> int:
     """Create an AI video project (not started). ValueError (translated) when something is missing or wrong, or
     when the chosen image provider isn't ready, so the app says so before any work. `clip_limit`: how many scenes
-    become AI clips (aiclips.py) for this video; None = the channel's setting."""
+    become AI clips (aiclips.py) for this video; None = the channel's setting. `review_shots`: stop after the
+    pictures are made so each one can be approved or redone before the voice and the render (shots.py)."""
     text = _one(topic_text)[:300]
     if not text:
         raise ValueError(tr("Enter a topic for the AI video"))
@@ -73,7 +74,8 @@ def create(topic_text: str, duration: int = 80, clip_limit: int | None = None) -
     images.check_ready()
     if clip_limit:
         aiclips.check_ready()
-    ai = {"provider": images.provider()} | ({} if clip_limit is None else {"clip_limit": clip_limit})
+    ai = {"provider": images.provider()} | ({} if clip_limit is None else {"clip_limit": clip_limit}) \
+        | ({"review_shots": True} if review_shots else {})
     pid = db.create_project(None, text, mode=MODE)
     db.update_project(pid, log=tr("AI video: {topic} · {duration} s · pictures from {provider}", topic=text,
                                   duration=duration, provider=images.provider()),
@@ -129,6 +131,19 @@ def picture_file(out: Path, plan: dict, ln: dict, provider: str) -> Path:
     return out / "scenes" / f"{images.key(prompt(plan, ln), int(ln.get('seed') or 0), provider)}.png"
 
 
+def make_picture(plan: dict, ln: dict, out: Path, name: str) -> tuple[Path, bool]:
+    """The picture of one scene in out/scenes/ (path, was_new). A provider error is tried once more, then raised
+    (images.ImageError, translated)."""
+    for attempt in (1, 2):
+        try:
+            return images.make(prompt(plan, ln), int(ln.get("seed") or 0), out / "scenes", name)
+        except images.ImageError:
+            if attempt == 2:
+                raise
+            time.sleep(RETRY_WAIT)
+    raise AssertionError("unreachable")
+
+
 def pictures(pid: int, plan: dict, out: Path, step, lo: int = PICTURES_FROM, hi: int = PICTURES_TO) -> list[dict]:
     """One picture per scene, in out/scenes/ (a scene already made is not made again). Returns the scenes as render
     sources. A picture that fails is tried once more, then the step stops: the ones already made are kept, so a retry
@@ -140,14 +155,10 @@ def pictures(pid: int, plan: dict, out: Path, step, lo: int = PICTURES_FROM, hi:
     for i, ln in enumerate(lines):
         step("Pictures", lo + (hi - lo) * i // len(lines),
              tr("Picture {n} of {total} ({provider})", n=i + 1, total=len(lines), provider=name))
-        for attempt in (1, 2):
-            try:
-                path, new = images.make(prompt(plan, ln), int(ln.get("seed") or 0), out / "scenes", name)
-                break
-            except images.ImageError as e:
-                if attempt == 2:
-                    raise RuntimeError(tr("Picture {n} failed: {error}", n=i + 1, error=e)) from e
-                time.sleep(RETRY_WAIT)
+        try:
+            path, new = make_picture(plan, ln, out, name)
+        except images.ImageError as e:
+            raise RuntimeError(tr("Picture {n} failed: {error}", n=i + 1, error=e)) from e
         fresh += new
         sources.append({"path": str(path), "platform": "AI", "uploader": name, "title": ln["text"], "duration": 0,
                         "url": None, "id": path.stem})
@@ -253,7 +264,7 @@ def view(proj: dict) -> dict | None:
     return {"topic": meta.get("topic"), "provider": name, "needs_review": needs_review(proj),
             "cost": ai.get("cost"), "scenes": ai.get("scenes"), "clips": ai.get("clips"),
             "clip_limit": ai.get("clip_limit"), "clip_provider": ai.get("clip_provider"),
-            "episode": ai.get("episode"), "recap": ai.get("recap")}
+            "episode": ai.get("episode"), "recap": ai.get("recap"), "review_shots": bool(ai.get("review_shots"))}
 
 
 def media(path: Path) -> str | None:

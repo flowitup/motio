@@ -24,6 +24,10 @@ as authoritative for scope and milestones.
   - `creator.py` AI video mode (`mode = "ai"`): Claude writes scenes (spoken line + English picture prompt + camera move),
     one picture per scene, one moving piece per scene (Ken Burns, `render.Piece.motion`); no source footage; pictures
     from a provider that isn't cleared for monetized channels force the video gate (`creator.needs_review`)
+  - `shots.py` picture review for AI videos ("Review the pictures first", `meta.ai.review_shots`): after the pictures are made the
+    video waits in `meta.review == "shots"`; each shot is approved by the key of its current picture (a new prompt, seed, style or
+    provider un-approves it), redone at once (only that picture is made), a picture the provider cannot make is noted instead of
+    stopping the step, and "continue" runs the voice and render (`/api/projects/{id}/shots/*`, `ShotsCard` in the app)
   - `images.py` AI pictures behind one adapter: fal `qwen-image-2512` (default) / Modal `qwen21-uc` / placeholder; a
     picture is cached by (provider, size, seed, prompt) in `out/scenes/`, so only a new or edited scene is made again
   - `aiclips.py` AI clips for AI videos: a scene's picture becomes a 5 s clip (fal `minimax/h3-max/image-to-video`, or

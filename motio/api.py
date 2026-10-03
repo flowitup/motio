@@ -32,6 +32,7 @@ from . import (
     delogo,
     dub,
     edit,
+    images,
     listing,
     llm,
     localfile,
@@ -41,6 +42,7 @@ from . import (
     postiz,
     search,
     settings,
+    shots,
     toolbox,
     topic,
     tts,
@@ -76,6 +78,7 @@ class AiIn(BaseModel):
     duration: int = 80  # 70 | 80 | 90 giây
     channel: int | None = None  # như ProduceIn
     clips: int | None = None  # số cảnh thành clip AI cho video này (0–6); None = theo hồ sơ kênh
+    review_shots: bool = False  # dừng sau khi làm ảnh để duyệt / làm lại từng ảnh trước khi đọc giọng và dựng
 
 
 class DubIn(BaseModel):
@@ -182,6 +185,14 @@ class ChannelIn(BaseModel):
 
 class ApproveIn(BaseModel):
     send: bool = True  # duyệt video: gửi sang Postiz theo kênh; False = chỉ duyệt
+
+
+class ShotApproveIn(BaseModel):
+    approved: bool = True  # False = bỏ duyệt
+
+
+class ShotRedoIn(BaseModel):
+    prompt: str | None = None  # prompt ảnh mới; bỏ trống = giữ prompt, đổi hạt giống
 
 
 class PublishIn(BaseModel):
@@ -592,7 +603,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         try:
             if body.clips is None and aiclips.limit({"meta": {}}, ch):
                 aiclips.check_ready()  # the channel's clips need the key too: say so before the project exists
-            pid = creator.create(body.topic, body.duration, body.clips)
+            pid = creator.create(body.topic, body.duration, body.clips, body.review_shots)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -687,6 +698,64 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
+    def _shots(call):
+        """Run a picture-review action, turning its errors into HTTP errors."""
+        try:
+            return call()
+        except shots.NotWaiting as e:
+            raise HTTPException(409, str(e)) from e
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except (ValueError, images.ImageError) as e:
+            raise HTTPException(400, str(e)) from e
+
+    def _continue_shots(pid: int) -> None:
+        _shots(lambda: shots.check_continue(pid))
+        db.update_project(pid, status="queued", step=tr("Queued for voice and render"), pct=0,
+                          log=tr("Pictures approved"), meta={"review": None})
+        jobs.submit(_run_job, lambda i: pipeline.produce(i, start="voice"), pid)
+
+    @app.get("/api/projects/{pid}/shots", dependencies=[Depends(auth)])
+    def shots_view(pid: int):
+        """Video AI: mỗi cảnh một ảnh (prompt, hạt giống, ảnh, trạng thái duyệt) cho màn duyệt ảnh."""
+        _get(pid)
+        return _shots(lambda: shots.view(pid))
+
+    @app.post("/api/projects/{pid}/shots/{index}/redo", dependencies=[Depends(auth)])
+    def shots_redo(pid: int, index: int, body: ShotRedoIn | None = None):
+        """Làm lại đúng ảnh này ngay (hạt giống mới, hoặc prompt mới) và trả lại màn duyệt ảnh."""
+        _get(pid)
+        return _shots(lambda: shots.redo(pid, index, body.prompt if body else None))
+
+    @app.post("/api/projects/{pid}/shots/{index}/approve", dependencies=[Depends(auth)])
+    def shots_approve(pid: int, index: int, body: ShotApproveIn | None = None):
+        _get(pid)
+        return _shots(lambda: shots.approve(pid, index, body.approved if body else True))
+
+    @app.post("/api/projects/{pid}/shots/approve-all", dependencies=[Depends(auth)])
+    def shots_approve_all(pid: int, body: ShotApproveIn | None = None):
+        _get(pid)
+        return _shots(lambda: shots.approve_all(pid, body.approved if body else True))
+
+    @app.post("/api/projects/{pid}/shots/redo-failed", status_code=202, dependencies=[Depends(auth)])
+    def shots_redo_failed(pid: int):
+        """Làm lại các ảnh bị lỗi hoặc còn thiếu (ảnh đã làm được giữ nguyên), rồi dừng chờ duyệt lại."""
+        _get(pid)
+        _shots(lambda: shots.check_remake(pid))
+        db.update_project(pid, status="queued", step=tr("Queued to make the pictures"), pct=0,
+                          log=tr("Making the failed and missing pictures again"), meta={"review": None})
+        jobs.submit(_run_job, lambda i: pipeline.produce(i, start="voice"), pid)
+        return {"project_id": pid}
+
+    @app.post("/api/projects/{pid}/shots/continue", status_code=202, dependencies=[Depends(auth)])
+    def shots_continue(pid: int):
+        """Mọi ảnh đã duyệt: đọc giọng và dựng."""
+        _get(pid)
+        _continue_shots(pid)
+        return {"project_id": pid}
+
     @app.post("/api/projects/{pid}/rerender", status_code=202, dependencies=[Depends(auth)])
     def rerender(pid: int):
         p = _get(pid)
@@ -754,6 +823,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                               log=tr("Script approved"),
                               meta={"review": None})
             jobs.submit(_run_job, lambda i: pipeline.produce(i, start="voice"), pid)
+        elif review == shots.REVIEW:  # duyệt chung = duyệt mọi ảnh đã làm rồi tiếp tục (app dùng /shots/continue)
+            _shots(lambda: shots.approve_all(pid))
+            _continue_shots(pid)
         else:
             send = body.send if body else True
             db.update_project(pid, status="running", step=tr("Send to Postiz") if send else tr("Done"), pct=100)
