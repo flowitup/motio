@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock, Film, Languages, Link2, Loader2, Search, ShieldCheck, Sparkles, TriangleAlert, Tv, Video } from "lucide-react";
+import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, ShieldCheck, Sparkles, TriangleAlert, Tv, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
@@ -371,6 +371,7 @@ function AiConsole({ api }: { api: Api }) {
   const [topic, setTopic] = useState("");
   const [duration, setDuration] = useState("80");
   const [clips, setClips] = useState(""); // trống = theo kênh
+  const [reviewShots, setReviewShots] = useState(true); // dừng sau khi làm ảnh để duyệt từng ảnh
   const choice = useChannelChoice(api);
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
   const provider = settings?.IMAGE_PROVIDER?.value || "fal";
@@ -385,6 +386,7 @@ function AiConsole({ api }: { api: Api }) {
         topic: topic.trim(),
         duration: Number(duration),
         channel: choice.channel,
+        review_shots: reviewShots,
         ...(clips !== "" ? { clips: Number(clips) } : {}),
       }),
     onSuccess: ({ project_id }) => {
@@ -436,6 +438,12 @@ function AiConsole({ api }: { api: Api }) {
           onChange={(e) => setClips(e.target.value === "" ? "" : String(Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0)))))}
           placeholder={t.ai.clipsPlaceholder}
         />
+      </Section>
+      <Section icon={ListChecks} label={t.ai.reviewSection} hint={t.ai.reviewShotsHint}>
+        <label className="flex min-h-10 items-center gap-3 text-[13px]">
+          <Switch checked={reviewShots} onCheckedChange={setReviewShots} />
+          {t.ai.reviewShots}
+        </label>
       </Section>
       {choice.channels.length > 0 && (
         <Section icon={Tv} label={t.channels.pick}>

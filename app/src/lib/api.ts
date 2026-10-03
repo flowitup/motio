@@ -140,7 +140,7 @@ export type ProjectMeta = {
   auto?: boolean; // tự làm vì tin đạt điểm của kênh
 };
 
-export type Review = "script" | "video";
+export type Review = "script" | "shots" | "video";
 export type SendMode = PublishMode;
 
 /** Hồ sơ một kênh đăng: nhãn, giọng văn, giọng đọc, cổng duyệt, kênh Postiz để tự gửi. */
@@ -244,6 +244,31 @@ export type AiView = {
   clip_provider: string | null; // nhà cung cấp của các clip ở lần dựng gần nhất (fal | heygen)
   episode: number | null; // số tập trong loạt phim của kênh (kênh có "series"); null = video riêng lẻ
   recap: string | null; // tóm tắt tập này do Claude viết, để tập sau viết tiếp
+  review_shots: boolean; // dừng sau khi làm ảnh để duyệt / làm lại từng ảnh trước khi đọc giọng và dựng
+};
+/** Một cảnh trong màn duyệt ảnh: approved = đúng ảnh này đã duyệt, ready = đã làm, chưa duyệt, failed = nhà cung cấp không làm được. */
+export type ShotState = "approved" | "ready" | "failed" | "missing";
+export type Shot = {
+  index: number;
+  text: string; // lời bình của cảnh
+  image: string; // prompt ảnh (tiếng Anh)
+  seed: number;
+  picture: string | null; // đường dẫn /media
+  state: ShotState;
+  error: string | null;
+};
+export type ShotsView = {
+  shots: Shot[];
+  total: number;
+  approved: number;
+  failed: number;
+  missing: number;
+  ready: boolean; // mọi ảnh đã duyệt: được làm tiếp
+  waiting: boolean; // dự án đang chờ duyệt ảnh (chỉ khi đó mới duyệt / làm lại được)
+  provider: string;
+  price: number; // USD ước tính cho một ảnh
+  cost: number; // ảnh đã tốn tới giờ
+  version: number;
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 
@@ -487,10 +512,19 @@ export function makeApi(url: string, token: string) {
     createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
-    createAi: (body: { topic: string; duration: number; channel?: number; clips?: number }) =>
+    createAi: (body: { topic: string; duration: number; channel?: number; clips?: number; review_shots?: boolean }) =>
       call<{ project_id: number }>("POST", "/api/ai", body),
     /** Video AI: xin ảnh mới cho cảnh `index`; dựng lại bằng retry(id, "render") để làm ảnh đó. */
     redoScene: (id: number, index: number) => call<ScriptView>("POST", `/api/projects/${id}/scenes/${index}/redo`),
+    shots: (id: number) => call<ShotsView>("GET", `/api/projects/${id}/shots`),
+    redoShot: (id: number, index: number, prompt?: string) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/${index}/redo`, prompt === undefined ? undefined : { prompt }),
+    approveShot: (id: number, index: number, approved: boolean) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/${index}/approve`, { approved }),
+    approveAllShots: (id: number, approved: boolean) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/approve-all`, { approved }),
+    redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
+    continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
     dubClip: (id: string, channel?: number) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),
