@@ -26,6 +26,7 @@ if (!INGEST_TOKEN || !VIEW_TOKEN) {
   process.exit(1);
 }
 fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
+const logPath = (sid) => path.join(DATA_DIR, 'logs', `${sid}.jsonl`);
 
 // ---------- state ----------
 const STATE_FILE = path.join(DATA_DIR, 'sessions.json');
@@ -62,6 +63,17 @@ function upsert(sid, project) {
   }
   return sessions[sid];
 }
+
+// Repair titles saved before the brief envelope was unwrapped, using each thread's stored log.
+for (const s of Object.values(sessions)) {
+  if (!needsTitle(s)) continue;
+  try {
+    const lines = fs.readFileSync(logPath(s.id), 'utf8').split('\n').filter(Boolean);
+    const firstUser = lines.flatMap(parseLine).find((x) => x.kind === 'user');
+    if (firstUser) s.title = titleFrom(firstUser.text) || s.title;
+  } catch {}
+}
+save();
 
 // ---------- websocket ----------
 const app = express();
@@ -161,7 +173,6 @@ app.post('/api/log/:sid', ingestAuth, express.raw({ type: '*/*', limit: '4mb' })
   if (entries.length) broadcast({ type: 'log', sid, start, entries });
   res.sendStatus(204);
 });
-const logPath = (sid) => path.join(DATA_DIR, 'logs', `${sid}.jsonl`);
 
 // ---------- ingest: GitHub pull request webhooks ----------
 app.post('/api/github', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
