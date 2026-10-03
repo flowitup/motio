@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Motio Office hook — reports Claude Code session activity to the office server.
+
+Runs on every hook event configured in .claude/settings.json. It:
+  1. posts a small event (who, what tool, which branch) to   POST $OFFICE_URL/api/event
+  2. ships any new transcript lines since the last call to   POST $OFFICE_URL/api/log/<session_id>
+
+Design rules: stdlib only, never blocks Claude for long, never fails the hook.
+Settings (cloud environment; with OFFICE_URL unset the hook does nothing):
+  OFFICE_URL      e.g. https://office.flowitup.com
+  OFFICE_TOKEN    optional. Leave it unset in the cloud environment and add an API credential
+                  (Bearer <token>, for office.flowitup.com) instead, so the session never sees it.
+                  Set it for local runs (Work locally / a terminal session).
+  OFFICE_PROJECT  optional, default "Motio".
+"""
+import json, os, subprocess, sys, tempfile, urllib.request
+
+URL = os.environ.get("OFFICE_URL", "").rstrip("/")
+TOKEN = os.environ.get("OFFICE_TOKEN", "")
+PROJECT = os.environ.get("OFFICE_PROJECT", "Motio")
+TIMEOUT = 4  # seconds per request
+MAX_CHUNK = 2 * 1024 * 1024  # don't ship more than 2 MB per call
+
+
+def post(path, body, ctype):
+    # Cloudflare (in front of office.flowitup.com) rejects urllib's default User-Agent with error 1010.
+    headers = {"Content-Type": ctype, "User-Agent": "motio-office-hook/1.0"}
+    if TOKEN:
+        headers["Authorization"] = f"Bearer {TOKEN}"
+    req = urllib.request.Request(URL + path, data=body, method="POST", headers=headers)
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        r.read()
+
+
+def branch(cwd):
+    try:
+        return subprocess.run(["git", "-C", cwd or ".", "branch", "--show-current"],
+                              capture_output=True, text=True, timeout=2).stdout.strip() or None
+    except Exception:
+        return None
+
+
+def summarize_input(tool, ti):
+    """A short, non-sensitive-ish label for what the tool is doing."""
+    if not isinstance(ti, dict):
+        return None
+    for key in ("command", "file_path", "path", "pattern", "url", "query", "description", "prompt"):
+        v = ti.get(key)
+        if isinstance(v, str) and v:
+            return v[:160]
+    return None
+
+
+def ship_transcript(sid, tp):
+    if not tp or not os.path.exists(tp):
+        return
+    state = os.path.join(tempfile.gettempdir(), f"motio-office-{sid}.offset")
+    try:
+        offset = int(open(state).read().strip())
+    except Exception:
+        offset = 0
+    size = os.path.getsize(tp)
+    reset = ""
+    if size < offset:  # transcript rewritten — start over
+        offset, reset = 0, "&reset=1"
+    if size == offset:
+        return
+    with open(tp, "rb") as f:
+        f.seek(offset)
+        chunk = f.read(MAX_CHUNK)
+    cut = chunk.rfind(b"\n")  # only ship complete lines
+    if cut < 0:
+        return
+    chunk = chunk[: cut + 1]
+    post(f"/api/log/{sid}?offset={offset}{reset}", chunk, "application/x-ndjson")
+    with open(state, "w") as f:
+        f.write(str(offset + len(chunk)))
+
+
+def main():
+    if not URL:
+        return
+    p = json.load(sys.stdin)
+    ev = p.get("hook_event_name")
+    sid = p.get("session_id")
+    if not sid:
+        return
+    tool = p.get("tool_name")
+    event = {
+        "project": PROJECT,
+        "session_id": sid,
+        "event": ev,
+        "tool": tool,
+        "detail": summarize_input(tool, p.get("tool_input")),
+        "prompt": (p.get("prompt") or "")[:300] or None,         # UserPromptSubmit
+        "message": (p.get("message") or "")[:300] or None,       # Notification
+        "notification_type": p.get("notification_type"),
+        "source": p.get("source"),                               # SessionStart: startup/resume/compact
+        "reason": p.get("reason"),                               # SessionEnd
+        "branch": branch(p.get("cwd")),
+        "where": "cloud" if os.environ.get("CLAUDE_CODE_REMOTE") == "true" else "local",
+        "host": os.uname().nodename if hasattr(os, "uname") else None,
+    }
+    try:
+        post("/api/event", json.dumps(event).encode(), "application/json")
+    except Exception:
+        pass
+    # Shipping the log on every tool call would be noisy; do it when something settled.
+    if ev in ("PostToolUse", "PostToolUseFailure", "UserPromptSubmit", "Stop", "SubagentStop", "Notification", "SessionEnd", "PreCompact"):
+        try:
+            ship_transcript(sid, p.get("transcript_path"))
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        pass
+    sys.exit(0)  # never block Claude

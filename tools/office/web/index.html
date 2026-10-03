@@ -1,0 +1,1011 @@
+<title>Motio Office</title>
+<meta name="description" content="Threads of the Motio Claude project as employees in a 3D studio office, with live logs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one full-screen studio floor; header strip on top, roster on the left, thread drawer on the right (bottom sheet on phones). */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --panel-2: #f5f6f8;
+  --line: #dde1e7;
+  --fg: #1b1f27;
+  --muted: #5d6573;
+  --accent: #c99a1e;          /* clapper-board yellow, darkened for light ground */
+  --accent-ink: #1b1f27;
+  --scene-bg: #e7eaef;
+  --floor: #c9ced6;
+  --wall: #f2f3f5;
+  --wood: #c8a27a;
+  --st-working: #2f9e6e;
+  --st-waiting: #e5603b;
+  --st-review: #7c5ce0;
+  --st-landing: #2b97b0;
+  --st-idle: #8b93a0;
+  --st-resolved: #b3b9c3;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 10px;
+  --shadow: 0 6px 24px rgba(20, 26, 38, .12);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151b; --panel: #1a1e26; --panel-2: #20252f; --line: #2c323d; --fg: #e8ebf0; --muted: #9aa3b2;
+    --accent: #f2c14e; --accent-ink: #12151b; --scene-bg: #161a21; --floor: #2a2f39; --wall: #222731; --wood: #7a5a3c;
+    --st-working: #4cc38a; --st-waiting: #ff7a52; --st-review: #9d84ff; --st-landing: #45bcd6; --st-idle: #8d96a5; --st-resolved: #59606c;
+    --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --panel: #1a1e26; --panel-2: #20252f; --line: #2c323d; --fg: #e8ebf0; --muted: #9aa3b2;
+  --accent: #f2c14e; --accent-ink: #12151b; --scene-bg: #161a21; --floor: #2a2f39; --wall: #222731; --wood: #7a5a3c;
+  --st-working: #4cc38a; --st-waiting: #ff7a52; --st-review: #9d84ff; --st-landing: #45bcd6; --st-idle: #8d96a5; --st-resolved: #59606c;
+  --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px;
+  overflow: hidden; position: relative;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#scene { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* ---------- header ---------- */
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.brand h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+.brand .sub { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.counts { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 12px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.chip[aria-pressed="true"] { border-color: var(--fg); background: var(--panel-2); }
+.chip .n { font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--st-idle)); flex: none; }
+.conn { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.conn .dot { --c: var(--st-idle); }
+.conn[data-s="live"] .dot { --c: var(--st-working); }
+.conn[data-s="down"] .dot { --c: var(--st-waiting); }
+.tc { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.iconbtn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+}
+
+.demo-banner {
+  margin: 0 10px 8px; padding: 10px 12px; border-radius: 8px; display: grid; gap: 8px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font-size: 12px; line-height: 1.45;
+}
+.demo-banner form { display: flex; gap: 6px; }
+.demo-banner input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; background: var(--panel); color: var(--fg); }
+.demo-banner button { border: 0; border-radius: 6px; padding: 5px 10px; background: var(--fg); color: var(--panel); cursor: pointer; }
+
+/* ---------- roster ---------- */
+.roster {
+  position: absolute; z-index: 3; left: 16px; top: calc(76px + env(safe-area-inset-top, 0px)); bottom: 16px; width: 260px;
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.roster header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: baseline; }
+.roster h2, .drawer h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 15px; }
+.roster .hint { color: var(--muted); font-size: 11px; }
+.roster ul { list-style: none; margin: 0; padding: 0 6px 8px; overflow-y: auto; flex: 1; }
+.roster li button {
+  width: 100%; text-align: left; display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; align-items: center;
+  border: 0; background: transparent; border-radius: 8px; padding: 8px; cursor: pointer;
+}
+.roster li button:hover { background: var(--panel-2); }
+.roster li button[aria-current="true"] { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.roster .tid { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.roster .ttl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.roster .meta { grid-column: 2 / 4; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster .empty { padding: 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.toggle-resolved { display: flex; align-items: center; gap: 6px; padding: 8px 14px 12px; color: var(--muted); font-size: 12px; }
+
+/* ---------- drawer ---------- */
+.drawer {
+  position: absolute; z-index: 6; right: 16px; top: calc(76px + env(safe-area-inset-top, 0px)); bottom: 16px; width: min(460px, calc(100% - 32px));
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.drawer .head { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.drawer .titlerow { display: flex; gap: 10px; align-items: flex-start; }
+.drawer .titlerow h2 { flex: 1; min-width: 0; font-size: 17px; line-height: 1.3; text-wrap: balance; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--fg); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+}
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.facts code { font-family: var(--font-mono); font-size: 11.5px; }
+.facts a { color: inherit; }
+.drawer .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.filters { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+.filters label { margin-left: auto; display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.log { flex: 1; overflow-y: auto; padding: 8px 12px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.entry { display: grid; grid-template-columns: 54px 1fr; gap: 8px; font-size: 13px; line-height: 1.5; }
+.entry time { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.entry .body { min-width: 0; }
+.entry .who { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.entry .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry.user .txt { background: var(--panel-2); border-radius: 8px; padding: 6px 10px; }
+.entry.tool .txt, .entry.result .txt { font-family: var(--font-mono); font-size: 12px; }
+.entry.tool .toolname {
+  display: inline-block; font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-right: 6px;
+  background: color-mix(in srgb, var(--st-working) 18%, transparent);
+}
+.entry.result details, .entry.thinking details { border-left: 2px solid var(--line); padding-left: 8px; }
+.entry.result summary, .entry.thinking summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.entry.result.err details { border-left-color: var(--st-waiting); }
+.entry.thinking .txt { color: var(--muted); font-style: italic; }
+.entry.system .txt { color: var(--muted); font-size: 12px; }
+.entry.sub { opacity: .78; }
+.entry.sub .who::after { content: " · subagent"; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.log .none { color: var(--muted); padding: 16px 4px; line-height: 1.5; }
+
+.legend { display: grid; gap: 4px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.legend span { display: flex; gap: 6px; align-items: center; }
+.legend .mini { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--muted); flex: none; }
+
+.mobile-only { display: none; }
+@media (max-width: 900px) {
+  .roster { width: 220px; }
+}
+@media (max-width: 680px) {
+  .mobile-only { display: inline-flex; }
+  .roster { left: 16px; right: 16px; width: auto; bottom: auto; max-height: 50%; }
+  .roster:not(.open) { display: none; }
+  .drawer { left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: 66%; border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .counts { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .roster { top: calc(104px + env(safe-area-inset-top, 0px)); max-height: 60%; }
+  .roster .legend { display: none; }
+  .brand .sub { display: none; }
+  .tc { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<canvas id="scene" aria-label="3D office: each desk is a thread of the Motio project"></canvas>
+
+<div class="topbar">
+  <div class="brand"><h1 id="projName">Motio</h1><span class="sub">Studio floor</span></div>
+  <div class="counts" id="counts" role="group" aria-label="Filter threads by state"></div>
+  <button class="iconbtn mobile-only" id="rosterBtn" aria-expanded="false" aria-controls="roster">Threads</button>
+  <span class="tc" id="clock" title="Local time (timecode)">00:00:00:00</span>
+  <div class="conn" id="conn" data-s="demo"><span class="dot"></span><span id="connTxt">Demo</span></div>
+</div>
+
+<aside class="roster" id="roster" aria-label="Threads">
+  <header><h2>Threads</h2><span class="hint" id="rosterHint"></span></header>
+<div class="demo-banner" id="demoBanner" hidden>
+  <span>Demo data. Connect your office server to see real threads.</span>
+  <form id="keyForm"><input id="keyInput" type="password" placeholder="View key" autocomplete="off" aria-label="View key"><button type="submit">Connect</button></form>
+  <span class="err" id="keyErr" hidden></span>
+</div>
+
+  <ul id="rosterList"></ul>
+  <div class="legend" id="legend" aria-label="What the office shows"></div>
+  <label class="toggle-resolved"><input type="checkbox" id="showResolved"> Show resolved desks</label>
+</aside>
+
+<aside class="drawer" id="drawer" hidden aria-label="Thread details">
+  <div class="head">
+    <div class="titlerow">
+      <h2 id="dTitle">Thread</h2>
+      <button class="iconbtn" id="dClose" aria-label="Close thread details">Close</button>
+    </div>
+    <div class="actions"><span class="pill" id="dState"></span><span class="tc" id="dRun"></span></div>
+    <dl class="facts" id="dFacts"></dl>
+    <div class="actions" id="dActions"></div>
+  </div>
+  <div class="filters" role="group" aria-label="Log filter">
+    <button class="chip" data-f="all" aria-pressed="true">All</button>
+    <button class="chip" data-f="msg" aria-pressed="false">Messages</button>
+    <button class="chip" data-f="tool" aria-pressed="false">Tools</button>
+    <label><input type="checkbox" id="follow" checked> Follow</label>
+  </div>
+  <div class="log" id="log" aria-live="polite"></div>
+</aside>
+
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ======================= constants ======================= */
+const STATES = {
+  working:  { label: 'Working' },
+  waiting:  { label: 'Waiting on you' },
+  review:   { label: 'Ready for review' },
+  landing:  { label: 'Landing' },
+  idle:     { label: 'Idle' },
+  resolved: { label: 'Resolved' },
+};
+const ORDER = ['waiting', 'review', 'working', 'landing', 'idle', 'resolved'];
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const stColor = (s) => css(`--st-${s}`);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (id) => document.getElementById(id);
+
+/* ======================= data store ======================= */
+const store = {
+  sessions: new Map(),        // id -> session
+  logs: new Map(),            // id -> { start, entries[] , loaded }
+  filter: null,               // state filter from header chips
+  selected: null,
+  showResolved: false,
+  mode: 'demo',
+};
+const listeners = new Set();
+const emit = (what, payload) => listeners.forEach((f) => f(what, payload));
+
+function applySession(s) {
+  const prev = store.sessions.get(s.id);
+  store.sessions.set(s.id, { ...prev, ...s });
+  emit('session', { s: store.sessions.get(s.id), prev });
+}
+function appendLog(sid, start, entries) {
+  let L = store.logs.get(sid);
+  if (!L) { L = { start: 0, entries: [], loaded: false }; store.logs.set(sid, L); }
+  const have = L.start + L.entries.length;
+  if (start > have && L.loaded) { reloadLog(sid); return; }   // gap: refetch
+  const skip = Math.max(0, have - start);
+  const fresh = entries.slice(skip);
+  L.entries.push(...fresh);
+  if (fresh.length) emit('log', { sid, fresh });
+}
+
+/* ======================= live connection ======================= */
+let key = null;
+try { key = new URLSearchParams(location.search).get('key') || localStorage.getItem('motio-office-key'); } catch {}
+let ws = null;
+
+function connect() {
+  if (!key) return startDemo();
+  setConn('connecting', 'Connecting…');
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try { ws = new WebSocket(`${proto}://${location.host}/ws?key=${encodeURIComponent(key)}`); }
+  catch { return liveFailed(); }
+  let opened = false;
+  ws.onopen = () => {
+    opened = true; store.mode = 'live'; stopDemo(); setConn('live', 'Live');
+    $('demoBanner').hidden = true;
+    try { localStorage.setItem('motio-office-key', key); } catch {}
+  };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'snapshot') {
+      for (const s of m.sessions) applySession(s);
+      for (const id of [...store.sessions.keys()]) if (!m.sessions.find((x) => x.id === id)) store.sessions.delete(id);
+      emit('layout');
+    } else if (m.type === 'session') {
+      applySession(m.session);
+    } else if (m.type === 'log') {
+      appendLog(m.sid, m.start, m.entries);
+    } else if (m.type === 'logreset') {
+      store.logs.delete(m.sid); if (store.selected === m.sid) reloadLog(m.sid);
+    }
+  };
+  ws.onclose = () => {
+    if (!opened) return liveFailed();
+    setConn('down', 'Reconnecting…');
+    setTimeout(connect, 3000);
+  };
+}
+function liveFailed() {
+  try { localStorage.removeItem('motio-office-key'); } catch {}
+  key = null;
+  showKeyError("Couldn't reach the office server with that key. Open this page from your server's address and check VIEW_TOKEN.");
+  startDemo();
+}
+async function reloadLog(sid) {
+  if (store.mode !== 'live') return;
+  try {
+    const r = await fetch(`/api/log/${encodeURIComponent(sid)}?tail=600&key=${encodeURIComponent(key)}`);
+    const j = await r.json();
+    store.logs.set(sid, { start: j.start, entries: j.entries, loaded: true });
+    emit('logreload', { sid });
+  } catch {
+    emit('logerror', { sid });
+  }
+}
+async function resolveThread(sid, resolved) {
+  if (store.mode === 'live') {
+    await fetch(`/api/session/${encodeURIComponent(sid)}/resolve?key=${encodeURIComponent(key)}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ resolved }) });
+  } else {
+    const s = store.sessions.get(sid);
+    applySession({ ...s, state: resolved ? 'resolved' : 'idle', lastEventAt: Date.now() });
+  }
+}
+function setConn(s, txt) { $('conn').dataset.s = s; $('connTxt').textContent = txt; }
+function showKeyError(msg) { const e = $('keyErr'); e.textContent = msg; e.hidden = false; }
+$('keyForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const v = $('keyInput').value.trim();
+  if (!v) return showKeyError('Enter the VIEW_TOKEN from your server’s .env file.');
+  $('keyErr').hidden = true; key = v; connect();
+});
+
+/* ======================= demo simulator ======================= */
+let demoTimer = null;
+const DEMO_TASKS = [
+  { title: 'Add ElevenLabs French voice to the render step', branch: 'feat/elevenlabs-fr', where: 'cloud' },
+  { title: 'Fix caption timing drift in Remotion 9:16 template', branch: 'fix/caption-drift', where: 'cloud' },
+  { title: 'NewsNow scraper: dedupe hot topics across sources', branch: 'feat/newsnow-dedupe', where: 'cloud' },
+  { title: 'Package the Windows build with auto-start', branch: 'build/windows-autostart', where: 'local' },
+  { title: 'Upload finished videos to Google Drive', branch: 'feat/drive-upload', where: 'cloud' },
+  { title: 'Slack message when a render finishes', branch: 'feat/slack-notify', where: 'cloud' },
+  { title: 'Style pack: manga panels', branch: 'feat/style-manga', where: 'cloud' },
+  { title: 'Translate source clips: subtitle alignment', branch: 'fix/subtitle-align', where: 'cloud' },
+];
+const DEMO_TOOLS = [
+  ['Read', 'src/render/pipeline.ts'], ['Grep', 'captionOffset'], ['Bash', 'npm test -- render'],
+  ['Edit', 'src/remotion/Captions.tsx'], ['Bash', 'npx remotion render Short9x16 out/test.mp4'],
+  ['WebFetch', 'https://elevenlabs.io/docs/api-reference/text-to-speech'], ['Read', 'src/sources/newsnow.ts'],
+  ['Bash', 'git push -u origin HEAD'], ['Write', 'src/notify/slack.ts'], ['Task', 'Explore how uploads are retried'],
+];
+const DEMO_SAY = [
+  "I'll start by reading the render pipeline to see where the voice track is mixed in.",
+  'The drift comes from rounding frames at 29.97 fps. Switching to exact frame math.',
+  'Tests pass locally. Rendering a 15-second sample to check the captions by eye.',
+  'Found two topics that are the same story with different headlines; matching on entity names now.',
+  'Opening a draft pull request so you can review the approach.',
+  'I need approval to run the Windows packaging script, since it writes outside the repo.',
+];
+function demoNow() { return new Date().toISOString(); }
+function startDemo() {
+  if (demoTimer) return;
+  store.mode = 'demo'; setConn('demo', 'Demo'); $('demoBanner').hidden = false;
+  const t0 = Date.now();
+  const initial = ['working', 'working', 'waiting', 'review', 'idle', 'working', 'landing', 'resolved'];
+  DEMO_TASKS.forEach((t, i) => {
+    const id = `demo-${i + 1}`;
+    applySession({
+      id, project: 'Motio', title: t.title, state: initial[i], where: t.where, branch: t.branch,
+      host: t.where === 'local' ? 'MacBook-Pro' : null, lastTool: null, lastDetail: null, toolCount: 0,
+      subagents: i === 0 ? 2 : 0, startedAt: t0 - (i + 1) * 23 * 60e3, lastEventAt: t0 - i * 40e3,
+      pr: initial[i] === 'review' ? { number: 41 + i, state: 'open', url: '#', title: t.title }
+        : initial[i] === 'landing' ? { number: 41 + i, state: 'open', approved: true, url: '#', title: t.title }
+        : initial[i] === 'resolved' ? { number: 30 + i, state: 'merged', url: '#', title: t.title } : null,
+    });
+    const ents = [{ kind: 'user', ts: new Date(t0 - (i + 1) * 23 * 60e3).toISOString(), text: t.title }];
+    for (let k = 0; k < 6; k++) ents.push(...demoStep());
+    if (initial[i] === 'waiting') ents.push({ kind: 'assistant', ts: demoNow(), text: DEMO_SAY[5] });
+    appendLog(id, 0, ents);
+    store.logs.get(id).loaded = true;
+  });
+  emit('layout');
+  demoTimer = setInterval(demoTick, 2600);
+}
+function stopDemo() {
+  clearInterval(demoTimer); demoTimer = null;
+  if ([...store.sessions.keys()].some((k) => k.startsWith('demo-'))) {
+    for (const k of [...store.sessions.keys()]) if (k.startsWith('demo-')) { store.sessions.delete(k); store.logs.delete(k); }
+    emit('layout');
+  }
+}
+function demoStep() {
+  const r = Math.random();
+  if (r < .3) return [{ kind: 'assistant', ts: demoNow(), text: DEMO_SAY[Math.floor(Math.random() * 5)] }];
+  const [tool, detail] = DEMO_TOOLS[Math.floor(Math.random() * DEMO_TOOLS.length)];
+  return [
+    { kind: 'tool', ts: demoNow(), tool, text: detail },
+    { kind: 'result', ts: demoNow(), text: tool === 'Bash' ? '✓ 42 passed, 0 failed (3.1s)' : 'ok', error: false },
+  ];
+}
+function demoTick() {
+  const all = [...store.sessions.values()].filter((s) => s.id.startsWith('demo-'));
+  // Working threads produce log lines.
+  for (const s of all.filter((x) => x.state === 'working')) {
+    if (Math.random() < .7) {
+      const ents = demoStep();
+      const L = store.logs.get(s.id);
+      appendLog(s.id, L.start + L.entries.length, ents);
+      const t = ents.find((e) => e.kind === 'tool');
+      applySession({ ...s, lastTool: t?.tool ?? s.lastTool, lastDetail: t?.text ?? s.lastDetail, toolCount: s.toolCount + (t ? 1 : 0), lastEventAt: Date.now() });
+    }
+  }
+  // Occasionally move one thread along its life cycle.
+  if (Math.random() < .35) {
+    const s = all[Math.floor(Math.random() * all.length)];
+    const next = { working: ['working', 'waiting', 'review', 'idle'], waiting: ['working'], review: ['landing', 'working'],
+      landing: ['resolved'], idle: ['working'], resolved: ['resolved'] }[s.state];
+    const to = next[Math.floor(Math.random() * next.length)];
+    if (to !== s.state) {
+      const pr = to === 'review' ? { number: 40 + Number(s.id.slice(5)), state: 'open', url: '#', title: s.title }
+        : to === 'landing' ? { ...(s.pr || {}), state: 'open', approved: true }
+        : to === 'resolved' ? { ...(s.pr || {}), state: 'merged' } : s.pr;
+      const subagents = to === 'working' && Math.random() < .3 ? 1 + Math.floor(Math.random() * 2) : to === 'working' ? s.subagents : 0;
+      applySession({ ...s, state: to, pr, subagents, lastEventAt: Date.now() });
+      const L = store.logs.get(s.id);
+      const msg = to === 'waiting' ? DEMO_SAY[5] : to === 'review' ? DEMO_SAY[4] : to === 'idle' ? 'Done. Summary posted to the project conversation.' : null;
+      if (msg) appendLog(s.id, L.start + L.entries.length, [{ kind: 'assistant', ts: demoNow(), text: msg }]);
+    }
+  }
+  // Keep the demo lively: bring one resolved desk back as a fresh task now and then.
+  if (Math.random() < .05) {
+    const r = all.find((x) => x.state === 'resolved');
+    if (r) applySession({ ...r, state: 'working', pr: null, startedAt: Date.now(), lastEventAt: Date.now() });
+  }
+}
+
+/* ======================= three.js scene ======================= */
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
+camera.position.set(15, 17, 22);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.46;
+controls.minDistance = 8; controls.maxDistance = 55;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(10, 20, 12); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 60 });
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: .85, metalness: 0, ...extra });
+const M = {
+  floor: mat('#c9ced6'), wall: mat('#f2f3f5'), wood: mat('#c8a27a'), metal: mat('#5b616b', { roughness: .5, metalness: .3 }),
+  dark: mat('#2a2e35'), chair: mat('#3b4250'), rug: mat('#9aa8b8'), green: mat('#38a34f', { roughness: 1 }),
+  plant: mat('#3f8f55'), pot: mat('#d9d4cc'), skinPalette: ['#f1c7a5', '#d9a47e', '#b57c55', '#8a5a3c', '#f5d6bf', '#6b4430'].map((c) => mat(c)),
+  hairPalette: ['#2b211b', '#5a3b22', '#1c1c1c', '#8c6a43', '#c9a66b', '#3d3d45'].map((c) => mat(c)),
+  pants: mat('#2f3747'), white: mat('#ffffff'), lamp: mat('#ffe9b0', { emissive: '#ffd27a', emissiveIntensity: 0 }),
+};
+function box(w, h, d, m, x = 0, y = 0, z = 0, parent = scene) {
+  const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o;
+}
+function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, parent = scene, seg = 16) {
+  const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
+  o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o;
+}
+function textTexture(draw, w = 512, h = 128) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+
+/* ---- room ---- */
+const ROOM = { x0: -14, x1: 14, z0: -11, z1: 12 };
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), M.floor);
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const backWall = box(1, 4, .3, M.wall);
+const leftWall = box(.3, 4, 1, M.wall);
+function sizeRoom() {
+  const w = ROOM.x1 - ROOM.x0, d = ROOM.z1 - ROOM.z0;
+  floor.scale.set(w, d, 1); floor.position.set((ROOM.x0 + ROOM.x1) / 2, 0, (ROOM.z0 + ROOM.z1) / 2);
+  backWall.scale.x = w; backWall.position.set((ROOM.x0 + ROOM.x1) / 2, 2, ROOM.z0);
+  leftWall.scale.z = d; leftWall.position.set(ROOM.x0, 2, (ROOM.z0 + ROOM.z1) / 2);
+  sun.target.position.set(0, 0, (ROOM.z0 + ROOM.z1) / 2); scene.add(sun.target);
+}
+// windows on the back wall
+for (const x of [-10, -6, 6, 10]) {
+  box(2.6, 1.8, .05, new THREE.MeshStandardMaterial({ color: '#bcd7ee', emissive: '#9cc4e8', emissiveIntensity: .35, roughness: .2 }), x, 2.3, ROOM.z0 + .17);
+}
+// green screen + ring light (it's a video studio)
+const gs = box(5, 3.2, .08, M.green, -9.5, 1.6, ROOM.z0 + 2.2); gs.rotation.y = .5;
+cyl(.04, .04, 2, M.metal, -7, 1, ROOM.z0 + 4);
+const ring = new THREE.Mesh(new THREE.TorusGeometry(.45, .05, 8, 32), new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff8e8', emissiveIntensity: .8 }));
+ring.position.set(-7, 2.1, ROOM.z0 + 4); ring.rotation.y = -.7; scene.add(ring);
+
+// "ON AIR" sign — lit when any thread is working
+let onAirLit = null;
+const onAirTex = (lit) => textTexture((g, w, h) => {
+  g.fillStyle = lit ? '#d6332a' : '#4a4f58'; g.fillRect(0, 0, w, h);
+  g.fillStyle = lit ? '#fff' : '#9aa0aa'; g.font = '700 74px "Bricolage Grotesque", system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ON AIR', w / 2, h / 2 + 4);
+});
+const onAirMat = new THREE.MeshStandardMaterial({ map: onAirTex(false), emissive: '#ffffff', emissiveMap: null, emissiveIntensity: 0 });
+const onAir = box(2.4, .6, .1, onAirMat, 0, 3.4, ROOM.z0 + .2);
+function setOnAir(lit) {
+  if (onAirLit === lit) return; onAirLit = lit;
+  onAirMat.map = onAirTex(lit); onAirMat.emissiveMap = lit ? onAirMat.map : null; onAirMat.emissiveIntensity = lit ? .9 : 0; onAirMat.needsUpdate = true;
+}
+
+/* ---- coordinator (manager) platform ---- */
+const MGR = { x: 0, z: ROOM.z0 + 3 };
+box(6, .2, 3.2, M.rug, MGR.x, .1, MGR.z);
+box(3, .08, 1.1, M.wood, MGR.x, 1.0, MGR.z + .55);
+for (const [dx, dz] of [[-1.4, 0], [1.4, 0]]) box(.08, .9, 1, M.metal, MGR.x + dx, .55, MGR.z + .55 + dz);
+const mgrMon = box(.9, .55, .05, M.dark, MGR.x, 1.4, MGR.z + .25);
+box(.4, .25, .3, M.dark, MGR.x - 1, 1.12, MGR.z + .7); // clapperboard
+const clap = box(.42, .05, .3, new THREE.MeshStandardMaterial({ color: '#f2f2f2' }), MGR.x - 1, 1.27, MGR.z + .7); clap.rotation.x = -.25;
+const nameplate = new THREE.Mesh(new THREE.PlaneGeometry(1.6, .4), new THREE.MeshBasicMaterial({
+  map: textTexture((g, w, h) => { g.fillStyle = '#1b1f27'; g.fillRect(0, 0, w, h); g.fillStyle = '#f2c14e';
+    g.font = '600 64px "IBM Plex Sans", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('COORDINATOR', w / 2, h / 2); }) }));
+nameplate.position.set(MGR.x, .75, MGR.z + 1.11); scene.add(nameplate);
+
+/* ---- coffee corner ---- */
+const CAFE = { x: ROOM.x0 + 3, z: 3.5 };
+box(1, 1.1, .7, M.dark, CAFE.x - 1.2, .55, CAFE.z - 2.2);
+box(.5, .5, .4, mat('#8b8f96', { metalness: .5, roughness: .4 }), CAFE.x - 1.2, 1.35, CAFE.z - 2.2);
+cyl(.9, .9, .06, M.wood, CAFE.x, .75, CAFE.z); cyl(.08, .2, .72, M.metal, CAFE.x, .37, CAFE.z);
+const sofa = box(3, .45, 1, mat('#5d6f8c'), CAFE.x, .3, CAFE.z + 2); box(3, .6, .25, mat('#5d6f8c'), CAFE.x, .75, CAFE.z + 2.4);
+for (const [x, z] of [[ROOM.x0 + 1, ROOM.z0 + 1], [ROOM.x1 - 1, ROOM.z0 + 1], [ROOM.x0 + 1, 8]]) {
+  cyl(.35, .28, .6, M.pot, x, .3, z);
+  const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.7, 0), M.plant); p.position.set(x, 1.2, z); p.castShadow = true; scene.add(p);
+}
+
+/* ---- desks ---- */
+const COLS = [-5.5, -1.5, 2.5, 6.5];
+const ROW0 = -2, ROW_STEP = 4;
+const deskSlot = (i) => ({ x: COLS[i % COLS.length], z: ROW0 + Math.floor(i / COLS.length) * ROW_STEP });
+const desks = []; // pool of desk objects
+function makeDesk() {
+  const g = new THREE.Group();
+  box(2.2, .08, 1.1, M.wood, 0, .95, .35, g);
+  for (const [x, z] of [[-1, .8], [1, .8], [-1, -.1], [1, -.1]]) box(.06, .92, .06, M.metal, x, .46, z, g);
+  // monitor facing the employee (-z side); its back faces the camera and carries a state LED strip
+  box(1.0, .6, .05, M.dark, 0, 1.45, .55, g);
+  box(.08, .3, .08, M.metal, 0, 1.12, .6, g);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(.92, .52), new THREE.MeshStandardMaterial({ color: '#111', emissive: '#000', emissiveIntensity: 1 }));
+  screen.position.set(0, 1.45, .52); screen.rotation.y = Math.PI; g.add(screen);
+  const led = new THREE.Mesh(new THREE.BoxGeometry(.8, .05, .02), new THREE.MeshStandardMaterial({ color: '#222', emissive: '#000', emissiveIntensity: 1.4 }));
+  led.position.set(0, 1.2, .59); g.add(led);
+  // chair (behind desk, on the -z side)
+  const chair = new THREE.Group(); chair.position.set(0, 0, -.55); g.add(chair);
+  box(.6, .08, .6, M.chair, 0, .5, 0, chair); box(.6, .7, .08, M.chair, 0, .9, -.3, chair); cyl(.04, .04, .45, M.metal, 0, .25, 0, chair);
+  // floor ring showing state
+  const ringMat = new THREE.MeshBasicMaterial({ color: '#888', transparent: true, opacity: .55 });
+  const fr = new THREE.Mesh(new THREE.RingGeometry(.75, .95, 40), ringMat); fr.rotation.x = -Math.PI / 2; fr.position.set(0, .02, .1); g.add(fr);
+  // selection halo
+  const halo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.18, 48), new THREE.MeshBasicMaterial({ color: '#f2c14e', transparent: true, opacity: .95 }));
+  halo.rotation.x = -Math.PI / 2; halo.position.set(0, .025, .1); halo.visible = false; g.add(halo);
+  // closed laptop shown on resolved desks
+  const laptop = box(.6, .04, .42, mat('#9aa0a8', { metalness: .4, roughness: .4 }), .55, 1.01, .2, g); laptop.visible = false;
+  scene.add(g);
+  return { g, screen, led, fr, halo, laptop, chairWorld: new THREE.Vector3() };
+}
+function getDesk(i) { while (desks.length <= i) desks.push(makeDesk()); return desks[i]; }
+
+/* ---- people ---- */
+function hash(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function makePerson(seed, scale = 1) {
+  const h = hash(seed);
+  const shirt = new THREE.Color().setHSL((h % 360) / 360, .45, .52);
+  const root = new THREE.Group();
+  const body = new THREE.Group(); root.add(body);
+  const shirtMat = mat(shirt);
+  const hips = new THREE.Group(); hips.position.y = .82; body.add(hips);
+  const legs = [-.11, .11].map((x) => {
+    const p = new THREE.Group(); p.position.x = x; hips.add(p);
+    const l = new THREE.Mesh(new THREE.CapsuleGeometry(.075, .55, 4, 8), M.pants); l.position.y = -.38; l.castShadow = true; p.add(l);
+    return p;
+  });
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(.21, .42, 4, 12), shirtMat); torso.position.y = 1.17; torso.castShadow = true; body.add(torso);
+  const head = new THREE.Group(); head.position.y = 1.62; body.add(head);
+  const skin = M.skinPalette[h % M.skinPalette.length];
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(.17, 20, 16), skin); skull.castShadow = true; head.add(skull);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(.18, 20, 12, 0, Math.PI * 2, 0, Math.PI * .55), M.hairPalette[(h >> 3) % M.hairPalette.length]);
+  hair.rotation.x = -.25; hair.position.y = .015; head.add(hair);
+  for (const x of [-.06, .06]) { const e = new THREE.Mesh(new THREE.SphereGeometry(.022, 8, 8), M.dark); e.position.set(x, .02, .155); head.add(e); }
+  const arms = [-.29, .29].map((x) => {
+    const p = new THREE.Group(); p.position.set(x, 1.38, 0); body.add(p);
+    const a = new THREE.Mesh(new THREE.CapsuleGeometry(.065, .42, 4, 8), shirtMat); a.position.y = -.27; a.castShadow = true; p.add(a);
+    return p;
+  });
+  // props
+  const folder = box(.32, .42, .04, mat('#7c5ce0'), 0, -.5, .12, arms[1]); folder.visible = false;
+  const cup = cyl(.06, .05, .12, M.white, 0, -.52, .1, arms[1]); cup.visible = false;
+  root.scale.setScalar(scale);
+  return { root, body, hips, legs, arms, head, folder, cup };
+}
+
+/* label sprite above the head */
+function labelTexture(tid, title, state) {
+  return textTexture((g, w, h) => {
+    const r = 30;
+    g.fillStyle = 'rgba(20,24,31,.86)';
+    g.beginPath(); g.roundRect(4, 4, w - 8, h - 8, r); g.fill();
+    g.fillStyle = stColor(state) || '#999'; g.beginPath(); g.arc(46, h / 2, 14, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f2c14e'; g.font = '500 30px "IBM Plex Mono", monospace'; g.textBaseline = 'middle'; g.fillText(tid, 76, h / 2 + 1);
+    g.fillStyle = '#ffffff'; g.font = '500 32px "IBM Plex Sans", system-ui, sans-serif';
+    const tw = g.measureText(tid).width;
+    let t = title || 'New thread';
+    const max = w - 110 - tw;
+    while (g.measureText(t).width > max && t.length > 4) t = t.slice(0, -2);
+    if (t !== (title || 'New thread')) t = t.trimEnd() + '…';
+    g.fillText(t, 92 + tw, h / 2 + 1);
+  }, 640, 88);
+}
+function bubbleTexture(text, color) {
+  return textTexture((g, w, h) => {
+    g.fillStyle = color; g.beginPath(); g.roundRect(4, 4, w - 8, h - 8, (h - 8) / 2); g.fill();
+    g.fillStyle = '#fff'; g.font = '600 40px "IBM Plex Sans", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, w / 2, h / 2 + 2);
+  }, 320, 80);
+}
+
+const actors = new Map(); // sid -> actor
+let LABEL_H = .017; // label height as a fraction of the viewport
+const manager = makePerson('coordinator-motio');
+manager.root.position.set(MGR.x, 0, MGR.z - .3);
+scene.add(manager.root);
+
+function makeActor(s) {
+  const p = makePerson(s.id);
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true, sizeAttenuation: false }));
+  label.scale.set(LABEL_H * 640 / 88, LABEL_H, 1); label.position.y = 2.25; label.renderOrder = 10; p.root.add(label);
+  const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true, sizeAttenuation: false }));
+  bubble.scale.set(LABEL_H * 4, LABEL_H, 1); bubble.position.y = 2.75; bubble.renderOrder = 11; bubble.visible = false; p.root.add(bubble);
+  scene.add(p.root);
+  const a = { ...p, label, bubble, sid: s.id, deskIndex: -1, target: new THREE.Vector3(), facing: 0, mode: 'sit', interns: [], labelKey: '', walkPhase: Math.random() * 6 };
+  p.root.traverse((o) => { o.userData.sid = s.id; });
+  actors.set(s.id, a);
+  return a;
+}
+
+/* ---- layout: who sits where, who stands where ---- */
+let threadNumbers = new Map();
+function visibleSessions() {
+  return [...store.sessions.values()].filter((s) => store.showResolved || s.state !== 'resolved');
+}
+function layout() {
+  // Thread numbers are handed out once, in start order, so a desk keeps its T-number.
+  for (const s of [...store.sessions.values()].sort((a, b) => a.startedAt - b.startedAt)) {
+    if (!threadNumbers.has(s.id)) threadNumbers.set(s.id, `T${threadNumbers.size + 1}`);
+  }
+  const num = (s) => Number(threadNumbers.get(s.id).slice(1));
+  const vis = visibleSessions().sort((a, b) => num(a) - num(b));
+  // desks
+  vis.forEach((s, i) => {
+    const slot = deskSlot(i);
+    const d = getDesk(i);
+    d.g.position.set(slot.x, 0, slot.z); d.g.visible = true; d.sid = s.id;
+    d.g.traverse((o) => { o.userData.sid = s.id; });
+    let a = actors.get(s.id) || makeActor(s);
+    if (a.deskIndex === -1) { a.root.position.set(slot.x, 0, slot.z - .55); }
+    a.deskIndex = i;
+  });
+  for (let i = vis.length; i < desks.length; i++) { desks[i].g.visible = false; desks[i].sid = null; }
+  for (const [sid, a] of actors) {
+    if (!vis.find((s) => s.id === sid)) { scene.remove(a.root); a.interns.forEach((x) => scene.remove(x.root)); actors.delete(sid); }
+  }
+  // grow the room to fit rows
+  const rows = Math.max(1, Math.ceil(vis.length / COLS.length));
+  ROOM.z1 = Math.max(9, ROW0 + rows * ROW_STEP + 2);
+  const grew = sizeRoom.lastZ1 !== ROOM.z1; sizeRoom(); sizeRoom.lastZ1 = ROOM.z1;
+  if (grew) frameRoom();
+  for (const s of vis) refreshActor(s);
+  renderRoster(); renderCounts();
+}
+
+function refreshActor(s) {
+  const a = actors.get(s.id); if (!a) return;
+  const d = desks[a.deskIndex];
+  const col = new THREE.Color(stColor(s.state) || '#888');
+  const resolved = s.state === 'resolved';
+  // desk visuals
+  d.screen.material.emissive.set(resolved ? '#000' : col).multiplyScalar(s.state === 'working' ? .9 : .45);
+  d.led.material.emissive.set(resolved ? '#000' : col);
+  d.fr.material.color.copy(col); d.fr.material.opacity = resolved ? .25 : .6;
+  d.laptop.visible = resolved;
+  d.halo.visible = store.selected === s.id;
+  // label
+  const tid = threadNumbers.get(s.id) || 'T?';
+  const lk = `${tid}|${s.title}|${s.state}|${document.documentElement.dataset.theme || ''}`;
+  if (lk !== a.labelKey) { a.labelKey = lk; a.label.material.map?.dispose(); a.label.material.map = labelTexture(tid, s.title, s.state); a.label.material.needsUpdate = true; }
+  // bubble
+  const bub = { waiting: ['Needs you', stColor('waiting')], review: [s.pr ? `PR #${s.pr.number}` : 'PR ready', stColor('review')], landing: ['Approved', stColor('landing')] }[s.state];
+  a.bubble.visible = !!bub;
+  if (bub && a.bubbleKey !== bub[0] + bub[1]) { a.bubbleKey = bub[0] + bub[1]; a.bubble.material.map?.dispose(); a.bubble.material.map = bubbleTexture(...bub); a.bubble.material.needsUpdate = true; }
+  // where to be
+  const slot = deskSlot(a.deskIndex);
+  a.root.visible = !resolved;
+  a.folder.visible = s.state === 'review' || s.state === 'landing';
+  a.cup.visible = s.state === 'idle';
+  if (s.state === 'working') { a.mode = 'sit'; a.target.set(slot.x, 0, slot.z - .55); a.facing = 0; }
+  else if (s.state === 'waiting') { a.mode = 'wave'; a.target.set(slot.x + .95, 0, slot.z - .5); a.facing = 0; }
+  else if (s.state === 'review' || s.state === 'landing') {
+    const q = [...actors.values()].filter((x) => ['review', 'landing'].includes(store.sessions.get(x.sid)?.state)).sort((x, y) => x.deskIndex - y.deskIndex).indexOf(a);
+    a.mode = 'stand'; a.target.set(MGR.x - 2.6 + q * 1.05, 0, MGR.z + 2.2); a.facing = Math.PI;
+  } else if (s.state === 'idle') {
+    const q = [...actors.values()].filter((x) => store.sessions.get(x.sid)?.state === 'idle').sort((x, y) => x.deskIndex - y.deskIndex).indexOf(a);
+    const ang = q * 1.1;
+    a.mode = 'stand'; a.target.set(CAFE.x + Math.cos(ang) * 1.6, 0, CAFE.z + Math.sin(ang) * 1.6 - .2);
+    a.facing = Math.atan2(CAFE.x - a.target.x, CAFE.z - a.target.z);
+  }
+  // interns = running subagents
+  const want = resolved ? 0 : Math.min(3, s.subagents || 0);
+  while (a.interns.length < want) {
+    const n = makePerson(s.id + ':intern' + a.interns.length, .62);
+    n.root.position.set(slot.x - 1.3 - a.interns.length * .55, 0, slot.z - .2 - a.interns.length * .3);
+    n.root.rotation.y = .5; n.root.traverse((o) => { o.userData.sid = s.id; });
+    scene.add(n.root); a.interns.push(n);
+  }
+  while (a.interns.length > want) scene.remove(a.interns.pop().root);
+}
+
+/* ---- animation ---- */
+const clock = new THREE.Clock();
+const tmp = new THREE.Vector3();
+function lerpAngle(a, b, t) { let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI; if (d < -Math.PI) d += Math.PI * 2; return a + d * t; }
+function pose(p, mode, t, walking) {
+  const k = 0.18;
+  let hipY = .82, legX = 0, armL = 0, armR = 0, armLz = 0, armRz = 0, bodyY = 0, headX = 0;
+  if (walking) {
+    const s = Math.sin(t * 9);
+    legX = s * .55; armL = -s * .5; armR = s * .5; bodyY = Math.abs(Math.cos(t * 9)) * .04;
+  } else if (mode === 'sit') {
+    bodyY = -.32; legX = -1.45; armL = -1.2 + Math.sin(t * 14) * .12; armR = -1.2 + Math.sin(t * 14 + 1.6) * .12; headX = .12 + Math.sin(t * 2) * .03;
+  } else if (mode === 'wave') {
+    armR = -2.9; armRz = Math.sin(t * 6) * .35; armL = 0; bodyY = Math.abs(Math.sin(t * 3)) * .03;
+  } else if (mode === 'stand') {
+    armR = -.9; armL = Math.sin(t * 1.3) * .05; headX = Math.sin(t * .7) * .06;
+  }
+  p.body.position.y += (bodyY - p.body.position.y) * k * 2;
+  p.legs[0].rotation.x += ((walking ? legX : legX) - p.legs[0].rotation.x) * k;
+  p.legs[1].rotation.x += ((walking ? -legX : legX) - p.legs[1].rotation.x) * k;
+  p.arms[0].rotation.x += (armL - p.arms[0].rotation.x) * k;
+  p.arms[1].rotation.x += (armR - p.arms[1].rotation.x) * k;
+  p.arms[1].rotation.z += (armRz - p.arms[1].rotation.z) * k;
+  p.head.rotation.x += (headX - p.head.rotation.x) * k;
+}
+function animate() {
+  const raw = clock.getDelta();
+  const dt = Math.min(raw, .5); // slow frames still move people at real speed
+  const t = clock.elapsedTime;
+  for (const a of actors.values()) {
+    if (!a.root.visible) continue;
+    tmp.copy(a.target).sub(a.root.position); tmp.y = 0;
+    const dist = tmp.length();
+    const walking = dist > .06;
+    if (walking) {
+      const step = Math.min(dist, (reduceMotion ? 6 : 2.6) * dt);
+      a.root.position.addScaledVector(tmp.normalize(), step);
+      a.root.rotation.y = lerpAngle(a.root.rotation.y, Math.atan2(tmp.x, tmp.z), .2);
+      a.walkPhase += dt;
+    } else {
+      a.root.rotation.y = lerpAngle(a.root.rotation.y, a.facing, .12);
+    }
+    pose(a, a.mode, reduceMotion ? 0 : t + a.walkPhase, walking && !reduceMotion);
+    if (a.bubble.visible) a.bubble.position.y = 2.75 + (reduceMotion ? 0 : Math.sin(t * 3) * .06);
+    for (const [i, n] of a.interns.entries()) pose(n, 'stand', reduceMotion ? 0 : t + i, false);
+  }
+  const anyWorking = [...store.sessions.values()].some((s) => s.state === 'working');
+  pose(manager, anyWorking ? 'sit' : 'stand', reduceMotion ? 0 : t, false);
+  manager.root.position.y = 0;
+  setOnAir(anyWorking);
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  const phone = w < 680;
+  LABEL_H = phone ? .017 : .02;
+  for (const a of actors.values()) { a.label.scale.set(LABEL_H * 640 / 88, LABEL_H, 1); a.bubble.scale.set(LABEL_H * 4, LABEL_H, 1); }
+  // Keep the room centred in the space the side panels leave free.
+  const left = phone ? 0 : $('roster').getBoundingClientRect().right;
+  const right = phone || $('drawer').hidden ? 0 : w - $('drawer').getBoundingClientRect().left;
+  const top = document.querySelector('.topbar').offsetHeight;
+  const bottom = phone && !$('drawer').hidden ? $('drawer').offsetHeight : 0;
+  camera.setViewOffset(w, h, (right - left) / 2, (bottom - top) / 2, w, h);
+  camera.updateProjectionMatrix();
+}
+function frameRoom() {
+  const phone = canvas.clientWidth < 680;
+  controls.target.set(0, 0, (ROOM.z0 + ROOM.z1) / 2);
+  const dir = new THREE.Vector3(.55, .78, 1).normalize();
+  const dist = (phone ? 2.0 : 1.0) * Math.max(ROOM.x1 - ROOM.x0, ROOM.z1 - ROOM.z0);
+  camera.position.copy(controls.target).addScaledVector(dir, dist);
+}
+addEventListener('resize', resize);
+
+/* ---- picking ---- */
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  const sid = pick(e); if (sid) select(sid);
+});
+canvas.addEventListener('pointermove', (e) => { canvas.style.cursor = pick(e) ? 'pointer' : 'grab'; });
+function pick(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const objs = [];
+  for (const a of actors.values()) if (a.root.visible) objs.push(a.root);
+  for (const d of desks) if (d.g.visible) objs.push(d.g);
+  const hit = ray.intersectObjects(objs, true).find((h) => h.object.userData.sid);
+  return hit?.object.userData.sid || null;
+}
+
+/* ---- theme sync ---- */
+function applyTheme() {
+  scene.background = new THREE.Color(css('--scene-bg'));
+  M.floor.color.set(css('--floor')); M.wall.color.set(css('--wall')); M.wood.color.set(css('--wood'));
+  for (const s of store.sessions.values()) refreshActor(s);
+  renderCounts(); renderLegend();
+  if (store.selected) renderDrawerHead();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ======================= UI ======================= */
+function fmtAgo(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`; return `${Math.round(s / 86400)} d ago`;
+}
+function timecode(ms, frames = true) {
+  const tot = Math.max(0, ms) / 1000;
+  const p = (n) => String(Math.floor(n)).padStart(2, '0');
+  return `${p(tot / 3600)}:${p((tot / 60) % 60)}:${p(tot % 60)}` + (frames ? `:${p((tot * 25) % 25)}` : '');
+}
+function renderCounts() {
+  const counts = Object.fromEntries(ORDER.map((k) => [k, 0]));
+  for (const s of store.sessions.values()) counts[s.state] = (counts[s.state] || 0) + 1;
+  $('counts').innerHTML = ORDER.filter((k) => k !== 'resolved' || counts[k]).map((k) =>
+    `<button class="chip" data-st="${k}" aria-pressed="${store.filter === k}"><span class="dot" style="--c:var(--st-${k})"></span>${STATES[k].label} <span class="n">${counts[k]}</span></button>`).join('');
+}
+$('counts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-st]'); if (!b) return;
+  store.filter = store.filter === b.dataset.st ? null : b.dataset.st;
+  renderCounts(); renderRoster();
+});
+function renderLegend() {
+  $('legend').innerHTML = ['working', 'waiting', 'review', 'landing', 'idle'].map((k) => {
+    const where = { working: 'at the desk', waiting: 'hand up', review: 'queue at coordinator', landing: 'approved, in queue', idle: 'coffee corner' }[k];
+    return `<span><span class="dot" style="--c:var(--st-${k})"></span>${STATES[k].label}: ${where}</span>`;
+  }).join('') + '<span><span class="mini"></span>Small figures: subagents</span>';
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function renderRoster() {
+  const list = [...store.sessions.values()]
+    .filter((s) => (store.filter ? s.state === store.filter : true))
+    .filter((s) => store.filter === 'resolved' || store.showResolved || s.state !== 'resolved')
+    .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.lastEventAt - a.lastEventAt);
+  $('rosterHint').textContent = `${store.sessions.size} total`;
+  $('rosterList').innerHTML = list.length ? list.map((s) => `
+    <li><button data-sid="${esc(s.id)}" aria-current="${store.selected === s.id}">
+      <span class="dot" style="--c:var(--st-${s.state})" title="${STATES[s.state].label}"></span>
+      <span class="ttl">${esc(s.title || 'New thread')}</span>
+      <span class="tid">${threadNumbers.get(s.id) || ''}</span>
+      <span class="meta">${STATES[s.state].label} · ${s.lastTool ? esc(s.lastTool) + ' · ' : ''}${fmtAgo(s.lastEventAt)}</span>
+    </button></li>`).join('')
+    : `<li class="empty">${store.sessions.size ? 'No threads in this state.' : 'No threads yet. Start a thread in the Motio project and it takes a desk here as soon as its first hook fires.'}</li>`;
+}
+$('rosterList').addEventListener('click', (e) => { const b = e.target.closest('[data-sid]'); if (b) select(b.dataset.sid); });
+$('showResolved').addEventListener('change', (e) => { store.showResolved = e.target.checked; layout(); });
+$('rosterBtn').addEventListener('click', () => {
+  const open = $('roster').classList.toggle('open'); $('rosterBtn').setAttribute('aria-expanded', open);
+});
+
+/* ---- drawer ---- */
+let logFilter = 'all';
+function select(sid) {
+  const prev = store.selected; store.selected = sid;
+  for (const s of [prev, sid]) { const x = s && store.sessions.get(s); if (x) refreshActor(x); }
+  $('drawer').hidden = !sid; $('roster').classList.remove('open'); resize();
+  if (!sid) return renderRoster();
+  renderDrawerHead(); renderRoster();
+  const L = store.logs.get(sid);
+  if (store.mode === 'live' && !L?.loaded) { $('log').innerHTML = '<p class="none">Loading log…</p>'; reloadLog(sid); }
+  else renderLog(true);
+}
+$('dClose').addEventListener('click', () => select(null));
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && store.selected) select(null); });
+function renderDrawerHead() {
+  const s = store.sessions.get(store.selected); if (!s) return;
+  $('dTitle').textContent = `${threadNumbers.get(s.id) || ''} · ${s.title || 'New thread'}`;
+  const st = $('dState'); st.style.setProperty('--c', `var(--st-${s.state})`);
+  st.innerHTML = `<span class="dot" style="--c:var(--st-${s.state})"></span>${STATES[s.state].label}`;
+  const pr = s.pr ? (s.pr.url && s.pr.url !== '#' ? `<a href="${esc(s.pr.url)}" target="_blank" rel="noopener">#${s.pr.number}</a>` : `#${s.pr.number}`) + ` · ${esc(s.pr.state)}${s.pr.approved ? ', approved' : ''}` : 'None yet';
+  $('dFacts').innerHTML = `
+    <dt>Runs</dt><dd>${s.where === 'local' ? `On your computer${s.host ? ' (' + esc(s.host) + ')' : ''}` : s.where === 'cloud' ? 'Cloud' : 'Unknown'}</dd>
+    <dt>Branch</dt><dd><code>${esc(s.branch || '—')}</code></dd>
+    <dt>Pull request</dt><dd>${pr}</dd>
+    <dt>Last tool</dt><dd>${s.lastTool ? `<code>${esc(s.lastTool)}</code> ${esc(s.lastDetail || '')}` : '—'}</dd>
+    <dt>Activity</dt><dd>${s.toolCount || 0} tool calls · ${s.subagents ? s.subagents + ' subagent(s) running · ' : ''}last ${fmtAgo(s.lastEventAt)}</dd>
+    <dt>Session</dt><dd><code>${esc(s.id)}</code></dd>`;
+  $('dActions').innerHTML = s.state === 'resolved'
+    ? '<button class="iconbtn" data-act="reopen">Reopen</button>'
+    : '<button class="iconbtn" data-act="resolve">Mark resolved</button>';
+  updateRunClock();
+}
+$('dActions').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b || !store.selected) return;
+  resolveThread(store.selected, b.dataset.act === 'resolve');
+});
+function updateRunClock() {
+  const s = store.sessions.get(store.selected); if (!s) return;
+  $('dRun').textContent = `Running time ${timecode(Date.now() - s.startedAt, false)}`;
+}
+const WHO = { user: 'Brief', assistant: 'Claude', tool: 'Tool', result: 'Output', thinking: 'Thinking', system: 'System' };
+function entryHTML(e) {
+  const tm = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '';
+  const sub = e.sub ? ' sub' : '';
+  let body;
+  if (e.kind === 'tool') body = `<div class="txt"><span class="toolname">${esc(e.tool)}</span>${esc(e.text)}</div>`;
+  else if (e.kind === 'result' || e.kind === 'thinking') {
+    const first = esc(String(e.text).split('\n')[0].slice(0, 90));
+    body = `<details><summary>${e.error ? 'Error: ' : ''}${first}</summary><div class="txt">${esc(e.text)}</div></details>`;
+  } else body = `<div class="txt">${esc(e.text)}</div>`;
+  return `<div class="entry ${e.kind}${e.error ? ' err' : ''}${sub}" data-k="${e.kind}"><time>${tm}</time><div class="body">${e.kind === 'result' ? '' : `<div class="who">${WHO[e.kind] || e.kind}</div>`}${body}</div></div>`;
+}
+const passes = (e) => logFilter === 'all' || (logFilter === 'msg' ? ['user', 'assistant'].includes(e.kind) : ['tool', 'result'].includes(e.kind));
+function renderLog(scroll) {
+  const L = store.logs.get(store.selected);
+  const ents = (L?.entries || []).filter(passes);
+  $('log').innerHTML = ents.length ? ents.map(entryHTML).join('') : `<p class="none">${L ? 'Nothing here for this filter.' : 'No log received yet. The hook ships the transcript after each tool call and at the end of each turn.'}</p>`;
+  if (scroll) $('log').scrollTop = $('log').scrollHeight;
+}
+document.querySelector('.filters').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  logFilter = b.dataset.f;
+  document.querySelectorAll('.filters [data-f]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  renderLog(true);
+});
+
+listeners.add((what, p) => {
+  if (what === 'layout') return layout();
+  if (what === 'session') {
+    const { s, prev } = p;
+    const needLayout = !prev || (prev.state === 'resolved') !== (s.state === 'resolved') || !actors.has(s.id);
+    if (needLayout) layout();
+    else {
+      // queue positions depend on others' states, so refresh everyone when a state changed
+      if (prev.state !== s.state) for (const x of store.sessions.values()) refreshActor(x); else refreshActor(s);
+      renderRoster(); renderCounts();
+    }
+    if (store.selected === s.id) renderDrawerHead();
+  }
+  if (what === 'log' && p.sid === store.selected) {
+    const box = $('log');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    const html = p.fresh.filter(passes).map(entryHTML).join('');
+    if (html) { box.querySelector('.none')?.remove(); box.insertAdjacentHTML('beforeend', html); }
+    if ($('follow').checked && atBottom) box.scrollTop = box.scrollHeight;
+  }
+  if (what === 'logreload' && p.sid === store.selected) renderLog(true);
+  if (what === 'logerror' && p.sid === store.selected) $('log').innerHTML = '<p class="none">Couldn’t load this log. Check that the office server is running, then reopen the thread.</p>';
+});
+
+setInterval(() => {
+  const d = new Date();
+  $('clock').textContent = timecode((d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) * 1000 + d.getMilliseconds());
+  updateRunClock();
+}, 40);
+setInterval(renderRoster, 15000);
+
+/* ======================= boot ======================= */
+sizeRoom(); frameRoom(); resize(); applyTheme(); renderLegend();
+const inArtifact = !/^https?:$/.test(location.protocol) || /claude\.(ai|site)|claudeusercontent/.test(location.hostname);
+if (inArtifact) startDemo(); else connect();
+requestAnimationFrame(animate);
+</script>
