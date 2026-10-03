@@ -289,7 +289,7 @@ function connect() {
   catch { return liveFailed(); }
   let opened = false;
   ws.onopen = () => {
-    opened = true; store.mode = 'live'; stopDemo(); setConn('live', 'Live');
+    opened = true; retries = 0; store.mode = 'live'; stopDemo(); setConn('live', 'Live');
     $('demoBanner').hidden = true;
     try { localStorage.setItem('motio-office-key', key); } catch {}
   };
@@ -307,12 +307,18 @@ function connect() {
       store.logs.delete(m.sid); if (store.selected === m.sid) reloadLog(m.sid);
     }
   };
-  ws.onclose = () => {
-    if (!opened) return liveFailed();
-    setConn('down', 'Reconnecting…');
-    setTimeout(connect, 3000);
+  ws.onclose = async () => {
+    if (opened) { setConn('down', 'Reconnecting…'); return setTimeout(connect, 3000); }
+    // The socket never opened: a wrong key, or the server is restarting / unreachable. Only a 401 means the key is wrong.
+    let status = 0;
+    try { status = (await fetch(`/api/state?key=${encodeURIComponent(key)}`, { cache: 'no-store' })).status; } catch {}
+    if (status === 401) return liveFailed();
+    retries = Math.min(retries + 1, 6);
+    setConn('down', 'Server unreachable, retrying…');
+    setTimeout(connect, 1000 * 2 ** Math.min(retries, 5));
   };
 }
+let retries = 0;
 function liveFailed() {
   try { localStorage.removeItem('motio-office-key'); } catch {}
   key = null;
