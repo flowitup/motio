@@ -23,6 +23,7 @@ from . import (
     scenes,
     search,
     series,
+    shots,
     topic,
     tts,
     usage,
@@ -202,7 +203,8 @@ STEP_LABELS = {"search": "Find sources", "download": "Download", "transcribe": "
 STEP_PCT = {"search": 5, "download": 12, "transcribe": 32, "script": 55, "voice": 64, "render": 70}
 NARRATION = "narration.json"  # trong audio/: giọng đọc lần dựng trước + các câu đã đọc
 # Cổng duyệt của hồ sơ kênh: dự án dừng ở trạng thái "review" (meta.review = script | video) và nhả hàng đợi.
-REVIEW_STEPS = {"script": "Awaiting script approval", "video": "Awaiting video approval"}
+REVIEW_STEPS = {"script": "Awaiting script approval", "shots": "Awaiting picture approval",
+                "video": "Awaiting video approval"}
 
 
 def _subject(proj: dict) -> dict:
@@ -594,6 +596,11 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     want = aiclips.limit(proj, ch) if is_ai else 0  # số cảnh thành clip AI (kênh hoặc riêng video này)
     if want:
         aiclips.check_ready()  # thiếu khoá fal thì dừng trước khi trả tiền cho bất kỳ ảnh nào
+    if is_ai and shots.enabled(proj) and not shots.ready(pid, proj, plan):
+        # duyệt ảnh trước: làm mọi ảnh còn thiếu (ảnh lỗi được ghi lại, không dừng cả bước) rồi chờ người duyệt
+        shots.make(pid, plan, step)
+        _await_review(pid, "shots", shots.summary(pid))
+        return
     if is_ai:  # ảnh trước giọng đọc: ảnh đã làm được giữ lại, chỉ làm cảnh còn thiếu hoặc vừa sửa
         sources = creator.pictures(pid, plan, out, step)
     voice = (ch["voice_id"] or None) if ch else None
@@ -676,7 +683,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
 
 def _await_review(pid: int, what: str, log: str) -> None:
-    db.update_project(pid, status="review", step=tr(REVIEW_STEPS[what]), pct=62 if what == "script" else 100, log=log,
+    db.update_project(pid, status="review", step=tr(REVIEW_STEPS[what]), pct=100 if what == "video" else 62, log=log,
                       meta={"review": what})
     notify.project(pid, "review")
 

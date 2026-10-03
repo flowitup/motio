@@ -16,7 +16,23 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageChops
 
-from motio import aiclips, api, channels, config, creator, db, edit, images, llm, pipeline, render, settings, tts, usage
+from motio import (
+    aiclips,
+    api,
+    channels,
+    config,
+    creator,
+    db,
+    edit,
+    images,
+    llm,
+    pipeline,
+    render,
+    settings,
+    shots,
+    tts,
+    usage,
+)
 
 has_ffmpeg = bool(config.find("ffmpeg") and config.find("ffprobe"))
 TOKEN = "test-token"
@@ -817,6 +833,235 @@ def test_scene_routes(client, monkeypatch):
     (config.PROJECTS / str(news)).mkdir(parents=True, exist_ok=True)
     (config.PROJECTS / str(news) / "script.json").write_text(json.dumps(_plan(4, 10)), encoding="utf-8")
     assert client.post(f"/api/projects/{news}/scenes/0/redo", headers=H).status_code == 400
+
+
+# ---------- picture review (shots.py) ----------
+def _gate(fake):
+    """An AI video made with "review the pictures first", run until it waits for the review."""
+    pid = creator.create("Les pandas", review_shots=True)
+    pipeline.produce(pid)
+    return pid
+
+
+def test_the_pictures_are_made_then_the_video_waits_for_their_review(fake):
+    pid = _gate(fake)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "shots" and p["step"] == "Awaiting picture approval"
+    assert fake["order"] == ["script"] and len(fake["generated"]) == LINES  # pictures yes, voice and render not yet
+    assert "Pictures ready for your review: 10 pictures" in p["log"]
+    v = shots.view(pid)
+    assert v["waiting"] and v["total"] == LINES and v["approved"] == 0 and not v["ready"]
+    assert all(s["state"] == "ready" and s["picture"] for s in v["shots"])
+    assert creator.view(p)["review_shots"] is True
+
+
+def test_a_video_without_the_option_goes_straight_through(fake):
+    pid = creator.create("Les pandas")
+    pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "done" and fake["order"] == ["script", "voice", "render"]
+    assert creator.view(db.get_project(pid))["review_shots"] is False
+
+
+def test_nothing_goes_on_until_every_picture_is_approved(fake):
+    pid = _gate(fake)
+    with pytest.raises(ValueError, match="10 pictures not approved yet"):
+        shots.check_continue(pid)
+    shots.approve(pid, 0)
+    assert shots.view(pid)["approved"] == 1
+    with pytest.raises(ValueError, match="9 pictures not approved yet"):
+        shots.check_continue(pid)
+    v = shots.approve_all(pid)
+    assert v["approved"] == LINES and v["ready"]
+    shots.check_continue(pid)
+    v = shots.approve(pid, 3, False)  # taking one approval back
+    assert v["approved"] == LINES - 1 and v["shots"][3]["state"] == "ready"
+    assert shots.approve_all(pid, False)["approved"] == 0
+
+
+def test_continuing_makes_the_voice_and_render_without_paying_for_a_picture_again(fake):
+    pid = _gate(fake)
+    shots.approve_all(pid)
+    made = len(fake["generated"])
+    db.update_project(pid, status="queued", meta={"review": None})  # what POST /shots/continue does
+    pipeline.produce(pid, start="voice")
+    assert db.get_project(pid)["status"] == "done"
+    assert fake["order"] == ["script", "voice", "render"] and len(fake["generated"]) == made
+    assert len(fake["render"][-1]["sources"]) == LINES
+
+
+def test_one_shot_is_redone_at_once_and_only_that_picture_is_made(fake):
+    pid = _gate(fake)
+    shots.approve_all(pid)
+    made = len(fake["generated"])
+    v = shots.redo(pid, 2)
+    assert len(fake["generated"]) == made + 1 and fake["generated"][-1][1] == 1  # a new seed, one picture
+    assert v["shots"][2]["seed"] == 1 and v["shots"][2]["state"] == "ready" and v["shots"][2]["picture"]
+    assert [s["state"] for i, s in enumerate(v["shots"]) if i != 2] == ["approved"] * (LINES - 1)
+    assert v["approved"] == LINES - 1 and "Picture redone for scene 3" in db.get_project(pid)["log"]
+    assert fake["order"] == ["script"]  # no voice, no render
+    shots.approve(pid, 2)
+    assert shots.view(pid)["ready"]
+
+
+def test_a_new_prompt_makes_a_new_picture_and_keeps_the_seed(fake):
+    pid = _gate(fake)
+    v = shots.redo(pid, 0, "A panda in the snow")
+    assert v["shots"][0]["image"] == "A panda in the snow" and v["shots"][0]["seed"] == 0
+    assert fake["generated"][-1][0].startswith("A panda in the snow")
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
+    assert plan["lines"][0]["image"] == "A panda in the snow"
+    with pytest.raises(ValueError, match="longer than 600"):
+        shots.redo(pid, 0, "x" * 601)
+    with pytest.raises(ValueError, match="Scene 11 does not exist"):
+        shots.redo(pid, LINES)
+
+
+def test_a_picture_that_cannot_be_made_does_not_stop_the_others(fake):
+    fake["fail"] = {3, 4}  # both tries of picture 3 fail
+    pid = _gate(fake)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "shots"
+    v = shots.view(pid)
+    assert v["failed"] == 1 and v["shots"][2]["state"] == "failed" and v["shots"][2]["picture"] is None
+    assert v["shots"][2]["error"] == "provider said no" and sum(s["state"] == "ready" for s in v["shots"]) == LINES - 1
+    assert "1 could not be made: redo them" in p["log"]
+    shots.approve_all(pid)  # the failed one stays open
+    v = shots.view(pid)
+    assert v["approved"] == LINES - 1 and not v["ready"]
+    with pytest.raises(ValueError, match="1 picture not approved yet"):
+        shots.check_continue(pid)
+    with pytest.raises(ValueError, match="Scene 3 has no picture yet"):
+        shots.approve(pid, 2)
+    shots.check_remake(pid)
+    fake["fail"] = set()
+    fake["generated"].clear()
+    db.update_project(pid, status="queued", meta={"review": None})  # what POST /shots/redo-failed does
+    pipeline.produce(pid, start="voice")
+    assert len(fake["generated"]) == 1  # only the missing picture
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "shots" and fake["order"] == ["script"]
+    assert shots.view(pid)["shots"][2]["state"] == "ready" and shots.view(pid)["approved"] == LINES - 1
+    shots.approve(pid, 2)
+    shots.check_continue(pid)
+
+
+def test_a_failed_shot_can_be_redone_one_by_one(fake):
+    fake["fail"] = {3, 4}
+    pid = _gate(fake)
+    v = shots.redo(pid, 2)
+    assert v["shots"][2]["state"] == "ready" and v["shots"][2]["seed"] == 0  # tried again as it was
+    with pytest.raises(ValueError, match="No picture is failed or missing"):
+        shots.check_remake(pid)
+
+
+def test_an_edited_prompt_or_style_is_no_longer_approved(fake):
+    pid = _gate(fake)
+    shots.approve_all(pid)
+    body = edit.script_view(pid)["script"]
+    body["lines"][4]["image"] = "A very different panda"
+    edit.save_script(pid, body)
+    v = shots.view(pid)
+    assert v["shots"][4]["state"] == "missing" and v["approved"] == LINES - 1  # new prompt: no picture, not approved
+    body["style"] = "neon colours"
+    edit.save_script(pid, body)
+    v = shots.view(pid)
+    assert v["approved"] == 0 and all(s["state"] == "missing" for s in v["shots"])  # every key changed
+
+
+def test_the_actions_only_work_while_the_video_waits_for_the_review(fake):
+    pid = creator.create("Les pandas", review_shots=True)
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "script.json").write_text(json.dumps(_plan(4, 10)), encoding="utf-8")
+    for call in (lambda: shots.approve(pid, 0), lambda: shots.approve_all(pid), lambda: shots.redo(pid, 0),
+                 lambda: shots.check_continue(pid)):
+        with pytest.raises(shots.NotWaiting, match="not awaiting picture review"):
+            call()
+    other = db.create_project(None, "Autre", mode="topic")
+    with pytest.raises(ValueError, match="Only AI videos"):
+        shots.view(other)
+    with pytest.raises(LookupError):
+        shots.view(99999)
+
+
+def test_the_script_gate_comes_first_then_the_picture_review(fake):
+    ch = _channel(gate_script=True, postiz=[])
+    pid = creator.create("Les pandas", review_shots=True)
+    channels.attach(pid, ch)
+    pipeline.produce(pid)
+    assert db.get_project(pid)["meta"]["review"] == "script" and not fake["generated"]
+    db.update_project(pid, meta={"review": None})
+    pipeline.produce(pid, start="voice")  # the script was approved
+    p = db.get_project(pid)
+    assert p["meta"]["review"] == "shots" and len(fake["generated"]) == LINES and fake["order"] == ["script"]
+
+
+def test_a_rerender_after_a_picture_change_asks_for_the_review_again(fake):
+    pid = _gate(fake)
+    shots.approve_all(pid)
+    db.update_project(pid, status="queued", meta={"review": None})
+    pipeline.produce(pid, start="voice")
+    assert db.get_project(pid)["status"] == "done"
+    edit.reroll_picture(pid, 1)  # a new picture asked for from the script editor
+    pipeline.resume(pid, "render")
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "shots"
+    assert shots.view(pid)["approved"] == LINES - 1 and shots.view(pid)["shots"][1]["state"] == "ready"
+
+
+def test_shot_routes(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(pipeline, "produce", lambda pid, **kw: calls.append((pid, kw)))
+    pid = creator.create("Les pandas", review_shots=True)
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "script.json").write_text(json.dumps(_plan(4, 10)), encoding="utf-8")
+    url = f"/api/projects/{pid}/shots"
+    assert client.get(url, headers=H).json()["shots"][0]["state"] == "missing"
+    assert client.post(f"{url}/0/approve", headers=H).status_code == 409  # not waiting yet
+    assert client.get("/api/projects/9999/shots", headers=H).status_code == 404
+    db.update_project(pid, status="review", meta={"review": "shots"})
+    r = client.post(f"{url}/1/redo", headers=H, json={"prompt": "A panda at the zoo"})
+    assert r.status_code == 200 and r.json()["shots"][1]["state"] == "ready" and r.json()["shots"][1]["picture"]
+    assert client.post(f"{url}/0/approve", headers=H).status_code == 400  # no picture yet
+    assert client.post(f"{url}/redo-failed", headers=H).status_code == 202  # the three others are missing
+    assert calls == [(pid, {"start": "voice"})] and db.get_project(pid)["status"] == "queued"
+    db.update_project(pid, status="review", meta={"review": "shots"})
+    for i in (0, 2, 3):
+        client.post(f"{url}/{i}/redo", headers=H)
+    assert client.post(f"{url}/redo-failed", headers=H).status_code == 400  # nothing missing or failed
+    assert client.post(f"{url}/continue", headers=H).status_code == 400  # none approved yet
+    assert client.post(f"{url}/approve-all", headers=H).json()["approved"] == 4
+    assert client.post(f"{url}/2/approve", headers=H, json={"approved": False}).json()["approved"] == 3
+    assert client.post(f"{url}/continue", headers=H).status_code == 400
+    assert client.post(f"{url}/2/approve", headers=H).json()["approved"] == 4
+    r = client.post(f"{url}/continue", headers=H)
+    p = db.get_project(pid)
+    assert r.status_code == 202 and p["status"] == "queued" and p["meta"]["review"] is None
+    assert calls[-1] == (pid, {"start": "voice"})
+    assert client.post(f"{url}/0/redo", headers=H).status_code == 409  # running again
+
+
+def test_the_generic_approve_route_approves_every_picture_and_goes_on(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(pipeline, "produce", lambda pid, **kw: calls.append((pid, kw)))
+    pid = creator.create("Les pandas", review_shots=True)
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "script.json").write_text(json.dumps(_plan(3, 10)), encoding="utf-8")
+    db.update_project(pid, status="review", meta={"review": "shots"})
+    assert client.post(f"/api/projects/{pid}/approve", headers=H).status_code == 400  # pictures not made
+    for i in range(3):
+        client.post(f"/api/projects/{pid}/shots/{i}/redo", headers=H)
+    assert client.post(f"/api/projects/{pid}/approve", headers=H).status_code == 202
+    assert calls == [(pid, {"start": "voice"})]
+
+
+def test_the_ai_route_takes_the_review_option(client):
+    pid = client.post("/api/ai", headers=H, json={"topic": "Les pandas", "review_shots": True}).json()["project_id"]
+    assert db.get_project(pid)["meta"]["ai"]["review_shots"] is True
+    pid = client.post("/api/ai", headers=H, json={"topic": "Les pandas"}).json()["project_id"]
+    assert "review_shots" not in db.get_project(pid)["meta"]["ai"]
 
 
 # ---------- real FFmpeg ----------
