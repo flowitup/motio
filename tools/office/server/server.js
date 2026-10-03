@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseLine } from './transcript.js';
+import { parseLine, titleFrom } from './transcript.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -26,6 +26,7 @@ if (!INGEST_TOKEN || !VIEW_TOKEN) {
   process.exit(1);
 }
 fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
+const logPath = (sid) => path.join(DATA_DIR, 'logs', `${sid}.jsonl`);
 
 // ---------- state ----------
 const STATE_FILE = path.join(DATA_DIR, 'sessions.json');
@@ -49,6 +50,8 @@ function effectiveState(s, now = Date.now()) {
   return 'idle';
 }
 const view = (s) => ({ ...s, state: effectiveState(s) });
+// Titles saved before envelope unwrapping existed start with '<'; let them be replaced.
+const needsTitle = (s) => !s.title || s.title.startsWith('<');
 
 function upsert(sid, project) {
   if (!sessions[sid]) {
@@ -60,6 +63,17 @@ function upsert(sid, project) {
   }
   return sessions[sid];
 }
+
+// Repair titles saved before the brief envelope was unwrapped, using each thread's stored log.
+for (const s of Object.values(sessions)) {
+  if (!needsTitle(s)) continue;
+  try {
+    const lines = fs.readFileSync(logPath(s.id), 'utf8').split('\n').filter(Boolean);
+    const firstUser = lines.flatMap(parseLine).find((x) => x.kind === 'user');
+    if (firstUser) s.title = titleFrom(firstUser.text) || s.title;
+  } catch {}
+}
+save();
 
 // ---------- websocket ----------
 const app = express();
@@ -101,7 +115,7 @@ app.post('/api/event', ingestAuth, express.json({ limit: '64kb' }), (req, res) =
       s.raw = 'working'; s.resolved = false; break;
     case 'UserPromptSubmit':
       s.raw = 'working';
-      if (!s.title && e.prompt) s.title = e.prompt.split('\n')[0].slice(0, 80);
+      if (needsTitle(s)) s.title = titleFrom(e.prompt) || s.title;
       s.lastMessage = e.prompt; break;
     case 'PreToolUse':
       s.raw = 'working'; s.lastTool = e.tool; s.lastDetail = e.detail; s.toolCount++;
@@ -151,15 +165,14 @@ app.post('/api/log/:sid', ingestAuth, express.raw({ type: '*/*', limit: '4mb' })
   const entries = buf.toString('utf8').split('\n').filter(Boolean).flatMap(parseLine);
   const start = s.logEntries;
   s.logEntries += entries.length;
-  if (!s.title) {
+  if (needsTitle(s)) {
     const firstUser = entries.find((x) => x.kind === 'user');
-    if (firstUser) s.title = firstUser.text.split('\n')[0].slice(0, 80);
+    if (firstUser) s.title = titleFrom(firstUser.text) || s.title;
   }
   save();
   if (entries.length) broadcast({ type: 'log', sid, start, entries });
   res.sendStatus(204);
 });
-const logPath = (sid) => path.join(DATA_DIR, 'logs', `${sid}.jsonl`);
 
 // ---------- ingest: GitHub pull request webhooks ----------
 app.post('/api/github', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
