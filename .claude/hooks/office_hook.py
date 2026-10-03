@@ -23,7 +23,8 @@ MAX_CHUNK = 2 * 1024 * 1024  # don't ship more than 2 MB per call
 
 
 def post(path, body, ctype):
-    headers = {"Content-Type": ctype}
+    # Cloudflare (in front of office.flowitup.com) rejects urllib's default User-Agent with error 1010.
+    headers = {"Content-Type": ctype, "User-Agent": "motio-office-hook/1.0"}
     if TOKEN:
         headers["Authorization"] = f"Bearer {TOKEN}"
     req = urllib.request.Request(URL + path, data=body, method="POST", headers=headers)
