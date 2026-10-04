@@ -13,7 +13,7 @@ const num = (n: number) => n.toLocaleString();
 function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <Card className="gap-1 p-4">
-      <Kicker>{label}</Kicker>
+      <Kicker className="min-h-8">{label}</Kicker>
       <div className="font-mono text-2xl leading-8 font-medium tabular-nums">{value}</div>
       {note && <div className="text-xs text-muted-foreground">{note}</div>}
     </Card>
@@ -48,7 +48,7 @@ function DayChart({ days }: { days: Stats["days"] }) {
   return (
     <Card className="gap-3 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-medium">{t.stats.days}</h2>
+        <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.stats.days}</h2>
         <span className="text-xs text-muted-foreground">{t.stats.dayCost}</span>
       </div>
       <div className="flex h-32 items-end gap-1" role="img" aria-label={t.stats.dayCost}>
@@ -149,7 +149,7 @@ export default function StatsPage() {
             </div>
             <DayChart days={data.days} />
             <section className="space-y-2">
-              <h2 className="text-sm font-medium">{t.stats.byChannel}</h2>
+              <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.stats.byChannel}</h2>
               <ChannelTable rows={data.channels} />
             </section>
             <div className="space-y-1 text-xs text-muted-foreground">
