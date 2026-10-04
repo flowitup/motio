@@ -118,7 +118,7 @@ function Pipeline({ steps, aside }: { steps: [string, string][]; aside?: ReactNo
         <span aria-hidden className="absolute top-7 bottom-7 left-[27px] w-px bg-hairline-strong" />
         {steps.map(([title, text], i) => (
           <li key={title} className="relative grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 py-2.5">
-            <span className="relative z-10 flex size-6 items-center justify-center rounded-full border border-hairline-strong bg-ground font-mono text-[11px] text-muted-foreground tabular-nums">
+            <span className="relative z-10 flex size-6 items-center justify-center rounded-full border border-hairline-strong bg-ground font-mono text-xs text-muted-foreground tabular-nums">
               {i + 1}
             </span>
             <div className="min-w-0">
@@ -136,7 +136,7 @@ function Pipeline({ steps, aside }: { steps: [string, string][]; aside?: ReactNo
 function LengthRule() {
   return (
     <div className="space-y-3 p-4">
-      <div className="text-[11px] leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase">{t.projects.duration}</div>
+      <div className="text-xs leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase">{t.projects.duration}</div>
       <div className="flex items-end justify-between gap-4">
         <span className="font-mono text-[28px] leading-8 font-medium tracking-[-0.01em] tabular-nums">
           {clock(MIN_S)} – {clock(MAX_S)}
@@ -145,7 +145,7 @@ function LengthRule() {
           <div className="relative h-1.5 rounded-xs bg-white/12">
             <div className="absolute inset-y-0 right-0 rounded-xs bg-cyan" style={{ left: `${(MIN_S / MAX_S) * 100}%` }} />
           </div>
-          <div className="relative mt-1 h-4 font-mono text-[11px] leading-4 text-muted-foreground">
+          <div className="relative mt-1 h-4 font-mono text-xs leading-4 text-muted-foreground">
             <span className="absolute left-0">0:00</span>
             <span className="absolute -translate-x-1/2" style={{ left: `${(MIN_S / MAX_S) * 100}%` }}>
               {clock(MIN_S)}
