@@ -145,7 +145,7 @@ export default function StatsPage() {
               />
               <Metric label={t.stats.monthVideos} value={String(data.month.videos)} note={perVideo} />
               <Metric label={t.stats.monthChars} value={num(data.month.chars)} />
-              <Metric label={t.stats.total} value={usd(data.total.usd)} note={`${num(data.total.chars)}`} />
+              <Metric label={t.stats.total} value={usd(data.total.usd)} note={`${t.stats.colChars}: ${num(data.total.chars)}`} />
             </div>
             <DayChart days={data.days} />
             <section className="space-y-2">

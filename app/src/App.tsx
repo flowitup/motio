@@ -38,7 +38,7 @@ const NAV: NavItem[][] = [
 ];
 
 const railItem =
-  "relative flex h-14 flex-col items-center justify-center gap-1 text-xs leading-4 font-medium tracking-[0.01em] whitespace-nowrap transition-colors";
+  "relative flex h-14 flex-col items-center justify-center gap-1 text-xs leading-4 font-medium whitespace-nowrap transition-colors";
 
 function RailItem({ to, label, icon: Icon, count }: { to: string; label: string; icon: typeof Flame; count?: number }) {
   return (
@@ -162,7 +162,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-background text-foreground">
-      <nav aria-label={t.studio.mainNav} className="flex w-[76px] shrink-0 flex-col border-r bg-ground">
+      <nav aria-label={t.studio.mainNav} className="flex w-20 shrink-0 flex-col border-r bg-ground">
         <div className="flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
           <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">

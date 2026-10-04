@@ -178,3 +178,16 @@
     scrollbar-color: rgb(255 255 255 / 0.2) transparent;
     }
 }
+
+/* Reduced motion: no transitions and no enter / exit animations; spinners stay, they are feedback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    }
+  [class*="animate-in"],
+  [class*="animate-out"] {
+    animation-duration: 0.01ms !important;
+    }
+}

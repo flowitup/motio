@@ -117,6 +117,7 @@ on every PR; keep them green.
   with their Vietnamese in `i18n.VI` (`tests/test_i18n.py` fails when one is missing); the app sets the engine's
   `UI_LANG`. CLI help and the legacy dashboard stay English. Video content is French.
 - Code, identifiers and commit messages in English; short comments may be Vietnamese.
+- UI look (type floor 12 px, caption style, window sizes, motion): `docs/DESIGN.md`; check a UI change against `docs/UI_REVIEW.md`.
 - The engine must stay cross-platform: guard OS-specific code with `platform.system()`, use `pathlib`,
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
 - All LLM calls go through `motio/llm.py`. The `claude_cli` provider strips `ANTHROPIC_API_KEY` from the
