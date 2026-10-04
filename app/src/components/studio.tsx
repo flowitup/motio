@@ -68,7 +68,7 @@ export function SourceBadge({ children, className }: { children: ReactNode; clas
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-lg border border-hairline-strong px-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] whitespace-nowrap text-foreground uppercase",
+        "inline-flex h-5 items-center rounded-lg border border-hairline-strong px-1.5 font-mono text-xs leading-4 font-medium tracking-[0.04em] whitespace-nowrap text-foreground uppercase",
         className,
       )}
     >
@@ -79,7 +79,7 @@ export function SourceBadge({ children, className }: { children: ReactNode; clas
 
 /** Small uppercase overline inside content ("Angle", "Narration"). */
 export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("text-[11px] leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase", className)}>{children}</div>;
+  return <div className={cn("text-xs leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase", className)}>{children}</div>;
 }
 
 /** The 56 px bar at the top of a page: title (or breadcrumb) on the left, actions on the right. */
@@ -118,7 +118,7 @@ export function Panel({
 export function PanelHeader({ children, aside, className }: { children: ReactNode; aside?: ReactNode; className?: string }) {
   return (
     <header className={cn("flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4", className)}>
-      <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{children}</h2>
+      <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{children}</h2>
       {aside && <div className="font-mono text-xs leading-4 whitespace-nowrap text-muted-foreground tabular-nums">{aside}</div>}
     </header>
   );

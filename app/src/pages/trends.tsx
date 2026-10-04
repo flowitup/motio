@@ -259,7 +259,7 @@ export default function TrendsPage() {
           {selected ? (
             <>
               <div className="flex h-10 shrink-0 items-center justify-between border-b bg-strip px-4">
-                <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.studio.selectedTopic}</h2>
+                <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.studio.selectedTopic}</h2>
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">
                   {t.studio.position(trends.indexOf(selected) + 1, trends.length)}
                 </span>
@@ -279,7 +279,7 @@ export default function TrendsPage() {
                       </div>
                     </div>
                     <Meter value={selected.score} tone={toneOf(selected.score)} height={8} />
-                    <div className="relative h-4 font-mono text-[11px] leading-4 text-muted-foreground">
+                    <div className="relative h-4 font-mono text-xs leading-4 text-muted-foreground">
                       <span className="absolute left-0">0</span>
                       <span className="absolute left-1/2 -translate-x-1/2">50</span>
                       <span className="absolute left-3/4 -translate-x-1/2">75</span>
@@ -314,7 +314,7 @@ export default function TrendsPage() {
                   <section className="border bg-panel">
                     <header className="flex h-10 items-center gap-2 border-b bg-strip px-4">
                       <Link2 className="size-3.5 text-muted-foreground" aria-hidden />
-                      <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.trends.links}</h2>
+                      <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.trends.links}</h2>
                     </header>
                     <div className="grid gap-3 p-4">
                       <Textarea

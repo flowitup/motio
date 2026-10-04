@@ -38,7 +38,7 @@ const NAV: NavItem[][] = [
 ];
 
 const railItem =
-  "relative flex h-14 flex-col items-center justify-center gap-1 text-[11px] leading-[14px] font-medium tracking-[0.01em] whitespace-nowrap transition-colors";
+  "relative flex h-14 flex-col items-center justify-center gap-1 text-xs leading-4 font-medium tracking-[0.01em] whitespace-nowrap transition-colors";
 
 function RailItem({ to, label, icon: Icon, count }: { to: string; label: string; icon: typeof Flame; count?: number }) {
   return (
@@ -55,7 +55,7 @@ function RailItem({ to, label, icon: Icon, count }: { to: string; label: string;
               <span
                 role="img"
                 aria-label={t.studio.needsYouCount(count)}
-                className="absolute -top-1.5 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 font-mono text-[10px] leading-none font-medium text-on-amber tabular-nums"
+                className="absolute -top-1.5 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 font-mono text-[11px] leading-none font-medium text-on-amber tabular-nums"
               >
                 {count}
               </span>
@@ -78,7 +78,7 @@ function EngineBadge() {
       title={info.error ? t.native(info.error) : info.url}
     >
       <Led status={status} />
-      <span className="w-14 text-center text-[11px] leading-[14px] font-medium text-muted-foreground">{label}</span>
+      <span className="w-full text-center text-xs leading-4 font-medium text-balance text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -174,7 +174,7 @@ export default function App() {
               <path d="M75 24v52M91 13v74M107 31v38" />
             </g>
           </svg>
-          <span className="font-mono text-[11px] leading-3 font-medium tracking-[0.02em]">{t.appName}</span>
+          <span className="font-mono text-xs leading-4 font-medium tracking-[0.02em]">{t.appName}</span>
         </div>
         <div className="flex flex-1 flex-col overflow-y-auto pt-2">
           {NAV.map((group, i) => (

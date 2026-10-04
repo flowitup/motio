@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { PageTitle, TopBar } from "@/components/studio";
+import { Kicker, PageTitle, TopBar } from "@/components/studio";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, type Stats } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -13,8 +13,8 @@ const num = (n: number) => n.toLocaleString();
 function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <Card className="gap-1 p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold tracking-tight">{value}</div>
+      <Kicker>{label}</Kicker>
+      <div className="font-mono text-2xl leading-8 font-medium tabular-nums">{value}</div>
       {note && <div className="text-xs text-muted-foreground">{note}</div>}
     </Card>
   );
@@ -88,9 +88,9 @@ function ChannelTable({ rows }: { rows: Stats["channels"] }) {
     <Card className="gap-0 overflow-x-auto p-0">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-xs text-muted-foreground">
+          <tr className="border-b bg-strip font-mono text-xs tracking-[0.06em] text-muted-foreground uppercase">
             {head.map((h, i) => (
-              <th key={h} className={cn("px-4 py-2 font-medium", i === 0 ? "text-left" : "text-right")}>
+              <th key={h} className={cn("px-4 py-2.5 font-medium", i === 0 ? "text-left" : "text-right")}>
                 {h}
               </th>
             ))}
