@@ -115,6 +115,13 @@ def main():
         "message": (p.get("message") or "")[:300] or None,       # Notification
         "notification_type": p.get("notification_type"),
         "source": p.get("source"),                               # SessionStart: startup/resume/compact
+        # Subagents: SubagentStart/SubagentStop name the agent, and every event fired inside one carries its id.
+        "agent_id": p.get("agent_id"),
+        "agent_type": p.get("agent_type"),
+        "subagent_type": (p.get("tool_input") or {}).get("subagent_type") if tool in ("Task", "Agent") else None,
+        "stop_reason": p.get("stop_reason"),                     # SubagentStop
+        "last_message": (p.get("last_assistant_message") or "")[:300] or None if ev == "SubagentStop" else None,
+        "v": 2,  # this hook reports SubagentStart; the server then tracks subagents by id
         "reason": p.get("reason"),                               # SessionEnd
         "branch": branch(p.get("cwd")),
         "where": "cloud" if os.environ.get("CLAUDE_CODE_REMOTE") == "true" else "local",
