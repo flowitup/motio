@@ -213,7 +213,7 @@ export default function TrendsPage() {
           </div>
 
           {all.error && <p className="border-b px-5 py-3 text-sm text-coral">{all.error.message}</p>}
-          <div className="grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)_192px] gap-x-4 border-b bg-strip px-5 font-mono text-[11px] leading-10 font-medium tracking-[0.06em] text-muted-foreground uppercase lg:grid-cols-[56px_minmax(0,1fr)_96px_minmax(0,150px)_192px]">
+          <div className="grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)_192px] gap-x-4 border-b bg-strip px-5 font-mono text-xs leading-10 font-medium tracking-[0.06em] text-muted-foreground uppercase lg:grid-cols-[56px_minmax(0,1fr)_96px_minmax(0,150px)_192px]">
             <span>{t.studio.colScore}</span>
             <span>{t.studio.colTopic}</span>
             <span className="hidden lg:block">{t.studio.colSource}</span>
