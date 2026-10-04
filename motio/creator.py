@@ -5,6 +5,12 @@ No source footage: Claude writes the narration as scenes (spoken line + English 
 with a Ken Burns move (render.Piece.motion). Script gate, captions, badge, 16:9 copy, video gate, Postiz and Slack
 work as for every project. Pictures from a provider that isn't cleared for monetized channels (Modal's Qwen 2.1
 research licence, the placeholder) never go out without the owner's approval, like a dub of someone else's video.
+
+Same faces (`plan["same_face"]`, on by default): every character of the cast (the channel's plus the video's own, see
+series.py) gets one reference portrait in out/cast/, made once and cached like a scene picture, and each scene that
+names characters is made from their portraits (images.REF_PROVIDERS), so the face, hair and clothes carry over from
+scene to scene instead of being re-imagined from the words. A new look or a redone portrait is a new key for every scene
+that shows the character, so those scenes are made again (and asked again at the picture review).
 """
 import re
 import time
@@ -17,6 +23,7 @@ MODE = "ai"
 DURATIONS = topic.DURATIONS  # 70 | 80 | 90 s: every video is 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
 MAX_PROMPT = 600
 MAX_RECAP = 500
+MAX_CAST_TEXT = 2500  # a video's own cast lines (same limit as a channel's)
 RETRY_WAIT = 2.0  # seconds before the one retry of a picture the provider failed to make
 PICTURES_FROM, PICTURES_TO = 30, 62  # progress bar range of the pictures step
 CLIPS_AT = 70  # progress of the clips step: after the voice (≤ 69), where the render starts (70)
@@ -59,11 +66,14 @@ def is_ai(proj: dict | None) -> bool:
     return bool(proj) and proj.get("mode") == MODE
 
 
-def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, review_shots: bool = False) -> int:
+def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, review_shots: bool = False,
+           cast: str = "", same_face: bool = True) -> int:
     """Create an AI video project (not started). ValueError (translated) when something is missing or wrong, or
     when the chosen image provider isn't ready, so the app says so before any work. `clip_limit`: how many scenes
     become AI clips (aiclips.py) for this video; None = the channel's setting. `review_shots`: stop after the
-    pictures are made so each one can be approved or redone before the voice and the render (shots.py)."""
+    pictures are made so each one can be approved or redone before the voice and the render (shots.py). `cast`: this
+    video's own characters, one `Name: look` line each (fictional people only), added to the channel's. `same_face`:
+    make the scenes of a character from one reference portrait of them (the scenes with characters cost a bit more)."""
     text = _one(topic_text)[:300]
     if not text:
         raise ValueError(tr("Enter a topic for the AI video"))
@@ -71,11 +81,14 @@ def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, r
         raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, DURATIONS))))
     if clip_limit is not None and not 0 <= clip_limit <= aiclips.MAX_PER_VIDEO:
         raise ValueError(tr("AI clips per video must be between 0 and {n}", n=aiclips.MAX_PER_VIDEO))
+    cast_text = "\n".join(ln.strip() for ln in str(cast or "").strip().splitlines() if ln.strip())[:MAX_CAST_TEXT]
+    series.parse_cast(cast_text, strict=True)
     images.check_ready()
     if clip_limit:
         aiclips.check_ready()
-    ai = {"provider": images.provider()} | ({} if clip_limit is None else {"clip_limit": clip_limit}) \
-        | ({"review_shots": True} if review_shots else {})
+    ai = {"provider": images.provider(), "same_face": bool(same_face)}
+    ai |= ({} if clip_limit is None else {"clip_limit": clip_limit}) | ({"review_shots": True} if review_shots else {})
+    ai |= {"cast": cast_text} if cast_text else {}
     pid = db.create_project(None, text, mode=MODE)
     db.update_project(pid, log=tr("AI video: {topic} · {duration} s · pictures from {provider}", topic=text,
                                   duration=duration, provider=images.provider()),
@@ -118,30 +131,87 @@ def tidy(plan: dict) -> dict:
     return tidy_plan
 
 
-def prompt(plan: dict, ln: dict) -> str:
-    """The text the image model gets: the scene (with the look of every named recurring character in front of it), the
-    video's visual style, then the global style of Settings."""
-    scene = ln.get("image") or f"{plan.get('title_fr') or ''}: {ln.get('text') or ''}"
-    scene = series.with_cast(scene, plan.get("cast"))  # a recurring character is always described in the same words
-    parts = [scene, plan.get("style") or "", images.style()]
+def _scene(plan: dict, ln: dict) -> str:
+    return ln.get("image") or f"{plan.get('title_fr') or ''}: {ln.get('text') or ''}"
+
+
+def _join(parts: list[str]) -> str:
     return ". ".join(p.strip().rstrip(".") for p in parts if p and p.strip()) + "."
 
 
+def faces_on(plan: dict, provider: str) -> bool:
+    """Scenes are made from the characters' reference portraits (same faces) with this provider."""
+    return bool(plan.get("same_face") and plan.get("cast")) and provider in images.REF_PROVIDERS
+
+
+def faces(plan: dict, ln: dict, provider: str) -> list[str]:
+    """The characters whose portrait this scene is made from (none when same faces is off)."""
+    if not faces_on(plan, provider):
+        return []
+    return series.named(_scene(plan, ln), plan["cast"])[:images.MAX_REFS]
+
+
+def face_prompt(plan: dict, name: str) -> str:
+    """The text of a character's reference portrait: the fixed look, a plain neutral shot, the video's style."""
+    return _join([f"Character reference portrait of {name}, a fictional person: {plan['cast'][name]}",
+                  "front view, head to waist, neutral expression, plain light grey studio background",
+                  plan.get("style") or "", images.style()])
+
+
+def face_seed(plan: dict, name: str) -> int:
+    return int((plan.get("face_seeds") or {}).get(name) or 0)
+
+
+def face_file(out: Path, plan: dict, name: str, provider: str) -> Path:
+    return out / "cast" / f"{images.key(face_prompt(plan, name), face_seed(plan, name), provider)}.png"
+
+
+def prompt(plan: dict, ln: dict, provider: str | None = None) -> str:
+    """The text the image model gets: the scene (with the look of every named recurring character in front of it), the
+    video's visual style, then the global style of Settings. With same faces (`provider` given), it starts by naming
+    the reference portraits the picture is made from."""
+    scene = series.with_cast(_scene(plan, ln), plan.get("cast"))  # a character is always described in the same words
+    who = faces(plan, ln, provider) if provider else []
+    lead = ""
+    if who:
+        lead = (", ".join(f"input picture {i} is {name}" for i, name in enumerate(who, 1))
+                + ": keep each one's face, hair, build and clothes exactly as in their picture, in this new scene")
+    return _join([lead, scene, plan.get("style") or "", images.style()])
+
+
 def picture_file(out: Path, plan: dict, ln: dict, provider: str) -> Path:
-    return out / "scenes" / f"{images.key(prompt(plan, ln), int(ln.get('seed') or 0), provider)}.png"
+    refs = [face_file(out, plan, n, provider).stem for n in faces(plan, ln, provider)]
+    return out / "scenes" / f"{images.key(prompt(plan, ln, provider), int(ln.get('seed') or 0), provider, refs)}.png"
 
 
-def make_picture(plan: dict, ln: dict, out: Path, name: str) -> tuple[Path, bool]:
-    """The picture of one scene in out/scenes/ (path, was_new). A provider error is tried once more, then raised
-    (images.ImageError, translated)."""
+def _retry(make):
     for attempt in (1, 2):
         try:
-            return images.make(prompt(plan, ln), int(ln.get("seed") or 0), out / "scenes", name)
+            return make()
         except images.ImageError:
             if attempt == 2:
                 raise
             time.sleep(RETRY_WAIT)
     raise AssertionError("unreachable")
+
+
+def make_face(plan: dict, name: str, out: Path, provider: str) -> tuple[Path, bool]:
+    """A character's reference portrait in out/cast/ (path, was_new), tried once more on a provider error."""
+    return _retry(lambda: images.make(face_prompt(plan, name), face_seed(plan, name), out / "cast", provider))
+
+
+def make_picture(plan: dict, ln: dict, out: Path, name: str) -> tuple[Path, bool, float]:
+    """The picture of one scene in out/scenes/ (path, was_new, USD spent), with the reference portraits of its
+    characters made first when same faces is on. A provider error is tried once more, then raised
+    (images.ImageError, translated)."""
+    refs, usd = [], 0.0
+    for who in faces(plan, ln, name):
+        f, new = make_face(plan, who, out, name)
+        usd += images.cost(int(new), name)
+        refs.append((f.stem, f))
+    path, new = _retry(lambda: images.make(prompt(plan, ln, name), int(ln.get("seed") or 0), out / "scenes", name,
+                                           refs))
+    return path, new, round(usd + images.cost(int(new), name, refs=bool(refs)), 3)
 
 
 def pictures(pid: int, plan: dict, out: Path, step, lo: int = PICTURES_FROM, hi: int = PICTURES_TO) -> list[dict]:
@@ -151,20 +221,21 @@ def pictures(pid: int, plan: dict, out: Path, step, lo: int = PICTURES_FROM, hi:
     name = images.provider()
     images.check_ready(name)
     lines = plan["lines"]
-    sources, fresh = [], 0
+    sources, fresh, cost = [], 0, 0.0
     for i, ln in enumerate(lines):
         step("Pictures", lo + (hi - lo) * i // len(lines),
              tr("Picture {n} of {total} ({provider})", n=i + 1, total=len(lines), provider=name))
         try:
-            path, new = make_picture(plan, ln, out, name)
+            path, new, usd = make_picture(plan, ln, out, name)
         except images.ImageError as e:
             raise RuntimeError(tr("Picture {n} failed: {error}", n=i + 1, error=e)) from e
         fresh += new
+        cost += usd
         sources.append({"path": str(path), "platform": "AI", "uploader": name, "title": ln["text"], "duration": 0,
                         "url": None, "id": path.stem})
-    cost = images.cost(fresh, name)
+    cost = round(cost, 3)
     ai = {**((db.get_project(pid) or {}).get("meta", {}).get("ai") or {}), "provider": name, "scenes": len(lines)}
-    ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3) if fresh else ai.get("cost") or 0
+    ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3) if cost else ai.get("cost") or 0
     step("Pictures", hi, _made_log(fresh, len(lines), cost), ai=ai)
     return sources
 
@@ -264,7 +335,8 @@ def view(proj: dict) -> dict | None:
     return {"topic": meta.get("topic"), "provider": name, "needs_review": needs_review(proj),
             "cost": ai.get("cost"), "scenes": ai.get("scenes"), "clips": ai.get("clips"),
             "clip_limit": ai.get("clip_limit"), "clip_provider": ai.get("clip_provider"),
-            "episode": ai.get("episode"), "recap": ai.get("recap"), "review_shots": bool(ai.get("review_shots"))}
+            "episode": ai.get("episode"), "recap": ai.get("recap"), "review_shots": bool(ai.get("review_shots")),
+            "same_face": bool(ai.get("same_face")), "cast": ai.get("cast") or ""}
 
 
 def media(path: Path) -> str | None:

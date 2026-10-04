@@ -471,6 +471,12 @@ VI = {
     "Project is not awaiting picture review": "Dự án không đang chờ duyệt ảnh",
     "Scene {n} has no picture yet": "Cảnh {n} chưa có ảnh",
     "Picture redone for scene {n}": "Đã làm lại ảnh của cảnh {n}",
+    "This image provider cannot make a picture from reference portraits":
+        "Nhà cung cấp ảnh này không làm được ảnh từ ảnh chân dung tham chiếu",
+    "This video does not use reference portraits": "Video này không dùng ảnh chân dung tham chiếu",
+    "Character {n} does not exist": "Nhân vật {n} không tồn tại",
+    "A look is at most {n} characters": "Ngoại hình dài tối đa {n} ký tự",
+    "Portrait of {name} redone": "Đã làm lại ảnh chân dung của {name}",
     "{n} could not be made": "{n} ảnh không làm được",
     "Pictures ready for your review: {n}": "Ảnh đã làm xong, chờ bạn xem: {n}",
     "{n} could not be made: redo them": "{n} ảnh không làm được: hãy làm lại",

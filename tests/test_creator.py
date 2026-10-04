@@ -64,11 +64,12 @@ def fake(monkeypatch):
         seen["order"].append("script")
         return _plan()
 
-    def generate(prompt, seed=0, name=None):
+    def generate(prompt, seed=0, name=None, refs=None):
         seen["generated"].append((prompt, seed))
+        seen.setdefault("refs", []).append(len(refs or []))
         if len(seen["generated"]) in seen["fail"]:
             raise images.ImageError("provider said no")
-        return real_generate(prompt, seed, name)
+        return real_generate(prompt, seed, name, refs) if refs else real_generate(prompt, seed, name)
 
     def synthesize(lines, out_dir, voice=None):
         seen["order"].append("voice")
@@ -117,7 +118,8 @@ def test_create_checks_topic_duration_and_the_provider(monkeypatch):
     pid = creator.create("  Les   pandas ", 90)
     p = db.get_project(pid)
     assert p["mode"] == "ai" and p["title"] == "Les pandas"
-    assert p["meta"]["topic"] == "Les pandas" and p["meta"]["duration"] == 90 and p["meta"]["ai"] == {"provider": "fal"}
+    assert p["meta"]["topic"] == "Les pandas" and p["meta"]["duration"] == 90 \
+        and p["meta"]["ai"] == {"provider": "fal", "same_face": True}
     monkeypatch.setenv("IMAGE_PROVIDER", "modal")
     monkeypatch.setitem(sys.modules, "modal", None)  # the package isn't installed
     with pytest.raises(ValueError, match="modal"):
@@ -231,6 +233,23 @@ def test_fal_without_a_picture_or_with_a_bad_file(monkeypatch, tmp_path):
     with pytest.raises(images.ImageError, match="did not return a picture"):
         images.make("A panda.", 0, tmp_path)
     assert not list(tmp_path.glob("*"))  # nothing half-written
+
+
+def test_a_picture_from_reference_portraits_goes_to_the_edit_model(monkeypatch, tmp_path):
+    sent = _fal(monkeypatch)
+    face = tmp_path / "face.png"
+    face.write_bytes(images._placeholder("Mina", 0))
+    path, new = images.make("Mina on a roof.", 3, tmp_path, refs=[("abc", face)])
+    body = json.loads(sent[0].content)
+    assert new and sent[0].url.path == "/fal-ai/qwen-image-edit-2511" and body["seed"] == 3
+    assert len(body["image_urls"]) == 1 and body["image_urls"][0].startswith("data:image/jpeg;base64,")
+    assert body["image_size"] == {"width": 1088, "height": 1920} and body["enable_safety_checker"] is True
+    assert path != images.make("Mina on a roof.", 3, tmp_path)[0]  # the same words without the portrait: another key
+    assert json.loads(sent[2].content).keys().isdisjoint({"image_urls"})
+    assert images.key("x", 0, "fal", ["a"]) != images.key("x", 0, "fal", ["b"]) != images.key("x", 0, "fal")
+    assert images.cost(2, "fal", refs=True) == 0.126 and images.cost(2, "fal") == 0.084
+    with pytest.raises(images.ImageError, match="cannot make a picture from reference portraits"):
+        images.generate("x", 0, "modal", [face])
 
 
 def test_modal_provider_calls_the_deployed_app(monkeypatch, tmp_path):
@@ -1057,11 +1076,104 @@ def test_the_generic_approve_route_approves_every_picture_and_goes_on(client, mo
     assert calls == [(pid, {"start": "voice"})]
 
 
+FACE_CAST = "Mina: a girl of about 10 with short black hair and a red raincoat\nBolt: a small round silver robot"
+
+
+def _faces(fake, same_face=True):
+    """An AI video with a cast of two, run until the picture review; scenes 0–3 show Mina, 2 also shows Bolt."""
+    pid = creator.create("Les toits", review_shots=True, cast=FACE_CAST, same_face=same_face)
+    plan = _plan()
+    for i in range(4):
+        plan["lines"][i]["image"] = f"Mina on roof number {i}" + (" with Bolt" if i == 2 else "")
+    fake_ask = llm.ask_json
+    llm.ask_json = lambda prompt, system, **kw: (fake_ask(prompt, system), plan)[1]
+    try:
+        pipeline.produce(pid)
+    finally:
+        llm.ask_json = fake_ask
+    return pid
+
+
+def test_same_faces_make_one_portrait_per_character_and_the_scenes_from_it(fake):
+    pid = _faces(fake)
+    asked = fake["prompts"][0][0]
+    assert "- Mina" in asked and "- Bolt" in asked and "red raincoat" not in asked  # the video's own cast
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
+    assert plan["same_face"] is True and list(plan["cast"]) == ["Mina", "Bolt"]
+    portraits = [g for g in fake["generated"] if g[0].startswith("Character reference portrait of")]
+    assert len(portraits) == 2 and "a fictional person: a girl of about 10" in portraits[0][0]
+    assert len(fake["generated"]) == LINES + 2  # each portrait made once, cached for the other scenes
+    scenes = [(g[0], r) for g, r in zip(fake["generated"], fake["refs"], strict=True) if g not in portraits]
+    assert [r for _, r in scenes] == [1, 1, 2, 1] + [0] * (LINES - 4)
+    assert scenes[2][0].startswith("input picture 1 is Mina, input picture 2 is Bolt: keep each one's face")
+    v = shots.view(pid)
+    assert [f["name"] for f in v["faces"]] == ["Mina", "Bolt"] and all(f["picture"] for f in v["faces"])
+    assert [f["shots"] for f in v["faces"]] == [4, 1] and v["shots"][2]["cast"] == ["Mina", "Bolt"]
+    assert v["ref_price"] == 0.0 and db.get_project(pid)["meta"]["ai"]["cast"] == FACE_CAST
+
+
+def test_a_redone_portrait_asks_for_new_pictures_of_its_scenes_only(fake):
+    pid = _faces(fake)
+    shots.approve_all(pid)
+    made = len(fake["generated"])
+    v = shots.redo_face(pid, 1)  # Bolt, a new seed
+    assert len(fake["generated"]) == made + 1 and fake["generated"][-1][1] == 1  # only the portrait
+    assert v["faces"][1]["seed"] == 1 and v["shots"][2]["state"] == "missing" and v["approved"] == LINES - 1
+    assert "Portrait of Bolt redone" in db.get_project(pid)["log"]
+    v = shots.redo_face(pid, 0, "a girl of about 10 with a yellow raincoat")
+    assert v["faces"][0]["look"] == "a girl of about 10 with a yellow raincoat" and v["faces"][0]["seed"] == 0
+    assert [s["state"] for s in v["shots"][:4]] == ["missing"] * 4 and v["approved"] == LINES - 4
+    shots.check_remake(pid)
+    db.update_project(pid, status="queued", meta={"review": None})  # what POST /shots/redo-failed does
+    fake["generated"].clear()
+    pipeline.produce(pid, start="voice")
+    assert len(fake["generated"]) == 4 and shots.view(pid)["shots"][0]["state"] == "ready"
+    with pytest.raises(ValueError, match="Character 3 does not exist"):
+        shots.redo_face(pid, 2)
+    with pytest.raises(ValueError, match="at most 300"):
+        shots.redo_face(pid, 0, "x" * 301)
+
+
+def test_without_same_faces_the_scenes_keep_the_words_only(fake):
+    pid = _faces(fake, same_face=False)
+    assert len(fake["generated"]) == LINES and set(fake["refs"]) == {0}
+    assert shots.view(pid)["faces"] == []
+    with pytest.raises(ValueError, match="does not use reference portraits"):
+        shots.redo_face(pid, 0)
+
+
+def test_a_bad_cast_line_stops_before_the_video_exists(fake):
+    with pytest.raises(ValueError, match="Cast line 2 must look like"):
+        creator.create("Les toits", cast="Mina: a girl\nBolt")
+
+
 def test_the_ai_route_takes_the_review_option(client):
     pid = client.post("/api/ai", headers=H, json={"topic": "Les pandas", "review_shots": True}).json()["project_id"]
     assert db.get_project(pid)["meta"]["ai"]["review_shots"] is True
     pid = client.post("/api/ai", headers=H, json={"topic": "Les pandas"}).json()["project_id"]
     assert "review_shots" not in db.get_project(pid)["meta"]["ai"]
+    pid = client.post("/api/ai", headers=H, json={"topic": "Les toits", "cast": FACE_CAST, "same_face": False}
+                      ).json()["project_id"]
+    ai = db.get_project(pid)["meta"]["ai"]
+    assert ai["cast"] == FACE_CAST and ai["same_face"] is False
+    r = client.post("/api/ai", headers=H, json={"topic": "Les toits", "cast": "Bolt"})
+    assert r.status_code == 400 and "Cast line 1" in r.json()["detail"]
+
+
+def test_the_portrait_route(client, monkeypatch):
+    monkeypatch.setattr(pipeline, "produce", lambda pid, **kw: None)
+    pid = creator.create("Les toits", review_shots=True, cast=FACE_CAST)
+    out = config.PROJECTS / str(pid)
+    out.mkdir(parents=True, exist_ok=True)
+    plan = _plan(3, 10) | {"cast": {"Mina": "a girl"}, "same_face": True}
+    plan["lines"][0]["image"] = "Mina waves"
+    (out / "script.json").write_text(json.dumps(plan), encoding="utf-8")
+    url = f"/api/projects/{pid}/shots/faces/0/redo"
+    assert client.post(url, headers=H).status_code == 409  # not waiting yet
+    db.update_project(pid, status="review", meta={"review": "shots"})
+    r = client.post(url, headers=H, json={"look": "a tall girl"})
+    assert r.status_code == 200 and r.json()["faces"][0]["look"] == "a tall girl" and r.json()["faces"][0]["picture"]
+    assert client.post(f"/api/projects/{pid}/shots/faces/5/redo", headers=H).status_code == 400
 
 
 # ---------- real FFmpeg ----------

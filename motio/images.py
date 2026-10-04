@@ -7,7 +7,12 @@ One adapter, three providers, switched in Settings (`IMAGE_PROVIDER`):
   package and a Modal login (not bundled in the installers; meant for the dev engine or the server).
 - placeholder: gradient cards that show the prompt, no network. To try the flow; also stops at the video gate.
 A picture is cached by (provider, size, prompt, seed): only a new or edited scene is generated again.
+
+Same faces: a scene that shows recurring characters can be made from their reference portraits (`refs`) instead of
+the words alone, with `fal-ai/qwen-image-edit-2511` (Apache 2.0, same family and licence as the default model). The
+placeholder writes the reference names on its card; Modal has no such model, so its scenes stay text only.
 """
+import base64
 import hashlib
 import io
 import textwrap
@@ -25,7 +30,12 @@ DEFAULT_PROVIDER = "fal"
 REVIEW_PROVIDERS = ("modal", "placeholder")  # output that must not go out without a human look
 WIDTH, HEIGHT = 1088, 1920  # multiples of 16 (Qwen), close enough to 1080×1920 to be cropped
 PRICE = {"fal": 0.042, "modal": 0.009, "placeholder": 0.0}  # estimated USD per picture (fal: ~$0.02 per megapixel)
+REF_PROVIDERS = ("fal", "placeholder")  # can make a picture from reference portraits (same faces)
+REF_PRICE = {"fal": 0.063, "placeholder": 0.0}  # estimated USD per picture made from references (fal: ~$0.03 per MP)
+MAX_REFS = 3  # reference portraits per picture
+REF_SIDE = 768  # long side of a reference portrait sent to the provider (a smaller request, enough for a face)
 FAL_URL = "https://fal.run/fal-ai/qwen-image-2512"
+FAL_EDIT_URL = "https://fal.run/fal-ai/qwen-image-edit-2511"
 MODAL_APP, MODAL_CLS, MODAL_STEPS = "qwen21-uc", "Qwen21UC", 25
 TIMEOUT = 240.0  # a cold Modal start takes ~70 s
 DEFAULT_STYLE = "photorealistic, natural light, sharp focus, vertical 9:16 composition, no text, no watermark"
@@ -64,13 +74,15 @@ def check_ready(name: str | None = None) -> None:
                                 "the dev engine or the server, not the packaged app")) from None
 
 
-def cost(n: int, name: str | None = None) -> float:
-    return round(n * PRICE[name or provider()], 3)
+def cost(n: int, name: str | None = None, refs: bool = False) -> float:
+    name = name or provider()
+    return round(n * (REF_PRICE.get(name, PRICE[name]) if refs else PRICE[name]), 3)
 
 
-def key(prompt: str, seed: int = 0, name: str | None = None) -> str:
-    """Cache key of one picture: a new prompt, seed, provider or size is a new picture."""
-    raw = f"{name or provider()}|{WIDTH}x{HEIGHT}|{seed}|{prompt}"
+def key(prompt: str, seed: int = 0, name: str | None = None, refs: list[str] | None = None) -> str:
+    """Cache key of one picture: a new prompt, seed, provider, size or reference portrait (`refs`: their keys) is a
+    new picture."""
+    raw = f"{name or provider()}|{WIDTH}x{HEIGHT}|{seed}|{prompt}" + (f"|refs:{','.join(refs)}" if refs else "")
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
@@ -93,10 +105,22 @@ def _detail(r: httpx.Response) -> str:
         return r.text[:200]
 
 
-def _fal(prompt: str, seed: int) -> bytes:
-    r = _http("POST", FAL_URL, headers={"Authorization": f"Key {config.env('FAL_KEY')}"},
-              json={"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1,
-                    "seed": seed, "output_format": "png", "enable_safety_checker": True})
+def _data_uri(path: Path) -> str:
+    """A reference portrait as a small JPEG data URI (fal reads data URIs as file inputs)."""
+    img = Image.open(path).convert("RGB")
+    img.thumbnail((REF_SIDE, REF_SIDE))
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=88)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _fal(prompt: str, seed: int, refs: list[Path] | None = None) -> bytes:
+    body = {"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1,
+            "seed": seed, "output_format": "png", "enable_safety_checker": True}
+    if refs:
+        body["image_urls"] = [_data_uri(f) for f in refs[:MAX_REFS]]
+    r = _http("POST", FAL_EDIT_URL if refs else FAL_URL, headers={"Authorization": f"Key {config.env('FAL_KEY')}"},
+              json=body)
     if r.status_code in (401, 403):
         raise ImageError(tr("fal refused the request ({error}): check the key and the credit on your fal account",
                             error=f"{r.status_code} {_detail(r)}"))
@@ -129,8 +153,9 @@ _TINTS = [((34, 50, 92), (214, 120, 84)), ((20, 70, 66), (232, 196, 110)), ((70,
           ((28, 28, 40), (120, 160, 210)), ((80, 40, 28), (240, 210, 150))]
 
 
-def _placeholder(prompt: str, seed: int) -> bytes:
-    """A vertical gradient with the prompt written on it: the picture is obviously not real, and two scenes differ."""
+def _placeholder(prompt: str, seed: int, refs: list[Path] | None = None) -> bytes:
+    """A vertical gradient with the prompt written on it: the picture is obviously not real, and two scenes differ.
+    With reference portraits, a small copy of each is pasted at the top, to show which ones the scene was made from."""
     top, bottom = _TINTS[int(hashlib.sha1(f"{seed}|{prompt}".encode()).hexdigest(), 16) % len(_TINTS)]
     col = Image.linear_gradient("L").resize((WIDTH, HEIGHT))
     img = Image.composite(Image.new("RGB", (WIDTH, HEIGHT), bottom), Image.new("RGB", (WIDTH, HEIGHT), top), col)
@@ -140,25 +165,36 @@ def _placeholder(prompt: str, seed: int) -> bytes:
     for ln in textwrap.wrap(prompt, 34)[:9]:
         d.text((70, y), ln, font=f, fill=(255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0))
         y += 70
+    for i, f in enumerate((refs or [])[:MAX_REFS]):
+        thumb = Image.open(f).convert("RGB")
+        thumb.thumbnail((240, 240))
+        img.paste(thumb, (70 + i * 270, 90))
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
 
 
-def generate(prompt: str, seed: int = 0, name: str | None = None) -> bytes:
-    """One picture (image bytes) for `prompt`. ImageError (translated) on failure."""
+def generate(prompt: str, seed: int = 0, name: str | None = None, refs: list[Path] | None = None) -> bytes:
+    """One picture (image bytes) for `prompt`, made from the reference portraits `refs` when given (only a provider
+    of REF_PROVIDERS can). ImageError (translated) on failure."""
     name = name or provider()
+    if refs:
+        if name not in REF_PROVIDERS:
+            raise ImageError(tr("This image provider cannot make a picture from reference portraits"))
+        return {"fal": _fal, "placeholder": _placeholder}[name](prompt, seed, refs)
     return {"fal": _fal, "modal": _modal, "placeholder": _placeholder}[name](prompt, seed)
 
 
-def make(prompt: str, seed: int, folder: Path, name: str | None = None) -> tuple[Path, bool]:
-    """The picture for `prompt` in `folder`: the cached file when there is one, else a new one. (path, was_new)."""
+def make(prompt: str, seed: int, folder: Path, name: str | None = None,
+         refs: list[tuple[str, Path]] | None = None) -> tuple[Path, bool]:
+    """The picture for `prompt` in `folder`: the cached file when there is one, else a new one. (path, was_new).
+    `refs`: (key, file) of the reference portraits the picture is made from (their keys are part of its own key)."""
     name = name or provider()
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{key(prompt, seed, name)}.png"
+    path = folder / f"{key(prompt, seed, name, [k for k, _ in refs or []])}.png"
     if path.is_file() and path.stat().st_size:
         return path, False
-    data = generate(prompt, seed, name)
+    data = generate(prompt, seed, name, [f for _, f in refs]) if refs else generate(prompt, seed, name)
     try:
         img = Image.open(io.BytesIO(data))
         img.load()

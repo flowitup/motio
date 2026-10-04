@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Panel } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { Api, Shot, ShotsView } from "@/lib/api";
+import type { Api, Face, Shot, ShotsView } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -72,6 +72,15 @@ function ShotTile({
       <p className="line-clamp-3 px-2.5 pt-2 text-xs leading-[18px] text-muted-foreground" title={shot.text}>
         {shot.text}
       </p>
+      {shot.cast.length > 0 && (
+        <p className="flex flex-wrap gap-1 px-2.5 pt-1.5">
+          {shot.cast.map((name) => (
+            <span key={name} className="bg-cyan/10 px-1.5 font-mono text-[11px] leading-[18px] text-cyan">
+              {name}
+            </span>
+          ))}
+        </p>
+      )}
       {draft !== null ? (
         <div className="grid min-w-0 gap-2 p-2.5">
           <Textarea
@@ -126,6 +135,94 @@ function ShotTile({
   );
 }
 
+/** A character's reference portrait (same faces): a new portrait, or a new look, made now. */
+function FaceTile({
+  api,
+  face,
+  version,
+  busy,
+  redoing,
+  onRedo,
+}: {
+  api: Api;
+  face: Face;
+  version: number;
+  busy: boolean;
+  redoing: boolean;
+  onRedo: (look?: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null); // null = not editing the look
+  return (
+    <li className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 border bg-panel p-2.5">
+      <div className="relative aspect-[9/16] w-full overflow-hidden bg-monitor">
+        {face.picture ? (
+          <img
+            src={api.mediaUrl(face.picture, version)}
+            alt={face.name}
+            loading="lazy"
+            className={cn("size-full object-cover", redoing && "opacity-30")}
+          />
+        ) : (
+          <span className="grid size-full place-items-center text-center text-[11px] text-muted-foreground">{t.shots.noPicture}</span>
+        )}
+        {redoing && <Loader2 className="absolute inset-0 m-auto size-5 animate-spin text-amber" />}
+      </div>
+      <div className="grid min-w-0 content-start gap-1.5">
+        <p className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-[13px] font-medium">{face.name}</span>
+          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t.shots.faceShots(face.shots)}</span>
+        </p>
+        {draft !== null ? (
+          <>
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              maxLength={300}
+              disabled={busy}
+              aria-label={`${t.shots.look}: ${face.name}`}
+              className="min-h-0 w-full min-w-0 font-mono text-xs leading-5"
+            />
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                size="sm"
+                disabled={busy || !draft.trim()}
+                onClick={() => {
+                  onRedo(draft.trim());
+                  setDraft(null);
+                }}
+                title={t.shots.redoLook}
+              >
+                <RefreshCw />
+                {t.shots.redo}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setDraft(null)}>
+                {t.shots.cancel}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="line-clamp-3 text-xs leading-[18px] text-muted-foreground" title={face.look}>
+              {face.look}
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => onRedo()} title={t.shots.newPortraitTitle}>
+                <RefreshCw />
+                {t.shots.newPortrait}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setDraft(face.look)} title={t.shots.lookTitle}>
+                <Pencil />
+                {t.shots.look}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
 /** The project waits for the pictures to be reviewed: approve or redo each shot, then continue to the voice and render. */
 export function ShotsCard({ api, id, onQueued }: { api: Api; id: number; onQueued: () => void }) {
   const qc = useQueryClient();
@@ -134,11 +231,12 @@ export function ShotsCard({ api, id, onQueued }: { api: Api; id: number; onQueue
   const set = (v: ShotsView) => qc.setQueryData(key, v);
   const redo = useMutation({ mutationFn: (a: { i: number; prompt?: string }) => api.redoShot(id, a.i, a.prompt), onSuccess: set });
   const approve = useMutation({ mutationFn: (a: { i: number; on: boolean }) => api.approveShot(id, a.i, a.on), onSuccess: set });
+  const face = useMutation({ mutationFn: (a: { i: number; look?: string }) => api.redoFace(id, a.i, a.look), onSuccess: set });
   const all = useMutation({ mutationFn: (on: boolean) => api.approveAllShots(id, on), onSuccess: set });
   const remake = useMutation({ mutationFn: () => api.redoFailedShots(id), onSuccess: onQueued });
   const go = useMutation({ mutationFn: () => api.continueShots(id), onSuccess: onQueued });
-  const busy = redo.isPending || approve.isPending || all.isPending || remake.isPending || go.isPending;
-  const error = redo.error ?? approve.error ?? all.error ?? remake.error ?? go.error;
+  const busy = redo.isPending || approve.isPending || face.isPending || all.isPending || remake.isPending || go.isPending;
+  const error = redo.error ?? approve.error ?? face.error ?? all.error ?? remake.error ?? go.error;
   if (!data) return null;
   const open = data.failed + data.missing;
   return (
@@ -169,9 +267,31 @@ export function ShotsCard({ api, id, onQueued }: { api: Api; id: number; onQueue
             {t.shots.continue}
           </Button>
         </div>
-        <p className="font-mono text-[11px] leading-4 text-muted-foreground">{t.shots.cost(data.cost, data.price)}</p>
+        <p className="font-mono text-[11px] leading-4 text-muted-foreground">
+          {t.shots.cost(data.cost, data.price)}
+          {data.faces.length > 0 && ` ${t.shots.refCost(data.ref_price)}`}
+        </p>
         {error && <p className="text-[13px] text-coral">{error.message}</p>}
       </div>
+      {data.faces.length > 0 && (
+        <div className="grid gap-3 border-b p-4">
+          <p className="text-[13px] leading-5">{t.shots.faces}</p>
+          <p className="text-xs leading-[18px] text-muted-foreground">{t.shots.facesHint}</p>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+            {data.faces.map((f) => (
+              <FaceTile
+                key={f.index}
+                api={api}
+                face={f}
+                version={data.version}
+                busy={busy}
+                redoing={face.isPending && face.variables?.i === f.index}
+                onRedo={(look) => face.mutate({ i: f.index, look })}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3 p-4">
         {data.shots.map((s) => (
           <ShotTile

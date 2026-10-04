@@ -79,6 +79,8 @@ class AiIn(BaseModel):
     channel: int | None = None  # như ProduceIn
     clips: int | None = None  # số cảnh thành clip AI cho video này (0–6); None = theo hồ sơ kênh
     review_shots: bool = False  # dừng sau khi làm ảnh để duyệt / làm lại từng ảnh trước khi đọc giọng và dựng
+    cast: str = ""  # nhân vật riêng của video này, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu), thêm vào cast kênh
+    same_face: bool = True  # làm ảnh cảnh từ ảnh chân dung tham chiếu của từng nhân vật (cùng mặt)
 
 
 class DubIn(BaseModel):
@@ -193,6 +195,10 @@ class ShotApproveIn(BaseModel):
 
 class ShotRedoIn(BaseModel):
     prompt: str | None = None  # prompt ảnh mới; bỏ trống = giữ prompt, đổi hạt giống
+
+
+class FaceRedoIn(BaseModel):
+    look: str | None = None  # ngoại hình mới của nhân vật; bỏ trống = giữ, đổi hạt giống
 
 
 class PublishIn(BaseModel):
@@ -603,7 +609,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         try:
             if body.clips is None and aiclips.limit({"meta": {}}, ch):
                 aiclips.check_ready()  # the channel's clips need the key too: say so before the project exists
-            pid = creator.create(body.topic, body.duration, body.clips, body.review_shots)
+            pid = creator.create(body.topic, body.duration, body.clips, body.review_shots, body.cast, body.same_face)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -728,6 +734,12 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Làm lại đúng ảnh này ngay (hạt giống mới, hoặc prompt mới) và trả lại màn duyệt ảnh."""
         _get(pid)
         return _shots(lambda: shots.redo(pid, index, body.prompt if body else None))
+
+    @app.post("/api/projects/{pid}/shots/faces/{index}/redo", dependencies=[Depends(auth)])
+    def shots_redo_face(pid: int, index: int, body: FaceRedoIn | None = None):
+        """Làm lại ảnh chân dung tham chiếu của một nhân vật ngay (hạt giống mới, hoặc ngoại hình mới); các cảnh có
+        nhân vật đó cần ảnh mới (nút "Làm lại ảnh lỗi")."""
+        return _shots(lambda: shots.redo_face(pid, index, body.look if body else None))
 
     @app.post("/api/projects/{pid}/shots/{index}/approve", dependencies=[Depends(auth)])
     def shots_approve(pid: int, index: int, body: ShotApproveIn | None = None):

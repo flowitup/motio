@@ -10,6 +10,9 @@ A shot is approved by the *key of its current picture* (images.key: provider, si
 `meta.ai.shots.approved`. Anything that changes the picture (prompt, seed, the video's style, a cast look, the
 provider) changes the key, so that shot is simply not approved any more and its new picture has to be looked at.
 `meta.ai.shots.failed` maps the key of a picture the provider could not make to its message.
+
+Same faces (creator.faces_on): the characters' reference portraits are shown above the shots; redoing one (a new seed or
+a new look) makes only that portrait now, and every shot that shows the character then needs a new picture.
 """
 import json
 import threading
@@ -18,6 +21,7 @@ from . import config, creator, db, images
 from .i18n import tr, tr_n
 
 REVIEW = "shots"  # meta.review while the video waits for the pictures to be approved
+MAX_LOOK = 300  # characters in a look edited on the review screen
 
 
 class NotWaiting(RuntimeError):
@@ -107,8 +111,20 @@ def rows(pid: int, p: dict, plan: dict) -> list[dict]:
         state = ("approved" if f.stem in approved else "ready") if pic else "failed" if f.stem in failed else "missing"
         out.append({"index": i, "text": str(ln.get("text") or ""), "image": str(ln.get("image") or ""),
                     "seed": int(ln.get("seed") or 0), "picture": pic, "state": state,
-                    "error": failed.get(f.stem) if state == "failed" else None})
+                    "error": failed.get(f.stem) if state == "failed" else None,
+                    "cast": creator.faces(plan, ln, provider)})
     return out
+
+
+def face_rows(pid: int, plan: dict, items: list[dict], provider: str) -> list[dict]:
+    """The characters' reference portraits (same faces only): name, look, seed, picture, how many shots show them."""
+    if not creator.faces_on(plan, provider):
+        return []
+    out = config.PROJECTS / str(pid)
+    return [{"index": i, "name": name, "look": look, "seed": creator.face_seed(plan, name),
+             "picture": creator.media(creator.face_file(out, plan, name, provider)),
+             "shots": sum(name in r["cast"] for r in items)}
+            for i, (name, look) in enumerate(plan["cast"].items())]
 
 
 def view(pid: int) -> dict:
@@ -122,6 +138,7 @@ def view(pid: int) -> dict:
             "missing": count["missing"], "ready": count["approved"] == len(items) and bool(items),
             "waiting": p["status"] == "review" and p["meta"].get("review") == REVIEW,
             "provider": provider, "price": images.cost(1, provider), "cost": _ai(p).get("cost") or 0,
+            "ref_price": images.cost(1, provider, refs=True), "faces": face_rows(pid, plan, items, provider),
             "version": (config.PROJECTS / str(pid) / "script.json").stat().st_mtime}
 
 
@@ -141,23 +158,24 @@ def make(pid: int, plan: dict, step, lo: int = creator.PICTURES_FROM, hi: int = 
     images.check_ready(name)
     out = config.PROJECTS / str(pid)
     lines = plan["lines"]
-    fresh, failed = 0, {}
+    fresh, spent, failed = 0, 0.0, {}
     keys = []
     for i, ln in enumerate(lines):
         step("Pictures", lo + (hi - lo) * i // len(lines),
              tr("Picture {n} of {total} ({provider})", n=i + 1, total=len(lines), provider=name))
         keys.append(creator.picture_file(out, plan, ln, name).stem)
         try:
-            _, new = creator.make_picture(plan, ln, out, name)
+            _, new, usd = creator.make_picture(plan, ln, out, name)
             fresh += new
+            spent += usd
         except images.ImageError as e:
             failed[keys[-1]] = str(e)[:300]
-    cost = images.cost(fresh, name)
+    cost = round(spent, 3)
     with _lock(pid):
         p = db.get_project(pid)
         approved, _ = _state(p)
         ai = {**_ai(p), "provider": name, "scenes": len(lines)}
-        ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3) if fresh else ai.get("cost") or 0
+        ai["cost"] = round(float(ai.get("cost") or 0) + cost, 3) if cost else ai.get("cost") or 0
         _save(pid, ai, approved, failed, keys)
     step("Pictures", hi, creator._made_log(fresh, len(lines), cost) +
          (" · " + tr("{n} could not be made", n=len(failed)) if failed else ""))
@@ -196,18 +214,50 @@ def redo(pid: int, index: int, prompt: str | None = None) -> dict:
         _write(pid, plan)
         keys = [_file(pid, plan, x, name).stem for x in lines]
         approved, failed = _state(p)
-        fresh = 0
+        usd = 0.0
         try:
-            _, fresh = creator.make_picture(plan, ln, config.PROJECTS / str(pid), name)
+            _, _, usd = creator.make_picture(plan, ln, config.PROJECTS / str(pid), name)
             failed.pop(keys[index], None)
         except images.ImageError as e:
             failed[keys[index]] = str(e)[:300]
         approved.discard(keys[index])
         ai = {**_ai(p)}
-        if fresh:
-            ai["cost"] = round(float(ai.get("cost") or 0) + images.cost(1, name), 3)
+        if usd:
+            ai["cost"] = round(float(ai.get("cost") or 0) + usd, 3)
         _save(pid, ai, approved, failed, keys)
         db.update_project(pid, log=tr("Picture redone for scene {n}", n=index + 1))
+    return view(pid)
+
+
+def redo_face(pid: int, index: int, look: str | None = None) -> dict:
+    """Make a character's reference portrait again, now: a new seed (or the new `look`, if it differs). Only the
+    portrait is made; every shot that shows the character gets a new key, so it waits for a new picture ("Redo
+    failed")."""
+    with _lock(pid):
+        p, plan = _gate(pid)
+        name = _ai(p).get("provider") or images.provider()
+        if not creator.faces_on(plan, name):
+            raise ValueError(tr("This video does not use reference portraits"))
+        names = list(plan["cast"])
+        if not 0 <= index < len(names):
+            raise ValueError(tr("Character {n} does not exist", n=index + 1))
+        images.check_ready(name)
+        who = names[index]
+        text = " ".join(str(look).split()) if look is not None else None
+        if text and text != plan["cast"][who]:
+            if len(text) > MAX_LOOK:
+                raise ValueError(tr("A look is at most {n} characters", n=MAX_LOOK))
+            plan["cast"][who] = text
+        else:
+            plan["face_seeds"] = {**(plan.get("face_seeds") or {}), who: creator.face_seed(plan, who) + 1}
+        _write(pid, plan)
+        _, new = creator.make_face(plan, who, config.PROJECTS / str(pid), name)
+        ai = {**_ai(p)}
+        if new:
+            ai["cost"] = round(float(ai.get("cost") or 0) + images.cost(1, name), 3)
+        approved, failed = _state(p)
+        _save(pid, ai, approved, failed, [_file(pid, plan, ln, name).stem for ln in plan["lines"]])
+        db.update_project(pid, log=tr("Portrait of {name} redone", name=who))
     return view(pid)
 
 

@@ -29,7 +29,8 @@ as authoritative for scope and milestones.
     provider un-approves it), redone at once (only that picture is made), a picture the provider cannot make is noted instead of
     stopping the step, and "continue" runs the voice and render (`/api/projects/{id}/shots/*`, `ShotsCard` in the app)
   - `images.py` AI pictures behind one adapter: fal `qwen-image-2512` (default) / Modal `qwen21-uc` / placeholder; a
-    picture is cached by (provider, size, seed, prompt) in `out/scenes/`, so only a new or edited scene is made again
+    picture is cached by (provider, size, seed, prompt, reference portraits) in `out/scenes/`, so only a new or edited scene
+    is made again; a picture made from reference portraits (same faces) goes to fal `qwen-image-edit-2511` (Apache 2.0)
   - `aiclips.py` AI clips for AI videos: a scene's picture becomes a 5 s clip (fal `minimax/h3-max/image-to-video`, or
     HeyGen Video 1 when `CLIP_PROVIDER=heygen`; first frame = the picture, sound dropped) instead of a camera move;
     `creator.animate` picks scenes (`pick`), makes them after the voice, cached in `out/clips/`; a clip that fails or goes
@@ -37,8 +38,10 @@ as authoritative for scope and milestones.
     `clipcheck` makes one paid trial clip to compare providers
   - `series.py` AI video series: a channel's `cast` (`Name: look` lines, fictional characters; the look is kept in
     `plan["cast"]` and put in front of every picture prompt that names the character, `creator.prompt`) and `series` (premise;
-    each AI episode is written knowing the recaps of the channel's earlier ones, `meta.ai.episode` / `recap`); same words, not a
-    face guarantee
+    each AI episode is written knowing the recaps of the channel's earlier ones, `meta.ai.episode` / `recap`); a video adds its
+    own characters (`meta.ai.cast`, `series.for_project`); same faces (`meta.ai.same_face`, on by default, `plan["same_face"]`):
+    one reference portrait per character in `out/cast/` and every scene that names them is made from it (`creator.faces`,
+    redo a portrait or edit a look on the picture review)
   - `qa.py` quality check after every render (ffprobe + FFmpeg blackdetect / silencedetect / ebur128, saved as `meta.qa`) and
     warnings for a source, title or script used in the last 30 days; a `fail` holds the video at the gate when the channel
     has Postiz (`pipeline._why_held`), a warning is only shown

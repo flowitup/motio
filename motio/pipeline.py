@@ -349,13 +349,15 @@ def _step_ai_script(proj: dict, out: Path, step, duration_sec: int) -> dict:
     ch = channels.for_project(proj)
     words = int(duration_sec * WORDS_PER_SEC)
     n_min, n_max = topic.lines_for(duration_sec)
-    extra, episode = series.block(ch, proj["id"])  # the channel's series (earlier recaps) and recurring characters
+    cast = series.for_project(ch, proj)  # the channel's recurring characters and the video's own
+    extra, episode = series.block(ch, proj["id"], cast)  # the channel's series (earlier recaps) and the cast
     plan = creator.tidy(llm.ask_json(creator.SCRIPT_PROMPT.format(
         topic=proj["meta"]["topic"], n_min=n_min, n_max=n_max, w_min=words - 15, w_max=words + 10, sec=duration_sec,
         extra=extra), creator.SCRIPT_SYSTEM + channels.style_note(ch)))
-    cast = series.parse_cast((ch or {}).get("cast") or "")
     if cast:  # kept with the script: the same looks reach every picture, also when the profile changes later
         plan["cast"] = cast
+        if (proj["meta"].get("ai") or {}).get("same_face"):
+            plan["same_face"] = True  # scenes made from one reference portrait per character (creator.faces_on)
     plan = _finish_script(proj, plan, ch, out, step, words, proj["title"], (20, 30))
     if episode:
         ai = {**((db.get_project(proj["id"]) or {}).get("meta", {}).get("ai") or {}), "episode": episode,

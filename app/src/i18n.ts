@@ -543,6 +543,13 @@ const en = {
     reviewShots: "Review the pictures first",
     reviewShotsHint:
       "The video stops once the pictures are made, so you can approve or redo each one before the voice and the render. Turn it off to run straight through.",
+    cast: "Characters",
+    castHint:
+      "Optional. One character per line, “Name: how they look”, in English. Fictional people only, never a real person. They are added to the channel's cast, and Claude writes the story with them.",
+    castPlaceholder: "Mina: a girl of about 10 with short black hair and a red raincoat",
+    sameFace: "Same faces in every scene",
+    sameFaceHint:
+      "Motio makes one portrait of each character first, then every scene that shows them is made from that portrait, so the face and clothes stay the same. Scenes with a character cost a bit more (fal: about $0.063 instead of $0.042).",
   },
   shots: {
     title: "Review the pictures",
@@ -550,7 +557,7 @@ const en = {
     count: (a: number, n: number) => `${a}/${n} approved`,
     approveAll: "Approve all",
     clearAll: "Clear approvals",
-    redoFailed: (n: number) => `Redo the ${plural(n, "failed picture")}`,
+    redoFailed: (n: number) => `Make the ${plural(n, "missing picture")}`,
     continue: "Continue: voice and render",
     left: (n: number) => `${plural(n, "picture")} left to approve`,
     shot: (n: number) => `Shot ${n}`,
@@ -569,6 +576,16 @@ const en = {
     cost: (usd: number, price: number) =>
       `Pictures so far: about $${usd.toFixed(2)}. Each redo costs about $${price.toFixed(3)}.`,
     placeholderNote: "These are placeholder cards, not real pictures.",
+    faces: "Characters",
+    facesHint:
+      "Every scene with a character is made from their portrait. A new portrait or a new look changes the scenes that show them: click “Make the missing pictures” afterwards.",
+    faceShots: (n: number) => `in ${plural(n, "shot")}`,
+    newPortrait: "New portrait",
+    newPortraitTitle: "Make another portrait of this character (only the portrait is made now)",
+    look: "Look",
+    lookTitle: "Edit how this character looks, then make the portrait again",
+    redoLook: "Redo with this look",
+    refCost: (price: number) => `A scene with a character costs about $${price.toFixed(3)}.`,
   },
   stats: {
     title: "Stats",
@@ -1482,6 +1499,13 @@ const vi: Messages = {
     reviewShots: "Duyệt ảnh trước",
     reviewShotsHint:
       "Video dừng lại sau khi làm xong ảnh để bạn duyệt hoặc làm lại từng ảnh trước khi đọc giọng và dựng. Tắt thì chạy một mạch.",
+    cast: "Nhân vật",
+    castHint:
+      "Không bắt buộc. Mỗi dòng một nhân vật, “Tên: ngoại hình”, bằng tiếng Anh. Chỉ nhân vật hư cấu, không bao giờ là người thật. Họ được thêm vào nhân vật của kênh, và Claude viết câu chuyện với họ.",
+    castPlaceholder: "Mina: a girl of about 10 with short black hair and a red raincoat",
+    sameFace: "Cùng một gương mặt ở mọi cảnh",
+    sameFaceHint:
+      "Motio làm trước một ảnh chân dung cho mỗi nhân vật, rồi mọi cảnh có nhân vật đó được làm từ ảnh chân dung này, nên mặt và quần áo giữ nguyên. Cảnh có nhân vật đắt hơn một chút (fal: khoảng $0.063 thay vì $0.042).",
   },
   shots: {
     title: "Duyệt ảnh",
@@ -1489,7 +1513,7 @@ const vi: Messages = {
     count: (a: number, n: number) => `${a}/${n} đã duyệt`,
     approveAll: "Duyệt tất cả",
     clearAll: "Bỏ duyệt",
-    redoFailed: (n: number) => `Làm lại ${n} ảnh lỗi`,
+    redoFailed: (n: number) => `Làm ${n} ảnh còn thiếu`,
     continue: "Tiếp tục: đọc giọng và dựng",
     left: (n: number) => `Còn ${n} ảnh chưa duyệt`,
     shot: (n: number) => `Shot ${n}`,
@@ -1508,6 +1532,16 @@ const vi: Messages = {
     cost: (usd: number, price: number) =>
       `Ảnh đã tốn tới giờ: khoảng $${usd.toFixed(2)}. Mỗi lần làm lại khoảng $${price.toFixed(3)}.`,
     placeholderNote: "Đây là thẻ giữ chỗ, không phải ảnh thật.",
+    faces: "Nhân vật",
+    facesHint:
+      "Mọi cảnh có nhân vật được làm từ ảnh chân dung của họ. Ảnh chân dung mới hoặc ngoại hình mới sẽ đổi các cảnh có nhân vật đó: sau đó bấm “Làm ảnh còn thiếu”.",
+    faceShots: (n: number) => `có trong ${n} shot`,
+    newPortrait: "Chân dung mới",
+    newPortraitTitle: "Làm ảnh chân dung khác cho nhân vật này (chỉ làm ảnh chân dung ngay bây giờ)",
+    look: "Ngoại hình",
+    lookTitle: "Sửa ngoại hình của nhân vật rồi làm lại ảnh chân dung",
+    redoLook: "Làm lại với ngoại hình này",
+    refCost: (price: number) => `Một cảnh có nhân vật tốn khoảng $${price.toFixed(3)}.`,
   },
   stats: {
     title: "Thống kê",
