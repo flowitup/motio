@@ -57,12 +57,12 @@ function ShotTile({
           </span>
         )}
         {redoing && <Loader2 className="absolute inset-0 m-auto size-6 animate-spin text-amber" />}
-        <span className="absolute top-1.5 left-1.5 bg-ground/85 px-1.5 py-0.5 font-mono text-[11px] leading-4 font-medium">
+        <span className="absolute top-1.5 left-1.5 bg-ground/85 px-1.5 py-0.5 font-mono text-xs leading-4 font-medium">
           {t.shots.shot(shot.index + 1)}
         </span>
         <span
           className={cn(
-            "absolute top-1.5 right-1.5 bg-ground/85 px-1.5 py-0.5 font-mono text-[11px] leading-4 font-medium",
+            "absolute top-1.5 right-1.5 bg-ground/85 px-1.5 py-0.5 font-mono text-xs leading-4 font-medium",
             TEXT[shot.state],
           )}
         >
@@ -75,7 +75,7 @@ function ShotTile({
       {shot.cast.length > 0 && (
         <p className="flex flex-wrap gap-1 px-2.5 pt-1.5">
           {shot.cast.map((name) => (
-            <span key={name} className="bg-cyan/10 px-1.5 font-mono text-[11px] leading-[18px] text-cyan">
+            <span key={name} className="bg-cyan/10 px-1.5 font-mono text-xs leading-[18px] text-cyan">
               {name}
             </span>
           ))}
@@ -163,14 +163,14 @@ function FaceTile({
             className={cn("size-full object-cover", redoing && "opacity-30")}
           />
         ) : (
-          <span className="grid size-full place-items-center text-center text-[11px] text-muted-foreground">{t.shots.noPicture}</span>
+          <span className="grid size-full place-items-center text-center text-xs text-muted-foreground">{t.shots.noPicture}</span>
         )}
         {redoing && <Loader2 className="absolute inset-0 m-auto size-5 animate-spin text-amber" />}
       </div>
       <div className="grid min-w-0 content-start gap-1.5">
         <p className="flex min-w-0 items-baseline gap-2">
           <span className="truncate text-[13px] font-medium">{face.name}</span>
-          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t.shots.faceShots(face.shots)}</span>
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">{t.shots.faceShots(face.shots)}</span>
         </p>
         {draft !== null ? (
           <>
@@ -267,7 +267,7 @@ export function ShotsCard({ api, id, onQueued }: { api: Api; id: number; onQueue
             {t.shots.continue}
           </Button>
         </div>
-        <p className="font-mono text-[11px] leading-4 text-muted-foreground">
+        <p className="font-mono text-xs leading-4 text-muted-foreground">
           {t.shots.cost(data.cost, data.price)}
           {data.faces.length > 0 && ` ${t.shots.refCost(data.ref_price)}`}
         </p>
