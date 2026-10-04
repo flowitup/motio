@@ -370,7 +370,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
     <div className="min-w-0 space-y-5">
       <Card>
         <CardHeader>
-          <CardTitle className="truncate">{v.name}</CardTitle>
+          <CardTitle className="truncate font-sans text-[15px] leading-[22px] font-semibold tracking-normal text-foreground normal-case">{v.name}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {t.delogo.info(v.width, v.height, v.duration)}
             {v.project_id != null && (

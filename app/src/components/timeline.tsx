@@ -99,14 +99,14 @@ export function TimelineStrip({
     <div className="p-4">
       <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3">
         <span />
-        <div className="relative h-4 font-mono text-[11px] leading-4 text-muted-foreground tabular-nums">
+        <div className="relative h-4 font-mono text-xs leading-4 text-muted-foreground tabular-nums">
           {ticks.map((s) => (
             <span key={s} className="absolute" style={{ left: pct(s), transform: s === 0 ? undefined : "translateX(-50%)" }}>
               {mmss(s)}
             </span>
           ))}
         </div>
-        <div className="space-y-2 pt-2 font-mono text-[11px] leading-4 tracking-[0.06em] text-muted-foreground uppercase">
+        <div className="space-y-2 pt-2 font-mono text-xs leading-4 tracking-[0.06em] text-muted-foreground uppercase">
           <div className="flex h-8 items-center">{labels.shots}</div>
           <div className="flex h-9 items-center">{labels.voice}</div>
           <div className="flex h-6 items-center">{labels.captions}</div>
@@ -123,7 +123,7 @@ export function TimelineStrip({
               <div
                 key={i}
                 className={cn(
-                  "absolute inset-y-0 overflow-hidden border px-1.5 font-mono text-[11px] leading-[30px] tabular-nums",
+                  "absolute inset-y-0 overflow-hidden border px-1.5 font-mono text-xs leading-[30px] tabular-nums",
                   i === active ? "border-amber bg-amber/18 text-foreground" : "border-transparent bg-lift text-muted-foreground",
                 )}
                 style={{ left: pct(m.start), width: `calc(${pct(m.end)} - ${pct(m.start)} - 2px)` }}
@@ -152,7 +152,7 @@ export function TimelineStrip({
           </div>
           <div className="pointer-events-none absolute inset-y-0 w-px bg-cyan" style={{ left: pct(playhead) }}>
             <span className="absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full bg-cyan" />
-            <span className="absolute -top-5 left-1 rounded-xs bg-cyan px-1 font-mono text-[11px] leading-4 whitespace-nowrap text-monitor tabular-nums">
+            <span className="absolute -top-5 left-1 rounded-xs bg-cyan px-1 font-mono text-xs leading-4 whitespace-nowrap text-monitor tabular-nums">
               {hhmmss(playhead)}
             </span>
           </div>

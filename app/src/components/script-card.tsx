@@ -245,7 +245,7 @@ function ScriptForm({
         )}
       </div>
 
-      <div className="flex h-9 items-center justify-between gap-3 border-y bg-ground px-4 font-mono text-[11px] leading-4 tracking-[0.06em] text-muted-foreground uppercase">
+      <div className="flex h-9 items-center justify-between gap-3 border-y bg-ground px-4 font-mono text-xs leading-4 tracking-[0.06em] text-muted-foreground uppercase">
         <span>
           {t.script.lines}
           {isDub && view.dub?.register && <span className="ml-3 normal-case tracking-normal">{t.dub.register}: {view.dub.register}</span>}
@@ -299,7 +299,7 @@ function ScriptForm({
                           className={cn("size-full object-cover", r.image !== r.was && "opacity-40")}
                         />
                       ) : (
-                        <span className="grid size-full place-items-center p-1 text-center text-[10px] leading-tight text-muted-foreground">
+                        <span className="grid size-full place-items-center p-1 text-center text-xs leading-tight text-muted-foreground">
                           {t.ai.noPicture}
                         </span>
                       )}
@@ -377,7 +377,7 @@ function ScriptForm({
               </div>
               <div
                 className={cn(
-                  "w-[112px] pt-2 text-right font-mono text-[11px] leading-4 tabular-nums text-muted-foreground",
+                  "w-[112px] pt-2 text-right font-mono text-xs leading-4 tabular-nums text-muted-foreground",
                   isDub && r.max_chars != null && r.text.length > r.max_chars && "text-amber",
                 )}
               >
@@ -480,7 +480,7 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
 function PanelHead({ title, aside }: { title: string; aside?: ReactNode }) {
   return (
     <header className="flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4">
-      <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{title}</h2>
+      <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{title}</h2>
       {aside && <span className="font-mono text-xs text-muted-foreground tabular-nums">{aside}</span>}
     </header>
   );

@@ -400,7 +400,7 @@ const en = {
     noSources: "This project has no source videos yet.",
     cleaned: "logo removed",
     removeLogo: "Remove logo",
-    empty: "Pick a video on the left, or upload one, to start.",
+    empty: "Pick one of your videos, or upload one, to start.",
     info: (w: number, h: number, sec: number) => `${w}×${h} · ${seconds(sec)}`,
     frameAt: "Frame",
     drawHint:
@@ -1181,7 +1181,7 @@ const vi: Messages = {
     noSources: "Dự án này chưa có video nguồn.",
     cleaned: "đã xoá logo",
     removeLogo: "Xoá logo",
-    empty: "Chọn một video bên trái hoặc tải video lên để bắt đầu.",
+    empty: "Chọn một trong các video của bạn hoặc tải video lên để bắt đầu.",
     info: (w: number, h: number, sec: number) => `${w}×${h} · ${secondsVi(sec)}`,
     frameAt: "Khung hình",
     drawHint:

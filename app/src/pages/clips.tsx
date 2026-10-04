@@ -369,7 +369,7 @@ export default function ClipsPage() {
           {last?.score_error && <span className="text-destructive"> · {t.clips.scoreError}: {last.score_error}</span>}
         </p>
 
-        <Card className={cn(!open && "gap-0")}>
+        <Card className={cn(!open && "gap-0 pb-0")}>
           <CardHeader>
             <CardTitle>
               {t.watches.title} ({list.length})
