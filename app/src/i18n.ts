@@ -48,6 +48,14 @@ const en = {
     allSources: "All sources",
     produce: "Make video",
     used: "Made",
+    open: "Open project",
+    makeAgain: "Make video again",
+    againTitle: "Make this topic again?",
+    againBody: (title: string, id: number) =>
+      `“${title}” already has a video (project #${id}). Making it again starts a second project from the same topic.`,
+    hide: "Hide this topic",
+    hiddenNote: (title: string) => `Hidden: ${title}`,
+    undo: "Undo",
     empty: "No topics yet. Click “Refresh”.",
     lastRefresh: "Last refresh",
     refreshError: "Refresh error",
@@ -730,6 +738,23 @@ const en = {
     review: (t: string) => `Awaiting your approval: ${t}`,
     failed: (t: string) => `Project failed: ${t}`,
   },
+  setup: {
+    title: "Finish setting up Motio",
+    llm: {
+      title: "Claude isn't connected",
+      text: "Sign in to Claude Code on the computer that runs the engine, or add an Anthropic API key in Settings. Without it Motio can't write scripts.",
+    },
+    tts: {
+      title: "No voice yet",
+      text: "Add your ElevenLabs API key and pick a voice in Settings. Without it Motio can't record the narration.",
+    },
+    ffmpeg: {
+      title: "FFmpeg not found",
+      text: "Motio needs FFmpeg to render videos. Reinstall the app, or install FFmpeg and restart the engine.",
+    },
+    open: "Open Settings",
+    overNote: "Videos you start yourself still run; automatic ones are paused.",
+  },
   files: {
     title: "Save files",
     video: "Save video (9:16)",
@@ -905,7 +930,15 @@ const vi: Messages = {
     refreshing: "Đang cập nhật…",
     allSources: "Tất cả nguồn",
     produce: "Làm video",
-    used: "Đã làm",
+    used: "Made",
+    open: "Mở dự án",
+    makeAgain: "Làm lại video này",
+    againTitle: "Làm lại tin này?",
+    againBody: (title: string, id: number) =>
+      `“${title}” đã có video (dự án #${id}). Làm lại sẽ tạo thêm một dự án thứ hai từ cùng tin này.`,
+    hide: "Ẩn tin này",
+    hiddenNote: (title: string) => `Đã ẩn: ${title}`,
+    undo: "Hoàn tác",
     empty: "Chưa có tin. Bấm “Cập nhật tin”.",
     lastRefresh: "Cập nhật lần cuối",
     refreshError: "Lỗi cập nhật",
@@ -1585,6 +1618,23 @@ const vi: Messages = {
     done: (t: string) => `Video xong: ${t}`,
     review: (t: string) => `Chờ bạn duyệt: ${t}`,
     failed: (t: string) => `Dự án lỗi: ${t}`,
+  },
+  setup: {
+    title: "Hoàn tất thiết lập Motio",
+    llm: {
+      title: "Chưa kết nối Claude",
+      text: "Đăng nhập Claude Code trên máy chạy engine, hoặc nhập khoá API Anthropic trong Cài đặt. Thiếu thì Motio không viết được kịch bản.",
+    },
+    tts: {
+      title: "Chưa có giọng đọc",
+      text: "Nhập khoá API ElevenLabs và chọn giọng trong Cài đặt. Thiếu thì Motio không thu được lời bình.",
+    },
+    ffmpeg: {
+      title: "Không thấy FFmpeg",
+      text: "Motio cần FFmpeg để dựng video. Cài lại app, hoặc cài FFmpeg rồi khởi động lại engine.",
+    },
+    open: "Mở Cài đặt",
+    overNote: "Video bạn tự bấm làm vẫn chạy; video tự động đã tạm dừng.",
   },
   files: {
     title: "Lưu tệp",
