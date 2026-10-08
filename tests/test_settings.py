@@ -12,6 +12,7 @@ def test_mask():
 def test_secrets_are_masked_and_env_is_layered(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "el-secret-9876")
     monkeypatch.setenv("LLM_MODEL", "opus")
+    monkeypatch.delenv("ANTHROPIC_API_KEY")  # conftest sets a fake one
     pub = settings.public()
     assert pub["ELEVENLABS_API_KEY"] == {"value": "••••9876", "secret": True, "source": "env"}
     assert pub["LLM_MODEL"]["value"] == "opus"
