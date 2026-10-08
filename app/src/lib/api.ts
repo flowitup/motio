@@ -551,6 +551,8 @@ export function makeApi(url: string, token: string) {
     deleteChannel: (id: number) => call<{ deleted: number }>("DELETE", `/api/channels/${id}`),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
+    /** Gửi lại video đã xong sang Postiz đúng như kênh của dự án cài đặt (chế độ, giờ đăng, bản 16:9). */
+    resend: (id: number) => call<{ sent: boolean; error: string | null }>("POST", `/api/projects/${id}/resend`),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string; version?: VideoVersion }) =>
       call<Omit<PublishRecord, "at">>("POST", `/api/projects/${id}/publish`, body),
     delogoUploads: () => call<DelogoUpload[]>("GET", "/api/delogo/uploads"),

@@ -190,7 +190,7 @@ const en = {
     deleteConfirm: "Delete project",
     deleteCancel: "Cancel",
     deleteBusy: "The project is running. Wait until it finishes to delete it.",
-    redoReplacesScript: "Redoing from this step writes a new script that replaces the current one (including your edits).",
+    redoReplacesScript: "Rerunning from this step replaces the script, including your edits.",
     status: {
       queued: "Queued",
       running: "Running",
@@ -313,11 +313,14 @@ const en = {
   },
   review: {
     script: "Script awaiting your approval",
-    scriptHint: "Read the narration in the Script card below, edit it if needed (click Save), then click Approve to record the voice and render the video.",
+    scriptHint: "Read the narration in the Script card and edit it if needed. Approving records the voice and renders the video; edits you haven't saved are saved first.",
     approveScript: "Approve and continue",
+    saveApproveScript: "Save, then approve",
+    fixScript: "The edited script can't be saved yet (it needs a title and enough narration lines). Fix it or undo the edits.",
     video: "Video awaiting your approval",
-    videoHint: "Watch the video on the left. To change the narration, edit it in the Script card, then re-render.",
-    videoHintSend: (n: number) => `Once approved, Motio sends it to ${plural(n, "Postiz channel")} as set in the channel.`,
+    videoHint: "Watch the video, then approve it. To change the narration, edit it in the Script card and re-render.",
+    sendPlan: (n: number, mode: string) =>
+      `Once approved, Motio sends it to ${plural(n, "Postiz channel")} ${{ draft: "as a draft", schedule: "at the channel's next posting time", now: "right away, publicly" }[mode] ?? mode}.`,
     approveSend: "Approve and send",
     approve: "Approve",
     approveNoSend: "Approve without sending",
@@ -326,6 +329,7 @@ const en = {
   script: {
     title: "Script",
     hint: "Edit the title and narration, then click “Save and re-render”: Motio records the voice again and renders the video from this script. The description and hashtags apply as soon as you save.",
+    gateHint: "Edit the title and narration if needed, then Save. The voice and video are made when you approve, so there is nothing to re-render yet. The description and hashtags apply as soon as you save.",
     videoTitle: "Title on video",
     lines: "Narration",
     clips: (n: number) => (n ? plural(n, "clip") : "clips picked automatically"),
@@ -612,6 +616,13 @@ const en = {
     history: "Sent to Postiz",
     version: "Video",
     versionHint: "The 16:9 copy suits YouTube videos and Facebook pages; 9:16 suits TikTok, Reels and Shorts.",
+    nowTitle: "Post publicly now?",
+    nowBody: (names: string[]) =>
+      `Motio will post this video right away to ${names.join(", ") || "the selected channels"}. Once it is posted, it can't be taken back from here.`,
+    nowConfirm: "Post now",
+    channelSetting: (channel: string, names: string[], mode: string) =>
+      `Channel “${channel}” is set to send to ${names.join(", ")} (${mode.toLowerCase()}).`,
+    sendAgain: "Send again as the channel is set",
   },
   settings: {
     title: "Settings",
@@ -719,6 +730,18 @@ const en = {
     review: (t: string) => `Awaiting your approval: ${t}`,
     failed: (t: string) => `Project failed: ${t}`,
   },
+  files: {
+    title: "Save files",
+    video: "Save video (9:16)",
+    wide: "Save 16:9 copy",
+    srt: "Save subtitles (.srt)",
+    missing: "The file isn't on the engine.",
+  },
+  failure: {
+    title: (step: string | null) => (step ? `Failed at “${step}”` : "Failed"),
+    hint: "Fix what the error says, then resume. Steps that finished are kept.",
+    resume: (step: string) => `Resume from “${step}”`,
+  },
   /** The "Studio" screens: rail, Trending ledger, Projects contact sheet, Project editor, New video console. */
   studio: {
     mainNav: "Main",
@@ -819,7 +842,7 @@ const en = {
     langBody: (n: number) => `Switching language reloads the screens and discards ${n === 1 ? "1 unsaved setting" : `${n} unsaved settings`}.`,
     langSwitch: "Switch language",
   },
-  common: { error: "Error", loading: "Loading…", noEngine: "Can't connect to the engine" },
+  common: { error: "Error", loading: "Loading…", noEngine: "Can't connect to the engine", cancel: "Cancel" },
   clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
   dateTime: (iso: string) => new Date(iso).toLocaleString("en-GB"),
   /** A message from the Tauri shell (engine.rs, updater.rs, always English), in this language. */
@@ -1024,7 +1047,7 @@ const vi: Messages = {
     deleteConfirm: "Xoá dự án",
     deleteCancel: "Huỷ",
     deleteBusy: "Dự án đang chạy, chờ xong rồi mới xoá được.",
-    redoReplacesScript: "Làm lại từ bước này sẽ viết kịch bản mới, thay kịch bản hiện tại (cả phần bạn đã sửa).",
+    redoReplacesScript: "Chạy lại từ bước này sẽ thay kịch bản hiện tại, kể cả chỗ bạn đã sửa.",
     status: {
       queued: "Chờ",
       running: "Đang làm",
@@ -1146,11 +1169,14 @@ const vi: Messages = {
   },
   review: {
     script: "Kịch bản đang chờ bạn duyệt",
-    scriptHint: "Đọc lời bình trong thẻ Kịch bản bên dưới, sửa nếu cần (bấm Lưu), rồi bấm Duyệt để đọc giọng và dựng video.",
+    scriptHint: "Đọc lời bình trong thẻ Kịch bản và sửa nếu cần. Duyệt là thu giọng và dựng video; chỗ sửa chưa lưu sẽ được lưu trước.",
     approveScript: "Duyệt và làm tiếp",
+    saveApproveScript: "Lưu rồi duyệt",
+    fixScript: "Chưa lưu được kịch bản đang sửa (cần tiêu đề và đủ dòng lời bình). Hãy sửa lại hoặc hoàn tác.",
     video: "Video đang chờ bạn duyệt",
-    videoHint: "Xem video bên trái. Muốn sửa lời bình thì sửa trong thẻ Kịch bản rồi dựng lại.",
-    videoHintSend: (n: number) => `Duyệt thì Motio gửi sang ${n} kênh Postiz theo cài đặt của kênh.`,
+    videoHint: "Xem video rồi duyệt. Muốn đổi lời bình, sửa trong thẻ Kịch bản rồi dựng lại.",
+    sendPlan: (n: number, mode: string) =>
+      `Duyệt thì Motio gửi sang ${n} kênh Postiz ${{ draft: "dưới dạng nháp", schedule: "vào giờ đăng kế tiếp của kênh", now: "ngay lập tức, công khai" }[mode] ?? mode}.`,
     approveSend: "Duyệt và gửi",
     approve: "Duyệt",
     approveNoSend: "Duyệt, không gửi",
@@ -1159,6 +1185,7 @@ const vi: Messages = {
   script: {
     title: "Kịch bản",
     hint: "Sửa tiêu đề và lời bình rồi bấm “Lưu và dựng lại”: Motio đọc lại giọng và dựng video từ kịch bản này. Mô tả và hashtag lưu là dùng ngay.",
+    gateHint: "Sửa tiêu đề và lời bình nếu cần rồi bấm Lưu. Giọng đọc và video chỉ được làm khi bạn duyệt nên chưa có gì để dựng lại. Mô tả và hashtag có hiệu lực ngay khi lưu.",
     videoTitle: "Tiêu đề trên video",
     lines: "Lời bình",
     clips: (n: number) => (n ? `${n} đoạn hình` : "hình tự chọn"),
@@ -1445,6 +1472,13 @@ const vi: Messages = {
     history: "Đã gửi sang Postiz",
     version: "Video",
     versionHint: "Bản 16:9 hợp với video YouTube và trang Facebook; 9:16 hợp với TikTok, Reels và Shorts.",
+    nowTitle: "Đăng công khai ngay?",
+    nowBody: (names: string[]) =>
+      `Motio sẽ đăng video này ngay lên ${names.join(", ") || "các kênh đã chọn"}. Đã đăng thì không thu hồi được từ đây.`,
+    nowConfirm: "Đăng ngay",
+    channelSetting: (channel: string, names: string[], mode: string) =>
+      `Kênh “${channel}” được cài để gửi tới ${names.join(", ")} (${mode.toLowerCase()}).`,
+    sendAgain: "Gửi lại theo cài đặt của kênh",
   },
   settings: {
     title: "Cài đặt",
@@ -1552,6 +1586,18 @@ const vi: Messages = {
     review: (t: string) => `Chờ bạn duyệt: ${t}`,
     failed: (t: string) => `Dự án lỗi: ${t}`,
   },
+  files: {
+    title: "Lưu tệp",
+    video: "Lưu video (9:16)",
+    wide: "Lưu bản 16:9",
+    srt: "Lưu phụ đề (.srt)",
+    missing: "Engine không có tệp này.",
+  },
+  failure: {
+    title: (step: string | null) => (step ? `Lỗi ở bước “${step}”` : "Lỗi"),
+    hint: "Sửa theo thông báo lỗi rồi chạy tiếp. Các bước đã xong được giữ lại.",
+    resume: (step: string) => `Chạy tiếp từ “${step}”`,
+  },
   /** The "Studio" screens: rail, Trending ledger, Projects contact sheet, Project editor, New video console. */
   studio: {
     mainNav: "Menu chính",
@@ -1652,7 +1698,7 @@ const vi: Messages = {
     langBody: (n: number) => `Đổi ngôn ngữ sẽ tải lại các màn hình và bỏ ${n} cài đặt chưa lưu.`,
     langSwitch: "Đổi ngôn ngữ",
   },
-  common: { error: "Lỗi", loading: "Đang tải…", noEngine: "Không kết nối được engine" },
+  common: { error: "Lỗi", loading: "Đang tải…", noEngine: "Không kết nối được engine", cancel: "Hủy" },
   clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   dateTime: (iso: string) => new Date(iso).toLocaleString("vi-VN"),
   native: (msg: string) => {
