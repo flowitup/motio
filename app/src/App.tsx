@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { Led } from "@/components/studio";
@@ -105,7 +105,7 @@ export function EngineGate({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   if (info.status === "ready") return <>{children}</>;
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+    <div role={info.status === "starting" ? "status" : "alert"} className="flex h-full flex-col items-center justify-center gap-4 text-center">
       {info.status === "starting" ? (
         <>
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -141,6 +141,16 @@ function useEngineLang() {
   }, [api, lang]);
 }
 
+/** The window title follows the page, with the number of projects waiting for you in front. */
+function useDocumentTitle(needsYou: number) {
+  const { pathname } = useLocation();
+  const section = pathname.split("/")[1] as keyof Messages["nav"];
+  const page = section in t.nav ? t.nav[section] : t.appName;
+  useEffect(() => {
+    document.title = `${needsYou > 0 ? `(${needsYou}) ` : ""}${page} · ${t.appName}`;
+  }, [page, needsYou]);
+}
+
 export default function App() {
   const { info } = useEngine();
   const qc = useQueryClient();
@@ -159,9 +169,19 @@ export default function App() {
     refetchInterval: 4_000,
   });
   const needsYou = (projects ?? []).filter((p) => p.status === "review").length;
+  useDocumentTitle(needsYou);
+  const main = useRef<HTMLElement>(null);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
+      {/* A button, not a #link: the hash is the router's. */}
+      <button
+        type="button"
+        onClick={() => main.current?.focus()}
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-24 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-raised focus-visible:px-3 focus-visible:py-2 focus-visible:text-[13px] focus-visible:font-semibold"
+      >
+        {t.a11y.skip}
+      </button>
       <nav aria-label={t.studio.mainNav} className="flex w-20 shrink-0 flex-col border-r bg-ground">
         <div className="flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
@@ -191,7 +211,7 @@ export default function App() {
           <EngineBadge />
         </div>
       </nav>
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main ref={main} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
         <Routes>
           <Route path="/" element={<Navigate to="/trends" replace />} />
           <Route path="/trends" element={<EngineGate><TrendsPage /></EngineGate>} />
