@@ -31,6 +31,7 @@ from . import (
     delogo,
     dub,
     edit,
+    listing,
     llm,
     localfile,
     newsnow,
@@ -99,6 +100,10 @@ class DubPatch(BaseModel):
 
 class ProjectPatch(BaseModel):
     rights: str | None = None
+
+
+class TrendPatch(BaseModel):
+    hidden: bool  # ẩn khỏi Trending (chỉ tin chưa làm); False = hiện lại
 
 
 class WatchIn(BaseModel):
@@ -362,8 +367,18 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
     def trends(hours: float = 24, source: str | None = None, limit: int = 100):
-        return [{**t, "source_name": newsnow.SOURCE_NAMES.get(t["source"], t["source"])}
-                for t in db.list_trends(hours=hours, limit=limit, source=source or None)]
+        """Tin hot (không gồm tin đã ẩn); tin đã làm kèm `project_id` của dự án mới nhất."""
+        rows = [t for t in db.list_trends(hours=hours, limit=limit + 200, source=source or None)
+                if t.get("status") != listing.HIDDEN][:limit]
+        made = listing.trend_projects([t["id"] for t in rows if t.get("status") == "used"])
+        return [{**t, "source_name": newsnow.SOURCE_NAMES.get(t["source"], t["source"]),
+                 "project_id": made.get(t["id"])} for t in rows]
+
+    @app.patch("/api/trends/{tid}", dependencies=[Depends(auth)])
+    def patch_trend(tid: str, body: TrendPatch):
+        if not listing.set_trend_hidden(tid, body.hidden):
+            raise HTTPException(404, tr("Trend not found"))
+        return {"id": tid, "hidden": body.hidden}
 
     @app.post("/api/trends/refresh", status_code=202, dependencies=[Depends(auth)])
     def refresh():
@@ -513,8 +528,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     # ---------- dự án ----------
     @app.get("/api/projects", dependencies=[Depends(auth)])
-    def projects(limit: int = 50):
-        return [_project_out(p) for p in db.list_projects(limit)]
+    def projects(limit: int = 50, before: int | None = None, channel: int | None = None, mode: str | None = None,
+                 status: str | None = None, q: str | None = None):
+        """Dự án mới nhất trước. `before` = id của dự án cuối trang trước (tải thêm); `channel` 0 = không kênh;
+        `q` tìm theo tiêu đề hoặc #id."""
+        return [_project_out(p) for p in listing.projects(limit, before, channel, mode, status, q)]
+
+    @app.get("/api/projects/counts", dependencies=[Depends(auth)])
+    def project_counts():
+        """Số dự án theo trạng thái (huy hiệu "cần bạn" trên thanh bên); `failed` = lỗi trong 7 ngày qua."""
+        return listing.counts()
 
     def _get(pid: int) -> dict:
         p = db.get_project(pid)

@@ -397,3 +397,48 @@ def test_starting_a_video_without_the_keys_it_needs_is_refused_before_a_project_
     r = client.post("/api/ai", headers=H, json={"topic": "a lighthouse"})
     assert r.status_code == 409 and "ELEVENLABS_API_KEY" in r.json()["detail"]
     assert len(client.get("/api/projects", headers=H).json()) == before
+
+
+def _make(name, mode="topic", status="done", **meta):
+    pid = db.create_project(None, name, mode=mode)
+    db.update_project(pid, status=status, meta=meta)
+    return pid
+
+
+def test_projects_list_filters_and_load_more(client):
+    a = _make("Pandas géants", channel=7)
+    b = _make("Cuisine du Sichuan", mode="ai", channel=8, title="Sichuan en 80 s")
+    c = _make("Pandas roux", status="failed")
+    ids = lambda **q: [p["id"] for p in client.get("/api/projects", headers=H, params=q).json()]  # noqa: E731
+    assert ids() == [c, b, a]
+    assert ids(channel=7) == [a] and ids(channel=8) == [b] and ids(channel=0) == [c]
+    assert ids(mode="ai") == [b] and ids(status="failed") == [c]
+    assert ids(q="panda") == [c, a] and ids(q="sichuan") == [b]  # the list title or meta.title
+    assert ids(q=f"#{a}") == [a] and ids(q="100%") == []  # % and _ are not wildcards
+    assert ids(limit=2) == [c, b] and ids(limit=2, before=b) == [a]  # load more, by id
+    assert ids(channel=7, mode="ai") == []
+
+
+def test_project_counts_failed_only_recent(client):
+    _make("a", status="review")
+    _make("b", status="running")
+    old = _make("c", status="failed")
+    _make("d", status="failed")
+    with db.conn() as conn:
+        conn.execute("UPDATE project SET updated_at = ? WHERE id = ?", (time.time() - 30 * 86400, old))
+    n = client.get("/api/projects/counts", headers=H).json()
+    assert n == {"queued": 0, "running": 1, "review": 1, "done": 0, "failed": 1}
+
+
+def test_trends_know_their_project_and_can_be_hidden(client):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    first = client.get("/api/trends", headers=H).json()[0]
+    assert first["id"] == "douyin:1" and first["status"] == "used" and first["project_id"] == pid
+    assert client.get("/api/trends", headers=H).json()[1]["project_id"] is None
+    assert client.patch("/api/trends/weibo:2", headers=H, json={"hidden": True}).status_code == 200
+    assert [t["id"] for t in client.get("/api/trends", headers=H).json()] == ["douyin:1"]
+    client.patch("/api/trends/douyin:1", headers=H, json={"hidden": True})  # already made: stays visible
+    assert len(client.get("/api/trends", headers=H).json()) == 1
+    client.patch("/api/trends/weibo:2", headers=H, json={"hidden": False})
+    assert len(client.get("/api/trends", headers=H).json()) == 2
+    assert client.patch("/api/trends/nope", headers=H, json={"hidden": True}).status_code == 404
