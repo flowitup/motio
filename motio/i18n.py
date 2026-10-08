@@ -155,6 +155,7 @@ VI = {
     "Postiz is not configured (POSTIZ_URL, POSTIZ_API_KEY)": "Chưa cấu hình Postiz (POSTIZ_URL, POSTIZ_API_KEY)",
     "Postiz error: {error}": "Postiz lỗi: {error}",
     "Project has no finished video yet": "Dự án chưa có video hoàn chỉnh",
+    "This project's channel has no Postiz channel to send to": "Kênh của dự án này chưa có kênh Postiz để gửi",
     "Project has no 16:9 copy yet": "Dự án chưa có bản 16:9",
     "ELEVENLABS_API_KEY is not set": "Chưa có ELEVENLABS_API_KEY",
     "ElevenLabs error: {error}": "ElevenLabs lỗi: {error}",

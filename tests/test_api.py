@@ -442,3 +442,21 @@ def test_trends_know_their_project_and_can_be_hidden(client):
     client.patch("/api/trends/weibo:2", headers=H, json={"hidden": False})
     assert len(client.get("/api/trends", headers=H).json()) == 2
     assert client.patch("/api/trends/nope", headers=H, json={"hidden": True}).status_code == 404
+
+
+def test_resend_follows_the_channel_settings(client, fake_postiz):
+    ch = client.post("/api/channels", headers=H, json={"name": "Chine", "postiz": ["tt1"], "gate_script": False,
+                                                        "gate_video": False, "send_mode": "draft"}).json()
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"channel": ch["id"]}).json()["project_id"]
+    p = _wait_done(client, pid)
+    assert "postiz" not in p["meta"] or p["meta"]["postiz"] == []  # the fake produce sends nothing
+    r = client.post(f"/api/projects/{pid}/resend", headers=H)
+    assert r.status_code == 200 and r.json() == {"sent": True, "error": None}
+    p = client.get(f"/api/projects/{pid}", headers=H).json()
+    assert p["status"] == "done" and p["step"] == "Done" and [e["profile"] for e in p["meta"]["postiz"]] == [ch["id"]]
+    other = client.post("/api/trends/weibo:2/produce", headers=H, json={"channel": 0}).json()["project_id"]
+    _wait_done(client, other)
+    assert client.post(f"/api/projects/{other}/resend", headers=H).status_code == 409  # no channel, nothing to follow
+    db.update_project(pid, status="running")
+    assert client.post(f"/api/projects/{pid}/resend", headers=H).status_code == 409
+    assert client.post("/api/projects/999/resend", headers=H).status_code == 404

@@ -834,6 +834,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except (postiz.PostizError, httpx.HTTPError) as e:
             raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
 
+    @app.post("/api/projects/{pid}/resend", dependencies=[Depends(auth)])
+    def resend(pid: int):
+        """Gửi lại video đã xong sang Postiz đúng như kênh của dự án cài đặt (chế độ, giờ đăng, bản 16:9)."""
+        p = _get(pid)
+        ch = channels.for_project(p)
+        if p["status"] != "done" or not p["meta"].get("video"):
+            raise HTTPException(409, tr("Project has no finished video yet"))
+        if not ch or not ch["postiz"]:
+            raise HTTPException(409, tr("This project's channel has no Postiz channel to send to"))
+        _need_postiz()
+        try:
+            ok = pipeline.send_to_postiz(pid, ch)
+        finally:
+            db.update_project(pid, status="done", step=tr("Done"), pct=100)
+        return {"sent": ok, "error": None if ok else db.get_project(pid)["meta"].get("send_error")}
+
     # ---------- thông báo Slack ----------
     @app.post("/api/notify/test", dependencies=[Depends(auth)])
     def notify_test():
