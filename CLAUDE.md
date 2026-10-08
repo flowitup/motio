@@ -17,7 +17,7 @@ as authoritative for scope and milestones.
   - `search.py` yt-dlp search/download (cookies: `YTDLP_COOKIES_FILE` per-thread copy, else browser) · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `douyin.py` public Douyin videos without a login through the `f2` package (it does Douyin's request signing; Motio only
     calls it): `search.download` tries it first for Douyin links and falls back to yt-dlp when f2 cannot
-  - `llm.py` `claude -p` or Anthropic API · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
+  - `llm.py` Claude API (Anthropic SDK; main + fast model, each call's cost goes to `usage`) · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
@@ -120,8 +120,8 @@ on every PR; keep them green.
 - UI look (type floor 12 px, caption style, window sizes, motion): `docs/DESIGN.md`; check a UI change against `docs/UI_REVIEW.md`.
 - The engine must stay cross-platform: guard OS-specific code with `platform.system()`, use `pathlib`,
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
-- All LLM calls go through `motio/llm.py`. The `claude_cli` provider strips `ANTHROPIC_API_KEY` from the
-  subprocess env so `claude -p` never bills the API account by accident — keep that.
+- All LLM calls go through `motio/llm.py` and the Anthropic API (owner, 2026-10-08: $200/month API budget, `claude -p`
+  is gone). Light work (scoring, picking) passes `light=True` for the fast model; every call is recorded in `usage`.
 - Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
   `sources.txt` in the project folder.
 - AI disclosure (AI Act art. 50): every post keeps "Voix off générée par IA." and the platforms' AI flags (TikTok

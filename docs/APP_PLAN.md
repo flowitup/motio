@@ -21,7 +21,7 @@ APIs directly.
 1. **`motio/api.py`** — JSON-only FastAPI app replacing the Jinja dashboard (keep `web.py` until M2 ships).
    Auth: random token, `Authorization: Bearer <token>`; `?token=` accepted only for `/media` and SSE.
    CORS for `tauri://localhost`, `http://tauri.localhost`, `http://localhost:1420`.
-   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg, JS runtime (deno) and claude CLI found
+   - `GET  /api/health` → version, platform, active providers (llm, tts, asr), ffmpeg and JS runtime (deno) found
    - `GET  /api/trends?hours=24&source=` · `POST /api/trends/refresh` (async) · `GET /api/state`
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`
@@ -42,13 +42,13 @@ APIs directly.
    then serves. `--host 0.0.0.0` (remote mode) requires `--token`.
 3. **Jobs**: keep the single worker queue; on startup mark stale `running` projects `failed` with a log line.
 4. **Settings** `motio/settings.py`: `data/settings.json` layered over `.env`; read at call time so changes
-   apply without restart. Keys: `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
+   apply without restart. Keys: `LLM_MODEL`, `LLM_MODEL_FAST`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
    `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL`, `WHISPER_MODEL`, `NEWS_SOURCES`, `CREDIT_ON_VIDEO`,
    `CREDIT_IN_POST`, `MAX_VIDEOS_PER_DAY`. Secrets are returned masked (`••••1234`); PUT accepts new values.
 5. **Cross-platform fixes**
    - Fonts: lookup helper with macOS, Windows (`C:\Windows\Fonts\arialbd.ttf`, `msyhbd.ttc`), Linux paths.
    - `config.which()`: Windows `.exe`/`.cmd` (`claude.cmd`), `%LOCALAPPDATA%`, env overrides
-     `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, and a bundled `bin/` next to the engine.
+     `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, and a bundled `bin/` next to the engine.
    - TTS: no ElevenLabs key and not macOS → clear error that the UI can show.
    - ASR: faster-whisper picks `cuda` if available, else `cpu` with `int8`.
    - Enforce `MAX_VIDEOS_PER_DAY` in `produce`.
@@ -383,7 +383,8 @@ calls per use.
   is `ok` / `warn` (≥ 80%) / `over` (≥ 100%); `over` makes `automake.picks` return nothing, manual makes are never blocked.
 - API: `GET /api/stats` (`price_per_1k`, `month`, `budget`, `total`, `days` × 30, `channels`); a project's detail gets
   `usage: {tts_chars, usd}`. The page is `app/src/pages/stats.tsx` (cards, CSS bar chart, per-channel table).
-- Not tracked: Claude (`claude -p` bills the owner's plan, not per call), platform views and earnings (need each
+- Claude API calls are recorded too (kind `llm`, tokens and USD from the price table in `usage.PRICES`) and count in
+  the monthly budget. Not tracked: platform views and earnings (need each
   platform's account and API), other providers' credits. Usage from before this version isn't there.
 - Not verified: the estimate against a real ElevenLabs invoice; the page on the Mac / Windows apps.
 

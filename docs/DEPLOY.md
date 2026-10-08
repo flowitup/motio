@@ -32,7 +32,7 @@ cookie" (xem `docs/WINDOWS_SERVER.md` mục 4), theo dõi Bilibili bằng engine
   Máy x86 (dòng CX/CPX) dùng mặc định; máy ARM (CAX) thì đặt biến `MOTIO_PLATFORM=linux/arm64` ở bước 4.
 - **Tên miền**: hai bản ghi A (và AAAA nếu có IPv6) trỏ về IP server, vd. `motio.example.com` và
   `postiz.example.com`. Caddy chỉ lấy được chứng chỉ khi DNS đã trỏ đúng.
-- **Key**: `ANTHROPIC_API_KEY` (server không có Claude Code CLI nên dùng Claude API) và `ELEVENLABS_API_KEY`.
+- **Key**: `ANTHROPIC_API_KEY` (mọi lệnh gọi Claude đi qua API) và `ELEVENLABS_API_KEY`.
 
 ## 2. Cài server (một lần)
 

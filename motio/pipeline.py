@@ -252,11 +252,11 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
         if is_topic:
             prompt = topic.PICK_PROMPT.format(title=f"{subj['topic']} / {subj['title_fr']}", angle=subj["angle"],
                                               cands=lines, n=room)
-            pick = llm.ask_json(prompt, topic.PICK_SYSTEM)
+            pick = llm.ask_json(prompt, topic.PICK_SYSTEM, light=True)
         else:
             pick = llm.ask_json(PICK_PROMPT.format(title_zh=subj["title_zh"], title_fr=subj["title_fr"],
                                                    angle=subj.get("angle") or "", cands=lines, n=room),
-                                PICK_SYSTEM)
+                                PICK_SYSTEM, light=True)
         picked = [cands[i] for i in pick.get("pick", []) if isinstance(i, int) and 0 <= i < len(cands)]
         picked = picked[:room] or ([] if pinned else cands[:2])
         why = pick.get("why", "")
@@ -451,6 +451,11 @@ def _invalidate(pid: int, start: str, redo: bool) -> None:
 
 def produce(pid: int, duration_sec: int = DEFAULT_SECONDS, max_sources: int = 4, start: str = "search") -> None:
     """Chạy pipeline từ bước `start` (mặc định từ đầu) tới khi có video. meta.duration (nếu có) thắng duration_sec."""
+    with usage.context(project_id=pid):  # tiền Claude của mọi bước tính vào dự án này
+        _produce(pid, duration_sec, max_sources, start)
+
+
+def _produce(pid: int, duration_sec: int, max_sources: int, start: str) -> None:
     if start not in STEPS:
         raise ValueError(tr("Invalid step: {step}", step=start))
     step = Step(pid)

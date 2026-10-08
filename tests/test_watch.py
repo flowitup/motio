@@ -184,7 +184,7 @@ def test_check_all_scores_new_videos(monkeypatch):
     assert watch.check_all()["checked"] == 0
 
     def boom(*a, **kw):
-        raise llm.LLMError("Unsupported LLM_PROVIDER: none")
+        raise llm.LLMError("No Anthropic API key: none")
 
     monkeypatch.setattr(llm, "ask_json", boom)
     db.update_watch(wid, enabled=True)

@@ -140,9 +140,10 @@ live in `data/tools/delogo/<hex>/`.
 
 - **Cross-platform engine.** Guard OS code with `platform.system()` (via `config.IS_MAC` / `IS_WIN`),
   use `pathlib`, find binaries through `config.which()` (honours `MOTIO_FFMPEG`, `MOTIO_FFPROBE`,
-  `MOTIO_CLAUDE`, bundled `bin/`). No `/opt/homebrew` or `C:\` outside that lookup helper.
-- **All LLM calls through `motio/llm.py`.** The `claude_cli` provider strips `ANTHROPIC_API_KEY` from the
-  `claude -p` subprocess env so it bills the Claude plan, not the API account. Keep that.
+  bundled `bin/`). No `/opt/homebrew` or `C:\` outside that lookup helper.
+- **All LLM calls through `motio/llm.py`, on the Anthropic API only** (owner, 2026-10-08: `claude -p` is gone). The
+  main model (`LLM_MODEL`, default `claude-opus-5-5`) writes; `light=True` calls use `LLM_MODEL_FAST` (default
+  `claude-haiku-5-5`). Every call is recorded in `usage` (kind `llm`, `usage.PRICES`) and counts in the monthly budget.
 - **Language.** The UI is English (default) or Vietnamese, switched in Settings → Language (owner, 2026-09-28).
   Every new UI string goes into **both** catalogs in `app/src/i18n.ts` (`vi: Messages`, so a missing one fails
   `pnpm build`); read `t.…` while rendering, never in a module-level constant, or the switch won't show it. Every new
@@ -334,14 +335,14 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 
 - Creating the server, DNS, `/opt/motio/.env`, GitHub secrets, running **Deploy (Hetzner)**, and anything
   over SSH on the server are production actions: wait for the owner's explicit go each time.
-- Server LLM is the Claude API (`LLM_PROVIDER=anthropic`, billed per token); Whisper runs on CPU.
+- LLM is the Claude API everywhere (billed per token); Whisper runs on CPU.
 - Health: `curl -H "Authorization: Bearer <MOTIO_TOKEN>" https://motio.<domain>/api/health`.
 - TikTok / YouTube developer apps stay private until audited: send Postiz drafts until then.
 
 ## 11. Landmines
 
 - `mlx-whisper` only installs on macOS arm64; Linux/Windows use `faster-whisper` (CPU int8, CUDA if present).
-- `claude -p` is not available on the server or in CI: tests must mock the LLM, TTS, ASR, yt-dlp and Postiz.
+- CI has no API key: tests must mock the LLM (`llm.ask_json` or the Anthropic client), TTS, ASR, yt-dlp and Postiz.
 - macOS `say` fallback exists for dev only; without an ElevenLabs key on Windows/Linux, `tts.py` raises
   `TTSUnavailable` with a message the UI shows (in the UI language). Keep it that way, never a silent fallback.
 - YouTube often blocks downloads from datacenter IPs ("Sign in to confirm you're not a bot"); Bilibili

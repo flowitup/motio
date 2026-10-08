@@ -63,7 +63,7 @@ NO_TOPIC = "à déduire des vidéos ci-dessous"
 
 def expand(topic: str) -> dict:
     """Chủ đề tự do → tiêu đề tiếng Pháp, góc nhìn, từ khoá tìm video (ZH cho Bilibili, EN/FR cho YouTube)."""
-    r = llm.ask_json(SUBJECT_PROMPT.format(topic=topic), SUBJECT_SYSTEM, effort="low")
+    r = llm.ask_json(SUBJECT_PROMPT.format(topic=topic), SUBJECT_SYSTEM, effort="low", light=True)
     r = r if isinstance(r, dict) else {}
     kw = r.get("keywords") if isinstance(r.get("keywords"), dict) else {}
     kw = {k: [str(q) for q in kw.get(k) or [] if str(q).strip()][:2] for k in ("zh", "en", "fr")}

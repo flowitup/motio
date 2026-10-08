@@ -9,7 +9,7 @@
   Runbook: docs/WINDOWS_SERVER.md. Not tested on a real Windows PC yet.
 
   Run it in an elevated PowerShell (Run as administrator), as the Windows user who will stay logged in: that user's
-  `claude` login and browser cookies are the ones the engine will see.
+  browser cookies are the ones the engine will see.
 
 .EXAMPLE
   .\motio-server.ps1 -DataDir D:\Motio\data -KeepAwake     # install (or update) and start

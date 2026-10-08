@@ -286,7 +286,7 @@ def score(clips: list[dict]) -> int:
                                       "durée_s": int(c["duration"]) if c["duration"] else None,
                                       "vues": c["views"], "titre": c["title"],
                                       **_trend_fields(c)}, ensure_ascii=False) for c in batch)
-        result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low")
+        result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low", light=True)
         by_id = {r.get("id"): r for r in result if isinstance(r, dict)} if isinstance(result, list) else {}
         for c in batch:
             r = by_id.get(c["id"], {})

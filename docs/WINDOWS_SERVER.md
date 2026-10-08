@@ -22,9 +22,8 @@ trạng. Cả luồng dưới đây **chưa chạy trên máy Windows thật** (
 - **Thư mục dữ liệu** trên ổ lớn, ví dụ `D:\Motio\data`. Không đặt trên ổ C: nếu ổ đó nhỏ: mặc định engine ghi vào
   `%APPDATA%\Motio`.
 - **Tài khoản Windows** bạn dùng hằng ngày, để máy tự đăng nhập (netplwiz) hoặc luôn đăng nhập: engine chạy trong
-  phiên của tài khoản đó, nên `claude` CLI và cookie trình duyệt của tài khoản đó là cái engine nhìn thấy.
-- **Claude** (viết kịch bản): mặc định engine gọi `claude -p` (tính vào gói Claude), nên cài Claude Code trên Windows và
-  đăng nhập đúng tài khoản trên. Hoặc vào Cài đặt chọn nhà cung cấp `anthropic` và nhập khoá API (tính tiền theo token).
+  phiên của tài khoản đó, nên cookie trình duyệt của tài khoản đó là cái engine nhìn thấy.
+- **Claude** (viết kịch bản): engine gọi Claude API; vào Cài đặt nhập `ANTHROPIC_API_KEY` (tính tiền theo token, không cần cài Claude Code).
 - **Bóc lời** trên Windows là faster-whisper (mlx chỉ có trên Mac): CPU (int8) mặc định; GPU NVIDIA chỉ được dùng nếu
   máy đã cài CUDA 12 và cuDNN 9 (bản đóng gói không kèm các thư viện này). Chưa đo tốc độ trên máy của bạn.
 

@@ -1,66 +1,81 @@
-"""LLM adapter.
+"""LLM adapter: every call goes to the Anthropic API (Messages API, `ANTHROPIC_API_KEY` in Settings or .env).
 
-- claude_cli: gọi Claude Code trên máy (`claude -p`), tính vào gói Claude của bạn. Tắt công cụ,
-  MCP và settings để mỗi lần gọi chỉ tốn vài trăm token hệ thống.
-- anthropic: Claude API (ANTHROPIC_API_KEY), dùng khi chạy trên server.
+Two tiers, both set in Settings: `LLM_MODEL` (scripts, translations, scene writing; default Claude Opus 5.5) and
+`LLM_MODEL_FAST` (scoring and picking, many small calls; default Claude Haiku 5.5). Each call is recorded in the
+`usage` table with its token cost (`usage.record_llm`), so Stats shows what Claude costs next to the voice.
+Short names (`sonnet`, `opus`, `haiku`) from older settings still work.
 """
 import json
-import os
 import re
-import subprocess
-import tempfile
 
 from . import config
 from .i18n import tr
+
+MAIN_MODEL = "claude-opus-5-5"
+FAST_MODEL = "claude-haiku-5-5"
+ALIASES = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Models that take `output_config.effort`; older ones (Haiku 4.5, Sonnet 4.5, ...) answer 400 to it.
+_EFFORT_MODELS = re.compile(r"^claude-(?:(?:opus|sonnet|haiku|fable|mythos)-5|opus-4-[5-8]|sonnet-4-6)")
+MAX_TOKENS = 16000  # thinking is on by default on the 5.x models and counts inside this budget
 
 
 class LLMError(RuntimeError):
     pass
 
 
-def complete(prompt: str, system: str, model: str | None = None, max_tokens: int = 8000,
-             effort: str | None = None) -> str:
-    provider = config.env("LLM_PROVIDER", "claude_cli")
-    model = model or config.env("LLM_MODEL", "sonnet")
-    if provider == "claude_cli":
-        return _claude_cli(prompt, system, model, effort)
-    if provider == "anthropic":
-        return _anthropic(prompt, system, model, max_tokens)
-    raise LLMError(tr("Unsupported LLM_PROVIDER: {provider}", provider=provider))
+def model_for(light: bool = False, model: str | None = None) -> str:
+    name = (model or config.env("LLM_MODEL_FAST" if light else "LLM_MODEL", "") or "").strip()
+    if not name:
+        return FAST_MODEL if light else MAIN_MODEL
+    return ALIASES.get(name.lower(), name)
 
 
-def _claude_cli(prompt: str, system: str, model: str, effort: str | None = None) -> str:
-    cmd = [config.which("claude"), "-p", "--output-format", "json", "--model", model,
-           "--system-prompt", system, "--tools", "", "--strict-mcp-config",
-           "--setting-sources", "", "--no-session-persistence"]
-    if effort:  # low = trả lời nhanh cho việc đơn giản (dịch tiêu đề, chấm điểm)
-        cmd += ["--effort", effort]
-    # Không truyền ANTHROPIC_API_KEY: có biến này thì claude -p tính tiền vào tài khoản API thay vì gói Claude.
-    # Tắt telemetry và lưu lượng phụ của Claude Code cho các lần gọi tự động.
-    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-    env.update({"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", "DISABLE_TELEMETRY": "1",
-                "DISABLE_ERROR_REPORTING": "1"})
-    with tempfile.TemporaryDirectory() as tmp:  # cwd trống: không nạp CLAUDE.md của repo nào
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=900, cwd=tmp, env=env)
-    if r.returncode != 0 and not r.stdout.strip():
-        raise LLMError(tr("claude -p failed ({code}): {error}", code=r.returncode, error=r.stderr[-800:]))
-    try:
-        data = json.loads(r.stdout)
-    except json.JSONDecodeError as e:
-        raise LLMError(tr("claude -p did not return JSON: {output}", output=r.stdout[-500:])) from e
-    if data.get("is_error"):
-        raise LLMError(f"claude -p: {data.get('result') or data}")
-    return data.get("result") or ""
-
-
-def _anthropic(prompt: str, system: str, model: str, max_tokens: int) -> str:
+def complete(prompt: str, system: str, model: str | None = None, max_tokens: int = MAX_TOKENS,
+             effort: str | None = None, light: bool = False) -> str:
     import anthropic
-    # Trên API cần model ID đầy đủ; "sonnet" chỉ là tên tắt của Claude Code.
-    model_id = config.env("ANTHROPIC_MODEL", "claude-sonnet-5") if model in ("sonnet", "opus", "haiku") else model
-    client = anthropic.Anthropic(api_key=config.env("ANTHROPIC_API_KEY") or None)
-    msg = client.messages.create(model=model_id, max_tokens=max_tokens, system=system,
-                                 messages=[{"role": "user", "content": prompt}])
-    return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+
+    key = (config.env("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        raise LLMError(tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
+    model_id = model_for(light, model)
+    args: dict = {"model": model_id, "max_tokens": max_tokens, "system": system,
+                  "messages": [{"role": "user", "content": prompt}]}
+    if effort in EFFORTS and _EFFORT_MODELS.match(model_id):
+        args["output_config"] = {"effort": effort}
+    client = anthropic.Anthropic(api_key=key, max_retries=4)
+    try:
+        with client.messages.stream(**args) as stream:  # streaming: a long answer never hits the request timeout
+            msg = stream.get_final_message()
+    except anthropic.AuthenticationError as e:
+        raise LLMError(tr("The Anthropic API key was refused: check ANTHROPIC_API_KEY in Settings")) from e
+    except anthropic.PermissionDeniedError as e:
+        raise LLMError(tr("The Anthropic API key cannot use {model}", model=model_id)) from e
+    except anthropic.NotFoundError as e:
+        raise LLMError(tr("Unknown Claude model: {model}", model=model_id)) from e
+    except anthropic.RateLimitError as e:
+        raise LLMError(tr("Anthropic API rate limit reached: try again in a minute")) from e
+    except anthropic.APIConnectionError as e:
+        raise LLMError(tr("Could not reach the Anthropic API: check the internet connection")) from e
+    except anthropic.APIStatusError as e:
+        raise LLMError(tr("Anthropic API error {code}: {error}", code=e.status_code, error=e.message)) from e
+    _record(model_id, msg)
+    if msg.stop_reason == "refusal":
+        raise LLMError(tr("Claude declined this request: change the topic or the source and try again"))
+    text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+    if msg.stop_reason == "max_tokens" and not text.strip():
+        raise LLMError(tr("Claude ran out of tokens before answering"))
+    return text
+
+
+def _record(model: str, msg) -> None:
+    from . import usage  # imported here: usage -> channels -> topic -> llm
+
+    u = getattr(msg, "usage", None)
+    if u is not None:
+        usage.record_llm(model, u.input_tokens or 0, u.output_tokens or 0,
+                         getattr(u, "cache_creation_input_tokens", 0) or 0,
+                         getattr(u, "cache_read_input_tokens", 0) or 0)
 
 
 def parse_json(text: str):
@@ -77,10 +92,11 @@ def parse_json(text: str):
     return json.loads(text[s:e + 1])
 
 
-def ask_json(prompt: str, system: str, model: str | None = None, retries: int = 1, effort: str | None = None):
+def ask_json(prompt: str, system: str, model: str | None = None, retries: int = 1, effort: str | None = None,
+             light: bool = False):
     last = None
     for _ in range(retries + 1):
-        out = complete(prompt, system, model, effort=effort)
+        out = complete(prompt, system, model, effort=effort, light=light)
         try:
             return parse_json(out)
         except (json.JSONDecodeError, LLMError) as e:
