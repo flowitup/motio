@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { ProjectStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -124,33 +124,54 @@ export function PanelHeader({ children, aside, className }: { children: ReactNod
   );
 }
 
-/** Segmented control: the selected option is raised and carries a 2 px amber bar along its bottom edge. */
+/**
+ * Segmented control: the selected option is raised and carries a 2 px amber bar along its bottom edge.
+ * One stop in the Tab order; the arrow keys, Home and End move the choice. `tabs` makes it a tab strip (role tablist)
+ * instead of a one-of-n value (role radiogroup).
+ */
 export function Segmented<T extends string>({
   value,
   onChange,
   options,
   className,
   label,
+  tabs,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: ReactNode }[];
   className?: string;
   label?: string;
+  tabs?: boolean;
 }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const current = options.some((o) => o.value === value) ? value : options[0]?.value;
+  const onKey = (e: KeyboardEvent, i: number) => {
+    const n = options.length;
+    const j = { ArrowRight: (i + 1) % n, ArrowDown: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+    if (j === undefined) return;
+    e.preventDefault();
+    onChange(options[j].value);
+    refs.current[j]?.focus();
+  };
   return (
-    <div role="radiogroup" aria-label={label} className={cn("inline-flex h-11 overflow-hidden rounded-md border border-field bg-ground", className)}>
+    <div role={tabs ? "tablist" : "radiogroup"} aria-label={label} className={cn("inline-flex h-11 overflow-hidden rounded-md border border-field bg-ground", className)}>
       {options.map((o, i) => {
         const on = o.value === value;
         return (
           <button
             key={o.value}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
             type="button"
-            role="radio"
-            aria-checked={on}
+            role={tabs ? "tab" : "radio"}
+            {...(tabs ? { "aria-selected": on } : { "aria-checked": on })}
+            tabIndex={o.value === current ? 0 : -1}
             onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKey(e, i)}
             className={cn(
-              "relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 px-4 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors",
+              "relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 px-4 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors focus-visible:-outline-offset-2",
               i > 0 && "border-l border-hairline-strong",
               on ? "bg-lift text-foreground" : "text-muted-foreground hover:bg-raised hover:text-foreground",
             )}
