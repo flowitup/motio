@@ -43,7 +43,7 @@ def complete(prompt: str, system: str, model: str | None = None, max_tokens: int
                   "messages": [{"role": "user", "content": prompt}]}
     if effort in EFFORTS and _EFFORT_MODELS.match(model_id):
         args["output_config"] = {"effort": effort}
-    client = anthropic.Anthropic(api_key=key, max_retries=4)
+    client = anthropic.Anthropic(api_key=key, max_retries=4, timeout=240.0)  # a hung call must not block the queue
     try:
         with client.messages.stream(**args) as stream:  # streaming: a long answer never hits the request timeout
             msg = stream.get_final_message()
