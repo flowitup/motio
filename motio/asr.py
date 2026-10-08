@@ -38,13 +38,14 @@ def _wav(src: Path) -> Path:
     out = src.with_suffix(".16k.wav")
     if not out.exists():
         subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000",
-                        str(out)], check=True)
+                        str(out)], check=True, timeout=20 * 60)
     return out
 
 
 def has_audio(src: Path) -> bool:
     r = subprocess.run([config.ffprobe(), "-v", "error", "-select_streams", "a", "-show_entries",
-                        "stream=index", "-of", "csv=p=0", str(src)], capture_output=True, text=True)
+                        "stream=index", "-of", "csv=p=0", str(src)], capture_output=True, text=True,
+                       timeout=120)
     return bool(r.stdout.strip())
 
 

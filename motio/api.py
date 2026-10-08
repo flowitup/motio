@@ -203,6 +203,11 @@ def _project_out(p: dict, full: bool = False) -> dict:
     return out
 
 
+# The app only streams what the engine made: projects, tool jobs and cached sources. Never the database, `.env`,
+# models or whatever else sits in the data folder.
+MEDIA_DIRS = ("projects", "tools", "cache")
+
+
 def voice_ready() -> bool:
     return tts.provider() is not None
 
@@ -953,6 +958,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         f = (root / path).resolve()
         cookies = search.cookie_file()  # cookie đăng nhập: không phục vụ dù đặt trong thư mục dữ liệu
         if (not f.is_relative_to(root) or not f.is_file() or f.name == settings.path().name
+                or f.relative_to(root).parts[0] not in MEDIA_DIRS or f.name.startswith(".env")
                 or (cookies and f == cookies.resolve())):
             raise HTTPException(404, tr("File not found"))
         return FileResponse(f)

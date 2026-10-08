@@ -78,13 +78,19 @@ def refresh(sources: list[str] | None = None, per_source: int = 15) -> dict:
                                       "rang": it["rank"], "titre": it["title_zh"]}, ensure_ascii=False)
                           for it in batch)
         result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low", light=True)
+        if isinstance(result, dict):  # {"items": [...]} instead of the list asked for
+            result = next((v for v in result.values() if isinstance(v, list)), [])
         by_id = {r.get("id"): r for r in result if isinstance(r, dict)}
+        done = 0
         for it in batch:
-            r = by_id.get(it["id"], {})
+            r = by_id.get(it["id"])
+            if not r:  # no answer for this one: leave it out so the next refresh scores it, instead of saving score 0
+                continue
+            done += 1
             db.upsert_trend({**it, "title_fr": r.get("title_fr") or None, "angle": r.get("angle"),
                              "reason": r.get("reason"), "keywords": r.get("keywords"),
                              "score": int(r.get("score") or 0)})
-        return len(batch)
+        return done
 
     # Lô 20 tin, chạy song song 4 lô một lúc (mỗi lô là một lần gọi Claude)
     batches = [fresh[i:i + 20] for i in range(0, len(fresh), 20)]
