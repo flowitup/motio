@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HashRouter } from "react-router";
+import { createHashRouter, RouterProvider } from "react-router";
 import App from "./App";
 import { useLang } from "./i18n";
 import { EngineProvider } from "./lib/engine";
@@ -17,6 +17,9 @@ function Root() {
   return <App key={lang} />;
 }
 
+// A data router (not <HashRouter>) so a page with unsaved changes can block leaving it (useBlocker).
+const router = createHashRouter([{ path: "*", element: <Root /> }]);
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, staleTime: 5_000 } },
 });
@@ -26,9 +29,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <QueryClientProvider client={queryClient}>
       <EngineProvider>
         <UpdaterProvider>
-          <HashRouter>
-            <Root />
-          </HashRouter>
+          <RouterProvider router={router} />
         </UpdaterProvider>
       </EngineProvider>
     </QueryClientProvider>
