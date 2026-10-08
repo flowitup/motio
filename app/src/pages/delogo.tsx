@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice } from "@/components/form";
-import { PageTitle, TopBar } from "@/components/studio";
+import { Kicker, PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,11 +73,13 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
     },
     onSettled: () => setPct(null),
   });
+  const [removing, setRemoving] = useState<{ target: string; name: string } | null>(null);
   const remove = useMutation({
     mutationFn: (key: string) => api.delogoDelete(key),
     onSuccess: (_, key) => {
       qc.invalidateQueries({ queryKey: ["delogo-uploads"] });
       if (key === selected) onPick(null);
+      setRemoving(null);
     },
   });
 
@@ -91,7 +94,7 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
       <CardHeader>
         <CardTitle>{t.delogo.pick}</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid grid-cols-[minmax(0,1fr)] gap-5">
         <div className="grid gap-1.5">
           <input
             ref={input}
@@ -109,12 +112,12 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
             {upload.isPending && pct != null ? t.delogo.uploading(pct) : t.delogo.upload}
           </Button>
           <p className="text-xs text-muted-foreground">{t.delogo.uploadHint}</p>
-          {upload.error && <p className="text-sm text-destructive">{upload.error.message}</p>}
+          {upload.error && <p role="alert" className="text-sm text-destructive">{upload.error.message}</p>}
         </div>
 
         {!!uploads.data?.length && (
-          <div className="grid gap-1">
-            <div className="text-xs font-medium text-muted-foreground">{t.delogo.uploads}</div>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-1">
+            <Kicker>{t.delogo.uploads}</Kicker>
             {uploads.data.map((u) => (
               <div key={u.target} className="group flex items-center gap-1">
                 <button type="button" className={row(u.target === selected)} onClick={() => onPick(u.target)}>
@@ -126,8 +129,8 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
-                  onClick={() => remove.mutate(u.target)}
+                  className="opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100"
+                  onClick={() => setRemoving(u)}
                   disabled={u.status === "queued" || u.status === "running"}
                   aria-label={t.delogo.deleteUpload}
                   title={t.delogo.deleteUpload}
@@ -138,17 +141,27 @@ function PickCard({ api, selected, onPick }: { api: Api; selected: string | null
             ))}
           </div>
         )}
+        <ConfirmDialog
+          open={removing !== null}
+          onOpenChange={(o) => !o && setRemoving(null)}
+          title={t.delogo.deleteUpload}
+          description={removing && t.delogo.confirmDeleteUpload(removing.name)}
+          confirmLabel={t.delogo.deleteUpload}
+          pending={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => removing && remove.mutate(removing.target)}
+        />
 
         {withSources.length > 0 && (
-          <div className="grid gap-1.5">
-            <div className="text-xs font-medium text-muted-foreground">{t.delogo.projectSources}</div>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+            <Kicker>{t.delogo.projectSources}</Kicker>
             <Choice
               value={project ? String(project.id) : ""}
               onChange={setPid}
               options={withSources.map((p) => [String(p.id), `#${p.id} · ${p.meta.title || p.title}`])}
             />
             {project && (
-              <div className="grid gap-1">
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-1">
                 {(project.meta.sources ?? []).map((s, i) => {
                   const key = sourceKey(project.id, i);
                   return (
@@ -301,12 +314,14 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
       setBoxes(null);
     },
   });
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const stop = useMutation({ mutationFn: () => api.delogoCancel(target), onSuccess: put });
   const restore = useMutation({
     mutationFn: () => api.delogoRestore(target),
     onSuccess: (d) => {
       put(d);
       qc.invalidateQueries({ queryKey: ["delogo-uploads"] });
+      setConfirmRestore(false);
     },
   });
   // dựng lại với giọng đọc cũ khi còn (không tốn lượt ElevenLabs), không thì đọc lại
@@ -350,9 +365,9 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
   if (q.error) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-between gap-3 text-sm text-destructive">
+        <CardContent role="alert" className="flex items-center justify-between gap-3 text-sm text-destructive">
           {q.error.message}
-          <Button variant="outline" size="sm" onClick={onGone}>
+          <Button variant="outline" size="sm" onClick={onGone} aria-label={t.a11y.close} title={t.a11y.close}>
             <X />
           </Button>
         </CardContent>
@@ -428,7 +443,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
           </div>
 
           <div className="grid gap-2">
-            <span className="text-sm font-medium">{t.delogo.scope}</span>
+            <Kicker>{t.delogo.scope}</Kicker>
             {v.kind === "upload" && (
               <Choice
                 value={chosenScope}
@@ -449,6 +464,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
                 <Input
                   value={fromText}
                   onChange={(e) => setFrom(e.target.value)}
+                  aria-label={t.delogo.from}
                   aria-invalid={Number.isNaN(span[0]) || undefined}
                   disabled={busy}
                   className="w-20"
@@ -460,6 +476,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
                 <Input
                   value={toText}
                   onChange={(e) => setTo(e.target.value)}
+                  aria-label={t.delogo.to}
                   aria-invalid={Number.isNaN(span[1]) || undefined}
                   disabled={busy}
                   className="w-20"
@@ -486,8 +503,8 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
               {busy ? <Loader2 className="animate-spin" /> : <WandSparkles />}
               {t.delogo.run}
             </Button>
-            {error && <span className="text-sm text-destructive">{error.message}</span>}
-            {v.status === "failed" && v.error && <span className="text-sm text-destructive">{v.error}</span>}
+            {error && <span role="alert" className="text-sm text-destructive">{error.message}</span>}
+            {v.status === "failed" && v.error && <span role="alert" className="text-sm text-destructive">{v.error}</span>}
           </div>
           {!v.model_ready && !active && <p className="text-xs text-muted-foreground">{t.delogo.modelHint}</p>}
           {active && (
@@ -516,7 +533,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
                   </Button>
                 </span>
               </div>
-              <Progress value={v.pct} />
+              <Progress value={v.pct} aria-label={v.name} />
             </div>
           )}
         </CardContent>
@@ -552,7 +569,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
                     {rerender.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
                     {keepVoice ? t.delogo.rerenderKeepVoice : t.delogo.rerender}
                   </Button>
-                  <Button variant="outline" onClick={() => restore.mutate()} disabled={restore.isPending}>
+                  <Button variant="outline" onClick={() => setConfirmRestore(true)} disabled={restore.isPending}>
                     <Undo2 />
                     {t.delogo.restore}
                   </Button>
@@ -569,7 +586,7 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
                       {t.delogo.openFolder}
                     </Button>
                   )}
-                  <Button variant="outline" onClick={() => restore.mutate()} disabled={restore.isPending}>
+                  <Button variant="outline" onClick={() => setConfirmRestore(true)} disabled={restore.isPending}>
                     <Trash2 />
                     {t.delogo.deleteResult}
                   </Button>
@@ -579,6 +596,16 @@ function Editor({ api, target, onGone }: { api: Api; target: string; onGone: () 
           </CardContent>
         </Card>
       )}
+      <ConfirmDialog
+        open={confirmRestore}
+        onOpenChange={setConfirmRestore}
+        title={v.kind === "source" ? t.delogo.restore : t.delogo.deleteResult}
+        description={v.kind === "source" ? t.delogo.confirmRestore : t.delogo.confirmDeleteResult}
+        confirmLabel={v.kind === "source" ? t.delogo.restore : t.delogo.deleteResult}
+        pending={restore.isPending}
+        error={restore.error?.message}
+        onConfirm={() => restore.mutate()}
+      />
     </div>
   );
 }
@@ -593,8 +620,8 @@ export default function DelogoPage() {
       <TopBar>
         <PageTitle>{t.delogo.title}</PageTitle>
       </TopBar>
-      <div className="mx-auto max-w-6xl space-y-5 p-6">
-        <p className="text-sm text-muted-foreground">{t.delogo.hint}</p>
+      <div className="space-y-5 p-6">
+        <p className="text-[13px] text-muted-foreground">{t.delogo.hint}</p>
         <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
           <PickCard api={api} selected={target} onPick={pick} />
           {target ? (

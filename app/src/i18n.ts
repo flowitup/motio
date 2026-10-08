@@ -457,6 +457,9 @@ const en = {
     openFolder: "Open folder",
     deleteResult: "Delete result",
     deleteUpload: "Delete uploaded video",
+    confirmDeleteUpload: (name: string) => `Delete “${name}” and its cleaned copy from the engine's computer? This can't be undone.`,
+    confirmRestore: "The cleaned video is removed and the original is used again. You can clean it again afterwards.",
+    confirmDeleteResult: "The cleaned copy is deleted. Your uploaded video stays.",
   },
   ai: {
     topic: "Topic",
@@ -524,7 +527,7 @@ const en = {
     dayTip: (date: string, videos: number, usd: number) => `${date}: ${plural(videos, "video")}, $${usd.toFixed(2)}`,
     dayCost: "Cost per day",
     byChannel: "By channel, last 30 days",
-    noChannel: "No channel, tools",
+    noChannel: "No channel (tools)",
     colChannel: "Channel",
     colVideos: "Videos",
     colSent: "Sent",
@@ -585,6 +588,7 @@ const en = {
     >,
     stop: "Stop",
     delete: "Delete job",
+    confirmDelete: (title: string) => `Delete “${title}” and the files it made? This can't be undone.`,
     open: "Open",
     openFolder: "Open folder",
     thenUse: "Use it for:",
@@ -794,6 +798,7 @@ const en = {
   },
   a11y: {
     skip: "Skip to content",
+    close: "Close",
   },
   confirm: {
     cancel: "Cancel",
@@ -1279,6 +1284,9 @@ const vi: Messages = {
     openFolder: "Mở thư mục",
     deleteResult: "Xoá kết quả",
     deleteUpload: "Xoá video đã tải lên",
+    confirmDeleteUpload: (name: string) => `Xoá “${name}” và bản đã xoá logo khỏi máy chạy engine? Không hoàn tác được.`,
+    confirmRestore: "Video đã xoá logo sẽ bị bỏ và dùng lại video gốc. Sau đó bạn vẫn có thể xoá logo lại.",
+    confirmDeleteResult: "Bản đã xoá logo bị xoá. Video bạn tải lên vẫn còn.",
   },
   ai: {
     topic: "Chủ đề",
@@ -1346,7 +1354,7 @@ const vi: Messages = {
     dayTip: (date: string, videos: number, usd: number) => `${date}: ${videos} video, $${usd.toFixed(2)}`,
     dayCost: "Chi phí mỗi ngày",
     byChannel: "Theo kênh, 30 ngày gần nhất",
-    noChannel: "Không kênh, công cụ",
+    noChannel: "Không kênh (công cụ)",
     colChannel: "Kênh",
     colVideos: "Video",
     colSent: "Đã gửi",
@@ -1407,6 +1415,7 @@ const vi: Messages = {
     >,
     stop: "Dừng",
     delete: "Xoá việc",
+    confirmDelete: (title: string) => `Xoá “${title}” cùng các file nó đã tạo? Không hoàn tác được.`,
     open: "Mở",
     openFolder: "Mở thư mục",
     thenUse: "Dùng tiếp cho:",
@@ -1616,6 +1625,7 @@ const vi: Messages = {
   },
   a11y: {
     skip: "Đến phần nội dung",
+    close: "Đóng",
   },
   confirm: {
     cancel: "Huỷ",

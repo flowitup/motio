@@ -171,7 +171,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             onKeyDown={(e) => onKey(e, i)}
             className={cn(
-              "relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 px-4 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors focus-visible:-outline-offset-2",
+              "relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors focus-visible:-outline-offset-2",
               i > 0 && "border-l border-hairline-strong",
               on ? "bg-lift text-foreground" : "text-muted-foreground hover:bg-raised hover:text-foreground",
             )}

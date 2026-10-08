@@ -15,10 +15,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
 import { VoicePicker } from "@/components/voice-picker";
 import { Badge } from "@/components/ui/badge";
-import { PageTitle, TopBar } from "@/components/studio";
+import { PageTitle, Segmented, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -244,7 +245,7 @@ function ToolForm({ api, kind, jobs, preset }: { api: Api; kind: ToolKind; jobs:
             {start.isPending ? <Loader2 className="animate-spin" /> : <Play />}
             {start.isPending && pct != null ? t.tools.uploading(pct) : t.tools.start}
           </Button>
-          {start.error && <p className="text-sm text-destructive">{start.error.message}</p>}
+          {start.error && <p role="alert" className="text-sm text-destructive">{start.error.message}</p>}
         </div>
       </CardContent>
     </Card>
@@ -257,6 +258,7 @@ function JobRow({ api, job, onUse }: { api: Api; job: ToolJob; onUse: (kind: Too
   const refresh = () => qc.invalidateQueries({ queryKey: ["tool-jobs"] });
   const stop = useMutation({ mutationFn: () => api.cancelTool(job.id), onSuccess: refresh });
   const remove = useMutation({ mutationFn: () => api.deleteToolJob(job.id), onSuccess: refresh });
+  const [confirming, setConfirming] = useState(false);
   const busy = isBusy(job);
   const Icon = ICON[job.kind];
   const fileUrl = (o: ToolOutput) => api.mediaUrl(o.path.split("/").map(encodeURIComponent).join("/"));
@@ -293,7 +295,7 @@ function JobRow({ api, job, onUse }: { api: Api; job: ToolJob; onUse: (kind: Too
             variant="ghost"
             size="icon-sm"
             className="hover:text-destructive"
-            onClick={() => remove.mutate()}
+            onClick={() => setConfirming(true)}
             disabled={remove.isPending}
             aria-label={t.tools.delete}
             title={t.tools.delete}
@@ -302,11 +304,17 @@ function JobRow({ api, job, onUse }: { api: Api; job: ToolJob; onUse: (kind: Too
           </Button>
         )}
       </div>
-      {busy && <Progress value={job.pct} />}
+      {busy && <Progress value={job.pct} aria-label={job.title} />}
       {(job.error || job.message) && (
-        <p className={cn("text-xs", job.error ? "text-destructive" : "text-muted-foreground")}>{job.error ?? job.message}</p>
+        <p role={job.error ? "alert" : undefined} className={cn("text-xs", job.error ? "text-destructive" : "text-muted-foreground")}>
+          {job.error ?? job.message}
+        </p>
       )}
-      {(remove.error || stop.error) && <p className="text-xs text-destructive">{(remove.error ?? stop.error)!.message}</p>}
+      {(remove.error || stop.error) && (
+        <p role="alert" className="text-xs text-destructive">
+          {(remove.error ?? stop.error)!.message}
+        </p>
+      )}
       {job.status === "done" && job.outputs.length > 0 && (
         <div className="grid gap-1.5">
           {job.outputs.map((o) => (
@@ -335,6 +343,15 @@ function JobRow({ api, job, onUse }: { api: Api; job: ToolJob; onUse: (kind: Too
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t.tools.delete}
+        description={t.tools.confirmDelete(job.title)}
+        confirmLabel={t.tools.delete}
+        pending={remove.isPending}
+        onConfirm={() => remove.mutate(undefined, { onSettled: () => setConfirming(false) })}
+      />
     </div>
   );
 }
@@ -357,7 +374,8 @@ export default function ToolsPage() {
       ...(o.kind === "video" ? { file_job: job.id } : {}),
       ...(o.kind === "subtitles" ? { subs_job: job.id } : {}),
     });
-    window.scrollTo?.({ top: 0 });
+    // The page scrolls inside <main>, not the window.
+    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -365,16 +383,24 @@ export default function ToolsPage() {
       <TopBar>
         <PageTitle>{t.tools.title}</PageTitle>
       </TopBar>
-      <div className="mx-auto max-w-4xl space-y-5 p-6">
-        <p className="text-sm text-muted-foreground">{t.tools.hint}</p>
-        <div className="flex flex-wrap gap-2">
-          {TOOLS.map(({ kind: k, icon: Icon }) => (
-            <Button key={k} variant={k === kind ? "default" : "outline"} onClick={() => setKind(k)}>
-              <Icon />
-              {t.tools.kinds[k]}
-            </Button>
-          ))}
-        </div>
+      <div className="max-w-4xl space-y-5 p-6">
+        <p className="text-[13px] text-muted-foreground">{t.tools.hint}</p>
+        <Segmented
+          tabs
+          label={t.tools.title}
+          value={kind}
+          onChange={setKind}
+          className="w-full"
+          options={TOOLS.map(({ kind: k, icon: Icon }) => ({
+            value: k,
+            label: (
+              <>
+                <Icon className="hidden size-4 shrink-0 min-[1100px]:block" aria-hidden />
+                <span className="truncate" title={t.tools.kinds[k]}>{t.tools.kinds[k]}</span>
+              </>
+            ),
+          }))}
+        />
         <ToolForm
           key={`${kind}-${preset?.kind === kind ? preset.n : 0}`}
           api={api}
