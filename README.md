@@ -24,7 +24,7 @@ Beyond hot news: in the app, **Projects → New video** takes any topic, in any 
 video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
 Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
 
-**New videos** follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
+**Followed** (the rail's second item) follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
 Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Check now"; a new source shows
 its latest 10 videos (a Bilibili list, its top 20), then only videos it hasn't seen. Claude gives each one a French title
 and a score, and "Make video" makes a French explainer from it. Bilibili's own trending lists can be followed too
@@ -67,7 +67,7 @@ and are marked "Made automatically". Pick the channel when you make a video (Tre
 videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
 Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
 
-**French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in New videos) turns one video
+**French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in Followed) turns one video
 (Douyin, Bilibili, YouTube…) into a French version that keeps its pictures, music and sound effects. Motio transcribes
 it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
 on a sentence, or you type from–to), and Claude translates every line so it fits the time of the line it replaces: *tu*

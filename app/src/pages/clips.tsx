@@ -3,6 +3,7 @@ import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Languages, Loader2,
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
+import { ConfirmAction } from "@/components/confirm-action";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
 import { ScoreBadge } from "@/components/status-chip";
@@ -14,12 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useApi, type Api, type Clip, type ClipStatus, type Site, type Watch } from "@/lib/api";
+import { useApi, type Api, type Clip, type ClipStatus, type Rights, type Site, type Watch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const ALL = "__all__";
 const TABS: ClipStatus[] = ["new", "used", "hidden"];
+const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
+const BELOW = [40, 50, 60, 70, 80]; // "Hide below score" choices
 
 const watchName = (w: Watch) => (w.kind === "trending" ? t.watches.lists[w.target] : undefined) ?? (w.name || w.target);
 /** The followed source a clip came from; a Bilibili list is named in the UI language, not with the engine's English text. */
@@ -27,12 +30,32 @@ const clipSource = (c: Clip) =>
   (c.watch_kind === "trending" && c.watch_target ? t.watches.lists[c.watch_target] : undefined) ?? c.watch_name;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
+/** The rights to the videos of a followed source (a dub of an "owned" source can go to Postiz without a stop). */
+function RightsSelect({ value, onChange, label, className }: { value: Rights; onChange: (r: Rights) => void; label: string; className?: string }) {
+  return (
+    <Select value={value} onValueChange={(v) => v != null && onChange(v as Rights)}>
+      <SelectTrigger className={className} aria-label={label} title={label}>
+        <SelectValue>{(v: string) => t.projects.rightsOptions[v] ?? v}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {RIGHTS.map((r) => (
+          <SelectItem key={r} value={r}>
+            {t.projects.rightsOptions[r]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 /** Danh sách nguồn theo dõi + ô thêm nguồn. */
 function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   const qc = useQueryClient();
   const [target, setTarget] = useState("");
   const [site, setSite] = useState<Site>("youtube");
   const [list, setList] = useState("bilibili:ranking:181");
+  const [rights, setRights] = useState<Rights>("unknown");
+  const [removing, setRemoving] = useState<Watch | null>(null);
   const isLink = /^https?:\/\//i.test(target.trim());
   const changed = () => {
     qc.invalidateQueries({ queryKey: ["watches"] });
@@ -40,7 +63,7 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
     qc.invalidateQueries({ queryKey: ["clips"] });
   };
   const add = useMutation({
-    mutationFn: () => api.addWatch({ target: target.trim(), site }),
+    mutationFn: () => api.addWatch({ target: target.trim(), site, rights }),
     onSuccess: () => {
       setTarget("");
       changed();
@@ -48,7 +71,7 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   });
   const addList = useMutation({ mutationFn: () => api.addWatch({ target: list, site: "bilibili" }), onSuccess: changed });
   const patch = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; enabled?: boolean }) => api.patchWatch(id, body),
+    mutationFn: ({ id, ...body }: { id: number; enabled?: boolean; rights?: Rights }) => api.patchWatch(id, body),
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
@@ -79,11 +102,15 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
               />
             </Field>
           )}
+          <Field label={t.watches.rights}>
+            <RightsSelect value={rights} onChange={setRights} label={t.watches.rights} className="w-44" />
+          </Field>
           <Button type="submit" className="ml-auto" disabled={!target.trim() || add.isPending}>
             {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
             {t.watches.add}
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">{t.watches.rightsHint}</p>
       </form>
       <div className="flex flex-wrap items-end gap-3 border-t pt-3">
         <Field label={t.watches.trending} hint={t.watches.trendingHint}>
@@ -115,15 +142,25 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
                   {w.last_error && <span className="text-destructive"> · {w.last_error}</span>}
                 </div>
               </div>
+              <RightsSelect
+                value={w.rights}
+                onChange={(r) => patch.mutate({ id: w.id, rights: r })}
+                label={`${t.watches.rights}: ${watchName(w)}`}
+                className="w-40"
+              />
               <label className="flex items-center gap-2 text-sm" title={t.watches.enabled}>
-                <Switch checked={w.enabled} onCheckedChange={(on) => patch.mutate({ id: w.id, enabled: on })} />
+                <Switch
+                  checked={w.enabled}
+                  aria-label={`${t.watches.enabled}: ${watchName(w)}`}
+                  onCheckedChange={(on) => patch.mutate({ id: w.id, enabled: on })}
+                />
               </label>
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={t.watches.remove}
+                aria-label={`${t.watches.remove}: ${watchName(w)}`}
                 title={t.watches.remove}
-                onClick={() => window.confirm(t.watches.confirmRemove(watchName(w))) && remove.mutate(w.id)}
+                onClick={() => setRemoving(w)}
               >
                 <Trash2 />
               </Button>
@@ -131,6 +168,20 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
           ))}
         </ul>
       )}
+      <ConfirmAction
+        open={!!removing}
+        onOpenChange={(o) => !o && setRemoving(null)}
+        title={t.watches.remove}
+        body={removing ? t.watches.confirmRemove(watchName(removing)) : ""}
+        confirm={t.watches.remove}
+        icon={<Trash2 />}
+        destructive
+        busy={remove.isPending}
+        onConfirm={() => {
+          if (removing) remove.mutate(removing.id);
+          setRemoving(null);
+        }}
+      />
     </CardContent>
   );
 }
@@ -211,7 +262,7 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             {clipSource(clip) && clipSource(clip) !== clip.uploader && <span>· {clipSource(clip)}</span>}
             <span>· {t.age(clip.first_seen)}</span>
             <ExternalA href={clip.url} className="inline-flex items-center gap-1">
-              <ExternalLink className="size-3" />
+              <ExternalLink className="size-3" aria-label={t.clips.openOriginal} />
             </ExternalA>
           </div>
         </div>
@@ -281,6 +332,50 @@ function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
       )}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
     </Card>
+  );
+}
+
+/** Hide (or show again) many videos at once: all of those shown, or those scored under a threshold. */
+function BulkBar({ api, tab, list }: { api: Api; tab: ClipStatus; list: Clip[] }) {
+  const qc = useQueryClient();
+  const [below, setBelow] = useState("60");
+  const target = tab === "hidden" ? "new" : "hidden";
+  const low = list.filter((c) => c.score != null && c.score < Number(below));
+  const run = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => api.setClipStatus(id, target))),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["clips"] });
+      qc.invalidateQueries({ queryKey: ["watches"] });
+    },
+  });
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button variant="secondary" onClick={() => run.mutate(list.map((c) => c.id))} disabled={run.isPending}>
+        {run.isPending ? <Loader2 className="animate-spin" /> : tab === "hidden" ? <Eye /> : <EyeOff />}
+        {tab === "hidden" ? t.clips.showAll(list.length) : t.clips.hideAll(list.length)}
+      </Button>
+      {tab === "new" && (
+        <div className="flex items-center gap-2">
+          <Select value={below} onValueChange={(v) => v != null && setBelow(v)}>
+            <SelectTrigger className="w-24" aria-label={t.clips.belowLabel}>
+              <SelectValue>{(v: string) => `< ${v}`}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {BELOW.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {`< ${n}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => run.mutate(low.map((c) => c.id))} disabled={run.isPending || !low.length}>
+            <EyeOff />
+            {t.clips.hideBelow(Number(below), low.length)}
+          </Button>
+        </div>
+      )}
+      {run.error && <span className="text-sm text-destructive">{run.error.message}</span>}
+    </div>
   );
 }
 
@@ -388,6 +483,7 @@ export default function ClipsPage() {
             <button
               key={s}
               type="button"
+              aria-pressed={tab === s}
               onClick={() => setTab(s)}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
@@ -400,6 +496,7 @@ export default function ClipsPage() {
         </div>
 
         {clips.error && <p className="text-sm text-destructive">{clips.error.message}</p>}
+        {tab !== "used" && !!clips.data?.length && <BulkBar key={tab} api={api} tab={tab} list={clips.data} />}
         <div className="space-y-3">
           {clips.isLoading && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
           {clips.data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.clips.empty[tab]}</p>}

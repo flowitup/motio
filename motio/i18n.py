@@ -113,7 +113,7 @@ VI = {
     "Topic: {topic} · links: {links} · {duration} s": "Chủ đề: {topic} · {links} link · {duration} s",
     "(links only)": "(chỉ link)",
     "Video from {site}": "Video từ {site}",
-    "From New videos: {source} · {url}": "Từ Video mới: {source} · {url}",
+    "From Followed: {source} · {url}": "Từ Theo dõi: {source} · {url}",
     "Script edited: {parts}": "Sửa kịch bản: {parts}",
     "Script edited: {parts} · re-render to update the video": "Sửa kịch bản: {parts} · cần dựng lại để video đổi theo",
     "title": "tiêu đề",
