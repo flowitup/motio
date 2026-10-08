@@ -1,5 +1,5 @@
-import { CircleCheck, Loader2, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { useState, type RefObject } from "react";
+import { CircleCheck, Loader2, Maximize, Minimize, Pause, Play, TriangleAlert, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { hhmmss, mmss } from "@/components/timeline";
 import { Panel, Segmented } from "@/components/studio";
 import { Button } from "@/components/ui/button";
@@ -33,13 +33,57 @@ export function Monitor({
 }) {
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [state, setState] = useState<"ok" | "loading" | "error">("loading");
+  const [attempt, setAttempt] = useState(0); // "Try again" makes a new <video>
+  const [full, setFull] = useState(false);
+  const frame = useRef<HTMLDivElement>(null);
   const wide = view === "wide" && !!p.meta.wide;
   const src = wide ? p.meta.wide! : p.meta.video;
+  const videoKey = `${wide ? "w" : "v"}${p.updated_at}-${attempt}`;
+  // A new file (another version, a new render, a retry) starts again: loading, not playing.
+  useEffect(() => {
+    setState("loading");
+    setPlaying(false);
+  }, [videoKey]);
+  useEffect(() => {
+    const onChange = () => setFull(document.fullscreenElement === frame.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
+  const toggleFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    else void frame.current?.requestFullscreen().catch(() => undefined);
+  };
   const toggle = () => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) void v.play().catch(() => undefined);
     else v.pause();
+  };
+  const seekBy = (sec: number) => {
+    const v = videoRef.current;
+    if (v) v.currentTime = Math.min(Math.max(v.currentTime + sec, 0), v.duration || 0);
+  };
+  // Shortcuts work while the picture has focus (not while a button or the seek bar does: they use these keys themselves).
+  const onKey = (e: KeyboardEvent) => {
+    if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey || e.altKey) return;
+    const act: Record<string, () => void> = {
+      " ": toggle,
+      k: toggle,
+      ArrowLeft: () => seekBy(e.shiftKey ? -1 : -5),
+      ArrowRight: () => seekBy(e.shiftKey ? 1 : 5),
+      j: () => seekBy(-5),
+      l: () => seekBy(5),
+      ",": () => seekBy(-1 / 30),
+      ".": () => seekBy(1 / 30),
+      m: () => setMuted((x) => !x),
+      f: () => canFullscreen && toggleFull(),
+    };
+    const fn = act[e.key];
+    if (!fn) return;
+    e.preventDefault();
+    fn();
   };
   return (
     <Panel
@@ -49,12 +93,22 @@ export function Monitor({
       bodyClassName={cn("mx-auto w-full space-y-3", wide ? "max-w-[672px]" : "max-w-[400px]")}
     >
       <div className="rounded-lg border border-hairline-strong bg-monitor px-3 pt-3 pb-2">
-        <div className={cn("relative overflow-hidden rounded-xs bg-black", wide ? "aspect-video" : "aspect-[9/16]")}>
+        <div
+          ref={frame}
+          // The frame takes focus so the keyboard shortcuts have somewhere to listen.
+          tabIndex={playable && src ? 0 : undefined}
+          role={playable && src ? "group" : undefined}
+          aria-label={playable && src ? `${t.studio.monitor}: ${t.studio.shortcuts}` : undefined}
+          aria-keyshortcuts={playable && src ? "Space ArrowLeft ArrowRight F M" : undefined}
+          title={playable && src ? t.studio.shortcuts : undefined}
+          onKeyDown={onKey}
+          className={cn("relative overflow-hidden rounded-xs bg-black focus-visible:-outline-offset-2", wide ? "aspect-video" : "aspect-[9/16]")}
+        >
           {playable && src ? (
             <>
               <video
                 // Another version or a new render is another element: it starts from 0.
-                key={`${wide ? "w" : "v"}${p.updated_at}`}
+                key={videoKey}
                 ref={videoRef}
                 src={api.mediaUrl(src, p.updated_at)}
                 poster={!wide && p.meta.thumb ? api.mediaUrl(p.meta.thumb, p.updated_at) : undefined}
@@ -65,10 +119,29 @@ export function Monitor({
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
                 onEnded={() => setPlaying(false)}
+                onCanPlay={() => setState("ok")}
+                onPlaying={() => setState("ok")}
+                onWaiting={() => setState("loading")}
+                onError={() => setState("error")}
                 onClick={toggle}
                 className="size-full object-contain"
               />
               <div aria-hidden className="pointer-events-none absolute inset-x-[4%] inset-y-[7%] border border-dashed border-white/25" />
+              {state === "loading" && (
+                <div role="status" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="size-8 animate-spin text-white/70" />
+                  <span className="sr-only">{t.studio.buffering}</span>
+                </div>
+              )}
+              {state === "error" && (
+                <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 p-4 text-center text-[13px] text-white/80">
+                  <TriangleAlert className="size-6 text-amber" aria-hidden />
+                  <p>{t.studio.videoFailed}</p>
+                  <Button variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+                    {t.studio.videoRetry}
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-[13px] text-white/60">
@@ -99,12 +172,18 @@ export function Monitor({
               if (videoRef.current) videoRef.current.currentTime = Number(e.target.value);
             }}
             aria-label={t.studio.seek}
+            aria-valuetext={`${mmss(time)} / ${mmss(duration)}`}
             className="h-10 min-w-0 flex-1 accent-cyan"
           />
           <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular-nums">{mmss(duration)}</span>
           <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} aria-label={muted ? t.studio.unmute : t.studio.mute} title={muted ? t.studio.unmute : t.studio.mute}>
             {muted ? <VolumeX /> : <Volume2 />}
           </Button>
+          {canFullscreen && (
+            <Button variant="ghost" size="icon" onClick={toggleFull} aria-label={full ? t.studio.exitFullscreen : t.studio.fullscreen} title={`${full ? t.studio.exitFullscreen : t.studio.fullscreen} (F)`}>
+              {full ? <Minimize /> : <Maximize />}
+            </Button>
+          )}
         </div>
       )}
 
