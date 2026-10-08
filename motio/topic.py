@@ -8,6 +8,15 @@ MODE = "topic"
 RIGHTS = ("unknown", "owned", "licensed", "cc")  # quyền dùng video nguồn; chưa rõ = unknown
 DURATIONS = (70, 80, 90)  # mọi video > 1 phút 2 giây (pipeline.MIN_SECONDS), tối đa 90 s
 
+OK_RIGHTS = ("owned", "licensed", "cc")  # source rights that let a video go to Postiz without a person looking first
+
+
+def needs_review(proj: dict) -> bool:
+    """An explainer built on someone else's videos (rights not owned / licensed / CC; `unknown` counts as not owned) is
+    never sent to Postiz by itself: it stops at the video gate, like a dub."""
+    return proj.get("mode") == MODE and (proj.get("meta") or {}).get("rights") not in OK_RIGHTS
+
+
 SUBJECT_SYSTEM = "Tu prépares une courte vidéo explicative en français. Réponds uniquement en JSON."
 SUBJECT_PROMPT = """Sujet proposé (dans n'importe quelle langue) : {topic}
 

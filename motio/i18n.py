@@ -386,6 +386,10 @@ VI = {
     " (a dub of someone else's video: set the source rights to owned, licensed or CC to send it without approval)":
         " (bản lồng tiếng video của người khác: đặt quyền nguồn là của bạn, có giấy phép hoặc CC để gửi mà không "
         "cần duyệt)",
+    " (an explainer built on someone else's videos: set the source rights to owned, licensed or CC to send it "
+    "without approval)":
+        " (video giải thích dựng từ video của người khác: đặt quyền nguồn là của bạn, có giấy phép hoặc CC để gửi "
+        "mà không cần duyệt)",
     "ffmpeg could not read the audio: {error}": "ffmpeg không đọc được âm thanh: {error}",
     "The source has no audio in this part": "Đoạn nguồn này không có âm thanh",
     "The downloaded voice separation model is not the version Motio needs (sha256 mismatch)":

@@ -375,3 +375,15 @@ def test_approve_script_then_video(client, fake_postiz):
     assert client.post(f"/api/projects/{pid}/approve", headers=H, json={"send": True}).status_code == 202
     p = _wait_done(client, pid)
     assert p["status"] == "done" and [e["profile"] for e in p["meta"]["postiz"]] == [ch["id"]]
+
+
+def test_starting_a_video_without_the_keys_it_needs_is_refused_before_a_project_exists(client, monkeypatch):
+    before = len(client.get("/api/projects", headers=H).json())
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    r = client.post("/api/projects", headers=H, json={"topic": "pandas"})
+    assert r.status_code == 409 and "ANTHROPIC_API_KEY" in r.json()["detail"]
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(api, "voice_ready", lambda: False)  # a Linux / Windows machine without a voice
+    r = client.post("/api/ai", headers=H, json={"topic": "a lighthouse"})
+    assert r.status_code == 409 and "ELEVENLABS_API_KEY" in r.json()["detail"]
+    assert len(client.get("/api/projects", headers=H).json()) == before

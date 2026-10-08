@@ -203,6 +203,10 @@ def _project_out(p: dict, full: bool = False) -> dict:
     return out
 
 
+def voice_ready() -> bool:
+    return tts.provider() is not None
+
+
 def create_app(token: str, headless: bool = False) -> FastAPI:
     if not token:
         raise ValueError("token is required")
@@ -375,6 +379,14 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except LookupError as e:
             raise HTTPException(400, str(e)) from e
 
+    def _preflight() -> None:
+        """Stop before a project exists when a key every video needs is missing: without this the job downloads and
+        transcribes for minutes and only then fails at the script or the voice."""
+        if not (config.env("ANTHROPIC_API_KEY") or "").strip():
+            raise HTTPException(409, tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
+        if not voice_ready():
+            raise HTTPException(409, tr("No voice: add ELEVENLABS_API_KEY in Settings"))
+
     @app.post("/api/trends/{tid}/produce", status_code=202, dependencies=[Depends(auth)])
     def produce(tid: str, body: ProduceIn | None = None):
         t = db.get_trend(tid)
@@ -384,6 +396,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if body and body.links_only and not links:
             raise HTTPException(400, tr("“Use only these links” needs at least one link"))
         ch = _channel_for(body.channel if body else None)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -464,6 +477,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         _clip(cid)
         body = body or ClipProduceIn()
         ch = _channel_for(body.channel)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -480,6 +494,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Bản lồng tiếng Pháp của một video mới (quyền nguồn theo nguồn theo dõi)."""
         _clip(cid)
         ch = _channel_for(body.channel if body else None)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -510,6 +525,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def create_topic(body: TopicIn):
         """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
         ch = _channel_for(body.channel)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -526,6 +542,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Video làm hoàn toàn bằng ảnh AI từ một chủ đề: Claude viết lời và prompt từng cảnh, nhà cung cấp ảnh
         (Cài đặt) làm ảnh, rồi đọc và dựng với chuyển động chậm."""
         ch = _channel_for(body.channel)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -543,6 +560,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def create_dub(body: DubIn):
         """Lồng tiếng Pháp cho một video: dịch từng câu, giữ nhạc nền gốc, làm mờ phụ đề cũ."""
         ch = _channel_for(body.channel)
+        _preflight()
         if pipeline.quota_left() == 0:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
@@ -642,6 +660,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         p = _get(pid)
         if p["status"] in ("queued", "running"):
             raise HTTPException(409, tr("Project is running"))
+        _preflight()
         asked = body.start if body else None  # None = chạy tiếp từ bước bị lỗi, giữ kết quả đã có
         start = asked or pipeline.resume_point(pid)
         if start not in pipeline.STEPS:
