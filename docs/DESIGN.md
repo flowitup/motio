@@ -32,8 +32,14 @@ focus, mint / coral are status only. The wordmark is the Motio logo (waveform ba
 
 - The window is 1280 x 820 by default and never smaller than 960 x 640 (`tauri.conf.json`). Check every screen at
   1440 x 900, 1280 x 820 and 960 x 640. There is no tablet or phone layout.
-- Left rail 80 px, top bar 56 px. Page content: centred column with `max-w-3xl` (settings), `max-w-4xl` (channels, tools,
-  stats), `max-w-5xl` (new videos), `max-w-6xl` (remove logo); docked pages (Trending, Projects) use the full width.
+- Left rail 80 px, top bar 56 px. Page content starts at the same 24 px as the page title (never a centred column, or the title
+  and the content do not line up): `max-w-3xl` for the settings form, `max-w-4xl` (channels, tools, stats), `max-w-5xl` (new
+  videos); remove logo and the docked pages (Trending, Projects) use the full width.
+- Long forms (Settings, Channels) are `Section`s (`components/section.tsx`): a mono caption strip over a bordered body, folded
+  when `collapsible`, with the fields that need a technical eye in an "Advanced" fold. Anything that can't be undone asks
+  first with `ConfirmDialog` (never `window.confirm`), and a form with unsaved changes asks before leaving
+  (`useUnsavedGuard`; the app uses a data router for it). Tab strips and one-of-n choices are `Segmented` (`tabs` for tabs);
+  arrow keys move the choice.
 - Text that points ("on the left") must hold at every window size; prefer neutral words.
 
 ## Motion
