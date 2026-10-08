@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
+import { useFieldLabel } from "@/components/field-context"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
@@ -33,9 +34,11 @@ function SelectTrigger({
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default"
 }) {
+  const labelledBy = useFieldLabel(props)
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
+      aria-labelledby={labelledBy}
       data-size={size}
       className={cn(
         "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-background py-2 pr-2.5 pl-3 text-[13px] whitespace-nowrap transition-colors select-none focus-visible:border-cyan focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan disabled:cursor-not-allowed disabled:border-dashed disabled:text-muted-foreground aria-invalid:border-destructive data-placeholder:text-muted-foreground data-[size=default]:h-10 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
