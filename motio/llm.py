@@ -63,7 +63,7 @@ def complete(prompt: str, system: str, model: str | None = None, max_tokens: int
     if msg.stop_reason == "refusal":
         raise LLMError(tr("Claude declined this request: change the topic or the source and try again"))
     text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
-    if msg.stop_reason == "max_tokens" and not text.strip():
+    if msg.stop_reason == "max_tokens":  # a cut answer is not valid JSON; asking again cuts it again
         raise LLMError(tr("Claude ran out of tokens before answering"))
     return text
 
@@ -86,10 +86,9 @@ def parse_json(text: str):
     starts = [i for i in (text.find("{"), text.find("[")) if i >= 0]
     if not starts:
         raise LLMError(tr("No JSON found in the reply: {text}", text=text[:300]))
-    s = min(starts)
-    closer = "}" if text[s] == "{" else "]"
-    e = text.rfind(closer)
-    return json.loads(text[s:e + 1])
+    # raw_decode stops at the end of the first JSON value, so a closing brace in the words after it is harmless
+    value, _ = json.JSONDecoder().raw_decode(text[min(starts):])
+    return value
 
 
 def ask_json(prompt: str, system: str, model: str | None = None, retries: int = 1, effort: str | None = None,

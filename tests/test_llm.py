@@ -95,6 +95,18 @@ def test_ask_json_asks_again_once_when_the_answer_is_not_json(fake_api):
     assert "RAPPEL" in sent[-1]["messages"][0]["content"]
 
 
+def test_a_cut_answer_fails_at_once_without_asking_again(fake_api):
+    sent, box = fake_api
+    box["msg"] = message('{"lines": [', stop="max_tokens")
+    with pytest.raises(llm.LLMError, match="tokens"):
+        llm.ask_json("p", "s")
+    assert len([s for s in sent if "messages" in s]) == 1
+
+
+def test_parse_json_ignores_words_with_braces_after_the_value():
+    assert llm.parse_json('Voici : {"a": 1} (fin {de réponse})') == {"a": 1}
+
+
 def test_refusal_and_empty_truncation_raise(fake_api):
     _, box = fake_api
     box["msg"] = message("", stop="refusal")
