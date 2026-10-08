@@ -1,26 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Loader2, Pencil, Plus, Save, Trash2, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Section } from "@/components/section";
 import { Badge } from "@/components/ui/badge";
-import { PageTitle, TopBar } from "@/components/studio";
+import { PageTitle, Segmented, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePicker } from "@/components/voice-picker";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { ApiError, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
 import { t } from "@/i18n";
 
@@ -59,6 +52,29 @@ const toDraft = (x: ChannelInput): Draft => {
 };
 const words = (s: string) => s.split(/[\s,]+/).filter(Boolean);
 const fromDraft = (d: Draft): ChannelInput => ({ ...d, hashtags: words(d.hashtags), send_times: words(d.send_times) });
+
+/** A whole number that can be cleared while typing: the value is clamped into min..max once it is a number, and the text is tidied on blur. */
+function NumberBox({ value, onChange, min, max, className }: { value: number; onChange: (v: number) => void; min: number; max: number; className?: string }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => {
+    setText((x) => (Number(x) === value ? x : String(value)));
+  }, [value]);
+  return (
+    <Input
+      type="number"
+      min={min}
+      max={max}
+      className={className}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = Number(e.target.value);
+        if (e.target.value !== "" && Number.isFinite(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
+      }}
+      onBlur={() => setText(String(value))}
+    />
+  );
+}
 
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint: string }) {
   return (
@@ -101,7 +117,7 @@ function PostizPicker({
         </Link>
       </p>
     ) : (
-      <p className="text-sm text-destructive">{error.message}</p>
+      <p role="alert" className="text-sm text-destructive">{error.message}</p>
     );
   if (!data) return <Loader2 className="size-4 animate-spin" />;
   if (!data.length) return <p className="text-sm text-muted-foreground">{t.publish.noChannels}</p>;
@@ -152,23 +168,45 @@ function PostizPicker({
   );
 }
 
+/** The Auto refresh interval from Settings (minutes); null while unknown. */
+function useRefreshMinutes(api: Api): number | null {
+  const { data } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings(), staleTime: 30_000 });
+  const v = data?.REFRESH_EVERY_MIN?.value;
+  return data ? Number(v || 0) || 0 : null;
+}
+
 function ChannelForm({
   api,
   initial,
+  copyOf,
   hasKey,
   first,
   onDone,
 }: {
   api: Api;
   initial: Channel | null; // null = kênh mới
+  copyOf?: Channel; // kênh mới tạo từ bản sao của kênh này
   hasKey: boolean;
   first?: boolean; // kênh đầu tiên: chọn sẵn làm mặc định
   onDone: () => void;
 }) {
   const qc = useQueryClient();
-  const [d, setD] = useState<Draft>(() => toDraft(initial ?? { ...BLANK, default: !!first }));
+  const refreshMin = useRefreshMinutes(api);
+  const start = useRef<Draft>(
+    toDraft(
+      initial ??
+        (copyOf
+          ? // A copy keeps the writing and the voices; it must not send to the same Postiz channels or auto-make on its own.
+            { ...copyOf, name: t.channels.copyName(copyOf.name), default: false, postiz: [], wide_postiz: [], auto_score: 0 }
+          : { ...BLANK, default: !!first }),
+    ),
+  );
+  const [d, setD] = useState<Draft>(start.current);
   const [confirming, setConfirming] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
+  const changed = JSON.stringify(d) !== JSON.stringify(start.current);
+  const guard = useUnsavedGuard(changed);
   const save = useMutation({
     mutationFn: () => (initial ? api.updateChannel(initial.id, fromDraft(d)) : api.createChannel(fromDraft(d))),
     onSuccess: () => {
@@ -183,13 +221,14 @@ function ChannelForm({
       onDone();
     },
   });
+  const summary = { ...BLANK, ...fromDraft(d) };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{initial ? initial.name : t.channels.add}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-5">
+    <div className="space-y-3">
+      <h2 className="text-base leading-6 font-semibold">{initial ? initial.name : copyOf ? t.channels.copyName(copyOf.name) : t.channels.add}</h2>
+      {copyOf && <p className="text-[13px] text-muted-foreground">{t.channels.copyNote(copyOf.name)}</p>}
+
+      <Section id="channel-identity" title={t.channels.groupIdentity} bodyClassName="grid gap-4">
         <div className="grid items-start gap-4 sm:grid-cols-2">
           <Field label={t.channels.name}>
             <Input autoFocus value={d.name} maxLength={60} onChange={(e) => set("name", e.target.value)} placeholder={t.channels.namePlaceholder} />
@@ -199,7 +238,9 @@ function ChannelForm({
           </Field>
         </div>
         <Toggle checked={d.default} onChange={(v) => set("default", v)} label={t.channels.isDefault} hint={t.channels.defaultHint} />
+      </Section>
 
+      <Section id="channel-voice" title={t.channels.groupVoice} collapsible bodyClassName="grid gap-4" aside={t.projects.durations[String(d.duration)]}>
         <Field label={t.channels.style} hint={t.channels.styleHint}>
           <Textarea
             value={d.style}
@@ -251,16 +292,25 @@ function ChannelForm({
         <Field label={t.channels.hashtags} hint={t.channels.hashtagsHint}>
           <Input value={d.hashtags} onChange={(e) => set("hashtags", e.target.value)} placeholder="#Chine #ActuChine" />
         </Field>
+      </Section>
 
-        <div className="grid gap-3 border-t pt-4">
-          <div className="text-sm font-medium">{t.channels.gates}</div>
+      <Section
+        id="channel-approval"
+        title={t.channels.groupApproval}
+        collapsible
+        defaultOpen={false}
+        bodyClassName="grid gap-4"
+        aside={[t.channels.summaryGates(summary.gate_script, summary.gate_video), t.channels.summaryPostiz(summary.postiz.length, t.channels.sendModes[summary.send_mode])].join(" · ")}
+      >
+        <div className="grid gap-3">
+          <div className="text-[13px] font-medium">{t.channels.gates}</div>
           <Toggle checked={d.gate_script} onChange={(v) => set("gate_script", v)} label={t.channels.gateScript} hint={t.channels.gateScriptHint} />
           <Toggle checked={d.gate_video} onChange={(v) => set("gate_video", v)} label={t.channels.gateVideo} hint={t.channels.gateVideoHint} />
         </div>
 
         <div className="grid gap-3 border-t pt-4">
           <div className="grid gap-1">
-            <div className="text-sm font-medium">{t.channels.postiz}</div>
+            <div className="text-[13px] font-medium">{t.channels.postiz}</div>
             <p className="text-xs text-muted-foreground">{t.channels.postizHint}</p>
           </div>
           <PostizPicker
@@ -274,14 +324,14 @@ function ChannelForm({
             <>
               <p className="text-xs text-muted-foreground">{t.channels.wideHint}</p>
               <div className="grid gap-1.5">
-                <div className="text-sm">{t.channels.sendMode}</div>
-                <div className="flex flex-wrap gap-2">
-                  {MODES.map((m) => (
-                    <Button key={m} size="sm" variant={d.send_mode === m ? "default" : "outline"} onClick={() => set("send_mode", m)}>
-                      {t.channels.sendModes[m]}
-                    </Button>
-                  ))}
-                </div>
+                <div className="text-[13px]">{t.channels.sendMode}</div>
+                <Segmented
+                  label={t.channels.sendMode}
+                  value={d.send_mode}
+                  onChange={(m) => set("send_mode", m)}
+                  className="w-full max-w-md"
+                  options={MODES.map((m) => ({ value: m, label: t.channels.sendModes[m] }))}
+                />
                 <p className="text-xs text-muted-foreground">{t.channels.sendModeHint[d.send_mode]}</p>
               </div>
               {d.send_mode === "schedule" && (
@@ -292,109 +342,126 @@ function ChannelForm({
             </>
           )}
         </div>
+      </Section>
 
-        <div className="grid gap-3 border-t pt-4">
-          <Toggle
-            checked={d.auto_score > 0}
-            onChange={(v) => set("auto_score", v ? AUTO_SCORE : 0)}
-            label={t.channels.auto}
-            hint={t.channels.autoHint}
-          />
-          {d.auto_score > 0 && (
-            <div className="grid items-start gap-4 pl-11 sm:grid-cols-2">
-              <Field label={t.channels.autoScore} hint={t.channels.autoScoreHint}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  className="w-28"
-                  value={d.auto_score}
-                  onChange={(e) => set("auto_score", Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-                />
-              </Field>
-              <Field label={t.channels.autoDaily} hint={t.channels.autoDailyHint}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  className="w-28"
-                  value={d.auto_daily}
-                  onChange={(e) => set("auto_daily", Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
-                />
-              </Field>
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-3 border-t pt-4">
-          <Field label={t.channels.aiClips} hint={t.channels.aiClipsHint}>
-            <Input
-              type="number"
-              min={0}
-              max={6}
-              className="w-28"
-              value={d.ai_clips}
-              onChange={(e) => set("ai_clips", Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0))))}
-            />
-          </Field>
-          <Field label={t.channels.series} hint={t.channels.seriesHint}>
-            <Textarea
-              value={d.series}
-              maxLength={1500}
-              onChange={(e) => set("series", e.target.value)}
-              placeholder={t.channels.seriesPlaceholder}
-              className="min-h-20 text-sm"
-            />
-          </Field>
-          <Field label={t.channels.cast} hint={t.channels.castHint}>
-            <Textarea
-              value={d.cast}
-              maxLength={2500}
-              onChange={(e) => set("cast", e.target.value)}
-              placeholder={t.channels.castPlaceholder}
-              className="min-h-24 font-mono text-xs"
-            />
-          </Field>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          {initial && (
-            <Button variant="outline" className="hover:text-destructive" onClick={() => setConfirming(true)}>
-              <Trash2 />
-              {t.channels.delete}
-            </Button>
-          )}
-          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
-          <div className="ml-auto flex gap-2">
-            <Button variant="ghost" onClick={onDone}>
-              {t.channels.cancel}
-            </Button>
-            <Button onClick={() => save.mutate()} disabled={!d.name.trim() || save.isPending}>
-              {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-              {t.channels.save}
-            </Button>
+      <Section
+        id="channel-auto"
+        title={t.channels.groupAuto}
+        collapsible
+        defaultOpen={false}
+        bodyClassName="grid gap-3"
+        aside={d.auto_score ? t.channels.summaryAuto(d.auto_score, d.auto_daily) : t.channels.autoOff}
+      >
+        <Toggle
+          checked={d.auto_score > 0}
+          onChange={(v) => set("auto_score", v ? AUTO_SCORE : 0)}
+          label={t.channels.auto}
+          hint={t.channels.autoHint}
+        />
+        {d.auto_score > 0 && refreshMin === 0 && (
+          <p role="status" className="ml-11 flex items-start gap-2 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-[13px]">
+            <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
+            <span>
+              {t.channels.autoNoRefresh}{" "}
+              <Link to="/settings" className="underline">
+                {t.channels.autoNoRefreshLink}
+              </Link>
+            </span>
+          </p>
+        )}
+        {d.auto_score > 0 && (
+          <div className="grid items-start gap-4 pl-11 sm:grid-cols-2">
+            <Field label={t.channels.autoScore} hint={t.channels.autoScoreHint}>
+              <NumberBox min={1} max={100} className="w-28" value={d.auto_score} onChange={(v) => set("auto_score", v)} />
+            </Field>
+            <Field label={t.channels.autoDaily} hint={t.channels.autoDailyHint}>
+              <NumberBox min={1} max={20} className="w-28" value={d.auto_daily} onChange={(v) => set("auto_daily", v)} />
+            </Field>
           </div>
+        )}
+      </Section>
+
+      <Section
+        id="channel-ai"
+        title={t.channels.groupAi}
+        collapsible
+        defaultOpen={false}
+        bodyClassName="grid gap-4"
+        aside={[summary.ai_clips ? t.channels.summaryClips(summary.ai_clips) : "", summary.series.trim() || summary.cast.trim() ? t.channels.summarySeries(summary.cast.split("\n").filter((l) => l.trim()).length) : ""].filter(Boolean).join(" · ") || undefined}
+      >
+        <Field label={t.channels.aiClips} hint={t.channels.aiClipsHint}>
+          <NumberBox min={0} max={6} className="w-28" value={d.ai_clips} onChange={(v) => set("ai_clips", v)} />
+        </Field>
+        <Field label={t.channels.series} hint={t.channels.seriesHint}>
+          <Textarea
+            value={d.series}
+            maxLength={1500}
+            onChange={(e) => set("series", e.target.value)}
+            placeholder={t.channels.seriesPlaceholder}
+            className="min-h-20 text-sm"
+          />
+        </Field>
+        <Field label={t.channels.cast} hint={t.channels.castHint}>
+          <Textarea
+            value={d.cast}
+            maxLength={2500}
+            onChange={(e) => set("cast", e.target.value)}
+            placeholder={t.channels.castPlaceholder}
+            className="min-h-24 font-mono text-xs"
+          />
+        </Field>
+      </Section>
+
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-ground px-4 py-3">
+        {initial && (
+          <Button variant="destructive" onClick={() => setConfirming(true)}>
+            <Trash2 />
+            {t.channels.delete}
+          </Button>
+        )}
+        {save.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {save.error.message}
+          </p>
+        )}
+        {changed && !save.error && (
+          <span role="status" className="text-[13px] text-muted-foreground">
+            {t.channels.unsaved}
+          </span>
+        )}
+        <div className="ml-auto flex gap-2">
+          <Button variant="ghost" onClick={() => (changed ? setDiscarding(true) : onDone())}>
+            {t.channels.cancel}
+          </Button>
+          <Button onClick={() => save.mutate()} disabled={!d.name.trim() || save.isPending}>
+            {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+            {t.channels.save}
+          </Button>
         </div>
-      </CardContent>
+      </div>
+
+      <ConfirmDialog
+        open={discarding}
+        onOpenChange={setDiscarding}
+        title={t.confirm.discardTitle}
+        description={t.confirm.discardBody}
+        confirmLabel={t.confirm.discard}
+        onConfirm={onDone}
+      />
       {initial && (
-        <AlertDialog open={confirming} onOpenChange={setConfirming}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t.channels.delete}</AlertDialogTitle>
-              <AlertDialogDescription>{t.channels.confirmDelete(initial.name)}</AlertDialogDescription>
-            </AlertDialogHeader>
-            {del.error && <p className="text-sm text-destructive">{del.error.message}</p>}
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t.channels.cancel}</AlertDialogCancel>
-              <Button variant="destructive" onClick={() => del.mutate()} disabled={del.isPending}>
-                {del.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                {t.channels.delete}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title={t.channels.delete}
+          description={t.channels.confirmDelete(initial.name)}
+          confirmLabel={t.channels.delete}
+          pending={del.isPending}
+          error={del.error?.message}
+          onConfirm={() => del.mutate()}
+        />
       )}
-    </Card>
+      {guard}
+    </div>
   );
 }
 
@@ -409,20 +476,22 @@ function Summary({ c: raw }: { c: Channel }) {
     c.series.trim() || c.cast.trim() ? t.channels.summarySeries(c.cast.split("\n").filter((l) => l.trim()).length) : "",
     t.projects.durations[String(c.duration)],
   ].filter(Boolean);
-  return <div className="text-sm text-muted-foreground">{bits.join(" · ")}</div>;
+  return <div className="text-[13px] text-muted-foreground">{bits.join(" · ")}</div>;
 }
 
 export default function ChannelsPage() {
   const api = useApi()!;
   const [editing, setEditing] = useState<number | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<Channel | null>(null);
   const [saved, setSaved] = useState(false);
   const { data, isLoading, error } = useQuery({ queryKey: ["channels"], queryFn: () => api.channels() });
   const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
   const hasKey = health?.providers.tts === "elevenlabs";
   const done = () => {
     setEditing(null);
+    setCopyOf(null);
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setTimeout(() => setSaved(false), 2500);
   };
 
   return (
@@ -430,24 +499,31 @@ export default function ChannelsPage() {
       <TopBar>
         <PageTitle>{t.channels.title}</PageTitle>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          {saved && (
-            <span className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Check className="size-4" />
-              {t.channels.saved}
-            </span>
-          )}
+          <span role="status" className="flex items-center gap-1 text-[13px] text-muted-foreground">
+            {saved && (
+              <>
+                <Check className="size-4 text-mint" />
+                {t.channels.saved}
+              </>
+            )}
+          </span>
           {editing === null && (
-            <Button onClick={() => setEditing("new")}>
+            <Button
+              onClick={() => {
+                setCopyOf(null);
+                setEditing("new");
+              }}
+            >
               <Plus />
               {t.channels.add}
             </Button>
           )}
         </div>
       </TopBar>
-      <div className="mx-auto max-w-4xl space-y-5 p-6">
-        <p className="text-sm text-muted-foreground">{t.channels.intro}</p>
-        {error && <p className="text-sm text-destructive">{error.message}</p>}
-        {editing === "new" && <ChannelForm api={api} initial={null} hasKey={hasKey} first={!data?.length} onDone={done} />}
+      <div className="max-w-4xl space-y-5 p-6">
+        <p className="text-[13px] text-muted-foreground">{t.channels.intro}</p>
+        {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
+        {editing === "new" && <ChannelForm key={copyOf?.id ?? "new"} api={api} initial={null} copyOf={copyOf ?? undefined} hasKey={hasKey} first={!data?.length} onDone={done} />}
         {isLoading && <Skeleton className="h-24 w-full rounded-xl" />}
         {data?.length === 0 && editing !== "new" && <p className="py-12 text-center text-muted-foreground">{t.channels.empty}</p>}
         <div className="space-y-3">
@@ -455,7 +531,7 @@ export default function ChannelsPage() {
             editing === c.id ? (
               <ChannelForm key={c.id} api={api} initial={c} hasKey={hasKey} onDone={done} />
             ) : (
-              <Card key={c.id} className="gap-2 p-4">
+              <div key={c.id} className="rounded-lg border bg-panel p-4">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -464,14 +540,27 @@ export default function ChannelsPage() {
                       {c.default && <Badge variant="secondary">{t.channels.defaultBadge}</Badge>}
                     </div>
                     <Summary c={c} />
-                    {c.style && <p className="line-clamp-2 text-sm">{c.style}</p>}
+                    {c.style && <p className="line-clamp-2 text-[13px]">{c.style}</p>}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setEditing(c.id)} disabled={editing !== null}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCopyOf(c);
+                      setEditing("new");
+                    }}
+                    disabled={editing !== null}
+                    aria-label={`${t.channels.duplicate}: ${c.name}`}
+                  >
+                    <Copy />
+                    {t.channels.duplicate}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setEditing(c.id)} disabled={editing !== null} aria-label={`${t.channels.edit}: ${c.name}`}>
                     <Pencil />
                     {t.channels.edit}
                   </Button>
                 </div>
-              </Card>
+              </div>
             ),
           )}
         </div>
