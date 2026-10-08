@@ -49,15 +49,15 @@ def projects(limit: int = 50, before: int | None = None, channel: int | None = N
 
 
 def counts() -> dict[str, int]:
-    """Số dự án theo trạng thái; `failed` chỉ tính các dự án lỗi trong RECENT_FAILED_DAYS ngày gần đây."""
+    """Số dự án theo trạng thái, và `failed_recent`: số dự án lỗi trong RECENT_FAILED_DAYS ngày gần đây (huy hiệu)."""
     out = {"queued": 0, "running": 0, "review": 0, "done": 0, "failed": 0}
     since = time.time() - RECENT_FAILED_DAYS * 86400
     with db.conn() as c:
         for status, n in c.execute("SELECT status, COUNT(*) FROM project GROUP BY status"):
-            if status in out and status != "failed":
+            if status in out:
                 out[status] = n
-        out["failed"] = c.execute("SELECT COUNT(*) FROM project WHERE status='failed' AND updated_at >= ?",
-                                  (since,)).fetchone()[0]
+        out["failed_recent"] = c.execute("SELECT COUNT(*) FROM project WHERE status='failed' AND updated_at >= ?",
+                                         (since,)).fetchone()[0]
     return out
 
 

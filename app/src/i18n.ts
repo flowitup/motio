@@ -209,6 +209,12 @@ const en = {
     channel: (name: string) => `Channel ${name}`,
     voiceCost: (chars: number, usd: number) => `voice ${chars.toLocaleString("en-US")} characters ≈ $${usd.toFixed(2)}`,
     auto: "Made automatically",
+    sentToPostiz: "sent to Postiz",
+    search: "Search projects",
+    searchPlaceholder: "Title or #number",
+    allChannels: "All channels",
+    allKinds: "All kinds",
+    loadMore: "Load more",
     versions: { vertical: "9:16", wide: "16:9" } as Record<string, string>,
   },
   channels: {
@@ -771,6 +777,7 @@ const en = {
   studio: {
     mainNav: "Main",
     needsYouCount: (n: number) => (n === 1 ? "1 project waiting for you" : `${n} projects waiting for you`),
+    failedCount: (n: number) => (n === 1 ? "1 project failed lately" : `${n} projects failed lately`),
     // Trending
     selectedTopic: "Selected topic",
     position: (i: number, n: number) => `${i} of ${n}`,
@@ -1091,6 +1098,12 @@ const vi: Messages = {
     channel: (name: string) => `Kênh ${name}`,
     voiceCost: (chars: number, usd: number) => `giọng đọc ${chars.toLocaleString("vi-VN")} ký tự ≈ $${usd.toFixed(2)}`,
     auto: "Tự làm",
+    sentToPostiz: "đã gửi Postiz",
+    search: "Tìm dự án",
+    searchPlaceholder: "Tiêu đề hoặc #số",
+    allChannels: "Mọi kênh",
+    allKinds: "Mọi loại",
+    loadMore: "Tải thêm",
     versions: { vertical: "9:16", wide: "16:9" } as Record<string, string>,
   },
   channels: {
@@ -1652,6 +1665,7 @@ const vi: Messages = {
   studio: {
     mainNav: "Menu chính",
     needsYouCount: (n: number) => `${n} dự án đang chờ bạn`,
+    failedCount: (n: number) => `${n} dự án lỗi gần đây`,
     // Trending
     selectedTopic: "Tin đang chọn",
     position: (i: number, n: number) => `${i} / ${n}`,

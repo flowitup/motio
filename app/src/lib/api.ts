@@ -193,8 +193,8 @@ export type VideoVersion = "vertical" | "wide";
 export type UploadedVideo = { link: string; name: string; duration: number; width: number | null; height: number | null; size: number };
 
 export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
-/** Số dự án theo trạng thái (`failed`: chỉ lỗi trong 7 ngày qua). */
-export type ProjectCounts = Record<ProjectStatus, number>;
+/** Số dự án theo trạng thái; `failed_recent`: số dự án lỗi trong 7 ngày qua (huy hiệu trên thanh bên). */
+export type ProjectCounts = Record<ProjectStatus, number> & { failed_recent: number };
 /** Bộ lọc danh sách dự án; before = id dự án cuối của trang trước. */
 export type ProjectQuery = { limit?: number; before?: number; channel?: number; mode?: string; status?: string; q?: string };
 
@@ -209,6 +209,7 @@ export type Project = {
   meta: ProjectMeta;
   created_at: number;
   updated_at: number;
+  error?: string | null; // dự án lỗi: dòng ERROR cuối của nhật ký
 };
 
 export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice" | "render";

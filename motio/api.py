@@ -6,6 +6,7 @@ Xác thực: `Authorization: Bearer <token>`; `?token=` chỉ nhận cho /media 
 import asyncio
 import json
 import platform
+import re
 import secrets
 import sys
 import threading
@@ -194,8 +195,22 @@ def _log_tail(log: str, n: int = 30) -> list[str]:
     return (log or "").rstrip("\n").split("\n")[-n:] if log else []
 
 
+_ERROR_LINE = re.compile(r"^\d\d:\d\d:\d\d (?:ERROR|LỖI): (.*)$")
+
+
+def _last_error(log: str | None) -> str | None:
+    """The message of the last ERROR line of a project's log (the app shows it on a failed project's card)."""
+    for ln in reversed((log or "").splitlines()):
+        m = _ERROR_LINE.match(ln)
+        if m:
+            return m.group(1)[:200]
+    return None
+
+
 def _project_out(p: dict, full: bool = False) -> dict:
     out = {k: p.get(k) for k in PROJECT_FIELDS}
+    if p.get("status") == "failed":
+        out["error"] = _last_error(p.get("log"))
     if full:
         out["log"] = p.get("log") or ""
         out["folder"] = str(config.PROJECTS / str(p["id"]))

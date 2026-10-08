@@ -3,6 +3,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from "@tauri
 import { useEffect, useRef } from "react";
 import { useApi } from "@/lib/api";
 import { inTauri } from "@/lib/engine";
+import { pollProjects } from "@/lib/poll";
 import { t } from "@/i18n";
 
 async function notify(title: string) {
@@ -19,7 +20,7 @@ export function useProjectNotifications() {
     queryKey: ["projects"],
     queryFn: () => api!.projects(),
     enabled: !!api,
-    refetchInterval: 4_000,
+    refetchInterval: pollProjects,
   });
   const seen = useRef<Map<number, string> | null>(null);
 

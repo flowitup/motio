@@ -419,7 +419,7 @@ def test_projects_list_filters_and_load_more(client):
     assert ids(channel=7, mode="ai") == []
 
 
-def test_project_counts_failed_only_recent(client):
+def test_project_counts_and_recent_failures(client):
     _make("a", status="review")
     _make("b", status="running")
     old = _make("c", status="failed")
@@ -427,7 +427,7 @@ def test_project_counts_failed_only_recent(client):
     with db.conn() as conn:
         conn.execute("UPDATE project SET updated_at = ? WHERE id = ?", (time.time() - 30 * 86400, old))
     n = client.get("/api/projects/counts", headers=H).json()
-    assert n == {"queued": 0, "running": 1, "review": 1, "done": 0, "failed": 1}
+    assert n == {"queued": 0, "running": 1, "review": 1, "done": 0, "failed": 2, "failed_recent": 1}
 
 
 def test_trends_know_their_project_and_can_be_hidden(client):
@@ -460,3 +460,13 @@ def test_resend_follows_the_channel_settings(client, fake_postiz):
     db.update_project(pid, status="running")
     assert client.post(f"/api/projects/{pid}/resend", headers=H).status_code == 409
     assert client.post("/api/projects/999/resend", headers=H).status_code == 404
+
+
+def test_failed_project_in_the_list_carries_its_error(client):
+    pid = _make("x", status="failed")
+    db.update_project(pid, log="ERROR: Could not download the video: HTTP 412")
+    db.update_project(pid, log="rerun later")
+    ok = _make("y")
+    rows = {p["id"]: p for p in client.get("/api/projects", headers=H).json()}
+    assert rows[pid]["error"] == "Could not download the video: HTTP 412"
+    assert "error" not in rows[ok]
