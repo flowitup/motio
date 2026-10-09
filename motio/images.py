@@ -31,15 +31,28 @@ PROVIDERS = ("fal", "modal", "placeholder")
 DEFAULT_PROVIDER = "fal"
 REVIEW_PROVIDERS = ("modal", "placeholder")  # output that must not go out without a human look
 WIDTH, HEIGHT = 1088, 1920  # multiples of 16 (Qwen), close enough to 1080×1920 to be cropped
-# fal text-to-image models the owner can pick (alias → fal path, estimated USD per 1088×1920 picture, extra request
-# fields). Only the default is cleared for a monetized channel; the others force the video gate (`needs_review`).
+# fal text-to-image models the owner can pick (alias → fal path, estimated USD per picture, request fields). `px`: the
+# model takes a width × height `image_size`; `seed`: it takes a seed (the others make a new picture for a new seed
+# anyway, the seed is still part of the cache key). Hot models of fal's own trending list (10/2026); prices from fal's
+# model pages, the ones marked "est." are worked out from a per-token or per-megapixel price. Only the default is
+# cleared for a monetized channel; the others force the video gate (`needs_review`).
 FAL_MODELS = {
-    "qwen": {"path": "fal-ai/qwen-image-2512", "price": 0.042, "extra": {"enable_safety_checker": True}},
-    "flux-schnell": {"path": "fal-ai/flux/schnell", "price": 0.006, "extra": {"enable_safety_checker": True}},
-    "flux-dev": {"path": "fal-ai/flux/dev", "price": 0.052, "extra": {"enable_safety_checker": True}},
-    "flux-pro": {"path": "fal-ai/flux-pro/v1.1", "price": 0.084, "extra": {"safety_tolerance": "2"}},
-    "seedream": {"path": "fal-ai/bytedance/seedream/v4/text-to-image", "price": 0.03,
-                 "extra": {"enable_safety_checker": True}},
+    "qwen": {"path": "fal-ai/qwen-image-2512", "price": 0.042, "px": True, "seed": True,
+             "body": {"enable_safety_checker": True}},
+    "qwen3": {"path": "alibaba/qwen-image-3/text-to-image", "price": 0.075, "px": True, "seed": True,  # 2K tier
+              "body": {"enable_safety_checker": True, "enable_prompt_expansion": False}},
+    "nano-banana-2": {"path": "fal-ai/nano-banana-2", "price": 0.12, "seed": True,  # $0.08 at 1K, ×1.5 at 2K
+                      "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "nano-banana-2.1": {"path": "google/nano-banana-2.1", "price": 0.06, "seed": True,  # est. (per token)
+                        "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "nano-banana-pro": {"path": "fal-ai/nano-banana-pro", "price": 0.15, "seed": True,
+                        "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "gpt-image-2": {"path": "openai/gpt-image-2", "price": 0.07, "px": True,  # est. (per token, medium quality)
+                    "body": {"quality": "medium", "enable_safety_checker": True}},
+    "flux-3": {"path": "blackforestlabs/flux-3/text-to-image", "price": 0.096,  # est. (~$0.048 per megapixel)
+               "body": {"aspect_ratio": "9:16", "resolution": "2k", "safety_tolerance": 2}},
+    "seedream": {"path": "bytedance/seedream/v5/pro/text-to-image", "price": 0.0675, "px": True,
+                 "body": {"enable_safety_checker": True}},
 }
 DEFAULT_FAL_MODEL = "qwen"
 CLEARED_FAL_MODELS = ("qwen",)  # licence read and fine for a monetized channel
@@ -153,13 +166,19 @@ def _data_uri(path: Path) -> str:
 
 
 def _fal(prompt: str, seed: int, refs: list[Path] | None = None, model: str = DEFAULT_FAL_MODEL) -> bytes:
-    spec = FAL_MODELS[model]
-    body = {"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1,
-            "seed": seed, "output_format": "png", **spec["extra"]}
     if refs:  # reference portraits always go to the edit model, whatever model is picked for the text-only scenes
-        body = {**body, "enable_safety_checker": True, "image_urls": [_data_uri(f) for f in refs[:MAX_REFS]]}
-        body.pop("safety_tolerance", None)
-    url = FAL_EDIT_URL if refs else FAL_RUN + spec["path"]
+        url = FAL_EDIT_URL
+        body = {"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1, "seed": seed,
+                "output_format": "png", "enable_safety_checker": True,
+                "image_urls": [_data_uri(f) for f in refs[:MAX_REFS]]}
+    else:
+        spec = FAL_MODELS[model]
+        url = FAL_RUN + spec["path"]
+        body = {"prompt": prompt, "num_images": 1, "output_format": "png", **spec["body"]}
+        if spec.get("px"):
+            body["image_size"] = {"width": WIDTH, "height": HEIGHT}
+        if spec.get("seed"):
+            body["seed"] = seed
     r = _http("POST", url, headers={"Authorization": f"Key {config.env('FAL_KEY')}"}, json=body)
     if r.status_code in (401, 403):
         raise ImageError(tr("fal refused the request ({error}): check the key and the credit on your fal account",

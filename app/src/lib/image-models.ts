@@ -1,15 +1,27 @@
 import { t } from "@/i18n";
 
 /** fal picture models the owner can pick (Settings → AI pictures); mirrors `images.FAL_MODELS` in the engine. */
-export const FAL_MODELS = ["qwen", "flux-schnell", "flux-dev", "flux-pro", "seedream"] as const;
+export const FAL_MODELS = [
+  "qwen",
+  "qwen3",
+  "nano-banana-2",
+  "nano-banana-2.1",
+  "nano-banana-pro",
+  "gpt-image-2",
+  "flux-3",
+  "seedream",
+] as const;
 export type FalModel = (typeof FAL_MODELS)[number];
-/** Estimated USD per picture (1088×1920). */
+/** Estimated USD per picture (a 2K-class 9:16 picture). */
 export const FAL_PICTURE_USD: Record<FalModel, number> = {
   qwen: 0.042,
-  "flux-schnell": 0.006,
-  "flux-dev": 0.052,
-  "flux-pro": 0.084,
-  seedream: 0.03,
+  qwen3: 0.075,
+  "nano-banana-2": 0.12,
+  "nano-banana-2.1": 0.06,
+  "nano-banana-pro": 0.15,
+  "gpt-image-2": 0.07,
+  "flux-3": 0.096,
+  seedream: 0.0675,
 };
 export const CLEARED_FAL_MODELS: FalModel[] = ["qwen"]; // the only model cleared for a monetized channel
 const SCENES = 12; // a typical AI video
