@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Send } from "lucide-react";
+import { Check, Loader2, RotateCcw, Send } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Button } from "@/components/ui/button";
 import { Panel, Segmented } from "@/components/studio";
 import { Input } from "@/components/ui/input";
-import { ApiError, type Api, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
+import { ApiError, type Api, type Channel, type PublishMode, type PublishRecord, type VideoVersion } from "@/lib/api";
 import { t } from "@/i18n";
 
 const MODES: PublishMode[] = ["draft", "schedule", "now"];
@@ -15,14 +16,18 @@ const VERSIONS: VideoVersion[] = ["vertical", "wide"];
 export function PublishCard({
   api,
   projectId,
+  channel,
   history,
   hasWide,
+  sendError,
   onSent,
 }: {
   api: Api;
   projectId: number;
+  channel?: Channel; // kênh của dự án: chọn sẵn kênh Postiz và chế độ gửi của nó
   history: PublishRecord[];
   hasWide: boolean; // dự án có bản 16:9
+  sendError?: string | null; // lần tự gửi gần nhất bị lỗi
   onSent: () => void;
 }) {
   const { data: channels, error } = useQuery({
@@ -31,10 +36,15 @@ export function PublishCard({
     retry: false,
     staleTime: 60_000,
   });
-  const [picked, setPicked] = useState<string[]>([]);
-  const [mode, setMode] = useState<PublishMode>("draft");
+  const [touched, setTouched] = useState<string[] | null>(null); // null = the channel's own Postiz channels
+  const [chosenMode, setMode] = useState<PublishMode | null>(null); // null = the channel's send mode
   const [when, setWhen] = useState("");
   const [version, setVersion] = useState<VideoVersion>("vertical");
+  const [confirming, setConfirming] = useState<"send" | "again" | null>(null);
+  const fromChannel = (channel?.postiz ?? []).filter((id) => channels?.some((c) => c.id === id && !c.disabled));
+  const picked = touched ?? fromChannel;
+  const mode = chosenMode ?? channel?.send_mode ?? "draft";
+  const nameOf = (id: string) => channels?.find((c) => c.id === id)?.name ?? id;
 
   const send = useMutation({
     mutationFn: () =>
@@ -46,14 +56,30 @@ export function PublishCard({
         ...(mode === "schedule" ? { date: new Date(when).toISOString() } : {}),
       }),
     onSuccess: () => {
-      setPicked([]);
+      setTouched([]);
+      onSent();
+    },
+    onSettled: () => setConfirming(null),
+  });
+  // One click: the channel's own Postiz channels, mode, posting time and 16:9 split, as an automatic send would do.
+  const again = useMutation({
+    mutationFn: async () => {
+      const r = await api.resend(projectId);
+      if (!r.sent && r.error) throw new Error(r.error);
+      return r;
+    },
+    onSettled: () => {
+      setConfirming(null);
       onSent();
     },
   });
 
   const toggle = (id: string) => {
     send.reset();
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    setTouched((p) => {
+      const cur = p ?? fromChannel;
+      return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    });
   };
 
   let body: ReactNode;
@@ -76,6 +102,25 @@ export function PublishCard({
   } else {
     body = (
       <div className="space-y-4">
+        {fromChannel.length > 0 && channel && (
+          <div className="space-y-2 border-b pb-4">
+            <p className="text-xs leading-[18px] text-muted-foreground">
+              {t.publish.channelSetting(channel.name, fromChannel.map(nameOf), t.publish.modes[channel.send_mode])}
+            </p>
+            {sendError && <p className="text-xs leading-[18px] text-amber">{t.review.sendError}: {sendError}</p>}
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full"
+              onClick={() => (channel.send_mode === "now" ? setConfirming("again") : again.mutate())}
+              disabled={again.isPending}
+            >
+              {again.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+              {t.publish.sendAgain}
+            </Button>
+            {again.error && <p className="text-[13px] text-coral">{again.error.message}</p>}
+          </div>
+        )}
         <div className="space-y-1">
           <div className="text-[13px] font-medium">{t.publish.channels}</div>
           {channels.map((c) => (
@@ -131,7 +176,7 @@ export function PublishCard({
             variant="secondary"
             size="lg"
             className="w-full"
-            onClick={() => send.mutate()}
+            onClick={() => (mode === "now" ? setConfirming("send") : send.mutate())}
             disabled={!picked.length || send.isPending || (mode === "schedule" && !when)}
           >
             {send.isPending ? <Loader2 className="animate-spin" /> : send.isSuccess ? <Check /> : <Send />}
@@ -146,6 +191,16 @@ export function PublishCard({
   return (
     <Panel title={t.publish.title} bodyClassName="space-y-4">
         {body}
+        <ConfirmAction
+          open={confirming !== null}
+          onOpenChange={(o) => !o && setConfirming(null)}
+          title={t.publish.nowTitle}
+          body={t.publish.nowBody((confirming === "again" ? fromChannel : picked).map(nameOf))}
+          confirm={t.publish.nowConfirm}
+          icon={<Send />}
+          busy={send.isPending || again.isPending}
+          onConfirm={() => (confirming === "again" ? again.mutate() : send.mutate())}
+        />
         {history.length > 0 && (
           <div className="space-y-1 border-t pt-3 text-xs leading-[18px]">
             <div className="text-[13px] font-medium">{t.publish.history}</div>

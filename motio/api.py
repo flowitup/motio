@@ -6,6 +6,7 @@ Xác thực: `Authorization: Bearer <token>`; `?token=` chỉ nhận cho /media 
 import asyncio
 import json
 import platform
+import re
 import secrets
 import sys
 import threading
@@ -31,6 +32,7 @@ from . import (
     delogo,
     dub,
     edit,
+    listing,
     llm,
     localfile,
     newsnow,
@@ -99,6 +101,10 @@ class DubPatch(BaseModel):
 
 class ProjectPatch(BaseModel):
     rights: str | None = None
+
+
+class TrendPatch(BaseModel):
+    hidden: bool  # ẩn khỏi Trending (chỉ tin chưa làm); False = hiện lại
 
 
 class WatchIn(BaseModel):
@@ -189,8 +195,22 @@ def _log_tail(log: str, n: int = 30) -> list[str]:
     return (log or "").rstrip("\n").split("\n")[-n:] if log else []
 
 
+_ERROR_LINE = re.compile(r"^\d\d:\d\d:\d\d (?:ERROR|LỖI): (.*)$")
+
+
+def _last_error(log: str | None) -> str | None:
+    """The message of the last ERROR line of a project's log (the app shows it on a failed project's card)."""
+    for ln in reversed((log or "").splitlines()):
+        m = _ERROR_LINE.match(ln)
+        if m:
+            return m.group(1)[:200]
+    return None
+
+
 def _project_out(p: dict, full: bool = False) -> dict:
     out = {k: p.get(k) for k in PROJECT_FIELDS}
+    if p.get("status") == "failed":
+        out["error"] = _last_error(p.get("log"))
     if full:
         out["log"] = p.get("log") or ""
         out["folder"] = str(config.PROJECTS / str(p["id"]))
@@ -362,8 +382,18 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
     def trends(hours: float = 24, source: str | None = None, limit: int = 100):
-        return [{**t, "source_name": newsnow.SOURCE_NAMES.get(t["source"], t["source"])}
-                for t in db.list_trends(hours=hours, limit=limit, source=source or None)]
+        """Tin hot (không gồm tin đã ẩn); tin đã làm kèm `project_id` của dự án mới nhất."""
+        rows = [t for t in db.list_trends(hours=hours, limit=limit + 200, source=source or None)
+                if t.get("status") != listing.HIDDEN][:limit]
+        made = listing.trend_projects([t["id"] for t in rows if t.get("status") == "used"])
+        return [{**t, "source_name": newsnow.SOURCE_NAMES.get(t["source"], t["source"]),
+                 "project_id": made.get(t["id"])} for t in rows]
+
+    @app.patch("/api/trends/{tid}", dependencies=[Depends(auth)])
+    def patch_trend(tid: str, body: TrendPatch):
+        if not listing.set_trend_hidden(tid, body.hidden):
+            raise HTTPException(404, tr("Trend not found"))
+        return {"id": tid, "hidden": body.hidden}
 
     @app.post("/api/trends/refresh", status_code=202, dependencies=[Depends(auth)])
     def refresh():
@@ -513,8 +543,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     # ---------- dự án ----------
     @app.get("/api/projects", dependencies=[Depends(auth)])
-    def projects(limit: int = 50):
-        return [_project_out(p) for p in db.list_projects(limit)]
+    def projects(limit: int = 50, before: int | None = None, channel: int | None = None, mode: str | None = None,
+                 status: str | None = None, q: str | None = None):
+        """Dự án mới nhất trước. `before` = id của dự án cuối trang trước (tải thêm); `channel` 0 = không kênh;
+        `q` tìm theo tiêu đề hoặc #id."""
+        return [_project_out(p) for p in listing.projects(limit, before, channel, mode, status, q)]
+
+    @app.get("/api/projects/counts", dependencies=[Depends(auth)])
+    def project_counts():
+        """Số dự án theo trạng thái (huy hiệu "cần bạn" trên thanh bên); `failed` = lỗi trong 7 ngày qua."""
+        return listing.counts()
 
     def _get(pid: int) -> dict:
         p = db.get_project(pid)
@@ -810,6 +848,22 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(400, str(e)) from e
         except (postiz.PostizError, httpx.HTTPError) as e:
             raise HTTPException(502, tr("Postiz error: {error}", error=str(e)[:300])) from e
+
+    @app.post("/api/projects/{pid}/resend", dependencies=[Depends(auth)])
+    def resend(pid: int):
+        """Gửi lại video đã xong sang Postiz đúng như kênh của dự án cài đặt (chế độ, giờ đăng, bản 16:9)."""
+        p = _get(pid)
+        ch = channels.for_project(p)
+        if p["status"] != "done" or not p["meta"].get("video"):
+            raise HTTPException(409, tr("Project has no finished video yet"))
+        if not ch or not ch["postiz"]:
+            raise HTTPException(409, tr("This project's channel has no Postiz channel to send to"))
+        _need_postiz()
+        try:
+            ok = pipeline.send_to_postiz(pid, ch)
+        finally:
+            db.update_project(pid, status="done", step=tr("Done"), pct=100)
+        return {"sent": ok, "error": None if ok else db.get_project(pid)["meta"].get("send_error")}
 
     # ---------- thông báo Slack ----------
     @app.post("/api/notify/test", dependencies=[Depends(auth)])

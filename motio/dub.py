@@ -131,13 +131,13 @@ def create(link: str, start=None, end=None, rights: str = "unknown", title: str 
 
 
 def from_clip(cid: str) -> int:
-    """Dự án lồng tiếng từ một video mới (New videos), giữ quyền của nguồn theo dõi. LookupError nếu không có."""
+    """Dự án lồng tiếng từ một video mới (Followed), giữ quyền của nguồn theo dõi. LookupError nếu không có."""
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
     pid = create(c["url"], rights=c.get("rights") or "unknown", title=c.get("title_fr") or c.get("title") or "")
     db.set_clip_status(cid, "used", pid)
-    db.update_project(pid, log=tr("From New videos: {source} · {url}", source=c.get("watch_name") or c["site"],
+    db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]), meta={"clip": cid})
     return pid
 

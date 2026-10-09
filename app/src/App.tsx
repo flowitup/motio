@@ -7,6 +7,7 @@ import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { Led } from "@/components/studio";
 import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
+import { BUSY_MS } from "@/lib/poll";
 import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
@@ -40,7 +41,36 @@ const NAV: NavItem[][] = [
 const railItem =
   "relative flex h-14 flex-col items-center justify-center gap-1 text-xs leading-4 font-medium whitespace-nowrap transition-colors";
 
-function RailItem({ to, label, icon: Icon, count }: { to: string; label: string; icon: typeof Flame; count?: number }) {
+/** A count on the rail: amber = waiting for you (approvals), coral = failed lately. */
+function RailBadge({ count, label, tone, className }: { count: number; label: string; tone: "amber" | "coral"; className: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className={cn(
+        "absolute flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
+        tone === "amber" ? "bg-amber text-on-amber" : "bg-coral text-on-amber",
+        className,
+      )}
+    >
+      {count}
+    </span>
+  );
+}
+
+function RailItem({
+  to,
+  label,
+  icon: Icon,
+  count,
+  failed,
+}: {
+  to: string;
+  label: string;
+  icon: typeof Flame;
+  count?: number;
+  failed?: number;
+}) {
   return (
     <NavLink
       to={to}
@@ -51,15 +81,8 @@ function RailItem({ to, label, icon: Icon, count }: { to: string; label: string;
           {isActive && <span className="absolute inset-y-0 left-0 w-0.5 bg-amber" />}
           <span className="relative">
             <Icon className={cn("size-5", isActive && "text-amber")} />
-            {!!count && (
-              <span
-                role="img"
-                aria-label={t.studio.needsYouCount(count)}
-                className="absolute -top-1.5 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 font-mono text-[11px] leading-none font-medium text-on-amber tabular-nums"
-              >
-                {count}
-              </span>
-            )}
+            {!!count && <RailBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" className="-top-1.5 -right-3" />}
+            {!!failed && <RailBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" className="-bottom-1.5 -left-3" />}
           </span>
           <span>{label}</span>
         </>
@@ -162,14 +185,13 @@ export default function App() {
   useEngineLang();
 
   const api = useApi();
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => api!.projects(),
+  const { data: counts } = useQuery({
+    queryKey: ["projects", "counts"],
+    queryFn: () => api!.projectCounts(),
     enabled: !!api,
-    refetchInterval: 4_000,
+    refetchInterval: (q) => (q.state.data && q.state.data.queued + q.state.data.running > 0 ? BUSY_MS : 15_000),
   });
-  const needsYou = (projects ?? []).filter((p) => p.status === "review").length;
-  useDocumentTitle(needsYou);
+  useDocumentTitle(counts?.review ?? 0);
   const main = useRef<HTMLElement>(null);
 
   return (
@@ -200,7 +222,9 @@ export default function App() {
           {NAV.map((group, i) => (
             <div key={i} className={cn("flex flex-col", i > 0 && "mt-2 border-t pt-2")}>
               {group.map(({ to, label, icon }) => (
-                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} count={to === "/projects" ? needsYou : undefined} />
+                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} count={to === "/projects" ? counts?.review : undefined}
+                  failed={to === "/projects" ? counts?.failed_recent : undefined}
+                />
               ))}
             </div>
           ))}

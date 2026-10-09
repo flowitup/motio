@@ -12,7 +12,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Choice } from "@/components/form";
 import { Panel } from "@/components/studio";
 import { lineAt, mmss, type Mark } from "@/components/timeline";
@@ -20,11 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Api, Motion, Script, ScriptLine, ScriptView } from "@/lib/api";
+import type { Api, Motion, Review, Script, ScriptLine, ScriptView } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const MIN_LINES = 3; // như engine (edit.MIN_LINES)
+
+/** What the review bar needs from the form: are there edits not saved yet, may they be saved, and save them now. */
+export type ScriptGate = { dirty: boolean; valid: boolean; save: () => Promise<unknown> };
 
 type Row = ScriptLine & { key: number; was?: string }; // was: prompt ảnh đã lưu (ảnh hiện có ứng với prompt này)
 
@@ -77,6 +80,8 @@ export function ScriptCard({
   measured,
   playhead = 0,
   onSeek,
+  reviewing = null,
+  onGate,
 }: {
   api: Api;
   id: number;
@@ -85,6 +90,8 @@ export function ScriptCard({
   measured?: Mark[] | null; // spans of the lines of the last voice, when it matches the saved script
   playhead?: number; // seconds into the video the player is at
   onSeek?: (sec: number) => void;
+  reviewing?: Review | null; // the project waits at this gate: at the script gate, approving is the one way on
+  onGate?: (gate: ScriptGate | null) => void;
 }) {
   const { data, error } = useQuery({ queryKey: ["script", id], queryFn: () => api.script(id) });
   const [justSaved, setJustSaved] = useState(false); // ở ngoài form: form được dựng lại sau mỗi lần lưu
@@ -114,6 +121,8 @@ export function ScriptCard({
       measured={measured}
       playhead={playhead}
       onSeek={onSeek}
+      atScriptGate={reviewing === "script"}
+      onGate={onGate}
     />
   );
 }
@@ -129,6 +138,8 @@ function ScriptForm({
   measured,
   playhead,
   onSeek,
+  atScriptGate,
+  onGate,
 }: {
   api: Api;
   id: number;
@@ -140,6 +151,8 @@ function ScriptForm({
   measured?: Mark[] | null;
   playhead: number;
   onSeek?: (sec: number) => void;
+  atScriptGate: boolean;
+  onGate?: (gate: ScriptGate | null) => void;
 }) {
   const qc = useQueryClient();
   const saved = view.script;
@@ -178,6 +191,13 @@ function ScriptForm({
       refresh(v);
     },
   });
+  // The review bar saves the edits first, then approves: it calls the latest closure through a ref.
+  const saveNow = useRef<() => Promise<unknown>>(() => Promise.resolve());
+  saveNow.current = () => api.saveScript(id, draft).then((v) => refresh(v));
+  useEffect(() => {
+    onGate?.({ dirty, valid, save: () => saveNow.current() });
+  }, [dirty, valid]);
+  useEffect(() => () => onGate?.(null), []);
   // Lưu (nếu có sửa) rồi chạy lại từ bước Giọng đọc và dựng, giữ kịch bản này. Video AI mà lời đọc không đổi thì
   // chỉ dựng lại (không đọc lại giọng): ảnh đổi prompt được làm lúc dựng.
   const sameText = rows.length === saved.lines.length && rows.every((r, i) => r.text.trim() === saved.lines[i].text.trim());
@@ -233,7 +253,9 @@ function ScriptForm({
   return (
     <section className="flex flex-col border-b bg-panel">
       <PanelHead title={t.script.title} aside={t.studio.lineCount(rows.length)} />
-      <p className="px-4 pt-4 text-xs leading-[18px] text-muted-foreground">{isAi ? t.ai.scriptHint : isDub ? t.script.dubHint : t.script.hint}</p>
+      <p className="px-4 pt-4 text-xs leading-[18px] text-muted-foreground">
+        {atScriptGate ? t.script.gateHint : isAi ? t.ai.scriptHint : isDub ? t.script.dubHint : t.script.hint}
+      </p>
       <div className="grid gap-4 p-4">
         <Field label={t.script.videoTitle}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} disabled={busy} aria-label={t.script.videoTitle} />
@@ -449,15 +471,17 @@ function ScriptForm({
           {save.isPending ? <Loader2 className="animate-spin" /> : justSaved ? <Check /> : <Save />}
           {justSaved ? t.script.saved : t.script.save}
         </Button>
-        <Button
-          size="lg"
-          variant={dirty || view.stale ? "default" : "secondary"}
-          onClick={() => render.mutate()}
-          disabled={busy || !valid}
-        >
-          {render.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-          {dirty ? t.script.saveAndRender : t.script.render}
-        </Button>
+        {!atScriptGate && (
+          <Button
+            size="lg"
+            variant={dirty || view.stale ? "default" : "secondary"}
+            onClick={() => render.mutate()}
+            disabled={busy || !valid}
+          >
+            {render.isPending ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+            {dirty ? t.script.saveAndRender : t.script.render}
+          </Button>
+        )}
       </div>
     </section>
   );

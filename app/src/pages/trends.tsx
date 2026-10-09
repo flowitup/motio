@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Link2, Loader2, Plus, RefreshCw, Sparkles, Video } from "lucide-react";
+import { ExternalLink, EyeOff, FolderOpen, Link2, Loader2, Plus, RefreshCw, Sparkles, Undo2, Video } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
+import { ConfirmAction } from "@/components/confirm-action";
 import { ExternalA } from "@/components/external-link";
+import { BudgetNotice, SetupCard } from "@/components/setup-notices";
 import { Kicker, Meter, PageTitle, ScoreBadge, Segmented, SourceBadge, TopBar, toneOf, toneText } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,18 +23,22 @@ function LedgerRow({
   tr,
   selected,
   busy,
+  error,
   onSelect,
   onLinks,
   onMake,
+  onOpen,
 }: {
   tr: Trend;
   selected: boolean;
   busy: boolean;
+  error?: string;
   onSelect: () => void;
   onLinks: () => void;
   onMake: () => void;
+  onOpen: (id: number) => void;
 }) {
-  const made = tr.status === "used";
+  const made = tr.status === "used" && !!tr.project_id; // made: the button opens the project, making again asks first
   return (
     <li
       onClick={onSelect}
@@ -90,14 +96,19 @@ function LedgerRow({
         )}
         <Button
           variant={made ? "outline" : "secondary"}
-          className={cn("w-[104px]", made && "bg-transparent text-muted-foreground")}
-          onClick={onMake}
+          className={cn("w-[104px]", made && "gap-1.5 bg-transparent px-2")}
+          onClick={() => (made ? onOpen(tr.project_id!) : onMake())}
           disabled={busy}
         >
-          {busy ? <Loader2 className="animate-spin" /> : made ? <Check className="size-3.5 text-mint" strokeWidth={2.5} /> : null}
-          {made ? t.trends.used : t.trends.produce}
+          {busy ? <Loader2 className="animate-spin" /> : made ? <FolderOpen className="size-3.5" /> : null}
+          {made ? t.trends.open : t.trends.produce}
         </Button>
       </div>
+      {error && (
+        <p role="alert" className="col-span-full pt-2 text-xs leading-[18px] text-coral">
+          {error}
+        </p>
+      )}
     </li>
   );
 }
@@ -111,6 +122,8 @@ export default function TrendsPage() {
   const [linksText, setLinksText] = useState("");
   const [linksOnly, setLinksOnly] = useState(false);
   const linksRef = useRef<HTMLTextAreaElement>(null);
+  const [again, setAgain] = useState<Trend | null>(null); // a topic already made, waiting for "make it again?"
+  const [hidden, setHidden] = useState<Trend | null>(null); // the topic just hidden, kept for Undo
   const choice = useChannelChoice(api);
 
   const all = useQuery({ queryKey: ["trends"], queryFn: () => api.trends() });
@@ -139,6 +152,15 @@ export default function TrendsPage() {
       navigate(`/projects/${project_id}`);
     },
   });
+
+  const hide = useMutation({
+    mutationFn: ({ tr, hide }: { tr: Trend; hide: boolean }) => api.hideTrend(tr.id, hide),
+    onSuccess: (_, { tr, hide }) => {
+      setHidden(hide ? tr : null);
+      qc.invalidateQueries({ queryKey: ["trends"] });
+    },
+  });
+  const open = (id: number) => navigate(`/projects/${id}`);
 
   const sources = useMemo(() => {
     const m = new Map<string, string>();
@@ -190,6 +212,8 @@ export default function TrendsPage() {
           </Button>
         </div>
       </TopBar>
+      <SetupCard />
+      <BudgetNotice />
 
       <div className="flex min-h-0 flex-1">
         {/* Ledger */}
@@ -213,6 +237,15 @@ export default function TrendsPage() {
           </div>
 
           {all.error && <p className="border-b px-5 py-3 text-sm text-coral">{all.error.message}</p>}
+          {hidden && (
+            <div role="status" className="flex shrink-0 items-center gap-3 border-b bg-strip px-5 py-1 text-[13px]">
+              <span className="min-w-0 truncate">{t.trends.hiddenNote(hidden.title_fr)}</span>
+              <Button variant="ghost" className="ml-auto shrink-0" onClick={() => hide.mutate({ tr: hidden, hide: false })} disabled={hide.isPending}>
+                <Undo2 />
+                {t.trends.undo}
+              </Button>
+            </div>
+          )}
           <div className="grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)_192px] gap-x-4 border-b bg-strip px-5 font-mono text-xs leading-10 font-medium tracking-[0.06em] text-muted-foreground uppercase lg:grid-cols-[56px_minmax(0,1fr)_96px_minmax(0,150px)_192px]">
             <span>{t.studio.colScore}</span>
             <span>{t.studio.colTopic}</span>
@@ -229,6 +262,8 @@ export default function TrendsPage() {
                 tr={tr}
                 selected={tr.id === selected?.id}
                 busy={produce.isPending && produce.variables?.id === tr.id}
+                error={produce.error && produce.variables?.id === tr.id && !produce.variables.links ? produce.error.message : undefined}
+                onOpen={open}
                 onSelect={() => select(tr.id)}
                 onLinks={() => {
                   select(tr.id);
@@ -348,16 +383,44 @@ export default function TrendsPage() {
                 </div>
               </div>
               <div className="shrink-0 space-y-2 border-t p-4">
-                {produce.error && <p className="text-xs text-coral">{produce.error.message}</p>}
-                <Button
-                  size="lg"
-                  className="w-full"
-                  onClick={() => produce.mutate({ id: selected.id })}
-                  disabled={produce.isPending}
-                >
-                  {produce.isPending && produce.variables?.id === selected.id ? <Loader2 className="animate-spin" /> : <Video />}
-                  {selected.status === "used" ? `${t.trends.produce} (${t.trends.used})` : t.trends.produce}
-                </Button>
+                {produce.error && (!produce.variables || produce.variables.id === selected.id) && (
+                  <p role="alert" className="text-xs leading-[18px] text-coral">
+                    {produce.error.message}
+                  </p>
+                )}
+                {selected.status === "used" && selected.project_id ? (
+                  <>
+                    <Button size="lg" className="w-full" onClick={() => open(selected.project_id!)}>
+                      <FolderOpen />
+                      {t.trends.open}
+                    </Button>
+                    <Button variant="secondary" className="w-full" onClick={() => setAgain(selected)} disabled={produce.isPending}>
+                      {produce.isPending && produce.variables?.id === selected.id ? <Loader2 className="animate-spin" /> : <Video />}
+                      {t.trends.makeAgain}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={() => produce.mutate({ id: selected.id })}
+                      disabled={produce.isPending}
+                    >
+                      {produce.isPending && produce.variables?.id === selected.id ? <Loader2 className="animate-spin" /> : <Video />}
+                      {t.trends.produce}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full text-muted-foreground"
+                      onClick={() => hide.mutate({ tr: selected, hide: true })}
+                      disabled={hide.isPending || selected.status === "used"}
+                    >
+                      <EyeOff />
+                      {t.trends.hide}
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -365,6 +428,18 @@ export default function TrendsPage() {
           )}
         </aside>
       </div>
+      <ConfirmAction
+        open={!!again}
+        onOpenChange={(o) => !o && setAgain(null)}
+        title={t.trends.againTitle}
+        body={again ? t.trends.againBody(again.title_fr, again.project_id ?? 0) : ""}
+        confirm={t.trends.makeAgain}
+        icon={<Video />}
+        onConfirm={() => {
+          if (again) produce.mutate({ id: again.id });
+          setAgain(null);
+        }}
+      />
     </div>
   );
 }

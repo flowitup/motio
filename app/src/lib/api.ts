@@ -14,6 +14,7 @@ export type Trend = {
   score: number;
   status: string;
   last_seen: number;
+  project_id?: number | null; // dự án mới nhất đã làm từ tin này (status = "used")
 };
 
 export type SourceInfo = {
@@ -192,6 +193,10 @@ export type VideoVersion = "vertical" | "wide";
 export type UploadedVideo = { link: string; name: string; duration: number; width: number | null; height: number | null; size: number };
 
 export type ProjectStatus = "queued" | "running" | "review" | "done" | "failed";
+/** Số dự án theo trạng thái; `failed_recent`: số dự án lỗi trong 7 ngày qua (huy hiệu trên thanh bên). */
+export type ProjectCounts = Record<ProjectStatus, number> & { failed_recent: number };
+/** Bộ lọc danh sách dự án; before = id dự án cuối của trang trước. */
+export type ProjectQuery = { limit?: number; before?: number; channel?: number; mode?: string; status?: string; q?: string };
 
 export type Project = {
   id: number;
@@ -204,6 +209,7 @@ export type Project = {
   meta: ProjectMeta;
   created_at: number;
   updated_at: number;
+  error?: string | null; // dự án lỗi: dòng ERROR cuối của nhật ký
 };
 
 export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice" | "render";
@@ -517,6 +523,16 @@ export function makeApi(url: string, token: string) {
     produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
+    /** Trang dự án có lọc (kênh, kiểu, trạng thái, tìm chữ) và "tải thêm" bằng `before`. */
+    projectPage: (query: ProjectQuery) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== "") qs.set(k, String(v));
+      return call<Project[]>("GET", `/api/projects?${qs}`);
+    },
+    projectCounts: () => call<ProjectCounts>("GET", "/api/projects/counts"),
+    /** Ẩn / hiện lại một tin hot chưa làm. */
+    hideTrend: (id: string, hidden: boolean) =>
+      call<{ id: string; hidden: boolean }>("PATCH", `/api/trends/${encodeURIComponent(id)}`, { hidden }),
     project: (id: number) => call<ProjectDetail>("GET", `/api/projects/${id}`),
     rerender: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/rerender`),
     /** Xoá dự án và thư mục của nó; bài đã gửi Postiz vẫn ở Postiz. */
@@ -536,6 +552,8 @@ export function makeApi(url: string, token: string) {
     deleteChannel: (id: number) => call<{ deleted: number }>("DELETE", `/api/channels/${id}`),
     voices: () => call<Voice[]>("GET", "/api/voices"),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
+    /** Gửi lại video đã xong sang Postiz đúng như kênh của dự án cài đặt (chế độ, giờ đăng, bản 16:9). */
+    resend: (id: number) => call<{ sent: boolean; error: string | null }>("POST", `/api/projects/${id}/resend`),
     publish: (id: number, body: { channels: string[]; mode: PublishMode; date?: string; version?: VideoVersion }) =>
       call<Omit<PublishRecord, "at">>("POST", `/api/projects/${id}/publish`, body),
     delogoUploads: () => call<DelogoUpload[]>("GET", "/api/delogo/uploads"),

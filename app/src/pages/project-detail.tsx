@@ -5,6 +5,7 @@ import {
   CheckCheck,
   CircleCheck,
   Copy,
+  Download,
   Eraser,
   ExternalLink,
   FolderOpen,
@@ -20,13 +21,14 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
+import { ConfirmAction } from "@/components/confirm-action";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
 import { Choice } from "@/components/form";
 import { Monitor } from "@/components/monitor";
 import { PublishCard } from "@/components/publish-card";
-import { ScriptCard } from "@/components/script-card";
+import { ScriptCard, type ScriptGate } from "@/components/script-card";
 import { StatusChip } from "@/components/status-chip";
 import { Kicker, Led, PageTitle, Panel } from "@/components/studio";
 import { TimelineStrip, lineAt, mmss, useNarration, type Mark } from "@/components/timeline";
@@ -35,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
 import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights, type VideoVersion } from "@/lib/api";
+import { fileSlug, saveFile } from "@/lib/download";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -162,53 +165,143 @@ function QualityCard({ qa, held }: { qa: NonNullable<ProjectDetail["meta"]["qa"]
   );
 }
 
-/** Dự án dừng ở cổng duyệt của kênh: duyệt kịch bản (đọc giọng và dựng) hoặc duyệt video (gửi Postiz). */
-function ReviewCard({ api, p, channel, onDone }: { api: Api; p: ProjectDetail; channel: Channel | undefined; onDone: () => void }) {
-  const approve = useMutation({ mutationFn: (send: boolean) => api.approve(p.id, send), onSuccess: onDone });
+/** Dự án dừng ở cổng duyệt của kênh: duyệt kịch bản (đọc giọng và dựng) hoặc duyệt video (gửi Postiz). A bar under the
+ * header, so the way on is in view at every window size. At the script gate, edits not saved yet are saved first. */
+function ReviewBar({
+  api,
+  p,
+  channel,
+  gate,
+  onDone,
+}: {
+  api: Api;
+  p: ProjectDetail;
+  channel: Channel | undefined;
+  gate: ScriptGate | null;
+  onDone: () => void;
+}) {
   const video = p.meta.review === "video";
   const targets = channel?.postiz.length ?? 0;
+  const mode = channel?.send_mode ?? "draft";
+  const publicNow = video && targets > 0 && mode === "now"; // posts publicly at once: asks first
+  const [confirming, setConfirming] = useState(false);
+  const names = useQuery({
+    queryKey: ["postiz-channels"],
+    queryFn: () => api.postizChannels(),
+    retry: false,
+    staleTime: 60_000,
+    enabled: publicNow,
+  });
+  const approve = useMutation({
+    mutationFn: async (send: boolean) => {
+      if (!video && gate?.dirty) await gate.save();
+      return api.approve(p.id, send);
+    },
+    onSuccess: onDone,
+    onSettled: () => setConfirming(false),
+  });
+  const blocked = !video && !!gate?.dirty && !gate.valid;
+  const pending = approve.isPending;
+  const channelNames = (channel?.postiz ?? []).map((id) => names.data?.find((c) => c.id === id)?.name ?? id);
   return (
-    <section className="flex flex-col border border-amber bg-panel">
-      <header className="flex h-10 shrink-0 items-center gap-2.5 border-b border-amber/35 bg-amber/12 px-4">
-        <Led status="review" />
-        <h2 className="font-mono text-[11px] leading-4 font-medium tracking-[0.06em] text-amber uppercase">{t.studio.review}</h2>
-      </header>
-      <div className="grid gap-3 p-4">
-        <h3 className="text-[15px] leading-[22px] font-semibold">{video ? t.review.video : t.review.script}</h3>
-        <p className="text-xs leading-[18px] text-muted-foreground">
-          {video ? t.review.videoHint : t.review.scriptHint}
-          {video && targets > 0 && ` ${t.review.videoHintSend(targets)}`}
-        </p>
-        {video && targets > 0 && p.dub?.needs_review && <p className="text-xs leading-[18px] text-muted-foreground">{t.dub.reviewNote}</p>}
-        {video && targets > 0 && p.ai?.needs_review && (
-          <p className="text-xs leading-[18px] text-muted-foreground">
-            {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
-          </p>
-        )}
-        <div className="grid gap-2">
+    <section aria-label={t.studio.review} className="shrink-0 border-b border-amber bg-amber/8">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3">
+        <div className="flex min-w-0 flex-1 basis-[22rem] items-start gap-3">
+          <Led status="review" className="mt-2" />
+          <div className="min-w-0 space-y-0.5">
+            <h2 className="text-[15px] leading-[22px] font-semibold">{video ? t.review.video : t.review.script}</h2>
+            <p className="text-xs leading-[18px] text-muted-foreground">
+              {video ? t.review.videoHint : t.review.scriptHint}
+              {video && targets > 0 && ` ${t.review.sendPlan(targets, mode)}`}
+              {video && targets > 0 && p.dub?.needs_review && ` ${t.dub.reviewNote}`}
+              {video && targets > 0 && p.ai?.needs_review && ` ${p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}`}
+            </p>
+            {blocked && <p className="text-xs leading-[18px] text-amber">{t.review.fixScript}</p>}
+            {approve.error && <p className="text-[13px] leading-5 text-coral">{approve.error.message}</p>}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {video ? (
             <>
-              <Button size="lg" onClick={() => approve.mutate(true)} disabled={approve.isPending}>
-                {approve.isPending && approve.variables ? <Loader2 className="animate-spin" /> : targets ? <Send /> : <CheckCheck />}
-                {targets ? t.review.approveSend : t.review.approve}
-              </Button>
               {targets > 0 && (
-                <Button size="lg" variant="secondary" onClick={() => approve.mutate(false)} disabled={approve.isPending}>
-                  {approve.isPending && !approve.variables ? <Loader2 className="animate-spin" /> : <Check />}
+                <Button variant="secondary" size="lg" onClick={() => approve.mutate(false)} disabled={pending}>
+                  {pending && !approve.variables ? <Loader2 className="animate-spin" /> : <Check />}
                   {t.review.approveNoSend}
                 </Button>
               )}
+              <Button
+                size="lg"
+                onClick={() => (publicNow ? setConfirming(true) : approve.mutate(true))}
+                disabled={pending}
+              >
+                {pending && approve.variables ? <Loader2 className="animate-spin" /> : targets ? <Send /> : <CheckCheck />}
+                {targets ? t.review.approveSend : t.review.approve}
+              </Button>
             </>
           ) : (
-            <Button size="lg" onClick={() => approve.mutate(true)} disabled={approve.isPending}>
-              {approve.isPending ? <Loader2 className="animate-spin" /> : <Play />}
-              {t.review.approveScript}
+            <Button size="lg" onClick={() => approve.mutate(true)} disabled={pending || blocked}>
+              {pending ? <Loader2 className="animate-spin" /> : <Play />}
+              {gate?.dirty ? t.review.saveApproveScript : t.review.approveScript}
             </Button>
           )}
-          {approve.error && <span className="text-[13px] text-coral">{approve.error.message}</span>}
         </div>
       </div>
+      <ConfirmAction
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t.publish.nowTitle}
+        body={t.publish.nowBody(channelNames)}
+        confirm={t.publish.nowConfirm}
+        icon={<Send />}
+        busy={pending}
+        onConfirm={() => approve.mutate(true)}
+      />
     </section>
+  );
+}
+
+/** Where a failed project stopped, why (the last ERROR line of the log) and the one thing to do. */
+function FailureBanner({ p, log, busy, onResume }: { p: ProjectDetail; log: string; busy: boolean; onResume: () => void }) {
+  const reason = [...log.split("\n")].reverse().map((ln) => /^\d\d:\d\d:\d\d (?:ERROR|LỖI): (.*)$/.exec(ln)?.[1]).find(Boolean);
+  return (
+    <section role="alert" className="shrink-0 border-b border-coral/60 bg-coral/10">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3">
+        <div className="flex min-w-0 flex-1 basis-[22rem] items-start gap-3">
+          <OctagonAlert className="mt-0.5 size-5 shrink-0 text-coral" />
+          <div className="min-w-0 space-y-0.5">
+            <h2 className="text-[15px] leading-[22px] font-semibold">{t.failure.title(p.step)}</h2>
+            {reason && <p className="line-clamp-3 text-[13px] leading-5 break-words">{reason}</p>}
+            <p className="text-xs leading-[18px] text-muted-foreground">{t.failure.hint}</p>
+          </div>
+        </div>
+        <Button size="lg" onClick={onResume} disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <Play />}
+          {t.failure.resume(t.projects.steps[p.retry.auto] ?? p.retry.auto)}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** Save the finished video, its 16:9 copy and the subtitles (works with a remote engine too). */
+function FilesCard({ api, p }: { api: Api; p: ProjectDetail }) {
+  const base = fileSlug(p.meta.title || p.title, `motio-${p.id}`);
+  const save = useMutation({ mutationFn: ({ rel, name }: { rel: string; name: string; key: string }) => saveFile(api.mediaUrl(rel, p.updated_at), name) });
+  const items = [
+    p.meta.video && { key: "video", label: t.files.video, rel: p.meta.video, name: `${base}.mp4` },
+    p.meta.wide && { key: "wide", label: t.files.wide, rel: p.meta.wide, name: `${base}-16x9.mp4` },
+    p.meta.video && { key: "srt", label: t.files.srt, rel: `projects/${p.id}/captions.srt`, name: `${base}.srt` },
+  ].filter(Boolean) as { key: string; label: string; rel: string; name: string }[];
+  return (
+    <Panel title={t.files.title} bodyClassName="grid gap-2">
+      {items.map((it) => (
+        <Button key={it.key} variant="secondary" className="w-full justify-start" onClick={() => save.mutate(it)} disabled={save.isPending}>
+          {save.isPending && save.variables?.key === it.key ? <Loader2 className="animate-spin" /> : <Download />}
+          {it.label}
+        </Button>
+      ))}
+      {save.error && <p className="text-[13px] text-coral">{save.error.message}</p>}
+    </Panel>
   );
 }
 
@@ -248,6 +341,7 @@ export default function ProjectDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [from, setFrom] = useState<RetryStep | null>(null); // null = bước hệ thống đề xuất
   const [view, setView] = useState<VideoVersion>("vertical"); // khổ đang xem khi có bản 16:9
+  const [gate, setGate] = useState<ScriptGate | null>(null); // the script form's unsaved edits, for the review bar
   const [time, setTime] = useState(0); // player position and length (seconds)
   const [length, setLength] = useState(0);
   const logRef = useRef<HTMLPreElement>(null);
@@ -372,8 +466,12 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
+      {status === "review" && p.status === "review" && (p.meta.review === "script" || p.meta.review === "video") && (
+        <ReviewBar api={api} p={p} channel={channel} gate={gate} onDone={refreshAll} />
+      )}
+      {p.status === "failed" && !active && <FailureBanner p={p} log={p.log} busy={retry.isPending} onResume={() => retry.mutate(null)} />}
       {retry.error && <p className="shrink-0 border-b px-6 py-2 text-[13px] text-coral">{retry.error.message}</p>}
-      {!active && p.has_script && REDO_SCRIPT.includes(from ?? p.retry.auto) && (
+      {!active && p.has_script && from !== null && REDO_SCRIPT.includes(from) && (
         <p className="flex shrink-0 items-center gap-2 border-b px-6 py-2 text-[13px] text-amber">
           <TriangleAlert className="size-4 shrink-0" />
           {t.projects.redoReplacesScript}
@@ -447,6 +545,8 @@ export default function ProjectDetailPage() {
               measured={marks}
               playhead={playable ? time : 0}
               onSeek={playable ? seek : undefined}
+              reviewing={p.status === "review" ? (p.meta.review ?? null) : null}
+              onGate={setGate}
             />
           )}
           {marks && lines && nar && (
@@ -471,7 +571,7 @@ export default function ProjectDetailPage() {
               {log.split("\n").map((ln, i) => {
                 const m = /^(\d\d:\d\d:\d\d) (.*)$/.exec(ln);
                 return m ? (
-                  <div key={i} className={/Waiting for|Chờ/.test(m[2]) ? "text-amber" : undefined}>
+                  <div key={i} className={/^(ERROR|LỖI):/.test(m[2]) ? "font-medium text-coral" : /Waiting for|Chờ/.test(m[2]) ? "text-amber" : undefined}>
                     <span className="text-muted-foreground">{m[1]}</span> {m[2]}
                   </div>
                 ) : (
@@ -483,11 +583,6 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="order-2 min-w-0 min-[1180px]:order-3 min-[1180px]:overflow-y-auto">
-          {status === "review" && p.status === "review" && (
-            <div className="border-b p-4">
-              <ReviewCard api={api} p={p} channel={channel} onDone={refreshAll} />
-            </div>
-          )}
           {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} held={p.status === "review" && p.meta.review === "video"} />}
 
           {post && (
@@ -508,8 +603,18 @@ export default function ProjectDetailPage() {
             </Panel>
           )}
 
+          {playable && <FilesCard api={api} p={p} />}
+
           {status === "done" && p.meta.video && (
-            <PublishCard api={api} projectId={p.id} history={p.meta.postiz ?? []} hasWide={!!p.meta.wide} onSent={() => refetch()} />
+            <PublishCard
+              api={api}
+              projectId={p.id}
+              channel={channel}
+              history={p.meta.postiz ?? []}
+              hasWide={!!p.meta.wide}
+              sendError={p.meta.send_error ?? null}
+              onSent={() => refetch()}
+            />
           )}
 
           {p.ai && (

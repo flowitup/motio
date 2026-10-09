@@ -334,7 +334,7 @@ def produce(cid: str, duration: int = 80, links_only: bool | None = None) -> int
     subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
     pid = topic.create(subject, [c["url"]], only, duration, rights if only else "unknown")
     db.set_clip_status(cid, "used", pid)
-    db.update_project(pid, log=tr("From New videos: {source} · {url}", source=c.get("watch_name") or c["site"],
+    db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]),
                       meta={"clip": cid})
     return pid
