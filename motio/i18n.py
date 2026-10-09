@@ -488,6 +488,7 @@ VI = {
     "Pictures ready for your review: {title}": "Ảnh chờ bạn xem: {title}",
     "camera moves": "chuyển động máy quay",
     "IMAGE_PROVIDER must be one of {choices}": "IMAGE_PROVIDER phải là một trong: {choices}",
+    "FAL_IMAGE_MODEL must be one of {choices}": "FAL_IMAGE_MODEL phải là một trong: {choices}",
     "CLIP_PROVIDER must be one of {choices}": "CLIP_PROVIDER phải là một trong: {choices}",
     "Add your fal key in Settings → Image provider (or choose the Placeholder provider to try the flow)":
         "Hãy nhập khoá fal trong Cài đặt → Nhà cung cấp ảnh (hoặc chọn Ảnh giữ chỗ để thử luồng này)",

@@ -266,7 +266,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
 | `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
-| `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
+| `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the fal model: `qwen` (default, Qwen-Image 2512) / `flux-schnell` / `flux-dev` / `flux-pro` / `seedream` (only `qwen` is cleared for monetized channels, any other stops at the video gate); the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.

@@ -1291,3 +1291,43 @@ def test_real_clip_loses_its_sound_and_a_long_scene_holds_the_last_frame(monkeyp
     assert [t["motion"] for t in timeline] == ["", "pan_right"] and timeline[0]["dur"] == pytest.approx(9.0)
     early, late = _frame(res["video"], 1.0, tmp_path / "a.png"), _frame(res["video"], 4.0, tmp_path / "b.png")
     assert ImageChops.difference(early, late).getbbox()  # the clip plays
+
+
+def test_fal_model_is_picked_in_settings_and_named_in_the_provider(monkeypatch, tmp_path):
+    sent = _fal(monkeypatch)
+    assert images.provider() == "fal" and images.needs_review() is False  # default model: cleared, name unchanged
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "flux-dev")
+    assert images.provider() == "fal:flux-dev" and images.needs_review() is True  # not cleared: the video gate
+    assert images.cost(2) == 0.104 and images.cost(2, "fal") == 0.084
+    images.check_ready()
+    path, new = images.make("A panda.", 7, tmp_path)
+    body = json.loads(sent[0].content)
+    assert new and sent[0].url.path == "/fal-ai/flux/dev" and body["seed"] == 7
+    assert images.make("A panda.", 7, tmp_path, "fal")[0] != path  # another model: another picture, not the cache
+    assert images.key("A", 1, "fal:flux-dev") != images.key("A", 1, "fal")
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "nope")  # unknown alias: the default
+    assert images.provider() == "fal"
+
+
+def test_fal_pro_uses_its_own_safety_field_and_portraits_stay_on_the_edit_model(monkeypatch, tmp_path):
+    sent = _fal(monkeypatch)
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "flux-pro")
+    images.make("A panda.", 1, tmp_path)
+    body = json.loads(sent[0].content)
+    assert sent[0].url.path == "/fal-ai/flux-pro/v1.1" and body["safety_tolerance"] == "2"
+    assert "enable_safety_checker" not in body
+    ref = tmp_path / "ref.png"
+    Image.new("RGB", (64, 64), "red").save(ref)
+    images.make("A panda.", 1, tmp_path / "r", refs=[("k", ref)])
+    edit = json.loads(sent[2].content)
+    assert sent[2].url.path == "/fal-ai/qwen-image-edit-2511" and edit["enable_safety_checker"] is True
+    assert "safety_tolerance" not in edit and images.base("fal:flux-pro") == "fal"
+
+
+def test_fal_model_setting_is_validated(monkeypatch):
+    from motio import settings
+    out = settings.update({"FAL_IMAGE_MODEL": "seedream"})
+    assert out["FAL_IMAGE_MODEL"]["value"] == "seedream" and images.provider() == "fal:seedream"
+    with pytest.raises(ValueError, match="FAL_IMAGE_MODEL must be one of qwen, flux-schnell"):
+        settings.update({"FAL_IMAGE_MODEL": "dalle"})
+    settings.update({"FAL_IMAGE_MODEL": None})

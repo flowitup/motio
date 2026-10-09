@@ -28,7 +28,8 @@ as authoritative for scope and milestones.
     video waits in `meta.review == "shots"`; each shot is approved by the key of its current picture (a new prompt, seed, style or
     provider un-approves it), redone at once (only that picture is made), a picture the provider cannot make is noted instead of
     stopping the step, and "continue" runs the voice and render (`/api/projects/{id}/shots/*`, `ShotsCard` in the app)
-  - `images.py` AI pictures behind one adapter: fal `qwen-image-2512` (default) / Modal `qwen21-uc` / placeholder; a
+  - `images.py` AI pictures behind one adapter: fal (model picked in Settings, `FAL_IMAGE_MODEL`: `qwen-image-2512` default; any other is the provider name
+    `fal:<model>` with its own cache and the video gate forced) / Modal `qwen21-uc` / placeholder; a
     picture is cached by (provider, size, seed, prompt, reference portraits) in `out/scenes/`, so only a new or edited scene
     is made again; a picture made from reference portraits (same faces) goes to fal `qwen-image-edit-2511` (Apache 2.0)
   - `aiclips.py` AI clips for AI videos: a scene's picture becomes a 5 s clip (fal `minimax/h3-max/image-to-video`, or
@@ -135,7 +136,7 @@ on every PR; keep them green.
   `video_made_with_ai`). The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
   unless they ask.
 - AI video (`motio/creator.py`): every post keeps "Voix off générée par IA." and adds "Images générées par IA." (the
-  platforms' AI flags stay on). Only Qwen-Image-2512 on fal (Apache 2.0) is cleared for a monetized channel: a video
+  platforms' AI flags stay on). Only Qwen-Image-2512 on fal (Apache 2.0) is cleared for a monetized channel (`images.CLEARED_FAL_MODELS`; the other fal models in Settings have licences not read yet): a video
   made with the Modal provider (Qwen Research Licence, no safety filter) or the placeholder always stops at the video
   gate (`images.REVIEW_PROVIDERS`), and the pictures are made right before the voice so a script gate stops before any
   picture is paid for. Never make a picture of a real, recognizable person. AI clips (`motio/aiclips.py`, channel profile

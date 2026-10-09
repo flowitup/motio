@@ -40,6 +40,7 @@ import { useProjectEvents } from "@/hooks/use-project-events";
 import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights, type VideoVersion } from "@/lib/api";
 import { fileSlug, saveFile } from "@/lib/download";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
+import { imageProviderLabel } from "@/lib/image-models";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -628,7 +629,7 @@ export default function ProjectDetailPage() {
                 </div>
               )}
               <div className="text-muted-foreground">
-                {t.ai.provider}: {t.ai.providers[p.ai.provider] ?? p.ai.provider}
+                {t.ai.provider}: {imageProviderLabel(p.ai.provider)}
                 {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
                 {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}${p.ai.clip_provider ? ` (${t.ai.clipProviders[p.ai.clip_provider] ?? p.ai.clip_provider})` : ""}`}
                 {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}

@@ -510,6 +510,13 @@ const en = {
     make: "Make AI video",
     card: "AI video",
     provider: "Pictures from",
+    falModels: {
+      qwen: "Qwen-Image 2512",
+      "flux-schnell": "FLUX.1 schnell",
+      "flux-dev": "FLUX.1 dev",
+      "flux-pro": "FLUX 1.1 pro",
+      seedream: "Seedream 4",
+    } as Record<string, string>,
     providers: {
       fal: "fal (Qwen-Image 2512)",
       modal: "Modal (your Qwen 2.1 app)",
@@ -760,6 +767,9 @@ const en = {
     imageProvider: "Picture provider",
     imageProviderHint:
       "Used by AI videos. fal (Qwen-Image 2512, about $0.04 a picture) is fine for monetized channels. Modal (your Qwen 2.1 app) runs only from the dev engine or a server and isn't licensed for monetized channels; the placeholder draws gradient cards to try the flow. Videos from those two stop at the video approval.",
+    falModel: "fal picture model",
+    falModelHint:
+      "Used when the provider is fal. Qwen-Image 2512 is the only model cleared for monetized channels: a video made with another model stops at the video approval. Prices are estimates for a 1088×1920 picture.",
     imageStyle: "Picture style",
     imageStyleHint: "Added to every picture prompt (English). Leave empty for the default photographic style.",
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
@@ -1466,6 +1476,13 @@ const vi: Messages = {
     make: "Làm video AI",
     card: "Video AI",
     provider: "Ảnh từ",
+    falModels: {
+      qwen: "Qwen-Image 2512",
+      "flux-schnell": "FLUX.1 schnell",
+      "flux-dev": "FLUX.1 dev",
+      "flux-pro": "FLUX 1.1 pro",
+      seedream: "Seedream 4",
+    } as Record<string, string>,
     providers: {
       fal: "fal (Qwen-Image 2512)",
       modal: "Modal (app Qwen 2.1 của bạn)",
@@ -1716,6 +1733,9 @@ const vi: Messages = {
     imageProvider: "Nhà cung cấp ảnh",
     imageProviderHint:
       "Dùng cho video AI. fal (Qwen-Image 2512, khoảng $0,04 một ảnh) dùng được cho kênh kiếm tiền. Modal (app Qwen 2.1 của bạn) chỉ chạy từ engine dev hoặc server và không có giấy phép cho kênh kiếm tiền; ảnh giữ chỗ vẽ thẻ chuyển màu để thử luồng này. Video từ hai loại đó dừng ở bước duyệt video.",
+    falModel: "Model ảnh fal",
+    falModelHint:
+      "Dùng khi nhà cung cấp là fal. Chỉ Qwen-Image 2512 đã được duyệt cho kênh kiếm tiền: video làm bằng model khác sẽ dừng ở bước duyệt video. Giá là ước tính cho một ảnh 1088×1920.",
     imageStyle: "Phong cách ảnh",
     imageStyleHint: "Được thêm vào mọi prompt ảnh (tiếng Anh). Để trống thì dùng phong cách ảnh chụp mặc định.",
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
