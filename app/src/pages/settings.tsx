@@ -185,12 +185,18 @@ function HealthCard({ api }: { api: Api }) {
   const rows: [string, ReactNode][] = [
     [t.settings.version, h.version],
     [t.settings.platform, `${h.platform.system} ${h.platform.machine} · Python ${h.platform.python}`],
-    ["LLM", `${h.providers.llm.provider} · ${h.providers.llm.model}`],
+    [
+      "LLM",
+      h.providers.llm.key ? (
+        `${h.providers.llm.model} · ${h.providers.llm.fast_model}`
+      ) : (
+        <span className="text-destructive">{t.settings.llmNoKey}</span>
+      ),
+    ],
     ["TTS", h.providers.tts ?? <span className="text-destructive">{t.settings.none}</span>],
     ["ASR", `${h.providers.asr.engine} · ${h.providers.asr.model}`],
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
     [t.settings.jsRuntime, h.js_runtime ?? <span className="text-destructive">{t.settings.jsRuntimeMissing}</span>],
-    ["claude CLI", h.claude_cli ?? <span className="text-muted-foreground">{t.settings.notFound}</span>],
     ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
     [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
@@ -264,19 +270,13 @@ function SettingsForm({ api }: { api: Api }) {
           <CardTitle>{t.settings.llm}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label={t.settings.provider} hint={src("LLM_PROVIDER")}>
-            <Choice
-              value={val("LLM_PROVIDER") || "claude_cli"}
-              onChange={(v) => set("LLM_PROVIDER", v)}
-              options={[
-                ["claude_cli", "Claude Code (claude -p)"],
-                ["anthropic", "Anthropic API"],
-              ]}
-            />
-          </Field>
           <Field label={t.settings.model} hint={src("LLM_MODEL")}>
-            {text("LLM_MODEL", "sonnet")}
+            {text("LLM_MODEL", "claude-opus-5-5")}
           </Field>
+          <Field label={t.settings.modelFast} hint={src("LLM_MODEL_FAST")}>
+            {text("LLM_MODEL_FAST", "claude-haiku-5-5")}
+          </Field>
+          <p className="text-sm text-muted-foreground sm:col-span-2">{t.settings.modelHint}</p>
         </CardContent>
       </Card>
 

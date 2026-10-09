@@ -245,9 +245,20 @@ VI = {
     "Could not delete the file ({error}). Close the open video and try again.":
         "Không xoá được file ({error}). Đóng video đang mở rồi thử lại.",
     # llm
-    "Unsupported LLM_PROVIDER: {provider}": "LLM_PROVIDER không hỗ trợ: {provider}",
-    "claude -p failed ({code}): {error}": "claude -p lỗi ({code}): {error}",
-    "claude -p did not return JSON: {output}": "claude -p trả về không phải JSON: {output}",
+    "No Anthropic API key: add ANTHROPIC_API_KEY in Settings":
+        "Chưa có khoá Anthropic API: nhập ANTHROPIC_API_KEY trong Cài đặt",
+    "The Anthropic API key was refused: check ANTHROPIC_API_KEY in Settings":
+        "Anthropic từ chối khoá API: kiểm tra ANTHROPIC_API_KEY trong Cài đặt",
+    "The Anthropic API key cannot use {model}": "Khoá Anthropic API không dùng được model {model}",
+    "Unknown Claude model: {model}": "Không có model Claude này: {model}",
+    "Anthropic API rate limit reached: try again in a minute":
+        "Anthropic API đang giới hạn tốc độ: thử lại sau một phút",
+    "Could not reach the Anthropic API: check the internet connection":
+        "Không kết nối được Anthropic API: kiểm tra mạng",
+    "Anthropic API error {code}: {error}": "Anthropic API lỗi {code}: {error}",
+    "Claude declined this request: change the topic or the source and try again":
+        "Claude từ chối yêu cầu này: đổi chủ đề hoặc nguồn rồi thử lại",
+    "Claude ran out of tokens before answering": "Claude hết token trước khi trả lời",
     "No JSON found in the reply: {text}": "Không thấy JSON trong câu trả lời: {text}",
     "Invalid JSON after {n} attempts: {error}": "JSON không hợp lệ sau {n} lần: {error}",
     # postiz

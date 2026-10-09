@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS channel (
 );
 CREATE TABLE IF NOT EXISTS usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  at REAL, kind TEXT,             -- tts (ElevenLabs), clip (fal); motio/usage.py
+  at REAL, kind TEXT,             -- tts (ElevenLabs), clip (fal), llm (Claude API); motio/usage.py
   chars INTEGER, usd REAL,        -- số ký tự đã gửi, tiền ước lượng lúc gọi
   project_id INTEGER, channel_id INTEGER, ref TEXT,  -- dự án / kênh đang chạy; ref: công cụ lẻ ("tool:<job>")
   model TEXT, voice TEXT
@@ -67,12 +67,15 @@ def conn() -> sqlite3.Connection:
 
 
 # Columns added after a table first shipped: installed databases get them with ALTER TABLE.
-NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER"}}
+NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER"},
+               "usage": {"tokens_in": "INTEGER", "tokens_out": "INTEGER"}}
 
 
 def _migrate(c: sqlite3.Connection) -> None:
     for table, cols in NEW_COLUMNS.items():
         have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        if not have:  # table not created yet (an old database in a test, for example)
+            continue
         for name, decl in cols.items():
             if name not in have:
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
@@ -207,11 +210,11 @@ def projects_since(ts: float) -> list[dict]:
 
 
 def add_usage(kind: str, chars: int, usd: float, project_id: int | None, channel_id: int | None, ref: str | None,
-              model: str, voice: str) -> None:
+              model: str, voice: str, tokens_in: int = 0, tokens_out: int = 0) -> None:
     with _lock, conn() as c:
-        c.execute("INSERT INTO usage (at, kind, chars, usd, project_id, channel_id, ref, model, voice) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                  (time.time(), kind, chars, usd, project_id, channel_id, ref, model, voice))
+        c.execute("INSERT INTO usage (at, kind, chars, usd, project_id, channel_id, ref, model, voice, tokens_in, "
+                  "tokens_out) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  (time.time(), kind, chars, usd, project_id, channel_id, ref, model, voice, tokens_in, tokens_out))
 
 
 def usage_sum(since: float, project_id: int | None = None, kind: str | None = None) -> tuple[int, float]:

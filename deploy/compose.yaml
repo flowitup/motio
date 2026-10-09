@@ -41,11 +41,10 @@ services:
     restart: unless-stopped
     environment:
       MOTIO_TOKEN: ${MOTIO_TOKEN:?set MOTIO_TOKEN in .env}
-      # Không có Claude Code CLI trên server: mặc định dùng Claude API (ANTHROPIC_API_KEY).
-      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      # Mọi lệnh gọi Claude đi qua API (ANTHROPIC_API_KEY).
       LLM_MODEL: ${LLM_MODEL:-}
+      LLM_MODEL_FAST: ${LLM_MODEL_FAST:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
       ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-}

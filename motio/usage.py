@@ -1,8 +1,9 @@
 """Chi phí và thống kê: mỗi lần gọi ElevenLabs ghi một dòng vào bảng usage (số ký tự, tiền ước lượng, dự án / kênh
 đang chạy), rồi gom theo ngày, tháng và kênh cho trang Stats.
 
-`claude -p` tính vào gói Claude của chủ máy, không có tiền theo lượt nên không ghi. Giá theo Cài đặt
-(ELEVENLABS_USD_PER_1K_CHARS, mặc định gói Creator); mô hình flash / turbo chỉ tính nửa giá. Ngân sách tháng
+Mỗi lần gọi Claude API (motio/llm.py) ghi một dòng kind "llm" (token, tiền theo PRICES).
+Giá giọng theo Cài đặt (ELEVENLABS_USD_PER_1K_CHARS, mặc định gói Creator); mô hình flash / turbo chỉ tính
+nửa giá. Ngân sách tháng
 (MONTHLY_BUDGET_USD) chỉ cảnh báo trên trang Stats và dừng việc tự làm video (automake); bấm làm tay không bị chặn.
 """
 import contextlib
@@ -16,6 +17,12 @@ DEFAULT_PRICE = 0.22  # USD cho 1000 ký tự (đơn giá gói Creator của Ele
 DEFAULT_CLIP_PRICE = 0.08  # USD mỗi giây clip AI ở 768P (fal, MiniMax H3 Max)
 # HeyGen Video 1 (768p): 0.01 đến hết tháng 10/2026, giá thường 0.02: tính theo giá thường cho khỏi hụt ngân sách
 DEFAULT_CLIP_PRICES = {"fal": DEFAULT_CLIP_PRICE, "heygen": 0.02}
+# Claude API, USD per million tokens (input, output) by model-id prefix; the first match wins. Prices cached 2026-10.
+PRICES = (("claude-fable", (10.0, 50.0)), ("claude-mythos", (10.0, 50.0)), ("claude-opus-5-5", (4.0, 20.0)),
+          ("claude-opus", (5.0, 25.0)), ("claude-sonnet-5", (2.0, 10.0)), ("claude-sonnet", (3.0, 15.0)),
+          ("claude-haiku-5", (0.1, 0.5)), ("claude-haiku", (1.0, 5.0)))
+DEFAULT_LLM_PRICE = (3.0, 15.0)  # unknown model: assume a mid-priced one rather than count it as free
+CACHE_WRITE, CACHE_READ = 1.25, 0.1  # multiples of the input price
 HALF_PRICE = ("flash", "turbo")  # mô hình tính 0,5 tín dụng / ký tự
 WARN_AT = 0.8  # cảnh báo khi đã dùng 80 % ngân sách tháng
 WINDOW_DAYS = 30
@@ -73,7 +80,18 @@ def record_clip(seconds: float, model: str, provider: str | None = None) -> None
         _add("clip", 0, seconds * clip_price(provider), model, "")
 
 
-def _add(kind: str, chars: int, usd: float, model: str, voice: str) -> None:
+def llm_cost(model: str, tokens_in: int, tokens_out: int, cache_write: int = 0, cache_read: int = 0) -> float:
+    pin, pout = next((p for prefix, p in PRICES if model.startswith(prefix)), DEFAULT_LLM_PRICE)
+    return (tokens_in * pin + cache_write * pin * CACHE_WRITE + cache_read * pin * CACHE_READ + tokens_out * pout) / 1e6
+
+
+def record_llm(model: str, tokens_in: int, tokens_out: int, cache_write: int = 0, cache_read: int = 0) -> None:
+    """Ghi một lần gọi Claude API (token vào gồm cả token cache). Không ghi được thì bỏ qua như record_tts."""
+    usd = llm_cost(model, tokens_in, tokens_out, cache_write, cache_read)
+    _add("llm", 0, usd, model, "", tokens_in + cache_write + cache_read, tokens_out)
+
+
+def _add(kind: str, chars: int, usd: float, model: str, voice: str, tokens_in: int = 0, tokens_out: int = 0) -> None:
     c = _ctx.get() or {}
     pid = c.get("project_id")
     cid = c.get("channel_id")
@@ -81,7 +99,7 @@ def _add(kind: str, chars: int, usd: float, model: str, voice: str) -> None:
         proj = db.get_project(pid)
         cid = ((proj or {}).get("meta") or {}).get("channel")
     with contextlib.suppress(Exception):
-        db.add_usage(kind, chars, round(usd, 6), pid, cid, c.get("ref"), model, voice)
+        db.add_usage(kind, chars, round(usd, 6), pid, cid, c.get("ref"), model, voice, tokens_in, tokens_out)
 
 
 def _month_start(now: float) -> float:

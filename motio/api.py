@@ -31,6 +31,7 @@ from . import (
     delogo,
     dub,
     edit,
+    llm,
     localfile,
     newsnow,
     notify,
@@ -318,22 +319,20 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     # ---------- hệ thống ----------
     @app.get("/api/health", dependencies=[Depends(auth)])
     def health():
-        claude = config.find("claude")
         return {
             "version": __version__,
             "platform": {"system": platform.system(), "machine": platform.machine(),
                          "python": platform.python_version()},
             "headless": headless,
             "providers": {
-                "llm": {"provider": config.env("LLM_PROVIDER", "claude_cli"),
-                        "model": config.env("LLM_MODEL", "sonnet")},
+                "llm": {"provider": "anthropic", "model": llm.model_for(), "fast_model": llm.model_for(light=True),
+                        "key": bool((config.env("ANTHROPIC_API_KEY") or "").strip())},
                 "tts": tts.provider(),
                 "asr": {"engine": asr.engine_name(), "model": asr.model_name()},
             },
             "ffmpeg": config.find("ffmpeg"),
             "ffprobe": config.find("ffprobe"),
             "js_runtime": next(iter(config.js_runtimes().values()), {}).get("path"),
-            "claude_cli": claude,
             "postiz": postiz.configured(),
             "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),

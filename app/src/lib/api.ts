@@ -297,14 +297,13 @@ export type Health = {
   platform: { system: string; machine: string; python: string };
   headless: boolean;
   providers: {
-    llm: { provider: string; model: string };
+    llm: { provider: string; model: string; fast_model: string; key: boolean };
     tts: string | null;
     asr: { engine: string; model: string };
   };
   ffmpeg: string | null;
   ffprobe: string | null;
   js_runtime: string | null;
-  claude_cli: string | null;
   postiz: boolean;
   quota_left: number | null;
   data_dir: string;

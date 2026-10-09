@@ -67,7 +67,7 @@ def _search_dirs() -> list[Path]:
     if IS_WIN:
         local = Path(os.getenv("LOCALAPPDATA") or home / "AppData/Local")
         appdata = Path(os.getenv("APPDATA") or home / "AppData/Roaming")
-        dirs += [local / "Microsoft/WinGet/Links", local / "Programs/claude", appdata / "npm",
+        dirs += [local / "Microsoft/WinGet/Links", appdata / "npm",
                  home / "scoop/shims", Path("C:/ProgramData/chocolatey/bin"), Path("C:/ffmpeg/bin")]
     elif IS_MAC:
         dirs += [Path("/opt/homebrew/bin"), Path("/usr/local/bin")]

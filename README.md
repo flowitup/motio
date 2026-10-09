@@ -197,8 +197,8 @@ cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) o
 
 `tauri build` / `tauri dev` need the folder `app/src-tauri/resources/motio-engine/` (it can stay empty for dev: the
 debug build still runs the engine with `uv` from the repo). Packaged builds keep their data in
-`~/Library/Application Support/Motio` (macOS) or `%APPDATA%\Motio` (Windows). `claude -p` still needs Claude Code
-installed on the machine; without it, pick "Anthropic API" in Settings.
+`~/Library/Application Support/Motio` (macOS) or `%APPDATA%\Motio` (Windows). Claude is called through the Anthropic API only: enter `ANTHROPIC_API_KEY` in Settings
+(no Claude Code install needed).
 
 - **CI** (`.github/workflows/ci.yml`, on every PR and every push to `master`): the engine runs `ruff check` + `pytest`
   on Ubuntu and Windows; the app runs `pnpm build` (tsc + vite) and `cargo clippy`.
@@ -233,7 +233,7 @@ Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and `/api/pro
 `deploy/` holds the Docker Compose stack for the engine + [Postiz](https://postiz.com) (automatic posting) behind
 Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the server. Steps:
 [docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
-defaults to `LLM_PROVIDER=anthropic`. Channel posting times use the server's `TZ` (default `Europe/Paris`).
+uses the same Claude API key. Channel posting times use the server's `TZ` (default `Europe/Paris`).
 
 ## Running on a Windows PC at home
 
@@ -249,9 +249,9 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 
 | Variable | Meaning |
 |---|---|
-| `LLM_PROVIDER` | `claude_cli` (Claude Code on the Mac, uses your Claude plan) or `anthropic` (API key, for the server) |
-| `LLM_MODEL` | `sonnet` / `opus` with claude_cli; full model ID via `ANTHROPIC_MODEL` with anthropic |
-| `ANTHROPIC_API_KEY` | API key for the `anthropic` provider (never passed to `claude -p`) |
+| `ANTHROPIC_API_KEY` | Claude API key (required: every script, translation and score is an API call, billed per token) |
+| `LLM_MODEL` | Main model for scripts, translations and AI scenes (default `claude-opus-5-5`; `sonnet` / `opus` / `haiku` still mean the current Claude 5.5 model) |
+| `LLM_MODEL_FAST` | Fast model for scoring trends / new videos and picking sources (default `claude-haiku-5-5`) |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to let the app pick a French voice from the account |
 | `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
@@ -267,7 +267,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
 | `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
 | `IMAGE_PROVIDER`, `FAL_KEY`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
-| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_CLAUDE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.
 
@@ -277,7 +277,7 @@ Data (SQLite, source videos, projects) lives in `data/`.
 motio/newsnow.py   fetch hot topics + translate + score
 motio/search.py    yt-dlp search (YouTube, Bilibili) / download of sources, pasted links included (keeps platform, channel, license)
 motio/asr.py       Whisper (mlx on the Mac, faster-whisper elsewhere)
-motio/llm.py       claude -p or the Claude API
+motio/llm.py       Claude API (Anthropic SDK), cost recorded per call
 motio/tts.py       ElevenLabs with timestamps (macOS voice when there is no key)
 motio/render.py    9:16 render (+ 16:9 copy): Pillow draws the text, FFmpeg composes
 motio/captions.py  French karaoke captions (≤ 42 characters per line), exports captions.srt / captions.ass

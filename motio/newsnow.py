@@ -77,7 +77,7 @@ def refresh(sources: list[str] | None = None, per_source: int = 15) -> dict:
         lines = "\n".join(json.dumps({"id": it["id"], "source": SOURCE_NAMES.get(it["source"], it["source"]),
                                       "rang": it["rank"], "titre": it["title_zh"]}, ensure_ascii=False)
                           for it in batch)
-        result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low")
+        result = llm.ask_json(SCORE_PROMPT.format(items=lines), SCORE_SYSTEM, effort="low", light=True)
         by_id = {r.get("id"): r for r in result if isinstance(r, dict)}
         for it in batch:
             r = by_id.get(it["id"], {})
