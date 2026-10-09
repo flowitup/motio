@@ -67,8 +67,9 @@ def _text(p: dict, event: str, sent: bool | None, error: str) -> str:
     where = f" · {escape(ch['name'])}" if ch else ""
     if event == "review":
         text = ":eyes: " + tr("Script ready for your approval: {title}" if meta.get("review") == "script"
+                              else "Pictures ready for your review: {title}" if meta.get("review") == "shots"
                               else "Video ready for your approval: {title}", title=title) + where
-        if meta.get("review") != "script" and qa.failed(p):  # held by the quality check: say what it found
+        if meta.get("review") == "video" and qa.failed(p):  # held by the quality check: say what it found
             problems = " · ".join(c["msg"] for c in meta["qa"]["checks"] if c["level"] == "fail")
             text += "\n" + tr("Quality check failed: {problems}", problems=escape(problems[:300]))
         return text

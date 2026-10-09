@@ -29,6 +29,7 @@ import { Choice } from "@/components/form";
 import { Monitor } from "@/components/monitor";
 import { PublishCard } from "@/components/publish-card";
 import { ScriptCard, type ScriptGate } from "@/components/script-card";
+import { ShotsCard } from "@/components/shots-card";
 import { StatusChip } from "@/components/status-chip";
 import { Kicker, Led, PageTitle, Panel } from "@/components/studio";
 import { TimelineStrip, lineAt, mmss, useNarration, type Mark } from "@/components/timeline";
@@ -536,6 +537,7 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="order-3 min-w-0 border-r min-[1180px]:order-2 min-[1180px]:overflow-y-auto">
+          {p.status === "review" && p.meta.review === "shots" && <ShotsCard api={api} id={p.id} onQueued={refreshAll} />}
           {p.has_script && (
             <ScriptCard
               api={api}

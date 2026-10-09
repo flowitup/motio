@@ -64,11 +64,12 @@ def main(argv: list[str]) -> None:
         print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
-    elif cmd == "ai":  # ai "<chủ đề>" [giây] [số clip AI]: video làm hoàn toàn bằng ảnh AI (+ vài cảnh là clip AI)
+    elif cmd == "ai":  # ai "<chủ đề>" [giây] [số clip AI] [review]: video toàn ảnh AI (+ vài clip AI)
         from . import channels, creator, pipeline
+        rest = [a for a in argv[2:] if a != "review"]  # "review": stop after the pictures (then `approve`)
         try:
-            pid = creator.create(argv[1] if len(argv) > 1 else "", int(argv[2]) if len(argv) > 2 else 80,
-                                 int(argv[3]) if len(argv) > 3 else None)
+            pid = creator.create(argv[1] if len(argv) > 1 else "", int(rest[0]) if rest else 80,
+                                 int(rest[1]) if len(rest) > 1 else None, review_shots="review" in argv[2:])
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))
@@ -125,6 +126,15 @@ def main(argv: list[str]) -> None:
         review = (db.get_project(pid) or {"meta": {}})["meta"].get("review")
         if review == "script":
             db.update_project(pid, log="Script approved", meta={"review": None})
+            pipeline.produce(pid, start="voice")
+        elif review == "shots":
+            from . import shots
+            try:
+                shots.approve_all(pid)
+                shots.check_continue(pid)
+            except (ValueError, shots.NotWaiting) as e:
+                sys.exit(str(e))
+            db.update_project(pid, log="Pictures approved", meta={"review": None})
             pipeline.produce(pid, start="voice")
         elif review == "video":
             pipeline.approve_video(pid, send=argv[2:3] != ["nosend"])

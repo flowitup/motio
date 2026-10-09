@@ -569,6 +569,40 @@ project files. Built in this batch:
 - Not included: consistent characters across clips and a series with many episodes (chosen by the owner for next), hints for
   Whisper in Chinese and a glossary for dubs, Douyin keyword search or author lists.
 
+## AI film studio: picture review (added 03/10/2026)
+
+The owner showed the shot-review screen of another app (idea → shots, same characters and style, redo one shot, approve, then
+assemble the film) and asked for those features inside Motio, with no call to that app. Brainstorm, with what Motio already
+had and the later steps: `plans/brainstorm-261003-poiiky.md` in the project files. Films of 15–20 minutes cut into 62–90 s
+parts are the next steps (chapter script, voice and render per chapter, parts scheduled through Postiz); this part is the
+review screen they all need.
+
+- **Option "Review the pictures first"** (New video → AI video, on by default in the app; `POST /api/ai {review_shots}`, CLI
+  `ai "<topic>" [seconds] [clips] review`; off for the API and CLI unless asked, so nothing changes for old callers). After the
+  script (and the channel's script gate) the pictures are made, then the project waits in `meta.review == "shots"` before the
+  voice is paid for.
+- **Per shot:** approve, take the approval back, redo at once (a new seed, or an edited prompt; only that picture is made and
+  paid for). A shot is approved by the key of its current picture, so a changed prompt, seed, video style or provider
+  un-approves it. A picture the provider cannot make is noted (`meta.ai.shots.failed`) and the other pictures go on; "redo
+  failed" makes the failed and missing ones again. **Continue** (all approved) runs the voice and render as the script gate does.
+- **Where:** `motio/shots.py`, `pipeline._voice_render_post`, `/api/projects/{id}/shots/*`, `ShotsCard` in the app, Slack
+  "pictures ready for your review", CLI `approve` (approves every made picture and goes on).
+- **Same faces and a per-video cast (added 04/10/2026, owner's "làm đi").** The AI video form has a *Characters* box (one
+  `Name: look` line per fictional character, added to the channel's cast, `meta.ai.cast`) and *Same faces in every scene* (on
+  by default, `meta.ai.same_face`). With it, each character gets one reference portrait (`out/cast/`, made once with the
+  normal model, cached by its prompt and seed) and every scene that names characters (up to 3) is made from their portraits
+  with fal `qwen-image-edit-2511` (Apache 2.0 like Qwen-Image-2512, so fal stays cleared for monetized channels; the safety
+  checker stays on; ~$0.063 a scene instead of ~$0.042, estimated from ~$0.03 per megapixel). The portrait keys are part of
+  the scene's cache key, so a new portrait or a new look redraws only the scenes that show that character. The picture review
+  shows the portraits above the shots: *New portrait* (new seed) or *Look* (edit, then redo), made at once; the scenes that
+  show the character then wait for "Make the missing pictures". Modal has no such model, so its scenes stay text only; the
+  placeholder pastes the portraits on its card. Still fictional people only (the cast hint says so).
+- Not included: a channel-level default for the option, a second review of pictures the voice step makes after rewriting the
+  script (rare: only when the first voice is outside 62–90 s), adding a character from the review screen, the long-film mode.
+- Not verified: real fal pictures through the review (tests use the placeholder and a fake transport), how well
+  `qwen-image-edit-2511` really keeps a face from one portrait, its exact price, and whether fal takes a data URI for
+  `image_urls` as documented; the screen in a real Tauri window on Mac / Windows.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

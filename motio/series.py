@@ -41,6 +41,25 @@ def parse_cast(text: str, strict: bool = False) -> dict[str, str]:
     return dict(list(cast.items())[:MAX_CAST])
 
 
+def merge(*casts: dict[str, str]) -> dict[str, str]:
+    """The channel's cast with the video's own on top: a name used again (any case) takes the later look, and the
+    first MAX_CAST characters are kept."""
+    out: dict[str, str] = {}
+    for cast in casts:
+        for name, look in (cast or {}).items():
+            same = next((k for k in out if k.casefold() == name.casefold()), None)
+            if same:
+                del out[same]
+            out[name] = look
+    return dict(list(out.items())[:MAX_CAST])
+
+
+def for_project(ch: dict | None, proj: dict) -> dict[str, str]:
+    """The cast of an AI video: the channel's characters plus the ones typed for this video."""
+    own = (((proj.get("meta") or {}).get("ai") or {}).get("cast")) or ""
+    return merge(parse_cast((ch or {}).get("cast") or ""), parse_cast(own))
+
+
 def named(prompt_text: str, cast: dict[str, str]) -> list[str]:
     """The characters a picture prompt names (whole words, any case), in the order of the cast."""
     return [name for name in cast if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", prompt_text or "", re.I)]
@@ -71,16 +90,15 @@ def earlier(channel: int, pid: int) -> list[dict]:
     return out
 
 
-def block(ch: dict | None, pid: int) -> tuple[str, int | None]:
-    """(text added to the AI script prompt, episode number). ("", None) for a channel with no series and no cast."""
-    if not ch:
-        return "", None
-    cast = parse_cast(ch.get("cast") or "")
-    story = str(ch.get("series") or "").strip()
+def block(ch: dict | None, pid: int, cast: dict[str, str] | None = None) -> tuple[str, int | None]:
+    """(text added to the AI script prompt, episode number). ("", None) with no series and no cast. `cast`: the
+    video's whole cast (for_project); None = the channel's."""
+    cast = parse_cast((ch or {}).get("cast") or "") if cast is None else cast
+    story = str((ch or {}).get("series") or "").strip()
     if not cast and not story:
         return "", None
     parts, episode = [], None
-    if story:
+    if story and ch:
         past = earlier(ch["id"], pid)
         episode = max((e["n"] for e in past), default=0) + 1
         parts.append(f"Série « {ch['name']} », épisode {episode}. Cadre de la série (à respecter) :\n{story}")

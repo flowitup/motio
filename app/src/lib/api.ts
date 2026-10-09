@@ -141,7 +141,7 @@ export type ProjectMeta = {
   auto?: boolean; // tự làm vì tin đạt điểm của kênh
 };
 
-export type Review = "script" | "video";
+export type Review = "script" | "shots" | "video";
 export type SendMode = PublishMode;
 
 /** Hồ sơ một kênh đăng: nhãn, giọng văn, giọng đọc, cổng duyệt, kênh Postiz để tự gửi. */
@@ -250,6 +250,45 @@ export type AiView = {
   clip_provider: string | null; // nhà cung cấp của các clip ở lần dựng gần nhất (fal | heygen)
   episode: number | null; // số tập trong loạt phim của kênh (kênh có "series"); null = video riêng lẻ
   recap: string | null; // tóm tắt tập này do Claude viết, để tập sau viết tiếp
+  review_shots: boolean; // dừng sau khi làm ảnh để duyệt / làm lại từng ảnh trước khi đọc giọng và dựng
+  same_face: boolean; // ảnh cảnh làm từ ảnh chân dung tham chiếu của nhân vật
+  cast: string; // nhân vật riêng của video, mỗi dòng "Tên: ngoại hình"
+};
+/** Một cảnh trong màn duyệt ảnh: approved = đúng ảnh này đã duyệt, ready = đã làm, chưa duyệt, failed = nhà cung cấp không làm được. */
+export type ShotState = "approved" | "ready" | "failed" | "missing";
+export type Shot = {
+  index: number;
+  text: string; // lời bình của cảnh
+  image: string; // prompt ảnh (tiếng Anh)
+  seed: number;
+  picture: string | null; // đường dẫn /media
+  state: ShotState;
+  error: string | null;
+  cast: string[]; // nhân vật có ảnh chân dung được dùng cho cảnh này (cùng mặt)
+};
+/** Ảnh chân dung tham chiếu của một nhân vật (cùng mặt). */
+export type Face = {
+  index: number;
+  name: string;
+  look: string;
+  seed: number;
+  picture: string | null;
+  shots: number; // số cảnh có nhân vật này
+};
+export type ShotsView = {
+  shots: Shot[];
+  total: number;
+  approved: number;
+  failed: number;
+  missing: number;
+  ready: boolean; // mọi ảnh đã duyệt: được làm tiếp
+  waiting: boolean; // dự án đang chờ duyệt ảnh (chỉ khi đó mới duyệt / làm lại được)
+  provider: string;
+  price: number; // USD ước tính cho một ảnh
+  ref_price: number; // USD ước tính cho một ảnh làm từ ảnh chân dung tham chiếu
+  faces: Face[]; // trống khi video không dùng cùng mặt
+  cost: number; // ảnh đã tốn tới giờ
+  version: number;
 };
 export type Motion = "zoom_in" | "zoom_out" | "pan_left" | "pan_right";
 
@@ -492,10 +531,29 @@ export function makeApi(url: string, token: string) {
     createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
-    createAi: (body: { topic: string; duration: number; channel?: number; clips?: number }) =>
+    createAi: (body: {
+      topic: string;
+      duration: number;
+      channel?: number;
+      clips?: number;
+      review_shots?: boolean;
+      cast?: string;
+      same_face?: boolean;
+    }) =>
       call<{ project_id: number }>("POST", "/api/ai", body),
     /** Video AI: xin ảnh mới cho cảnh `index`; dựng lại bằng retry(id, "render") để làm ảnh đó. */
     redoScene: (id: number, index: number) => call<ScriptView>("POST", `/api/projects/${id}/scenes/${index}/redo`),
+    shots: (id: number) => call<ShotsView>("GET", `/api/projects/${id}/shots`),
+    redoShot: (id: number, index: number, prompt?: string) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/${index}/redo`, prompt === undefined ? undefined : { prompt }),
+    redoFace: (id: number, index: number, look?: string) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/faces/${index}/redo`, look === undefined ? undefined : { look }),
+    approveShot: (id: number, index: number, approved: boolean) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/${index}/approve`, { approved }),
+    approveAllShots: (id: number, approved: boolean) =>
+      call<ShotsView>("POST", `/api/projects/${id}/shots/approve-all`, { approved }),
+    redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
+    continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
     dubClip: (id: string, channel?: number) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),

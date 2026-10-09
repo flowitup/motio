@@ -206,6 +206,37 @@ def test_the_pictures_step_sends_the_looks_to_the_image_model(monkeypatch, tmp_p
     assert looked == [True, True, False]
 
 
+def test_a_video_adds_its_own_characters_to_the_channel_cast(monkeypatch, tmp_path):
+    assert series.merge({"Mina": "a girl"}, {"mina": "a woman", "Lou": "a dog"}) == {"mina": "a woman", "Lou": "a dog"}
+    many = {f"C{i}": "x" for i in range(series.MAX_CAST)}
+    assert len(series.merge(many, {"Extra": "y"})) == series.MAX_CAST
+    monkeypatch.setenv("IMAGE_PROVIDER", "placeholder")
+    asked = []
+    monkeypatch.setattr(llm, "ask_json", lambda prompt, system, **kw: asked.append(prompt) or _script())
+    ch = channels.create({"name": "Toits", "cast": CAST})
+    pid = creator.create("Un toit", cast="Lou: a small brown dog with one white ear\nBolt: a tall rusty robot")
+    channels.attach(pid, ch)
+    plan, _ = _step(pid, tmp_path)
+    assert plan["cast"] == {"Mina": series.parse_cast(CAST)["Mina"], "Lou": "a small brown dog with one white ear",
+                            "Bolt": "a tall rusty robot"}  # the video's Bolt replaces the channel's
+    assert "- Lou" in asked[0] and "white ear" not in asked[0] and plan["same_face"] is True
+    alone = creator.create("Un autre toit", cast="Lou: a small brown dog")  # no channel at all
+    plan, _ = _step(alone, tmp_path)
+    assert plan["cast"] == {"Lou": "a small brown dog"} and "- Lou" in asked[1]
+
+
+def test_same_faces_change_the_picture_key_with_the_portrait(tmp_path):
+    plan = {"title_fr": "Les toits", "style": "warm light", "cast": series.parse_cast(CAST), "same_face": True}
+    ln = {"text": "Mina court.", "image": "Mina runs across a wet rooftop."}
+    first = creator.picture_file(tmp_path, plan, ln, "fal")
+    assert creator.faces(plan, ln, "fal") == ["Mina"] and creator.faces(plan, ln, "modal") == []
+    assert creator.picture_file(tmp_path, {**plan, "face_seeds": {"Mina": 1}}, ln, "fal") != first
+    assert creator.picture_file(tmp_path, {**plan, "face_seeds": {"Bolt": 1}}, ln, "fal") == first  # not in the scene
+    assert creator.picture_file(tmp_path, {**plan, "same_face": False}, ln, "fal") != first
+    assert creator.prompt(plan, ln) == creator.prompt({**plan, "same_face": False}, ln, "fal")
+    assert creator.prompt(plan, ln, "fal").startswith("input picture 1 is Mina")
+
+
 def test_tidy_keeps_a_clean_recap_and_the_cast():
     plan = creator.tidy({"recap": "  Un  résumé. ", "cast": {"Mina": "a girl"}, "lines": [{"text": "Un"}]})
     assert plan["recap"] == "Un résumé." and plan["cast"] == {"Mina": "a girl"}

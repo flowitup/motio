@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock, Film, Languages, Link2, Loader2, Search, ShieldCheck, Sparkles, TriangleAlert, Tv, Video } from "lucide-react";
+import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, ShieldCheck, Sparkles, TriangleAlert, Tv, UsersRound, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
@@ -118,7 +118,7 @@ function Pipeline({ steps, aside }: { steps: [string, string][]; aside?: ReactNo
         <span aria-hidden className="absolute top-7 bottom-7 left-[27px] w-px bg-hairline-strong" />
         {steps.map(([title, text], i) => (
           <li key={title} className="relative grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 py-2.5">
-            <span className="relative z-10 flex size-6 items-center justify-center rounded-full border border-hairline-strong bg-ground font-mono text-[11px] text-muted-foreground tabular-nums">
+            <span className="relative z-10 flex size-6 items-center justify-center rounded-full border border-hairline-strong bg-ground font-mono text-xs text-muted-foreground tabular-nums">
               {i + 1}
             </span>
             <div className="min-w-0">
@@ -136,7 +136,7 @@ function Pipeline({ steps, aside }: { steps: [string, string][]; aside?: ReactNo
 function LengthRule() {
   return (
     <div className="space-y-3 p-4">
-      <div className="text-[11px] leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase">{t.projects.duration}</div>
+      <div className="text-xs leading-4 font-semibold tracking-[0.08em] text-muted-foreground uppercase">{t.projects.duration}</div>
       <div className="flex items-end justify-between gap-4">
         <span className="font-mono text-[28px] leading-8 font-medium tracking-[-0.01em] tabular-nums">
           {clock(MIN_S)} – {clock(MAX_S)}
@@ -145,7 +145,7 @@ function LengthRule() {
           <div className="relative h-1.5 rounded-xs bg-white/12">
             <div className="absolute inset-y-0 right-0 rounded-xs bg-cyan" style={{ left: `${(MIN_S / MAX_S) * 100}%` }} />
           </div>
-          <div className="relative mt-1 h-4 font-mono text-[11px] leading-4 text-muted-foreground">
+          <div className="relative mt-1 h-4 font-mono text-xs leading-4 text-muted-foreground">
             <span className="absolute left-0">0:00</span>
             <span className="absolute -translate-x-1/2" style={{ left: `${(MIN_S / MAX_S) * 100}%` }}>
               {clock(MIN_S)}
@@ -464,6 +464,9 @@ function AiConsole({ api }: { api: Api }) {
   const [topic, setTopic] = useState("");
   const [duration, setDuration] = useState("80");
   const [clips, setClips] = useState(""); // trống = theo kênh
+  const [reviewShots, setReviewShots] = useState(true); // dừng sau khi làm ảnh để duyệt từng ảnh
+  const [cast, setCast] = useState(""); // nhân vật riêng của video, mỗi dòng "Tên: ngoại hình"
+  const [sameFace, setSameFace] = useState(true); // cảnh làm từ ảnh chân dung tham chiếu của nhân vật
   const choice = useChannelChoice(api);
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
   const provider = settings?.IMAGE_PROVIDER?.value || "fal";
@@ -481,6 +484,9 @@ function AiConsole({ api }: { api: Api }) {
         topic: topic.trim(),
         duration: Number(duration),
         channel: choice.channel,
+        review_shots: reviewShots,
+        cast: cast.trim(),
+        same_face: sameFace,
         ...(clips !== "" ? { clips: Number(clips) } : {}),
       }),
     onSuccess: ({ project_id }) => {
@@ -539,6 +545,29 @@ function AiConsole({ api }: { api: Api }) {
           onChange={(e) => setClips(e.target.value === "" ? "" : String(Math.min(6, Math.max(0, Math.round(Number(e.target.value) || 0)))))}
           placeholder={t.ai.clipsPlaceholder}
         />
+      </Section>
+      <Section icon={UsersRound} label={t.ai.cast} htmlFor="ai-cast">
+        <Textarea
+          id="ai-cast"
+          value={cast}
+          onChange={(e) => setCast(e.target.value)}
+          rows={3}
+          maxLength={2500}
+          placeholder={t.ai.castPlaceholder}
+          className="font-mono text-xs leading-5"
+        />
+        <p className="text-xs leading-[18px] text-muted-foreground">{t.ai.castHint}</p>
+        <label className="mt-2 flex min-h-10 items-center gap-3 text-[13px]" title={t.ai.sameFaceHint}>
+          <Switch checked={sameFace} onCheckedChange={setSameFace} />
+          {t.ai.sameFace}
+        </label>
+        <p className="text-xs leading-[18px] text-muted-foreground">{t.ai.sameFaceHint}</p>
+      </Section>
+      <Section icon={ListChecks} label={t.ai.reviewSection} hint={t.ai.reviewShotsHint}>
+        <label className="flex min-h-10 items-center gap-3 text-[13px]">
+          <Switch checked={reviewShots} onCheckedChange={setReviewShots} />
+          {t.ai.reviewShots}
+        </label>
       </Section>
       {choice.channels.length > 0 && (
         <Section icon={Tv} label={t.channels.pick}>
