@@ -230,6 +230,6 @@ def test_a_failed_check_stops_a_video_that_would_have_gone_to_postiz(projects, m
     assert sent == [pid]
     ok = project("Les pandas 2")
     channels.attach(ok, ch)
-    db.update_project(ok, meta={"qa": {"level": "warn", "checks": []}})
+    db.update_project(ok, meta={"qa": {"level": "warn", "checks": []}, "rights": "owned"})
     pipeline._deliver(ok, ch)
     assert db.get_project(ok)["status"] == "done" and sent == [pid, ok]  # a warning never holds a video

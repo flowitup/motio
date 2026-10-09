@@ -19,6 +19,10 @@ def clean_settings(monkeypatch):
     settings.path().unlink(missing_ok=True)
     for k in settings.KEYS:
         monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")  # api.py refuses to start a video without the key
+    from motio import api
+
+    monkeypatch.setattr(api, "voice_ready", lambda: True)  # nor one that has no voice (Linux CI has no `say`)
     yield
     settings.path().unlink(missing_ok=True)
 

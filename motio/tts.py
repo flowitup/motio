@@ -2,6 +2,7 @@
 import base64
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import httpx
@@ -73,6 +74,25 @@ def pick_voice(voice: str | None = None) -> tuple[str, str]:
     raise RuntimeError(tr("The ElevenLabs account has no voices"))
 
 
+RETRY_PAUSES = (2.0, 6.0)  # s before the 2nd and 3rd try of a voice request
+
+
+def _post_with_retry(url: str, body: dict) -> httpx.Response:
+    """POST the voice request; try again on a dropped connection, a timeout, a 429 or a 5xx (nothing is billed for
+    those), never on another answer."""
+    for i in range(len(RETRY_PAUSES) + 1):
+        try:
+            r = httpx.post(url, params={"output_format": "mp3_44100_128"}, headers=_headers(), json=body, timeout=300)
+        except (httpx.TransportError, httpx.TimeoutException):
+            if i == len(RETRY_PAUSES):
+                raise
+        else:
+            if r.status_code != 429 and r.status_code < 500 or i == len(RETRY_PAUSES):
+                return r
+        time.sleep(RETRY_PAUSES[i])
+    raise AssertionError("unreachable")
+
+
 def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:
     voice_id, voice_name = pick_voice(voice)
     model = config.env("ELEVENLABS_MODEL", "eleven_multilingual_v2")
@@ -86,8 +106,7 @@ def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> di
             "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "style": 0.15, "speed": 1.05}}
     if any(k in model for k in ("flash", "turbo", "v3")):
         body["language_code"] = "fr"
-    r = httpx.post(f"{EL}/text-to-speech/{voice_id}/with-timestamps",
-                   params={"output_format": "mp3_44100_128"}, headers=_headers(), json=body, timeout=300)
+    r = _post_with_retry(f"{EL}/text-to-speech/{voice_id}/with-timestamps", body)
     if r.status_code >= 400:
         raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:300]}")
     from . import usage  # nhập muộn: usage → channels → db, tránh vòng lặp import

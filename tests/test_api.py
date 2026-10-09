@@ -207,12 +207,22 @@ def test_media_blocks_traversal_and_settings(client):
 
 
 def test_media_never_serves_the_cookie_file(client):
-    jar = config.DATA / "cookies.txt"  # đặt ngay trong thư mục dữ liệu: vẫn không được phục vụ
+    jar = config.CACHE / "cookies.txt"  # inside a served folder: still never served once it is the cookie file
     jar.write_text("# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
-    assert client.get(f"/media/cookies.txt?token={TOKEN}").status_code == 200
+    assert client.get(f"/media/cache/cookies.txt?token={TOKEN}").status_code == 200
     settings.update({"YTDLP_COOKIES_FILE": str(jar)})
-    assert client.get(f"/media/cookies.txt?token={TOKEN}").status_code == 404
+    assert client.get(f"/media/cache/cookies.txt?token={TOKEN}").status_code == 404
     jar.unlink()
+
+
+def test_media_serves_only_what_the_engine_made_not_the_database_or_env(client):
+    assert (config.DATA / "motio.sqlite3").is_file()
+    (config.DATA / ".env").write_text("ANTHROPIC_API_KEY=sk-secret\n")
+    (config.CACHE / ".env.local").write_text("x=1\n")
+    for p in ("motio.sqlite3", ".env", "cache/.env.local", "models/x.onnx", "projects/../motio.sqlite3"):
+        assert client.get(f"/media/{p}?token={TOKEN}").status_code == 404, p
+    (config.DATA / ".env").unlink()
+    (config.CACHE / ".env.local").unlink()
 
 
 def test_settings_roundtrip(client, monkeypatch):
@@ -375,3 +385,15 @@ def test_approve_script_then_video(client, fake_postiz):
     assert client.post(f"/api/projects/{pid}/approve", headers=H, json={"send": True}).status_code == 202
     p = _wait_done(client, pid)
     assert p["status"] == "done" and [e["profile"] for e in p["meta"]["postiz"]] == [ch["id"]]
+
+
+def test_starting_a_video_without_the_keys_it_needs_is_refused_before_a_project_exists(client, monkeypatch):
+    before = len(client.get("/api/projects", headers=H).json())
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    r = client.post("/api/projects", headers=H, json={"topic": "pandas"})
+    assert r.status_code == 409 and "ANTHROPIC_API_KEY" in r.json()["detail"]
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(api, "voice_ready", lambda: False)  # a Linux / Windows machine without a voice
+    r = client.post("/api/ai", headers=H, json={"topic": "a lighthouse"})
+    assert r.status_code == 409 and "ELEVENLABS_API_KEY" in r.json()["detail"]
+    assert len(client.get("/api/projects", headers=H).json()) == before

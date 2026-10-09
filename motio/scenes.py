@@ -22,7 +22,7 @@ def detect(src: Path, threshold: float = THRESHOLD) -> list[float]:
             pass
     r = subprocess.run([config.ffmpeg(), "-hide_banner", "-nostats", "-i", str(src), "-an", "-sn", "-vf",
                         f"scale=320:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, timeout=15 * 60)
     if r.returncode != 0:
         return []
     cuts = sorted({round(float(t), 3) for t in re.findall(r"pts_time:\s*([0-9.]+)", r.stderr)})

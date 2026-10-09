@@ -512,6 +512,26 @@ def test_auto_send_once_then_rerender_does_not_resend(fake, fake_postiz):
     assert len(fake_postiz) == sent and db.get_project(pid)["status"] == "done"
 
 
+def test_explainer_on_unknown_rights_waits_for_approval_even_without_a_video_gate(fake, fake_postiz):
+    ch = _profile(postiz=["tt1"])  # no video gate: only the rights stop it
+    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90)
+    _with(ch, pid)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
+    assert "explainer built on someone else's videos" in p["log"]
+    pipeline.approve_video(pid)
+    assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)
+
+
+def test_explainer_with_own_rights_is_sent_by_itself(fake, fake_postiz):
+    ch = _profile(postiz=["tt1"])
+    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90, rights="owned")
+    _with(ch, pid)
+    pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)
+
+
 def test_postiz_failure_still_finishes_the_video(fake):
     pid = _with(_profile(postiz=["tt1"]), _new())  # Postiz chưa cấu hình
     pipeline.produce(pid)

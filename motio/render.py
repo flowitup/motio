@@ -261,8 +261,14 @@ def build_timeline(lines: list[dict], sources: list[dict], total: float, min_pie
     return pieces
 
 
+RUN_TIMEOUT = 45 * 60  # s: one FFmpeg run; a hung one must not hold the single worker for ever
+
+
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=RUN_TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(tr("ffmpeg did not finish in {minutes} min", minutes=RUN_TIMEOUT // 60)) from e
     if r.returncode != 0:
         raise RuntimeError(tr("ffmpeg failed: {error}", error=r.stderr[-1500:]))
 
