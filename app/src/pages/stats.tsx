@@ -130,9 +130,9 @@ export default function StatsPage() {
       <TopBar>
         <PageTitle>{t.stats.title}</PageTitle>
       </TopBar>
-      <div className="mx-auto max-w-4xl space-y-5 p-6">
-        <p className="text-sm text-muted-foreground">{t.stats.hint}</p>
-        {error && <p className="text-sm text-destructive">{error.message}</p>}
+      <div className="max-w-4xl space-y-5 p-6">
+        <p className="text-[13px] text-muted-foreground">{t.stats.hint}</p>
+        {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
         {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
         {data && (
           <>
