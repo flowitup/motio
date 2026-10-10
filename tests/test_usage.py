@@ -89,7 +89,7 @@ def test_record_uses_the_context_and_finds_the_channel_from_the_project():
     assert [(r["chars"], r["project_id"], r["channel_id"], r["ref"]) for r in rows] == [
         (500, None, None, None), (1000, pid, cid, None), (200, pid, cid, "x")]
     assert rows[1]["usd"] == pytest.approx(0.22) and rows[2]["usd"] == pytest.approx(0.022)
-    assert usage.for_project(pid) == {"tts_chars": 1200, "usd": pytest.approx(0.242), "clip_usd": 0}
+    assert usage.for_project(pid) == {"tts_chars": 1200, "usd": pytest.approx(0.242), "clip_usd": 0, "llm_usd": 0}
 
 
 def test_elevenlabs_call_charges_the_characters_it_sent(monkeypatch):
@@ -204,7 +204,7 @@ def test_stats_route_and_project_usage(client):
     assert s["month"]["chars"] == 1500 and s["budget"]["state"] == "none"
     assert set(s) == {"price_per_1k", "month", "budget", "total", "days", "channels"}
     full = client.get(f"/api/projects/{pid}", headers=H).json()
-    assert full["usage"] == {"tts_chars": 1500, "usd": 0.33, "clip_usd": 0}
+    assert full["usage"] == {"tts_chars": 1500, "usd": 0.33, "clip_usd": 0, "llm_usd": 0}
 
 
 def test_a_read_aloud_job_is_charged_as_a_tool(client, monkeypatch):

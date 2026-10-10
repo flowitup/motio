@@ -1,6 +1,6 @@
 [package]
 name = "motio"
-version = "0.7.15"
+version = "0.7.16"
 description = "Motio desktop app"
 authors = ["flowitup"]
 edition = "2021"

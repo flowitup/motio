@@ -557,7 +557,7 @@ const en = {
     castPlaceholder: "Mina: a girl of about 10 with short black hair and a red raincoat",
     sameFace: "Same faces in every scene",
     sameFaceHint:
-      "Motio makes one portrait of each character first, then every scene that shows them is made from that portrait, so the face and clothes stay the same. Scenes with a character cost a bit more (fal: about $0.063 instead of $0.042).",
+      "Motio makes one portrait of each character first, then every scene that shows them is made from that portrait, so the face and clothes stay the same. A scene with a character is made by an image-editing model (fal: about $0.063 a scene).",
   },
   shots: {
     title: "Review the pictures",
@@ -818,7 +818,7 @@ const en = {
     title: "Finish setting up Motio",
     llm: {
       title: "Claude isn't connected",
-      text: "Sign in to Claude Code on the computer that runs the engine, or add an Anthropic API key in Settings. Without it Motio can't write scripts.",
+      text: "Add your Anthropic API key (ANTHROPIC_API_KEY) in Settings on the computer that runs the engine. Without it Motio can't write scripts.",
     },
     tts: {
       title: "No voice yet",
@@ -1524,7 +1524,7 @@ const vi: Messages = {
     castPlaceholder: "Mina: a girl of about 10 with short black hair and a red raincoat",
     sameFace: "Cùng một gương mặt ở mọi cảnh",
     sameFaceHint:
-      "Motio làm trước một ảnh chân dung cho mỗi nhân vật, rồi mọi cảnh có nhân vật đó được làm từ ảnh chân dung này, nên mặt và quần áo giữ nguyên. Cảnh có nhân vật đắt hơn một chút (fal: khoảng $0.063 thay vì $0.042).",
+      "Motio làm trước một ảnh chân dung cho mỗi nhân vật, rồi mọi cảnh có nhân vật đó được làm từ ảnh chân dung này, nên mặt và quần áo giữ nguyên. Cảnh có nhân vật được làm bằng mô hình sửa ảnh (fal: khoảng $0.063 một cảnh).",
   },
   shots: {
     title: "Duyệt ảnh",
@@ -1785,7 +1785,7 @@ const vi: Messages = {
     title: "Hoàn tất thiết lập Motio",
     llm: {
       title: "Chưa kết nối Claude",
-      text: "Đăng nhập Claude Code trên máy chạy engine, hoặc nhập khoá API Anthropic trong Cài đặt. Thiếu thì Motio không viết được kịch bản.",
+      text: "Nhập khoá API Anthropic (ANTHROPIC_API_KEY) trong Cài đặt trên máy chạy engine. Thiếu thì Motio không viết được kịch bản.",
     },
     tts: {
       title: "Chưa có giọng đọc",

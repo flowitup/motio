@@ -409,7 +409,7 @@ export default function ProjectDetailPage() {
     channel && t.projects.channel(channel.name),
     p.meta.auto && t.projects.auto,
     t.age(p.updated_at),
-    p.usage?.tts_chars > 0 && t.projects.voiceCost(p.usage.tts_chars, p.usage.usd - (p.usage.clip_usd ?? 0)),
+    p.usage?.tts_chars > 0 && t.projects.voiceCost(p.usage.tts_chars, p.usage.usd - (p.usage.clip_usd ?? 0) - (p.usage.llm_usd ?? 0)),
   ].filter(Boolean);
 
   return (
