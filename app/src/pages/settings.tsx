@@ -13,7 +13,7 @@ import { VoicePicker } from "@/components/voice-picker";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useApi, type Api, type Settings } from "@/lib/api";
 import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
-import { FAL_MODELS, FAL_PICTURE_USD } from "@/lib/image-models";
+import { DEFAULT_FAL_MODEL, FAL_MODELS, FAL_PICTURE_USD } from "@/lib/image-models";
 import { useUpdater } from "@/lib/updater";
 import { LANGS, setLang, t, useLang, type Lang } from "@/i18n";
 
@@ -409,7 +409,7 @@ function AdvancedSection({ s, draft, setDraft }: { s: Settings; draft: Draft; se
       {(val("IMAGE_PROVIDER") || "fal") === "fal" && (
         <Field label={t.settings.falModel} hint={src("FAL_IMAGE_MODEL") ?? t.settings.falModelHint}>
           <Choice
-            value={val("FAL_IMAGE_MODEL") || "qwen"}
+            value={val("FAL_IMAGE_MODEL") || DEFAULT_FAL_MODEL}
             onChange={(v) => set("FAL_IMAGE_MODEL", v)}
             options={FAL_MODELS.map((k) => [k, `${t.ai.falModels[k]} · ~$${FAL_PICTURE_USD[k].toFixed(3)}`])}
           />

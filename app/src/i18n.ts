@@ -511,8 +511,6 @@ const en = {
     card: "AI video",
     provider: "Pictures from",
     falModels: {
-      qwen: "Qwen-Image 2512",
-      qwen3: "Qwen-Image 3",
       "nano-banana-2": "Nano Banana 2",
       "nano-banana-2.1": "Nano Banana 2.1",
       "nano-banana-pro": "Nano Banana Pro",
@@ -521,14 +519,14 @@ const en = {
       seedream: "Seedream 5 Pro",
     } as Record<string, string>,
     providers: {
-      fal: "fal (Qwen-Image 2512)",
+      fal: "fal (Seedream 5 Pro)",
       modal: "Modal (your Qwen 2.1 app)",
       placeholder: "Placeholder cards",
     } as Record<string, string>,
     scenes: (n: number) => plural(n, "scene"),
     cost: (usd: number, clips: boolean) => `${clips ? "Pictures and clips" : "Pictures"} so far: about $${usd.toFixed(2)}`,
     reviewNote:
-      "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself, or choose fal in Settings → AI pictures and remake the pictures.",
+      "These pictures come from a provider that isn't cleared for monetized channels, so Motio doesn't send this video on its own. Approve it yourself once you have looked at the video.",
     clipReviewNote:
       "The clips come from a provider whose terms for monetized channels aren't checked yet, so Motio doesn't send this video on its own. Approve it yourself, or choose fal as the clip provider in Settings → AI pictures and remake the clips.",
     clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
@@ -769,10 +767,10 @@ const en = {
     images: "AI pictures",
     imageProvider: "Picture provider",
     imageProviderHint:
-      "Used by AI videos. fal (Qwen-Image 2512, about $0.04 a picture) is fine for monetized channels. Modal (your Qwen 2.1 app) runs only from the dev engine or a server and isn't licensed for monetized channels; the placeholder draws gradient cards to try the flow. Videos from those two stop at the video approval.",
+      "Used by AI videos. fal (pick the model below, about $0.07 a picture) is the normal choice. Modal (your Qwen 2.1 app) runs only from the dev engine or a server and isn't licensed for monetized channels; the placeholder draws gradient cards to try the flow. Until a fal model is cleared for monetized channels, videos from all three stop at the video approval.",
     falModel: "fal picture model",
     falModelHint:
-      "Used when the provider is fal. Qwen-Image 2512 is the only model cleared for monetized channels: a video made with another model stops at the video approval. Prices are estimates for a 1088×1920 picture.",
+      "Used when the provider is fal. No fal model is cleared for monetized channels yet, so a video with fal pictures stops at the video approval. Prices are estimates for a 1088×1920 picture.",
     imageStyle: "Picture style",
     imageStyleHint: "Added to every picture prompt (English). Leave empty for the default photographic style.",
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
@@ -1480,8 +1478,6 @@ const vi: Messages = {
     card: "Video AI",
     provider: "Ảnh từ",
     falModels: {
-      qwen: "Qwen-Image 2512",
-      qwen3: "Qwen-Image 3",
       "nano-banana-2": "Nano Banana 2",
       "nano-banana-2.1": "Nano Banana 2.1",
       "nano-banana-pro": "Nano Banana Pro",
@@ -1490,14 +1486,14 @@ const vi: Messages = {
       seedream: "Seedream 5 Pro",
     } as Record<string, string>,
     providers: {
-      fal: "fal (Qwen-Image 2512)",
+      fal: "fal (Seedream 5 Pro)",
       modal: "Modal (app Qwen 2.1 của bạn)",
       placeholder: "Ảnh giữ chỗ",
     } as Record<string, string>,
     scenes: (n: number) => `${n} cảnh`,
     cost: (usd: number, clips: boolean) => `${clips ? "Tiền ảnh và clip" : "Tiền ảnh"} đến giờ: khoảng $${usd.toFixed(2)}`,
     reviewNote:
-      "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal trong Cài đặt → Ảnh AI rồi làm lại ảnh.",
+      "Những ảnh này đến từ nhà cung cấp chưa được phép cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn xem video rồi tự duyệt.",
     clipReviewNote:
       "Các clip đến từ nhà cung cấp chưa kiểm tra điều khoản cho kênh kiếm tiền, nên Motio không tự gửi video này. Bạn tự duyệt, hoặc chọn fal làm nhà cung cấp clip trong Cài đặt → Ảnh AI rồi làm lại clip.",
     clipProviders: { fal: "fal (MiniMax H3 Max)", heygen: "HeyGen (Video 1)" } as Record<string, string>,
@@ -1738,10 +1734,10 @@ const vi: Messages = {
     images: "Ảnh AI",
     imageProvider: "Nhà cung cấp ảnh",
     imageProviderHint:
-      "Dùng cho video AI. fal (Qwen-Image 2512, khoảng $0,04 một ảnh) dùng được cho kênh kiếm tiền. Modal (app Qwen 2.1 của bạn) chỉ chạy từ engine dev hoặc server và không có giấy phép cho kênh kiếm tiền; ảnh giữ chỗ vẽ thẻ chuyển màu để thử luồng này. Video từ hai loại đó dừng ở bước duyệt video.",
+      "Dùng cho video AI. fal (chọn model bên dưới, khoảng $0,07 một ảnh) là lựa chọn thông thường. Modal (app Qwen 2.1 của bạn) chỉ chạy từ engine dev hoặc server và không có giấy phép cho kênh kiếm tiền; ảnh giữ chỗ vẽ thẻ chuyển màu để thử luồng này. Cho tới khi có model fal được duyệt cho kênh kiếm tiền, video từ cả ba loại đều dừng ở bước duyệt video.",
     falModel: "Model ảnh fal",
     falModelHint:
-      "Dùng khi nhà cung cấp là fal. Chỉ Qwen-Image 2512 đã được duyệt cho kênh kiếm tiền: video làm bằng model khác sẽ dừng ở bước duyệt video. Giá là ước tính cho một ảnh 1088×1920.",
+      "Dùng khi nhà cung cấp là fal. Chưa có model fal nào được duyệt cho kênh kiếm tiền, nên video dùng ảnh fal sẽ dừng ở bước duyệt video. Giá là ước tính cho một ảnh 1088×1920.",
     imageStyle: "Phong cách ảnh",
     imageStyleHint: "Được thêm vào mọi prompt ảnh (tiếng Anh). Để trống thì dùng phong cách ảnh chụp mặc định.",
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",

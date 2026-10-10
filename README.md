@@ -91,9 +91,9 @@ at **Awaiting video approval** before anything is sent.
 Claude writes the voice-over as scenes (the spoken line, an English picture prompt and a slow camera move: zoom in,
 zoom out, pan left, pan right), an image model draws one 9:16 picture per scene, and the usual voice and render steps
 put each picture under its line with a Ken Burns move, karaoke captions and the channel's badge. The pictures come
-from the provider picked in Settings → AI pictures: **fal** (Qwen-Image-2512, Apache 2.0, about $0.04 per picture,
-so about $0.40–0.60 per video; needs a fal key and credit) is the default and the only one cleared for a monetized
-channel; **Modal** (your own `qwen21-uc` app, about $0.01 per picture) runs under the Qwen Research Licence, so its videos
+from the provider picked in Settings → AI pictures: **fal** (Seedream 5 Pro by default, about $0.07 per picture,
+so about $0.80 per video; other models in Settings; needs a fal key and credit) is the default; no fal model is cleared for a monetized
+channel yet, so its videos stop at **Awaiting video approval** too; **Modal** (your own `qwen21-uc` app, about $0.01 per picture) runs under the Qwen Research Licence, so its videos
 always stop at **Awaiting video approval**, and it needs the `modal` Python package and a Modal login, so it works from
 the dev engine or the server, not the packaged app; **Placeholder** draws gradient cards that show the prompt (free,
 no network, to try the flow, also stops at the approval gate). The script gate stops before any picture is paid for.
@@ -266,7 +266,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
 | `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
-| `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the fal model: `qwen` (default, Qwen-Image 2512) / `qwen3` / `nano-banana-2` / `nano-banana-2.1` / `nano-banana-pro` / `gpt-image-2` / `flux-3` / `seedream` (Seedream 5 Pro) (only `qwen` is cleared for monetized channels, any other stops at the video gate); the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
+| `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the fal model: `seedream` (default, Seedream 5 Pro) / `nano-banana-2` / `nano-banana-2.1` / `nano-banana-pro` / `gpt-image-2` / `flux-3` (no fal model is cleared for monetized channels yet, so they all stop at the video gate); the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.

@@ -164,7 +164,9 @@ def test_only_trusted_providers_skip_the_video_gate(monkeypatch):
     def proj(name):
         return {"mode": "ai", "meta": {"ai": {"provider": name}}}
 
-    assert not creator.needs_review(proj("fal"))
+    assert creator.needs_review(proj("fal")) and creator.needs_review(proj("fal:flux-3"))  # no fal model is cleared yet
+    monkeypatch.setattr(images, "CLEARED_FAL_MODELS", ("seedream",))
+    assert not creator.needs_review(proj("fal")) and creator.needs_review(proj("fal:flux-3"))
     assert creator.needs_review(proj("modal")) and creator.needs_review(proj("placeholder"))
     assert not creator.needs_review({"mode": "topic", "meta": {}})
     monkeypatch.setenv("IMAGE_PROVIDER", "modal")  # no provider recorded yet: the current one counts
@@ -179,7 +181,7 @@ def test_placeholder_pictures_are_cached_and_differ(tmp_path):
     assert (new_a, new_again) == (True, False) and a == again and other != a
     assert Image.open(a).size == (images.WIDTH, images.HEIGHT)
     assert images.key("p", 0, "fal") != images.key("p", 0, "modal") != images.key("p", 1, "modal")
-    assert images.cost(12, "fal") == 0.504 and images.cost(12, "placeholder") == 0
+    assert images.cost(12, "fal") == 0.81 and images.cost(12, "placeholder") == 0
 
 
 def _fal(monkeypatch, status=200, payload=None, png=None):
@@ -207,8 +209,8 @@ def test_fal_request_and_download(monkeypatch, tmp_path):
     assert new and Image.open(path).size == (images.WIDTH, images.HEIGHT)
     req = sent[0]
     body = json.loads(req.content)
-    assert req.url.path == "/fal-ai/qwen-image-2512" and req.headers["authorization"] == "Key fal-key"
-    assert body["prompt"] == "A panda." and body["seed"] == 7 and body["num_images"] == 1
+    assert req.url.path == "/bytedance/seedream/v5/pro/text-to-image" and req.headers["authorization"] == "Key fal-key"
+    assert body["prompt"] == "A panda." and "seed" not in body and body["num_images"] == 1  # Seedream has no seed field
     assert body["image_size"] == {"width": 1088, "height": 1920} and body["enable_safety_checker"] is True
     assert sent[1].url.host == "cdn.fal.test"
     assert images.make("A panda.", 7, tmp_path) == (path, False) and len(sent) == 2  # cached: no new call
@@ -247,7 +249,7 @@ def test_a_picture_from_reference_portraits_goes_to_the_edit_model(monkeypatch, 
     assert path != images.make("Mina on a roof.", 3, tmp_path)[0]  # the same words without the portrait: another key
     assert json.loads(sent[2].content).keys().isdisjoint({"image_urls"})
     assert images.key("x", 0, "fal", ["a"]) != images.key("x", 0, "fal", ["b"]) != images.key("x", 0, "fal")
-    assert images.cost(2, "fal", refs=True) == 0.126 and images.cost(2, "fal") == 0.084
+    assert images.cost(2, "fal", refs=True) == 0.126 and images.cost(2, "fal") == 0.135
     with pytest.raises(images.ImageError, match="cannot make a picture from reference portraits"):
         images.generate("x", 0, "modal", [face])
 
@@ -431,14 +433,15 @@ def test_placeholder_and_modal_pictures_never_go_out_without_approval(fake, fake
 
 
 def test_fal_pictures_go_out_like_any_other_video(fake, fake_postiz, monkeypatch):
+    monkeypatch.setattr(images, "CLEARED_FAL_MODELS", ("seedream",))  # once a model is cleared, its videos auto-send
     sent = _fal(monkeypatch)  # switches the provider to fal, with a fake fal behind it
     pid = creator.create("Les pandas")
     channels.attach(pid, _channel())
     pipeline.produce(pid)
     p = db.get_project(pid)
     assert p["status"] == "done", p["log"]
-    assert p["meta"]["ai"]["provider"] == "fal" and p["meta"]["ai"]["cost"] == pytest.approx(LINES * 0.042)
-    assert "Made 10 of 10 pictures · about $0.42" in p["log"] and _posts(fake_postiz) == 1
+    assert p["meta"]["ai"]["provider"] == "fal" and p["meta"]["ai"]["cost"] == pytest.approx(0.68)
+    assert "Made 10 of 10 pictures · about $0.68" in p["log"] and _posts(fake_postiz) == 1
     assert len([r for r in sent if r.url.host == "fal.run"]) == LINES
     assert not creator.needs_review(p)
 
@@ -1295,18 +1298,17 @@ def test_real_clip_loses_its_sound_and_a_long_scene_holds_the_last_frame(monkeyp
 
 def test_fal_model_is_picked_in_settings_and_named_in_the_provider(monkeypatch, tmp_path):
     sent = _fal(monkeypatch)
-    assert images.provider() == "fal" and images.needs_review() is False  # default model: cleared, name unchanged
-    monkeypatch.setenv("FAL_IMAGE_MODEL", "qwen3")
-    assert images.provider() == "fal:qwen3" and images.needs_review() is True  # not cleared: the video gate
-    assert images.cost(2) == 0.15 and images.cost(2, "fal") == 0.084
+    assert images.provider() == "fal" and images.needs_review() is True  # default model, not cleared yet
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "nano-banana-2")
+    assert images.provider() == "fal:nano-banana-2" and images.needs_review() is True
+    assert images.cost(2) == 0.24 and images.cost(2, "fal") == 0.135
     images.check_ready()
     path, new = images.make("A panda.", 7, tmp_path)
     body = json.loads(sent[0].content)
-    assert new and sent[0].url.path == "/alibaba/qwen-image-3/text-to-image" and body["seed"] == 7
-    assert body["image_size"] == {"width": 1088, "height": 1920} and body["enable_prompt_expansion"] is False
+    assert new and sent[0].url.path == "/fal-ai/nano-banana-2" and body["seed"] == 7
     assert images.make("A panda.", 7, tmp_path, "fal")[0] != path  # another model: another picture, not the cache
-    assert images.key("A", 1, "fal:qwen3") != images.key("A", 1, "fal")
-    monkeypatch.setenv("FAL_IMAGE_MODEL", "nope")  # unknown alias: the default
+    assert images.key("A", 1, "fal:nano-banana-2") != images.key("A", 1, "fal")
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "qwen")  # a model that was dropped: the default
     assert images.provider() == "fal"
 
 
@@ -1342,8 +1344,8 @@ def test_portraits_stay_on_the_edit_model_whatever_fal_model_is_picked(monkeypat
 
 def test_fal_model_setting_is_validated(monkeypatch):
     from motio import settings
-    out = settings.update({"FAL_IMAGE_MODEL": "seedream"})
-    assert out["FAL_IMAGE_MODEL"]["value"] == "seedream" and images.provider() == "fal:seedream"
-    with pytest.raises(ValueError, match="FAL_IMAGE_MODEL must be one of qwen, qwen3, nano-banana-2"):
-        settings.update({"FAL_IMAGE_MODEL": "flux-dev"})
+    out = settings.update({"FAL_IMAGE_MODEL": "flux-3"})
+    assert out["FAL_IMAGE_MODEL"]["value"] == "flux-3" and images.provider() == "fal:flux-3"
+    with pytest.raises(ValueError, match="FAL_IMAGE_MODEL must be one of nano-banana-2, nano-banana-2.1"):
+        settings.update({"FAL_IMAGE_MODEL": "qwen"})
     settings.update({"FAL_IMAGE_MODEL": None})

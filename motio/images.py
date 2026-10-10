@@ -1,9 +1,10 @@
 """AI pictures for the AI video mode (creator.py): one 9:16 picture per scene.
 
 One adapter, three providers, switched in Settings (`IMAGE_PROVIDER`):
-- fal: `fal-ai/qwen-image-2512` (Apache 2.0, fine for a monetized channel), needs `FAL_KEY` and credit. The model is
-  picked in Settings (`FAL_IMAGE_MODEL`, one of `FAL_MODELS`); any other model than the default is named `fal:<model>`
-  (that string is the provider name kept in `meta.ai.provider` and in the cache key) and stops at the video gate.
+- fal: Seedream 5 Pro by default, needs `FAL_KEY` and credit. The model is picked in Settings (`FAL_IMAGE_MODEL`, one of
+  `FAL_MODELS`); any other model than the default is named `fal:<model>` (that string is the provider name kept in
+  `meta.ai.provider` and in the cache key). No fal model is cleared for a monetized channel yet (`CLEARED_FAL_MODELS`),
+  so a picture from fal stops at the video gate until one is.
 - modal: the owner's own Modal app `qwen21-uc` (Qwen-Image 2.1 UC). Its Qwen Research Licence is not for monetized
   channels and it has no safety filter, so a video made with it always stops at the video gate. Needs the `modal`
   package and a Modal login (not bundled in the installers; meant for the dev engine or the server).
@@ -11,7 +12,7 @@ One adapter, three providers, switched in Settings (`IMAGE_PROVIDER`):
 A picture is cached by (provider, size, prompt, seed): only a new or edited scene is generated again.
 
 Same faces: a scene that shows recurring characters can be made from their reference portraits (`refs`) instead of
-the words alone, with `fal-ai/qwen-image-edit-2511` (Apache 2.0, same family and licence as the default model). The
+the words alone, with `fal-ai/qwen-image-edit-2511` (Apache 2.0, whatever model is picked for the other scenes). The
 placeholder writes the reference names on its card; Modal has no such model, so its scenes stay text only.
 """
 import base64
@@ -30,17 +31,13 @@ from .render import FONT_BOLD, _font
 PROVIDERS = ("fal", "modal", "placeholder")
 DEFAULT_PROVIDER = "fal"
 REVIEW_PROVIDERS = ("modal", "placeholder")  # output that must not go out without a human look
-WIDTH, HEIGHT = 1088, 1920  # multiples of 16 (Qwen), close enough to 1080×1920 to be cropped
+WIDTH, HEIGHT = 1088, 1920  # multiples of 16, close enough to 1080×1920 to be cropped
 # fal text-to-image models the owner can pick (alias → fal path, estimated USD per picture, request fields). `px`: the
 # model takes a width × height `image_size`; `seed`: it takes a seed (the others make a new picture for a new seed
 # anyway, the seed is still part of the cache key). Hot models of fal's own trending list (10/2026); prices from fal's
-# model pages, the ones marked "est." are worked out from a per-token or per-megapixel price. Only the default is
-# cleared for a monetized channel; the others force the video gate (`needs_review`).
+# model pages, the ones marked "est." are worked out from a per-token or per-megapixel price. A model that is not in
+# CLEARED_FAL_MODELS forces the video gate (`needs_review`).
 FAL_MODELS = {
-    "qwen": {"path": "fal-ai/qwen-image-2512", "price": 0.042, "px": True, "seed": True,
-             "body": {"enable_safety_checker": True}},
-    "qwen3": {"path": "alibaba/qwen-image-3/text-to-image", "price": 0.075, "px": True, "seed": True,  # 2K tier
-              "body": {"enable_safety_checker": True, "enable_prompt_expansion": False}},
     "nano-banana-2": {"path": "fal-ai/nano-banana-2", "price": 0.12, "seed": True,  # $0.08 at 1K, ×1.5 at 2K
                       "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
     "nano-banana-2.1": {"path": "google/nano-banana-2.1", "price": 0.06, "seed": True,  # est. (per token)
@@ -54,8 +51,8 @@ FAL_MODELS = {
     "seedream": {"path": "bytedance/seedream/v5/pro/text-to-image", "price": 0.0675, "px": True,
                  "body": {"enable_safety_checker": True}},
 }
-DEFAULT_FAL_MODEL = "qwen"
-CLEARED_FAL_MODELS = ("qwen",)  # licence read and fine for a monetized channel
+DEFAULT_FAL_MODEL = "seedream"
+CLEARED_FAL_MODELS: tuple[str, ...] = ()  # models whose licence was read and is fine for a monetized channel (none yet)
 PRICE = {"fal": FAL_MODELS[DEFAULT_FAL_MODEL]["price"], "modal": 0.009, "placeholder": 0.0}  # estimated USD per picture
 REF_PROVIDERS = ("fal", "placeholder")  # can make a picture from reference portraits (same faces)
 REF_PRICE = {"fal": 0.063, "placeholder": 0.0}  # estimated USD per picture made from references (fal: ~$0.03 per MP)
