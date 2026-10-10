@@ -164,7 +164,7 @@ live in `data/tools/delogo/<hex>/`.
   that. Never apply it automatically in the pipelines or in batch, and **never build** anything that evades
   duplicate / Content ID detection.
 - **AI videos never reuse footage, and only some providers are cleared.** `creator.needs_review(proj)` (provider in
-  `images.REVIEW_PROVIDERS`: Modal's Qwen 2.1 research licence, the placeholder) forces the video gate even when the channel has none
+  `images.REVIEW_PROVIDERS`: Modal's Qwen 2.1 research licence, the placeholder; or a fal model outside `images.CLEARED_FAL_MODELS`, which is empty) forces the video gate even when the channel has none
   (when it would send to Postiz). Pictures are made right before the voice (`_voice_render_post`), after the script gate, so nothing is paid
   for before a person approves. The post adds "Images générées par IA."; no real, recognizable people in prompts. Real generation needs a
   key (`FAL_KEY`) the sandbox doesn't have: tests use `images._transport` (httpx MockTransport) and the placeholder provider.

@@ -1,7 +1,10 @@
 """AI pictures for the AI video mode (creator.py): one 9:16 picture per scene.
 
 One adapter, three providers, switched in Settings (`IMAGE_PROVIDER`):
-- fal: `fal-ai/qwen-image-2512` (Apache 2.0, fine for a monetized channel), needs `FAL_KEY` and credit.
+- fal: Seedream 5 Pro by default, needs `FAL_KEY` and credit. The model is picked in Settings (`FAL_IMAGE_MODEL`, one of
+  `FAL_MODELS`); any other model than the default is named `fal:<model>` (that string is the provider name kept in
+  `meta.ai.provider` and in the cache key). No fal model is cleared for a monetized channel yet (`CLEARED_FAL_MODELS`),
+  so a picture from fal stops at the video gate until one is.
 - modal: the owner's own Modal app `qwen21-uc` (Qwen-Image 2.1 UC). Its Qwen Research Licence is not for monetized
   channels and it has no safety filter, so a video made with it always stops at the video gate. Needs the `modal`
   package and a Modal login (not bundled in the installers; meant for the dev engine or the server).
@@ -9,7 +12,7 @@ One adapter, three providers, switched in Settings (`IMAGE_PROVIDER`):
 A picture is cached by (provider, size, prompt, seed): only a new or edited scene is generated again.
 
 Same faces: a scene that shows recurring characters can be made from their reference portraits (`refs`) instead of
-the words alone, with `fal-ai/qwen-image-edit-2511` (Apache 2.0, same family and licence as the default model). The
+the words alone, with `fal-ai/qwen-image-edit-2511` (Apache 2.0, whatever model is picked for the other scenes). The
 placeholder writes the reference names on its card; Modal has no such model, so its scenes stay text only.
 """
 import base64
@@ -28,13 +31,34 @@ from .render import FONT_BOLD, _font
 PROVIDERS = ("fal", "modal", "placeholder")
 DEFAULT_PROVIDER = "fal"
 REVIEW_PROVIDERS = ("modal", "placeholder")  # output that must not go out without a human look
-WIDTH, HEIGHT = 1088, 1920  # multiples of 16 (Qwen), close enough to 1080×1920 to be cropped
-PRICE = {"fal": 0.042, "modal": 0.009, "placeholder": 0.0}  # estimated USD per picture (fal: ~$0.02 per megapixel)
+WIDTH, HEIGHT = 1088, 1920  # multiples of 16, close enough to 1080×1920 to be cropped
+# fal text-to-image models the owner can pick (alias → fal path, estimated USD per picture, request fields). `px`: the
+# model takes a width × height `image_size`; `seed`: it takes a seed (the others make a new picture for a new seed
+# anyway, the seed is still part of the cache key). Hot models of fal's own trending list (10/2026); prices from fal's
+# model pages, the ones marked "est." are worked out from a per-token or per-megapixel price. A model that is not in
+# CLEARED_FAL_MODELS forces the video gate (`needs_review`).
+FAL_MODELS = {
+    "nano-banana-2": {"path": "fal-ai/nano-banana-2", "price": 0.12, "seed": True,  # $0.08 at 1K, ×1.5 at 2K
+                      "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "nano-banana-2.1": {"path": "google/nano-banana-2.1", "price": 0.06, "seed": True,  # est. (per token)
+                        "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "nano-banana-pro": {"path": "fal-ai/nano-banana-pro", "price": 0.15, "seed": True,
+                        "body": {"aspect_ratio": "9:16", "resolution": "2K", "safety_tolerance": "2"}},
+    "gpt-image-2": {"path": "openai/gpt-image-2", "price": 0.07, "px": True,  # est. (per token, medium quality)
+                    "body": {"quality": "medium", "enable_safety_checker": True}},
+    "flux-3": {"path": "blackforestlabs/flux-3/text-to-image", "price": 0.096,  # est. (~$0.048 per megapixel)
+               "body": {"aspect_ratio": "9:16", "resolution": "2k", "safety_tolerance": 2}},
+    "seedream": {"path": "bytedance/seedream/v5/pro/text-to-image", "price": 0.0675, "px": True,
+                 "body": {"enable_safety_checker": True}},
+}
+DEFAULT_FAL_MODEL = "seedream"
+CLEARED_FAL_MODELS: tuple[str, ...] = ()  # models whose licence was read and is fine for a monetized channel (none yet)
+PRICE = {"fal": FAL_MODELS[DEFAULT_FAL_MODEL]["price"], "modal": 0.009, "placeholder": 0.0}  # estimated USD per picture
 REF_PROVIDERS = ("fal", "placeholder")  # can make a picture from reference portraits (same faces)
 REF_PRICE = {"fal": 0.063, "placeholder": 0.0}  # estimated USD per picture made from references (fal: ~$0.03 per MP)
 MAX_REFS = 3  # reference portraits per picture
 REF_SIDE = 768  # long side of a reference portrait sent to the provider (a smaller request, enough for a face)
-FAL_URL = "https://fal.run/fal-ai/qwen-image-2512"
+FAL_RUN = "https://fal.run/"
 FAL_EDIT_URL = "https://fal.run/fal-ai/qwen-image-edit-2511"
 MODAL_APP, MODAL_CLS, MODAL_STEPS = "qwen21-uc", "Qwen21UC", 25
 TIMEOUT = 240.0  # a cold Modal start takes ~70 s
@@ -46,9 +70,29 @@ class ImageError(RuntimeError):
     pass
 
 
+def fal_model() -> str:
+    """The fal model alias picked in Settings (the default when unset or unknown)."""
+    m = config.env("FAL_IMAGE_MODEL", DEFAULT_FAL_MODEL).lower()
+    return m if m in FAL_MODELS else DEFAULT_FAL_MODEL
+
+
+def base(name: str) -> str:
+    """The provider of a provider name: `fal:flux-dev` → `fal`."""
+    return name.split(":", 1)[0]
+
+
+def _model_of(name: str) -> str:
+    """The fal model alias of a provider name (the default for plain `fal` and for an unknown alias)."""
+    m = name.split(":", 1)[1] if ":" in name else DEFAULT_FAL_MODEL
+    return m if m in FAL_MODELS else DEFAULT_FAL_MODEL
+
+
 def provider() -> str:
+    """The provider name pictures are made with now: `fal` (default model), `fal:<model>`, `modal`, `placeholder`."""
     p = config.env("IMAGE_PROVIDER", DEFAULT_PROVIDER).lower()
-    return p if p in PROVIDERS else DEFAULT_PROVIDER
+    if p not in PROVIDERS:
+        p = DEFAULT_PROVIDER
+    return f"fal:{fal_model()}" if p == "fal" and fal_model() != DEFAULT_FAL_MODEL else p
 
 
 def style() -> str:
@@ -57,12 +101,13 @@ def style() -> str:
 
 
 def needs_review(name: str | None = None) -> bool:
-    return (name or provider()) in REVIEW_PROVIDERS
+    name = name or provider()
+    return base(name) in REVIEW_PROVIDERS or (base(name) == "fal" and _model_of(name) not in CLEARED_FAL_MODELS)
 
 
 def check_ready(name: str | None = None) -> None:
     """ValueError (translated) when the chosen provider can't generate yet, so the app says so before any work."""
-    name = name or provider()
+    name = base(name or provider())
     if name == "fal" and not config.env("FAL_KEY"):
         raise ValueError(tr("Add your fal key in Settings → Image provider (or choose the Placeholder provider to "
                             "try the flow)"))
@@ -76,7 +121,10 @@ def check_ready(name: str | None = None) -> None:
 
 def cost(n: int, name: str | None = None, refs: bool = False) -> float:
     name = name or provider()
-    return round(n * (REF_PRICE.get(name, PRICE[name]) if refs else PRICE[name]), 3)
+    one = REF_PRICE.get(base(name), PRICE[base(name)]) if refs else PRICE[base(name)]
+    if base(name) == "fal" and not refs:
+        one = FAL_MODELS[_model_of(name)]["price"]
+    return round(n * one, 3)
 
 
 def key(prompt: str, seed: int = 0, name: str | None = None, refs: list[str] | None = None) -> str:
@@ -114,13 +162,21 @@ def _data_uri(path: Path) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _fal(prompt: str, seed: int, refs: list[Path] | None = None) -> bytes:
-    body = {"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1,
-            "seed": seed, "output_format": "png", "enable_safety_checker": True}
-    if refs:
-        body["image_urls"] = [_data_uri(f) for f in refs[:MAX_REFS]]
-    r = _http("POST", FAL_EDIT_URL if refs else FAL_URL, headers={"Authorization": f"Key {config.env('FAL_KEY')}"},
-              json=body)
+def _fal(prompt: str, seed: int, refs: list[Path] | None = None, model: str = DEFAULT_FAL_MODEL) -> bytes:
+    if refs:  # reference portraits always go to the edit model, whatever model is picked for the text-only scenes
+        url = FAL_EDIT_URL
+        body = {"prompt": prompt, "image_size": {"width": WIDTH, "height": HEIGHT}, "num_images": 1, "seed": seed,
+                "output_format": "png", "enable_safety_checker": True,
+                "image_urls": [_data_uri(f) for f in refs[:MAX_REFS]]}
+    else:
+        spec = FAL_MODELS[model]
+        url = FAL_RUN + spec["path"]
+        body = {"prompt": prompt, "num_images": 1, "output_format": "png", **spec["body"]}
+        if spec.get("px"):
+            body["image_size"] = {"width": WIDTH, "height": HEIGHT}
+        if spec.get("seed"):
+            body["seed"] = seed
+    r = _http("POST", url, headers={"Authorization": f"Key {config.env('FAL_KEY')}"}, json=body)
     if r.status_code in (401, 403):
         raise ImageError(tr("fal refused the request ({error}): check the key and the credit on your fal account",
                             error=f"{r.status_code} {_detail(r)}"))
@@ -178,11 +234,14 @@ def generate(prompt: str, seed: int = 0, name: str | None = None, refs: list[Pat
     """One picture (image bytes) for `prompt`, made from the reference portraits `refs` when given (only a provider
     of REF_PROVIDERS can). ImageError (translated) on failure."""
     name = name or provider()
+    kind = base(name)
     if refs:
-        if name not in REF_PROVIDERS:
+        if kind not in REF_PROVIDERS:
             raise ImageError(tr("This image provider cannot make a picture from reference portraits"))
-        return {"fal": _fal, "placeholder": _placeholder}[name](prompt, seed, refs)
-    return {"fal": _fal, "modal": _modal, "placeholder": _placeholder}[name](prompt, seed)
+        return {"fal": _fal, "placeholder": _placeholder}[kind](prompt, seed, refs)
+    if kind == "fal":
+        return _fal(prompt, seed, None, _model_of(name))
+    return {"modal": _modal, "placeholder": _placeholder}[kind](prompt, seed)
 
 
 def make(prompt: str, seed: int, folder: Path, name: str | None = None,

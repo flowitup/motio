@@ -141,7 +141,7 @@ def _join(parts: list[str]) -> str:
 
 def faces_on(plan: dict, provider: str) -> bool:
     """Scenes are made from the characters' reference portraits (same faces) with this provider."""
-    return bool(plan.get("same_face") and plan.get("cast")) and provider in images.REF_PROVIDERS
+    return bool(plan.get("same_face") and plan.get("cast")) and images.base(provider) in images.REF_PROVIDERS
 
 
 def faces(plan: dict, ln: dict, provider: str) -> list[str]:

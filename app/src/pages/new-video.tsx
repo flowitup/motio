@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useApi, type Api, type Rights } from "@/lib/api";
 import { estimate } from "@/lib/estimate";
+import { imageProviderLabel, providerName, videoPicturesUsd } from "@/lib/image-models";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -24,7 +25,6 @@ const KINDS: { value: Kind; icon: typeof Search }[] = [
   { value: "dub", icon: Languages },
 ];
 const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
-const PICTURE_USD: Record<string, string> = { fal: "0.50", modal: "0.15", placeholder: "0" }; // một video 12 cảnh, ước tính
 const MIN_S = 62; // every video lasts 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
 const MAX_S = 90;
 
@@ -469,8 +469,9 @@ function AiConsole({ api }: { api: Api }) {
   const [sameFace, setSameFace] = useState(true); // cảnh làm từ ảnh chân dung tham chiếu của nhân vật
   const choice = useChannelChoice(api);
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
-  const provider = settings?.IMAGE_PROVIDER?.value || "fal";
-  const needsKey = !!settings && provider === "fal" && !settings.FAL_KEY?.value;
+  const baseProvider = settings?.IMAGE_PROVIDER?.value || "fal";
+  const provider = providerName(baseProvider, settings?.FAL_IMAGE_MODEL?.value);
+  const needsKey = !!settings && baseProvider === "fal" && !settings.FAL_KEY?.value;
   const clipProvider = settings?.CLIP_PROVIDER?.value === "heygen" ? "heygen" : "fal";
   const clipKey = clipProvider === "heygen" ? settings?.HEYGEN_API_KEY?.value : settings?.FAL_KEY?.value;
   const needsClipKey = !!settings && Number(clips) > 0 && !clipKey;
@@ -498,7 +499,7 @@ function AiConsole({ api }: { api: Api }) {
     ? t.ai.needsKey
     : needsClipKey
       ? t.ai.needsClipKey(clipProvider === "heygen" ? "HeyGen" : "fal")
-      : t.ai.providerHint(t.ai.providers[provider] ?? provider, PICTURE_USD[provider] ?? "0");
+      : t.ai.providerHint(imageProviderLabel(provider), videoPicturesUsd(provider));
   const summary = [topic.trim(), t.projects.durations[duration], channelName(choice)].filter(Boolean).join(" · ");
   return (
     <Console
@@ -507,7 +508,7 @@ function AiConsole({ api }: { api: Api }) {
       estimate={line({
         seconds: Number(duration),
         videos: 1,
-        pictures: Number(PICTURE_USD[provider] ?? 0),
+        pictures: Number(videoPicturesUsd(provider)),
         clips: clips !== "" ? Number(clips) : channelClips,
         clipPerSec,
       })}

@@ -8,7 +8,7 @@ import httpx
 import pytest
 from PIL import Image
 
-from motio import aiclips, config, creator, db, render, settings, usage
+from motio import aiclips, config, creator, db, images, render, settings, usage
 
 API = "https://api.heygen.com/v3/models/videos"
 
@@ -133,7 +133,8 @@ def test_each_provider_needs_its_own_key(monkeypatch):
         aiclips.check_ready()
 
 
-def test_heygen_clips_hold_the_video_at_the_gate_until_the_terms_are_checked():
+def test_heygen_clips_hold_the_video_at_the_gate_until_the_terms_are_checked(monkeypatch):
+    monkeypatch.setattr(images, "CLEARED_FAL_MODELS", ("seedream",))  # the pictures are not what holds the video here
     def proj(**ai):
         return {"mode": "ai", "meta": {"ai": {"provider": "fal", **ai}}}
 
