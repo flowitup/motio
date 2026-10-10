@@ -300,7 +300,7 @@ export type ProjectDetail = Project & {
   has_script: boolean;
   dub: DubView | null;
   ai: AiView | null;
-  usage: { tts_chars: number; usd: number; clip_usd: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
+  usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
 
 export type ScriptClip = { src: number; start: number; end: number };

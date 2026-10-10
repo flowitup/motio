@@ -120,7 +120,8 @@ def over_budget(now: float | None = None) -> bool:
 def for_project(pid: int) -> dict:
     chars, usd = db.usage_sum(0, project_id=pid)
     clip_usd = db.usage_sum(0, project_id=pid, kind="clip")[1]
-    return {"tts_chars": chars, "usd": round(usd, 4), "clip_usd": round(clip_usd, 4)}
+    llm_usd = db.usage_sum(0, project_id=pid, kind="llm")[1]
+    return {"tts_chars": chars, "usd": round(usd, 4), "clip_usd": round(clip_usd, 4), "llm_usd": round(llm_usd, 4)}
 
 
 def _day(ts: float) -> str:
