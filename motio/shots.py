@@ -17,7 +17,7 @@ a new look) makes only that portrait now, and every shot that shows the characte
 import json
 import threading
 
-from . import config, creator, db, images
+from . import config, creator, db, images, usage
 from .i18n import tr, tr_n
 
 REVIEW = "shots"  # meta.review while the video waits for the pictures to be approved
@@ -216,7 +216,8 @@ def redo(pid: int, index: int, prompt: str | None = None) -> dict:
         approved, failed = _state(p)
         usd = 0.0
         try:
-            _, _, usd = creator.make_picture(plan, ln, config.PROJECTS / str(pid), name)
+            with usage.context(project_id=pid):  # the picture's price counts for this project
+                _, _, usd = creator.make_picture(plan, ln, config.PROJECTS / str(pid), name)
             failed.pop(keys[index], None)
         except images.ImageError as e:
             failed[keys[index]] = str(e)[:300]
@@ -251,7 +252,8 @@ def redo_face(pid: int, index: int, look: str | None = None) -> dict:
         else:
             plan["face_seeds"] = {**(plan.get("face_seeds") or {}), who: creator.face_seed(plan, who) + 1}
         _write(pid, plan)
-        _, new = creator.make_face(plan, who, config.PROJECTS / str(pid), name)
+        with usage.context(project_id=pid):
+            _, new = creator.make_face(plan, who, config.PROJECTS / str(pid), name)
         ai = {**_ai(p)}
         if new:
             ai["cost"] = round(float(ai.get("cost") or 0) + images.cost(1, name), 3)
