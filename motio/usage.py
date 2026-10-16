@@ -1,7 +1,8 @@
 """Chi phí và thống kê: mỗi lần gọi ElevenLabs ghi một dòng vào bảng usage (số ký tự, tiền ước lượng, dự án / kênh
 đang chạy), rồi gom theo ngày, tháng và kênh cho trang Stats.
 
-Mỗi lần gọi Claude API (motio/llm.py) ghi một dòng kind "llm" (token, tiền theo PRICES).
+Mỗi lần gọi Claude API (motio/llm.py) ghi một dòng kind "llm" (token, tiền theo PRICES); mỗi ảnh AI mới làm
+(motio/images.py) ghi một dòng kind "picture" (tiền theo giá ảnh của nhà cung cấp).
 Giá giọng theo Cài đặt (ELEVENLABS_USD_PER_1K_CHARS, mặc định gói Creator); mô hình flash / turbo chỉ tính
 nửa giá. Ngân sách tháng
 (MONTHLY_BUDGET_USD) chỉ cảnh báo trên trang Stats và dừng việc tự làm video (automake); bấm làm tay không bị chặn.
@@ -80,6 +81,12 @@ def record_clip(seconds: float, model: str, provider: str | None = None) -> None
         _add("clip", 0, seconds * clip_price(provider), model, "")
 
 
+def record_picture(provider: str, usd: float) -> None:
+    """Ghi một ảnh AI vừa làm (tiền theo ảnh, không có ký tự). Không ghi được thì bỏ qua như record_tts."""
+    if usd > 0:
+        _add("picture", 0, usd, provider, "")
+
+
 def llm_cost(model: str, tokens_in: int, tokens_out: int, cache_write: int = 0, cache_read: int = 0) -> float:
     pin, pout = next((p for prefix, p in PRICES if model.startswith(prefix)), DEFAULT_LLM_PRICE)
     return (tokens_in * pin + cache_write * pin * CACHE_WRITE + cache_read * pin * CACHE_READ + tokens_out * pout) / 1e6
@@ -121,7 +128,9 @@ def for_project(pid: int) -> dict:
     chars, usd = db.usage_sum(0, project_id=pid)
     clip_usd = db.usage_sum(0, project_id=pid, kind="clip")[1]
     llm_usd = db.usage_sum(0, project_id=pid, kind="llm")[1]
-    return {"tts_chars": chars, "usd": round(usd, 4), "clip_usd": round(clip_usd, 4), "llm_usd": round(llm_usd, 4)}
+    picture_usd = db.usage_sum(0, project_id=pid, kind="picture")[1]
+    return {"tts_chars": chars, "usd": round(usd, 4), "clip_usd": round(clip_usd, 4), "llm_usd": round(llm_usd, 4),
+            "picture_usd": round(picture_usd, 4)}
 
 
 def _day(ts: float) -> str:

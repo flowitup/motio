@@ -89,7 +89,8 @@ def test_record_uses_the_context_and_finds_the_channel_from_the_project():
     assert [(r["chars"], r["project_id"], r["channel_id"], r["ref"]) for r in rows] == [
         (500, None, None, None), (1000, pid, cid, None), (200, pid, cid, "x")]
     assert rows[1]["usd"] == pytest.approx(0.22) and rows[2]["usd"] == pytest.approx(0.022)
-    assert usage.for_project(pid) == {"tts_chars": 1200, "usd": pytest.approx(0.242), "clip_usd": 0, "llm_usd": 0}
+    assert usage.for_project(pid) == {"tts_chars": 1200, "usd": pytest.approx(0.242), "clip_usd": 0, "llm_usd": 0,
+                                      "picture_usd": 0}
 
 
 def test_elevenlabs_call_charges_the_characters_it_sent(monkeypatch):
@@ -204,7 +205,7 @@ def test_stats_route_and_project_usage(client):
     assert s["month"]["chars"] == 1500 and s["budget"]["state"] == "none"
     assert set(s) == {"price_per_1k", "month", "budget", "total", "days", "channels"}
     full = client.get(f"/api/projects/{pid}", headers=H).json()
-    assert full["usage"] == {"tts_chars": 1500, "usd": 0.33, "clip_usd": 0, "llm_usd": 0}
+    assert full["usage"] == {"tts_chars": 1500, "usd": 0.33, "clip_usd": 0, "llm_usd": 0, "picture_usd": 0}
 
 
 def test_a_read_aloud_job_is_charged_as_a_tool(client, monkeypatch):
@@ -224,3 +225,26 @@ def test_a_read_aloud_job_is_charged_as_a_tool(client, monkeypatch):
     with db.conn() as c:
         rows = [dict(x) for x in c.execute("SELECT chars, project_id, ref FROM usage")]
     assert rows == [{"chars": 7, "project_id": None, "ref": f"tool:{job_id}"}]
+
+
+def test_a_new_ai_picture_is_charged_to_its_project_and_a_cached_one_is_not(tmp_path, monkeypatch):
+    import io
+
+    from PIL import Image
+
+    from motio import images
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), "white").save(buf, "PNG")
+    monkeypatch.setattr(images, "generate", lambda prompt, seed=0, name=None, refs=None: buf.getvalue())
+    pid = _project()
+    with usage.context(project_id=pid):
+        _, new = images.make("a train", 1, tmp_path, "fal")
+        _, again = images.make("a train", 1, tmp_path, "fal")  # cached: nothing is paid
+        images.make("a bridge", 1, tmp_path, "placeholder")  # free provider: nothing recorded
+    assert (new, again) == (True, False)
+    one = images.cost(1, "fal")
+    assert one > 0
+    got = usage.for_project(pid)
+    assert got["picture_usd"] == pytest.approx(one) and got["usd"] == pytest.approx(one)
+    assert usage.month_spent() == pytest.approx(one)  # the monthly budget counts it

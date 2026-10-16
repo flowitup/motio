@@ -262,4 +262,6 @@ def make(prompt: str, seed: int, folder: Path, name: str | None = None,
     tmp = path.with_suffix(".tmp")
     img.convert("RGB").save(tmp, "PNG")
     tmp.replace(path)
+    from . import usage  # nhập muộn: usage → channels → db, tránh vòng lặp import
+    usage.record_picture(name, cost(1, name, refs=bool(refs)))  # a free provider (placeholder) records nothing
     return path, True
