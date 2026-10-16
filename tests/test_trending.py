@@ -1,5 +1,7 @@
 """Bilibili trending lists (motio/trending.py) as watch sources: parsing, filtering, the weekly cookie dance, errors."""
+import hashlib
 import sqlite3
+import time
 
 import httpx
 import pytest
@@ -37,6 +39,7 @@ def bili(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def clean():
+    trending._wbi_cache.update(key=None, at=0.0)
     with db.conn() as c:
         c.execute("DELETE FROM clip")
         c.execute("DELETE FROM watch")
@@ -57,7 +60,6 @@ def test_ranking_keeps_only_originals_that_may_be_reused(bili):
     bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
         _video("BV1ok"),
         _video("BV1repost", copyright=2),
-        _video("BV1noreprint", rights={"no_reprint": 1}),
         _video("BV1paid", rights={"pay": 1}),
         _video("BV1film", rights={"movie": 1}),
         _video("BV1ogv", is_ogv=True),
@@ -71,11 +73,21 @@ def test_ranking_keeps_only_originals_that_may_be_reused(bili):
     assert ok["url"] == "https://www.bilibili.com/video/BV1ok" and ok["uploader"] == "UP主"
     assert (ok["views"], ok["likes"], ok["duration"], ok["category"], ok["rank"]) == (100_000, 5000, 120, "影视杂谈", 1)
     assert ok["thumbnail"] == "https://i0.hdslb.com/BV1ok.jpg" and ok["pubdate"] == 1_790_000_000
-    assert rows[1]["rank"] == 9  # the place in the list, not in the kept rows
+    assert rows[1]["rank"] == 8  # the place in the list, not in the kept rows
     req = bili.calls[0]
     assert req.url.params["rid"] == "181" and req.url.params["type"] == "all"
     assert req.headers["user-agent"] == trending.UA and "Chrome/" in req.headers["user-agent"]  # a short UA gets -352
     assert req.headers["referer"] == "https://www.bilibili.com"
+
+
+def test_the_no_reprint_tick_is_ignored(bili):
+    """Bilibili ticks "no reprint" by default (99 % of a ranking): it neither drops nor flags a video."""
+    bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
+        _video("BV1plain", rights={"no_reprint": 0}), _video("BV1ticked", rights={"no_reprint": 1}),
+        _video("BV1paid", rights={"no_reprint": 1, "pay": 1})]}}
+    rows = trending.fetch("bilibili:ranking:181")
+    assert [r["id"] for r in rows] == ["bilibili:BV1plain", "bilibili:BV1ticked"]
+    assert "no_reprint" not in rows[1]
 
 
 def test_popular_uses_the_popular_endpoint(bili):
@@ -177,3 +189,120 @@ def test_old_databases_get_the_new_clip_columns():
     db._migrate(c)  # twice: a second start must not fail
     cols = {r[1] for r in c.execute("PRAGMA table_info(clip)")}
     assert cols >= {"id", "title", "likes", "pubdate", "category", "rank"}
+
+
+def test_categories_and_tags_parse_and_get_names():
+    assert trending.parse("bilibili:category:ai") == ("category", "ai")
+    assert trending.parse("bilibili:tag:AI短片") == ("tag", "AI短片")
+    assert trending.name("bilibili:category:lifestyle") == "Bilibili · Lifestyle & savoir-vivre"
+    assert trending.name("bilibili:tag:礼仪") == "Bilibili tag · 礼仪"
+    for bad in ("bilibili:category:nope", "bilibili:category:", "bilibili:tag:", "bilibili:tag:  x",
+                "bilibili:tag:a\nb", "bilibili:tag:" + "字" * 41):
+        with pytest.raises(ValueError):
+            trending.parse(bad)
+    assert watch.classify("bilibili:category:tech")["kind"] == "trending"
+    assert watch.classify("bilibili:tag:礼仪")["name"] == "Bilibili tag · 礼仪"
+
+
+def test_usable_wants_a_clear_original():
+    assert trending.usable(_video("BV1a")) and trending.usable(_video("BV1b", copyright=None))
+    assert not trending.usable(_video("BV1c", copyright=3)) and not trending.usable(_video("BV1d", copyright=2))
+
+
+def _bilibili_tags(bili, hits, details):
+    """The nav pictures, anonymous cookies, a search that answers `hits` and a view that answers `details[bvid]`."""
+    bili.answers["/x/frontend/finger/spi"] = {"code": 0, "data": {"b_3": "AAA", "b_4": "BBB"}}
+    bili.answers["/x/web-interface/nav"] = {"code": -101, "message": "not logged in", "data": {"wbi_img": {
+        "img_url": "https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png",
+        "sub_url": "https://i0.hdslb.com/bfs/wbi/4932caab00d94a2e8b6d1d7cf1b8ab7e.png"}}}
+    bili.answers["/x/web-interface/wbi/search/type"] = {"code": 0, "data": {"result": [
+        {"bvid": b, "typename": "软件 应用"} for b in hits]}}
+    bili.answers["/x/web-interface/wbi/view"] = lambda req: (
+        {"code": 0, "data": details[req.url.params["bvid"]]} if req.url.params["bvid"] in details
+        else {"code": -404, "message": "gone"})
+
+
+def test_a_tag_is_searched_signed_and_checked_for_rights(bili):
+    _bilibili_tags(bili, ["BV1ok", "BV1repost", "BV1three", "BV1gone", "BV1two"], {
+        "BV1ok": _video("BV1ok", tname=""),
+        "BV1repost": _video("BV1repost", copyright=2),
+        "BV1three": _video("BV1three", copyright=3),
+        "BV1two": _video("BV1two", stat={"view": 7, "like": 1}),
+    })
+    rows = trending.fetch("bilibili:tag:AI短片")
+    assert [r["id"] for r in rows] == ["bilibili:BV1ok", "bilibili:BV1two"]
+    assert rows[0]["category"] == "软件应用" and rows[0]["rank"] == 1  # the search's partition name, spaces dropped
+    search = next(r for r in bili.calls if r.url.path.endswith("/search/type"))
+    q = search.url.params
+    assert (q["keyword"], q["order"], q["search_type"]) == ("AI短片", "click", "video")
+    assert int(q["pubtime_end_s"]) - int(q["pubtime_begin_s"]) == trending.WINDOW_DAYS * 86400
+    assert q["wts"].isdigit() and len(q["w_rid"]) == 32  # the wbi signature
+    assert "buvid3=AAA" in search.headers["cookie"]
+    views = [r for r in bili.calls if r.url.path.endswith("/wbi/view")]
+    assert len(views) == 5 and all(len(r.url.params["w_rid"]) == 32 for r in views)
+    assert sum(r.url.path.endswith("/nav") for r in bili.calls) == 1  # the key is read once for all of them
+
+
+def test_the_wbi_signature_is_the_md5_of_the_sorted_clean_query_and_the_key():
+    nav = {"code": -101, "data": {"wbi_img": {"img_url": "https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png",
+                                              "sub_url": "https://i0.hdslb.com/bfs/wbi/4932caab00d94a2e8b6d1d7cf1b8ab7e.png"}}}
+    client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=nav)))
+    key = trending._wbi_key(client)
+    assert len(key) == 32 and set(key) <= set("7cd084941338484aae1ad9425b84077c4932caab00d94a2e8b6d1d7cf1b8ab7e")
+    signed = trending._signed(client, {"zab": 1919810, "foo": "1(1)4!", "bar": "514"})
+    query = f"bar=514&foo=114&wts={signed['wts']}&zab=1919810"  # sorted by name; ! ' ( ) * are dropped
+    assert signed["w_rid"] == hashlib.md5((query + key).encode()).hexdigest()
+    assert signed["foo"] == "1(1)4!"  # only the signature sees the cleaned value; the request keeps what was asked
+    broken = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"code": -101})))
+    trending._wbi_cache.update(key=None, at=0.0)
+    with pytest.raises(trending.TrendingError, match="Could not reach Bilibili"):
+        trending._wbi_key(broken)
+
+
+def test_a_tag_stops_reading_once_it_has_enough(bili):
+    hits = [f"BV1{i:03d}" for i in range(30)]
+    _bilibili_tags(bili, hits, {b: _video(b) for b in hits})
+    assert len(trending.fetch("bilibili:tag:AI", take=5)) == 5
+    assert sum(r.url.path.endswith("/wbi/view") for r in bili.calls) == 8  # one batch of eight, not thirty
+
+
+def test_a_category_mixes_its_ranking_and_its_tags(bili):
+    now = int(time.time())
+    _bilibili_tags(bili, ["BV1t1", "BV1t2"],
+                   {"BV1t1": _video("BV1t1", pubdate=now), "BV1t2": _video("BV1t2", pubdate=now)})
+    bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
+        _video("BV1r1", pubdate=now), _video("BV1t1", pubdate=now), _video("BV1r2", copyright=2, pubdate=now),
+        _video("BV1old", pubdate=now - 400 * 86400),  # a ranking also lists videos from last year
+        _video("BV1r3", pubdate=now - 5 * 86400)]}}
+    monkey = dict(trending.CATEGORIES)
+    trending.CATEGORIES["mix"] = {"name": "Mix", "rankings": (188,), "tags": ("甲", "乙")}
+    try:
+        rows = trending.fetch("bilibili:category:mix")
+    finally:
+        trending.CATEGORIES.clear()
+        trending.CATEGORIES.update(monkey)
+    # first of each list, then second of each…, and a video seen twice once
+    assert [r["id"] for r in rows] == ["bilibili:BV1r1", "bilibili:BV1t1", "bilibili:BV1t2", "bilibili:BV1r3"]
+    assert [r["rank"] for r in rows] == [1, 2, 3, 4]
+
+
+def test_a_category_fails_only_when_every_part_fails(bili):
+    _bilibili_tags(bili, ["BV1t1"], {"BV1t1": _video("BV1t1")})
+    trending.CATEGORIES["mix"] = {"name": "Mix", "rankings": (188,), "tags": ("甲",)}
+    try:
+        bili.answers["/x/web-interface/ranking/v2"] = {"code": -352, "message": "-352"}
+        assert [r["id"] for r in trending.fetch("bilibili:category:mix")] == ["bilibili:BV1t1"]  # the tag still answers
+        bili.answers["/x/web-interface/wbi/search/type"] = {"code": -352, "message": "-352"}
+        with pytest.raises(trending.TrendingError, match="blocked the request"):
+            trending.fetch("bilibili:category:mix")
+    finally:
+        trending.CATEGORIES.pop("mix")
+
+
+def test_a_category_is_a_watch_source_with_a_name(bili):
+    wid = watch.add("bilibili:category:ai")
+    bili.answers["/x/web-interface/wbi/search/type"] = {"code": 0, "data": {"result": []}}
+    _bilibili_tags(bili, ["BV1a"], {"BV1a": _video("BV1a")})
+    r = watch.check(db.get_watch(wid))
+    assert r["error"] is None and r["new"] == ["bilibili:BV1a"]
+    assert db.get_watch(wid)["name"] == "Bilibili · AI & tools"

@@ -47,7 +47,10 @@ as authoritative for scope and milestones.
     warnings for a source, title or script used in the last 30 days; a `fail` holds the video at the gate when the channel
     has Postiz (`pipeline._why_held`), a warning is only shown
   - `trending.py` Bilibili's own ranking (16 categories or all), popular and weekly lists as followed sources in `watch.py`
-    (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only
+    (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only; plus the Trending screen's
+    categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
+    Bilibili search with the public wbi signature, most played of the last 7 days, rights read from `wbi/view`);
+    Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
@@ -57,7 +60,10 @@ as authoritative for scope and milestones.
     (`needs_review`)
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
-  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
+  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos"); an account's page (`/clips/:id`,
+    `GET /api/watches/{id}/videos`, `account.tsx`) lists every video seen from it by upload day: YouTube upload times come
+    from the channel's / playlist's RSS feed (a flat list has none), Bilibili's from the video page, a video with no time
+    goes last under "Date unknown"
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
@@ -143,6 +149,12 @@ on every PR; keep them green.
   picture is paid for. Never make a picture of a real, recognizable person. AI clips (`motio/aiclips.py`, channel profile
   `ai_clips` or a per-video count, off by default) change the post label to "Images et vidéos générées par IA."; they are
   paid per new clip (`AI_CLIP_USD_PER_SEC`, recorded in the `usage` table) and stop when the monthly budget is reached.
+- Trending (owner, 2026-10-16): the Trending screen shows videos by category or tag from Chinese video platforms
+  (Bilibili; Douyin has no public category feed, so Douyin stays paste-a-link). NewsNow hot news is off by default
+  (`NEWS_TOPICS`, `config.news_topics()`; the "News topics" page and the refresh only exist when it is on). A video made
+  from a clip removes the source's own voice: an explainer mutes the source (`meta.mute_source`, `ClipProduceIn.mute_voice`,
+  on by default), a dub separates the voice and keeps the music (`dub.py`). Nothing from here is auto-sent: rights stay
+  unknown, so a person approves first.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt.
 - Douyin: `motio/douyin.py` downloads public videos with the `f2` package (Johnserf-Seed/f2, Apache-2.0), added on the

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { BUSY_MS } from "@/lib/poll";
 import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
+import AccountPage from "@/pages/account";
 import ChannelsPage from "@/pages/channels";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
@@ -21,12 +22,14 @@ import StatsPage from "@/pages/stats";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
+import TrendVideosPage from "@/pages/trend-videos";
 
 type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame };
 /** The rail's groups, separated by thin dividers. Settings sits at the bottom, above the engine status. */
 const NAV: NavItem[][] = [
   [
     { to: "/trends", label: "trends", icon: Flame },
+    { to: "/news", label: "news", icon: Newspaper }, // only while NEWS_TOPICS is on
     { to: "/clips", label: "clips", icon: Rss },
     { to: "/projects", label: "projects", icon: FolderKanban },
   ],
@@ -191,6 +194,8 @@ export default function App() {
     enabled: !!api,
     refetchInterval: (q) => (q.state.data && q.state.data.queued + q.state.data.running > 0 ? BUSY_MS : 15_000),
   });
+  const { data: refresh } = useQuery({ queryKey: ["state"], queryFn: () => api!.state(), enabled: !!api, refetchInterval: 30_000 });
+  const newsTopics = !!refresh?.news_topics;
   useDocumentTitle(counts?.review ?? 0);
   const main = useRef<HTMLElement>(null);
 
@@ -221,7 +226,7 @@ export default function App() {
         <div className="flex flex-1 flex-col overflow-y-auto pt-2">
           {NAV.map((group, i) => (
             <div key={i} className={cn("flex flex-col", i > 0 && "mt-2 border-t pt-2")}>
-              {group.map(({ to, label, icon }) => (
+              {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon }) => (
                 <RailItem key={to} to={to} label={t.nav[label]} icon={icon} count={to === "/projects" ? counts?.review : undefined}
                   failed={to === "/projects" ? counts?.failed_recent : undefined}
                 />
@@ -238,8 +243,10 @@ export default function App() {
       <main ref={main} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
         <Routes>
           <Route path="/" element={<Navigate to="/trends" replace />} />
-          <Route path="/trends" element={<EngineGate><TrendsPage /></EngineGate>} />
+          <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />
+          <Route path="/news" element={<EngineGate><TrendsPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
+          <Route path="/clips/:id" element={<EngineGate><AccountPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />

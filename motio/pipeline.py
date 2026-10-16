@@ -655,8 +655,10 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         res = render.render(**creator.render_args(plan, sources, nar, MIN_SECONDS), narration=nar, out_dir=out,
                             progress=prog, badge=channels.badge_for(proj), wide=wide)
     else:
+        # a video made from a trending clip has no Chinese voice under the French one (meta.mute_source)
         res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
-                            badge=channels.badge_for(proj), wide=wide)
+                            badge=channels.badge_for(proj), wide=wide,
+                            **({"src_volume": 0.0} if proj["meta"].get("mute_source") else {}))
     if not res.get("wide"):
         (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm

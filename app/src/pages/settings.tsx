@@ -235,7 +235,8 @@ const TOC_LABEL: Record<SectionId, () => string> = {
 function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Settings; draft: Draft; setDraft: (f: (d: Draft) => Draft) => void; changed: string[] }) {
   const testSlack = useMutation({ mutationFn: () => api.testSlack() });
   const val = (k: string) => (k in draft ? String(draft[k]) : (s[k]?.value ?? ""));
-  const bool = (k: string) => (k in draft ? draft[k] === true : ["1", "true", "yes", "on"].includes(val(k).toLowerCase()));
+  const bool = (k: string, dflt = false) =>
+    k in draft ? draft[k] === true : val(k) === "" ? dflt : ["1", "true", "yes", "on"].includes(val(k).toLowerCase());
   const set = (k: string, v: string | boolean) => setDraft((d) => ({ ...d, [k]: v }));
   const text = (k: string, placeholder?: string) => (
     <Input value={val(k)} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} />
@@ -266,10 +267,10 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
   const hasElKey = !!s.ELEVENLABS_API_KEY?.value && draft.ELEVENLABS_API_KEY !== "";
   const dirty = changed.length > 0;
   const grid = "grid gap-4 sm:grid-cols-2";
-  const switchRow = (k: string, label: string) => (
+  const switchRow = (k: string, label: string, dflt = false) => (
     <label className="flex items-center justify-between gap-4">
       <span className="text-[13px]">{label}</span>
-      <Switch checked={bool(k)} onCheckedChange={(v) => set(k, v)} />
+      <Switch checked={bool(k, dflt)} onCheckedChange={(v) => set(k, v)} />
     </label>
   );
 
@@ -280,6 +281,10 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN") ?? t.settings.refreshHint}>
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>
+        <div className="grid content-start gap-1 sm:col-span-2">
+          {switchRow("NEWS_TOPICS", t.settings.newsTopics)}
+          <p className="text-xs text-muted-foreground">{t.settings.newsTopicsHint}</p>
+        </div>
         <div className="sm:col-span-2">
           <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
             {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}

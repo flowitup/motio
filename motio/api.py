@@ -45,6 +45,7 @@ from . import (
     shots,
     toolbox,
     topic,
+    trending,
     tts,
     usage,
     watch,
@@ -132,6 +133,7 @@ class ClipProduceIn(BaseModel):
     duration: int = 80
     links_only: bool | None = None  # None = chỉ dùng video này khi nguồn có quyền rõ ràng
     channel: int | None = None  # như ProduceIn
+    mute_voice: bool = True  # tắt hẳn tiếng gốc của nguồn (giọng tiếng Trung) dưới giọng đọc Pháp
 
 
 class ScriptIn(BaseModel):
@@ -327,7 +329,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             return
         state["refreshing"] = True
         try:
-            state["last_result"] = newsnow.refresh()
+            state["last_result"] = newsnow.refresh() if config.news_topics() else None  # news off: nothing to fetch
         except Exception as e:
             state["last_result"] = {"error": str(e)[:300]}
         finally:
@@ -394,7 +396,13 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def get_state():
         return {**state, "busy": any(p["status"] in ("queued", "running") for p in db.list_projects(20)),
                 "refresh_every_min": config.refresh_every_min(), "next_refresh": next_refresh(),
-                "next_watch": next_watch()}
+                "next_watch": next_watch(), "news_topics": config.news_topics()}
+
+    @app.get("/api/categories", dependencies=[Depends(auth)])
+    def categories():
+        """Chuyên mục video thịnh hành có thể theo dõi (Trending): khoá, target của nguồn, tên tiếng Anh."""
+        return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"]}
+                for k, c in trending.CATEGORIES.items()]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
@@ -505,6 +513,21 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             threading.Thread(target=_check_watches, daemon=True).start()
         return {"started": started}
 
+    @app.get("/api/watches/{wid}/videos", dependencies=[Depends(auth)])
+    def watch_videos(wid: int, limit: int = 300):
+        """Every video seen from one account, newest upload first: the app groups them by day."""
+        _watch(wid)
+        return db.list_watch_clips(wid, max(1, min(limit, 500)))
+
+    @app.post("/api/watches/{wid}/check", status_code=202, dependencies=[Depends(auth)])
+    def check_one_watch(wid: int):
+        _watch(wid)
+        started = not state["watching"]
+        if started:
+            state["watching"] = True
+            threading.Thread(target=_check_watches, args=([wid],), daemon=True).start()
+        return {"started": started}
+
     @app.get("/api/clips", dependencies=[Depends(auth)])
     def clips(status: str = "new", watch_id: int | None = None, limit: int = 200):
         return db.list_clips(status, watch_id, limit)
@@ -534,7 +557,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = watch.produce(cid, body.duration, body.links_only)
+            pid = watch.produce(cid, body.duration, body.links_only, body.mute_voice)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)

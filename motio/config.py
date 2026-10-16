@@ -185,6 +185,11 @@ def refresh_every_min() -> int:
     return _int("REFRESH_EVERY_MIN")
 
 
+def news_topics() -> bool:
+    """Tin hot của NewsNow (trang News topics). Mặc định tắt: Trending lấy video theo chuyên mục (owner 2026-10-16)."""
+    return flag("NEWS_TOPICS")
+
+
 def news_sources() -> list[str]:
     return [s.strip() for s in env("NEWS_SOURCES", DEFAULT_SOURCES).split(",") if s.strip()]
 

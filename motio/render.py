@@ -22,6 +22,7 @@ W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
 NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
 TAIL = 0.6  # giây hình sau câu cuối
+SRC_VOLUME = 0.10  # âm lượng tiếng của nguồn dưới giọng đọc (0 = im: video không còn giọng gốc)
 CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn
 CAP_SIZE, CAP_LINE = 60, 78
 CAP_H = captions.MAX_LINES * CAP_LINE + 40
@@ -380,7 +381,7 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
 
 def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
            min_total: float = 0.0, badge: str = "", wide: bool = False, pieces: list[Piece] | None = None,
-           total: float | None = None, src_volume: float = 0.10, delay: float = NARRATION_DELAY,
+           total: float | None = None, src_volume: float = SRC_VOLUME, delay: float = NARRATION_DELAY,
            caption_hold: float | None = None) -> dict:
     """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây.
     badge: nhãn đỏ trên tiêu đề (vd. "ACTU CHINE" cho tin nóng), rỗng = không có.
