@@ -258,7 +258,6 @@ Pour une vidéo d'un classement Bilibili (catégorie, likes, âge en heures), le
 doublage ou d'un commentaire en français : paroles claires et courtes, situation compréhensible sans connaître la
 Chine, peu de texte incrusté. Un classement dit ce qui buzze, pas ce qu'on a le droit de reprendre : ne le
 suppose pas.
-reprise_interdite : case que Bilibili coche par défaut pour l'auteur, n'en tiens pas rigueur.
 
 Réponds avec une liste JSON d'objets {{"id", "title_fr", "score", "reason"}}.
 
@@ -276,8 +275,7 @@ def _int(v) -> int | None:
 def _trend_fields(c: dict) -> dict:
     """Catégorie, likes et âge d'une vidéo de classement (absents des autres sources)."""
     out = {"catégorie": c.get("category"), "likes": c.get("likes"),
-           "âge_h": round((time.time() - c["pubdate"]) / 3600) if c.get("pubdate") else None,
-           "reprise_interdite": True if c.get("no_reprint") else None}
+           "âge_h": round((time.time() - c["pubdate"]) / 3600) if c.get("pubdate") else None}
     return {k: v for k, v in out.items() if v is not None}
 
 

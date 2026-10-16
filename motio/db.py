@@ -67,8 +67,7 @@ def conn() -> sqlite3.Connection:
 
 
 # Columns added after a table first shipped: installed databases get them with ALTER TABLE.
-NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER",
-                        "no_reprint": "INTEGER"},
+NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER"},
                "usage": {"tokens_in": "INTEGER", "tokens_out": "INTEGER"}}
 
 
@@ -312,7 +311,7 @@ def known_clip_ids(ids: list[str]) -> set[str]:
 def insert_clips(clips: list[dict]) -> None:
     now = time.time()
     keys = ("id", "watch_id", "site", "url", "title", "uploader", "duration", "views", "thumbnail", "status",
-            "likes", "pubdate", "category", "rank", "no_reprint")
+            "likes", "pubdate", "category", "rank")
     with _lock, conn() as c:
         c.executemany(f"INSERT OR IGNORE INTO clip ({', '.join(keys)}, first_seen) "
                       f"VALUES ({', '.join(':' + k for k in keys)}, :now)",

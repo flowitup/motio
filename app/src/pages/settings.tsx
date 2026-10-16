@@ -282,10 +282,6 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>
         <div className="grid content-start gap-1 sm:col-span-2">
-          {switchRow("ALLOW_NO_REPRINT", t.settings.allowNoReprint, true)}
-          <p className="text-xs text-muted-foreground">{t.settings.allowNoReprintHint}</p>
-        </div>
-        <div className="grid content-start gap-1 sm:col-span-2">
           {switchRow("NEWS_TOPICS", t.settings.newsTopics)}
           <p className="text-xs text-muted-foreground">{t.settings.newsTopicsHint}</p>
         </div>

@@ -50,8 +50,7 @@ as authoritative for scope and milestones.
     (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only; plus the Trending screen's
     categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
     Bilibili search with the public wbi signature, most played of the last 7 days, rights read from `wbi/view`);
-    "no reprint" is Bilibili's default tick (~99 % of a ranking), so it is a flag (`clip.no_reprint`), not a filter,
-    unless `ALLOW_NO_REPRINT` is off
+    Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's

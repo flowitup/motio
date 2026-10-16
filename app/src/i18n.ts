@@ -144,9 +144,6 @@ const en = {
     create: "Create",
     only: "Use only this video",
     onlyHint: "Off: Motio also searches YouTube and Bilibili, and the project's rights become “Unknown”.",
-    noReprint: "No reprint",
-    noReprintHint:
-      "The creator ticked “no reprint” on Bilibili (it is Bilibili's default). Rights stay Unknown, so the video waits for your approval before anything is posted.",
     muteVoice: "Remove the original voice",
     dub: "Dub in French",
     dubHint: "Translates the speech of this video into French and keeps its music and sound. Channel and rights as set above.",
@@ -182,7 +179,7 @@ const en = {
     notChecked: "not checked yet",
     trending: "Bilibili trending",
     trendingHint:
-      "Follow what is hot on Bilibili: a category ranking, the popular list or the weekly must-watch. Reposts and videos whose creator marked them “no reprint” are left out. Whether you may reuse a video stays your call (rights: Unknown).",
+      "Follow what is hot on Bilibili: a category ranking, the popular list or the weekly must-watch. Reposts and paid videos are left out. Whether you may reuse a video stays your call (rights: Unknown).",
     trendingAdd: "Follow list",
     lists: {
       "bilibili:ranking:181": "Ranking · Film & TV",
@@ -795,9 +792,6 @@ const en = {
     voicePriceHint: "Used for the cost estimates on the Stats page. Creator plan is about 0.22; the Flash model counts half.",
     monthlyBudget: "Monthly voice budget ($, 0 = none)",
     monthlyBudgetHint: "The Stats page warns at 80%. At 100% videos made automatically stop until next month; videos you start yourself still run.",
-    allowNoReprint: "Show Bilibili videos marked “no reprint”",
-    allowNoReprintHint:
-      "Bilibili ticks “no reprint” by default, on almost every video, so hiding them leaves the lists empty. They are flagged on the card and, like all videos of unknown rights, wait for your approval before posting.",
     newsTopics: "News topics (NewsNow hot lists)",
     newsTopicsHint: "Off: Trending shows only videos by category. On: Motio also fetches and scores China's hot news, and a “News topics” page appears.",
     newsSources: "News sources (comma-separated)",
@@ -1152,9 +1146,6 @@ const vi: Messages = {
     create: "Tạo",
     only: "Chỉ dùng video này",
     onlyHint: "Tắt: Motio tìm thêm video trên YouTube, Bilibili; khi đó quyền của dự án là “Chưa rõ”.",
-    noReprint: "Cấm đăng lại",
-    noReprintHint:
-      "Tác giả đã tick “cấm đăng lại” trên Bilibili (đây là mặc định của Bilibili). Quyền vẫn là Chưa rõ nên video chờ bạn duyệt trước khi đăng.",
     muteVoice: "Bỏ giọng gốc",
     dub: "Lồng tiếng Pháp",
     dubHint: "Dịch lời nói của video này sang tiếng Pháp, giữ nhạc nền và tiếng động. Kênh và quyền như đã chọn ở trên.",
@@ -1189,7 +1180,7 @@ const vi: Messages = {
     notChecked: "chưa kiểm tra",
     trending: "Xu hướng Bilibili",
     trendingHint:
-      "Theo dõi video đang hot trên Bilibili: bảng xếp hạng theo chuyên mục, mục thịnh hành hoặc “mỗi tuần một xem”. Video đăng lại và video mà tác giả đánh dấu “cấm đăng lại” bị bỏ qua. Có được dùng lại video hay không vẫn do bạn quyết (quyền: Chưa rõ).",
+      "Theo dõi video đang hot trên Bilibili: bảng xếp hạng theo chuyên mục, mục thịnh hành hoặc “mỗi tuần một xem”. Video đăng lại và video trả phí bị bỏ qua. Có được dùng lại video hay không vẫn do bạn quyết (quyền: Chưa rõ).",
     trendingAdd: "Theo dõi bảng này",
     lists: {
       "bilibili:ranking:181": "Xếp hạng · Phim ảnh",
@@ -1801,9 +1792,6 @@ const vi: Messages = {
     voicePriceHint: "Dùng để ước lượng chi phí ở trang Thống kê. Gói Creator khoảng 0,22; mô hình Flash tính nửa giá.",
     monthlyBudget: "Ngân sách giọng đọc mỗi tháng ($, 0 = không đặt)",
     monthlyBudgetHint: "Trang Thống kê cảnh báo ở mức 80%. Đủ 100% thì video tự làm dừng tới tháng sau; video bạn tự bấm làm vẫn chạy.",
-    allowNoReprint: "Hiện video Bilibili bị đánh dấu “cấm đăng lại”",
-    allowNoReprintHint:
-      "Bilibili mặc định tick “cấm đăng lại” cho gần như mọi video, nên ẩn chúng thì danh sách trống. Chúng có nhãn trên thẻ video và, như mọi video chưa rõ quyền, chờ bạn duyệt trước khi đăng.",
     newsTopics: "Tin hot (danh sách hot của NewsNow)",
     newsTopicsHint: "Tắt: Xu hướng chỉ hiện video theo chuyên mục. Bật: Motio còn lấy và chấm điểm tin hot Trung Quốc, và có thêm trang “Tin hot”.",
     newsSources: "Nguồn tin (phân cách bằng dấu phẩy)",

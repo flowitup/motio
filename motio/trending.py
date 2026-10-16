@@ -15,10 +15,8 @@ copyright or rights flags, so each hit is read once more (`x/web-interface/wbi/v
 same rules as a ranking item.
 
 What is kept: original uploads only (`copyright` 1, a repost is somebody else's), nothing paid, and nothing under
-15 s. A creator's "no reprint" tick (`rights.no_reprint`) is Bilibili's default, set on about 99 % of the videos of a
-ranking (checked 2026-10-16: 1 of 97 in Tech), so dropping them would empty every list: they are kept and flagged
-(`clip.no_reprint`) unless `ALLOW_NO_REPRINT` is off. Rights stay "unknown": a ranking says what is hot, not who may
-reuse it.
+15 s. A creator's "no reprint" tick is Bilibili's default (about 99 % of a ranking) and says nothing, so it is ignored
+(owner, 2026-10-16). Rights stay "unknown": a ranking says what is hot, not who may reuse it.
 """
 import hashlib
 import re
@@ -29,7 +27,6 @@ from urllib.parse import urlencode
 
 import httpx
 
-from . import config
 from .i18n import tr
 
 API = "https://api.bilibili.com"
@@ -133,26 +130,23 @@ def _https(url: str | None) -> str | None:
 
 def usable(v: dict) -> bool:
     """A video the owner could reasonably dub or comment on: an original upload (copyright 1; 2 is a repost, 3 is
-    neither clearly original nor clearly ours to reuse), not paid, and (when ALLOW_NO_REPRINT is off) without the
-    creator's 'no reprint' tick."""
+    neither clearly original nor clearly ours to reuse) and not paid."""
     rights = v.get("rights") or {}
     if not v.get("bvid") or v.get("copyright") not in (None, 1) or v.get("is_ogv") or rights.get("movie"):
         return False
     if rights.get("pay") or rights.get("arc_pay") or rights.get("ugc_pay"):
-        return False
-    if rights.get("no_reprint") and not config.allow_no_reprint():
         return False
     return (v.get("duration") or 0) >= MIN_SECONDS
 
 
 def clip(v: dict, rank: int) -> dict:
     """One list item → a `clip` row (see db.insert_clips)."""
-    stat, rights = v.get("stat") or {}, v.get("rights") or {}
+    stat = v.get("stat") or {}
     return {"id": f"bilibili:{v['bvid']}", "site": "bilibili", "url": f"https://www.bilibili.com/video/{v['bvid']}",
             "title": (v.get("title") or "").strip(), "uploader": (v.get("owner") or {}).get("name") or "",
             "duration": v.get("duration") or None, "views": stat.get("view"), "likes": stat.get("like"),
             "pubdate": v.get("pubdate") or None, "category": v.get("tname") or None,
-            "thumbnail": _https(v.get("pic")), "rank": rank, "no_reprint": int(bool(rights.get("no_reprint")))}
+            "thumbnail": _https(v.get("pic")), "rank": rank}
 
 
 # ---------- search by tag ("wbi" signature) ----------

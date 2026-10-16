@@ -56,12 +56,10 @@ def test_parse_and_name():
             trending.parse(bad)
 
 
-def test_ranking_keeps_only_originals_that_may_be_reused(bili, monkeypatch):
-    monkeypatch.setenv("ALLOW_NO_REPRINT", "false")
+def test_ranking_keeps_only_originals_that_may_be_reused(bili):
     bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
         _video("BV1ok"),
         _video("BV1repost", copyright=2),
-        _video("BV1noreprint", rights={"no_reprint": 1}),
         _video("BV1paid", rights={"pay": 1}),
         _video("BV1film", rights={"movie": 1}),
         _video("BV1ogv", is_ogv=True),
@@ -75,26 +73,21 @@ def test_ranking_keeps_only_originals_that_may_be_reused(bili, monkeypatch):
     assert ok["url"] == "https://www.bilibili.com/video/BV1ok" and ok["uploader"] == "UP主"
     assert (ok["views"], ok["likes"], ok["duration"], ok["category"], ok["rank"]) == (100_000, 5000, 120, "影视杂谈", 1)
     assert ok["thumbnail"] == "https://i0.hdslb.com/BV1ok.jpg" and ok["pubdate"] == 1_790_000_000
-    assert rows[1]["rank"] == 9  # the place in the list, not in the kept rows
+    assert rows[1]["rank"] == 8  # the place in the list, not in the kept rows
     req = bili.calls[0]
     assert req.url.params["rid"] == "181" and req.url.params["type"] == "all"
     assert req.headers["user-agent"] == trending.UA and "Chrome/" in req.headers["user-agent"]  # a short UA gets -352
     assert req.headers["referer"] == "https://www.bilibili.com"
 
 
-def test_no_reprint_is_flagged_not_dropped_unless_the_setting_is_off(bili, monkeypatch):
-    """Bilibili ticks "no reprint" by default (99 % of a ranking): dropping it would empty every list."""
+def test_the_no_reprint_tick_is_ignored(bili):
+    """Bilibili ticks "no reprint" by default (99 % of a ranking): it neither drops nor flags a video."""
     bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
         _video("BV1plain", rights={"no_reprint": 0}), _video("BV1ticked", rights={"no_reprint": 1}),
         _video("BV1paid", rights={"no_reprint": 1, "pay": 1})]}}
     rows = trending.fetch("bilibili:ranking:181")
-    assert [(r["id"], r["no_reprint"]) for r in rows] == [("bilibili:BV1plain", 0), ("bilibili:BV1ticked", 1)]
-    monkeypatch.setenv("ALLOW_NO_REPRINT", "false")
-    assert [r["id"] for r in trending.fetch("bilibili:ranking:181")] == ["bilibili:BV1plain"]
-    monkeypatch.setenv("ALLOW_NO_REPRINT", "true")
-    wid = watch.add("bilibili:ranking:181")
-    watch.check(db.get_watch(wid))
-    assert db.get_clip("bilibili:BV1ticked")["no_reprint"] == 1  # kept on the row, shown as a flag in the app
+    assert [r["id"] for r in rows] == ["bilibili:BV1plain", "bilibili:BV1ticked"]
+    assert "no_reprint" not in rows[1]
 
 
 def test_popular_uses_the_popular_endpoint(bili):
@@ -229,12 +222,10 @@ def _bilibili_tags(bili, hits, details):
         else {"code": -404, "message": "gone"})
 
 
-def test_a_tag_is_searched_signed_and_checked_for_rights(bili, monkeypatch):
-    monkeypatch.setenv("ALLOW_NO_REPRINT", "false")
-    _bilibili_tags(bili, ["BV1ok", "BV1repost", "BV1noreprint", "BV1three", "BV1gone", "BV1two"], {
+def test_a_tag_is_searched_signed_and_checked_for_rights(bili):
+    _bilibili_tags(bili, ["BV1ok", "BV1repost", "BV1three", "BV1gone", "BV1two"], {
         "BV1ok": _video("BV1ok", tname=""),
         "BV1repost": _video("BV1repost", copyright=2),
-        "BV1noreprint": _video("BV1noreprint", rights={"no_reprint": 1}),
         "BV1three": _video("BV1three", copyright=3),
         "BV1two": _video("BV1two", stat={"view": 7, "like": 1}),
     })
@@ -248,7 +239,7 @@ def test_a_tag_is_searched_signed_and_checked_for_rights(bili, monkeypatch):
     assert q["wts"].isdigit() and len(q["w_rid"]) == 32  # the wbi signature
     assert "buvid3=AAA" in search.headers["cookie"]
     views = [r for r in bili.calls if r.url.path.endswith("/wbi/view")]
-    assert len(views) == 6 and all(len(r.url.params["w_rid"]) == 32 for r in views)
+    assert len(views) == 5 and all(len(r.url.params["w_rid"]) == 32 for r in views)
     assert sum(r.url.path.endswith("/nav") for r in bili.calls) == 1  # the key is read once for all of them
 
 

@@ -30,7 +30,7 @@ its latest 10 videos (a Bilibili list, its top 20), then only videos it hasn't s
 and a score, and "Make video" makes a French explainer from it. Bilibili's own trending lists can be followed too
 (**Bilibili trending** on that page: the ranking of each of 16 categories or of all of them, Popular, and the weekly must-watch, then
 **Follow list**): no login, original uploads
-only (reposts, "no reprint" and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
+only (reposts and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
 downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
 
 **Douyin**: a pasted Douyin link is fetched with [f2](https://github.com/Johnserf-Seed/f2) (Apache 2.0), which needs no
@@ -257,7 +257,6 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
 | `NEWS_TOPICS` | `true` brings back China's hot news (NewsNow) next to the Trending videos: a *News topics* page and the refresh of it. Default off |
-| `ALLOW_NO_REPRINT` | Default on: show Bilibili videos whose creator ticked “no reprint” (almost all of them), flagged on the card. `false` hides them |
 | `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
 | `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |

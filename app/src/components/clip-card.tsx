@@ -91,11 +91,6 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             {clip.uploader && <span>{clip.uploader}</span>}
             {clip.views != null && <span>· {t.clips.views(clip.views)}</span>}
             {clip.likes != null && <span>· {t.clips.likes(clip.likes)}</span>}
-            {clip.no_reprint === 1 && (
-              <Badge variant="outline" title={t.clips.noReprintHint}>
-                {t.clips.noReprint}
-              </Badge>
-            )}
             {clip.category && <span>· {clip.category}</span>}
             {clip.rank != null && <span>· {t.clips.rank(clip.rank)}</span>}
             {clip.pubdate != null && <span>· {t.clips.posted} {t.age(clip.pubdate)}</span>}

@@ -419,7 +419,6 @@ export type Clip = {
   pubdate: number | null; // giờ đăng gốc (giây Unix), chỉ có ở video từ bảng xếp hạng
   category: string | null; // chuyên mục Bilibili
   rank: number | null; // thứ hạng trong bảng
-  no_reprint?: number | null; // 1 = tác giả Bilibili tick “cấm đăng lại” (mặc định của Bilibili); quyền vẫn Chưa rõ
   thumbnail: string | null;
   score: number | null;
   first_seen: number;
