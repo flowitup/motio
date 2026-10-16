@@ -256,6 +256,8 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL`, `NEWS_SOURCES` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
+| `NEWS_TOPICS` | `true` brings back China's hot news (NewsNow) next to the Trending videos: a *News topics* page and the refresh of it. Default off |
+| `ALLOW_NO_REPRINT` | Default on: show Bilibili videos whose creator ticked “no reprint” (almost all of them), flagged on the card. `false` hides them |
 | `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
 | `MAX_VIDEOS_PER_DAY` | Daily video cap (0 = no limit) |
 | `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |
@@ -289,7 +291,7 @@ motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, ca
 motio/aiclips.py   AI clips: fal H3 Max or HeyGen Video 1 image-to-video for some scenes of an AI video, cached per scene, cost estimate
 motio/series.py    AI video series: a channel's cast (fixed looks put in front of picture prompts) and episode recaps
 motio/qa.py        quality check after each render (length, picture, loudness, silence, black start) + repeat warnings
-motio/trending.py  Bilibili ranking / popular / weekly lists as followed sources
+motio/trending.py  Bilibili ranking / popular / weekly lists, categories and tags as followed sources
 motio/localfile.py a video file added by hand, used as a source like a link
 motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
 motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)

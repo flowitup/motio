@@ -523,6 +523,16 @@ project files. Built in this batch:
   `bilibili:popular`, `bilibili:weekly`. Plain JSON, no login and no signature (the weekly list wants anonymous buvid
   cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing "no reprint" or paid, nothing
   under 15 s; rights stay *unknown*. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
+- **Trending by category or tag** (2026-10-16, owner: "target the video on video platforms in China like technology, AI
+  series / films, savoir-vivre, by tag or category, with the Chinese voice removed"): the Trending screen lists videos
+  from the categories and tags you follow (`motio/trending.py` `CATEGORIES`, `bilibili:category:<key>`, `bilibili:tag:<word>`;
+  tags use Bilibili's search with the public wbi signature, most played of the last 7 days, each hit read again for its
+  rights). They are ordinary followed sources, so the New videos page, scoring, *Dub in French* and *Create* work on them.
+  NewsNow hot news is off by default (`NEWS_TOPICS`; the old page is *News topics*). Bilibili ticks "no reprint" on ~99 % of
+  videos (1 of 97 in the Tech ranking was clear), so those are flagged, not dropped (`ALLOW_NO_REPRINT`). *Create* removes
+  the source's own voice (`meta.mute_source`); *Dub in French* already separates it from the music. Douyin has no public
+  category feed (f2 only fetches a known post or a creator), so Douyin stays paste-a-link. Not built: auto-make from
+  trending videos, keeping the source's music under an explainer.
 - **HeyGen Video 1 as a second AI clip provider** (`aiclips.py`, `CLIP_PROVIDER`, `HEYGEN_API_KEY`): `POST /v3/models/videos`
   `image_to_video` with the scene picture as the first frame, 5 s, 768p, polled every 3 s up to 420 s, sound dropped. The
   output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is
