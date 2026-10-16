@@ -84,6 +84,7 @@ def test_upload_list_edit_delete(client, tmp_path):
     assert client.delete(f"/api/music/{t['id']}", headers=H).status_code == 404
 
 
+@needs_ffmpeg
 def test_upload_rejects_what_is_not_audio(client):
     r = client.post("/api/music", headers=H, files={"file": ("x.txt", io.BytesIO(b"hello"))})
     assert r.status_code == 400 and "audio" in r.json()["detail"]
