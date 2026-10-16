@@ -16,6 +16,7 @@ def clean_settings(monkeypatch):
 
     with db.conn() as c:
         c.execute("DELETE FROM channel")
+        c.execute("DELETE FROM music")
     settings.path().unlink(missing_ok=True)
     for k in settings.KEYS:
         monkeypatch.delenv(k, raising=False)

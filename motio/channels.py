@@ -9,7 +9,7 @@ Dự án trỏ tới hồ sơ bằng `meta.channel`; không có hồ sơ thì ch
 import datetime as dt
 import re
 
-from . import aiclips, db, series, topic
+from . import aiclips, db, music, series, topic
 from .i18n import tr
 
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
@@ -25,7 +25,7 @@ _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
             "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
             "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "ai_clips": 0,
-            "series": "", "cast": ""}
+            "series": "", "cast": "", "music_id": 0, "music_volume": 0.25}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -86,6 +86,13 @@ def clean(data: dict) -> dict:
         raise ValueError(tr("AI clips per video must be a number")) from None
     if not 0 <= d["ai_clips"] <= aiclips.MAX_PER_VIDEO:
         raise ValueError(tr("AI clips per video must be between 0 and {n}", n=aiclips.MAX_PER_VIDEO))
+    try:
+        d["music_id"] = max(0, int(d["music_id"] or 0))
+    except (TypeError, ValueError):
+        raise ValueError(tr("The background music must be a track of the library")) from None
+    if d["music_id"] and not db.get_music(d["music_id"]):
+        raise ValueError(tr("The background music must be a track of the library"))
+    d["music_volume"] = music.clamp_volume(d["music_volume"])
     return d
 
 

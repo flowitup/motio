@@ -27,6 +27,7 @@ import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-car
 import { ExternalA } from "@/components/external-link";
 import { Choice } from "@/components/form";
 import { Monitor } from "@/components/monitor";
+import { MusicCard } from "@/components/music-card";
 import { PublishCard } from "@/components/publish-card";
 import { ScriptCard, type ScriptGate } from "@/components/script-card";
 import { ShotsCard } from "@/components/shots-card";
@@ -607,6 +608,8 @@ export default function ProjectDetailPage() {
           )}
 
           {playable && <FilesCard api={api} p={p} />}
+
+          {(p.has_script || p.meta.video) && <MusicCard api={api} p={p} active={active} onQueued={refreshAll} />}
 
           {status === "done" && p.meta.video && (
             <PublishCard

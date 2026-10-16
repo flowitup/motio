@@ -55,6 +55,15 @@ CREATE TABLE IF NOT EXISTS usage (
   project_id INTEGER, channel_id INTEGER, ref TEXT,  -- dự án / kênh đang chạy; ref: công cụ lẻ ("tool:<job>")
   model TEXT, voice TEXT
 );
+CREATE TABLE IF NOT EXISTS music (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT, artist TEXT, source TEXT,   -- source: upload | tiktok_cml (motio/music.py)
+  ext_id TEXT, link TEXT, genre TEXT, region TEXT, rank INTEGER, duration REAL,
+  file TEXT,                      -- path under data/, empty = only listed (no audio to mix)
+  license TEXT DEFAULT 'unknown', note TEXT DEFAULT '',
+  trending_at REAL, added_at REAL,
+  UNIQUE (source, ext_id)
+);
 CREATE INDEX IF NOT EXISTS usage_at ON usage (at);
 CREATE INDEX IF NOT EXISTS usage_project ON usage (project_id);
 """
@@ -409,3 +418,45 @@ def save_channel(cid: int | None, data: dict, is_default: bool) -> int:
 def delete_channel(cid: int) -> None:
     with _lock, conn() as c:
         c.execute("DELETE FROM channel WHERE id=?", (cid,))
+
+
+# ---------- thư viện nhạc nền (music.py) ----------
+def list_music() -> list[dict]:
+    """Trending first (best rank on top), then the tracks added by hand, newest first."""
+    with conn() as c:
+        rows = c.execute("SELECT * FROM music ORDER BY (trending_at IS NULL), rank IS NULL, rank, id DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_music(mid: int) -> dict | None:
+    with conn() as c:
+        r = c.execute("SELECT * FROM music WHERE id=?", (mid,)).fetchone()
+    return dict(r) if r else None
+
+
+def find_music(source: str, ext_id: str) -> dict | None:
+    with conn() as c:
+        r = c.execute("SELECT * FROM music WHERE source=? AND ext_id=?", (source, ext_id)).fetchone()
+    return dict(r) if r else None
+
+
+def save_music(mid: int | None, **fields) -> int:
+    """Insert (mid None) or update the given columns of a track."""
+    cols = {"title", "artist", "source", "ext_id", "link", "genre", "region", "rank", "duration", "file", "license",
+            "note", "trending_at"}
+    bad = set(fields) - cols
+    if bad:
+        raise ValueError(f"unknown music column: {sorted(bad)}")
+    with _lock, conn() as c:
+        if mid is None:
+            names = [*fields, "added_at"]
+            return c.execute(f"INSERT INTO music ({', '.join(names)}) VALUES ({', '.join('?' * len(names))})",
+                             [*fields.values(), time.time()]).lastrowid
+        if fields:
+            c.execute(f"UPDATE music SET {', '.join(f'{k}=?' for k in fields)} WHERE id=?", [*fields.values(), mid])
+        return mid
+
+
+def delete_music(mid: int) -> None:
+    with _lock, conn() as c:
+        c.execute("DELETE FROM music WHERE id=?", (mid,))

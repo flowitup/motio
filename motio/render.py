@@ -22,6 +22,7 @@ W, H, FPS = config.W, config.H, config.FPS
 VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt giữa khung
 NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
 TAIL = 0.6  # giây hình sau câu cuối
+MUSIC_FADE_IN, MUSIC_FADE_OUT = 1.5, 2.5  # giây: nhạc nền vào dần và tắt dần ở cuối video
 SRC_VOLUME = 0.10  # âm lượng tiếng của nguồn dưới giọng đọc (0 = im: video không còn giọng gốc)
 CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn
 CAP_SIZE, CAP_LINE = 60, 78
@@ -344,9 +345,18 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
           "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", str(out)])
 
 
+def music_filter(volume: float, total: float) -> str:
+    """Background track under the voice: faded in and out, pressed down while the voice speaks. [key] is the voice
+    padded with silence, since sidechaincompress stops when its shorter input does."""
+    out = max(0.0, total - MUSIC_FADE_OUT)
+    return (f"[3:a]aresample=48000,aformat=channel_layouts=stereo,volume={volume:.3f},afade=t=in:d={MUSIC_FADE_IN},"
+            f"afade=t=out:st={out:.3f}:d={MUSIC_FADE_OUT}[mus];"
+            "[mus][key]sidechaincompress=threshold=0.03:ratio=10:attack=30:release=500[duck];")
+
+
 def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: list[captions.Cue], narration: dict,
              title: str, badge: str, out_dir: Path, work: Path, tick: Callable[[], None], volume: float = 0.10,
-             delay: float = NARRATION_DELAY) -> Path:
+             delay: float = NARRATION_DELAY, music: dict | None = None, total: float = 0.0) -> Path:
     """Dựng một khổ từ các mảnh đã chọn: mảnh clip + lớp chữ, nối lại, trộn giọng đọc và phụ đề."""
     pre = layout.prefix
     cap_list = write_caption_track(cues, work, layout)
@@ -369,11 +379,18 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     bg = out_dir / f"{pre}bg.mp4"
     _run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(bg)])
     final = out_dir / f"final{'_' + pre.rstrip('_') if pre else ''}.mp4"
+    voice = (f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(delay * 1000)}|{int(delay * 1000)}"
+             + ("" if music else "[nar];"))
+    if music:  # the voice feeds the mix and the ducking of the music
+        mix = (voice + ",asplit=2[nar][key0];[key0]apad[key];" + music_filter(music["volume"], total)
+               + "[0:a][nar][duck]amix=inputs=3:duration=first:normalize=0")
+    else:
+        mix = voice + "[0:a][nar]amix=inputs=2:duration=first:normalize=0"
     _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"],
-          "-f", "concat", "-safe", "0", "-i", str(cap_list), "-filter_complex",
+          "-f", "concat", "-safe", "0", "-i", str(cap_list),
+          *(["-stream_loop", "-1", "-i", str(music["path"])] if music else []), "-filter_complex",
           f"[2:v]format=rgba[cap];[0:v][cap]overlay=0:{layout.cap_top}:eof_action=pass,format=yuv420p[v];"
-          f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(delay * 1000)}|{int(delay * 1000)}[nar];"
-          "[0:a][nar]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
+          f"{mix},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
           "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final)])
     return final
@@ -382,13 +399,14 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
 def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
            min_total: float = 0.0, badge: str = "", wide: bool = False, pieces: list[Piece] | None = None,
            total: float | None = None, src_volume: float = SRC_VOLUME, delay: float = NARRATION_DELAY,
-           caption_hold: float | None = None) -> dict:
+           caption_hold: float | None = None, music: dict | None = None) -> dict:
     """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây.
     badge: nhãn đỏ trên tiêu đề (vd. "ACTU CHINE" cho tin nóng), rỗng = không có.
     wide: dựng thêm bản 16:9 (final_wide.mp4) từ cùng các mảnh, giọng đọc và phụ đề.
     pieces / total: các mảnh và độ dài đã định sẵn (bản lồng tiếng), không thì chọn theo kịch bản.
     src_volume: âm lượng tiếng nguồn dưới giọng đọc; delay: giọng đọc vào trễ bao nhiêu giây;
-    caption_hold: phụ đề tắt sau từ cuối chừng này giây (None = giữ tới phụ đề sau)."""
+    caption_hold: phụ đề tắt sau từ cuối chừng này giây (None = giữ tới phụ đề sau).
+    music: {"path", "volume"} nhạc nền đặt dưới giọng đọc (music.for_render), None = không có."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
@@ -420,7 +438,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
             progress(done, steps)
 
     final, *rest = [_compose(lay, pieces, sources, cues, narration, title, badge, out_dir, work, tick, src_volume,
-                             delay) for lay in layouts]
+                             delay, music, total) for lay in layouts]
     thumb = out_dir / "thumb.jpg"
     _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])

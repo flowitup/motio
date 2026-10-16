@@ -618,6 +618,25 @@ review screen they all need.
   `qwen-image-edit-2511` really keeps a face from one portrait, its exact price, and whether fal takes a data URI for
   `image_urls` as documented; the screen in a real Tauri window on Mac / Windows.
 
+## Background music library (added 17/10/2026)
+
+- **Ask (owner):** fetch the background music that is hot and trending on TikTok into a library.
+- **What is realistically fetchable:** TikTok has no public API or page for its trending sounds. The Creative Center chart
+  (`creative_radar_api`) answers `no permission` (code 40101) without the signature its page computes, and Motio does not forge
+  it. The audio of a trending sound is, mostly, a commercial recording that TikTok may play inside the app only; reused on
+  YouTube / Facebook / X it gets a Content ID claim (and the Shorts / Reels revenue goes), and `CLAUDE.md` forbids dodging it.
+  The licensed subset is TikTok's **Commercial Music Library** (pre-cleared for organic posts and ads **on TikTok**): its
+  chart comes from a data API (bundle.social `GET /api/v1/misc/tiktok/cml/trending-list`: name, artist, rank, genres, a preview
+  clip valid 6 h; key + team id in Settings → Music).
+- **Built:** the library (own files + CML tracks, each with a license and note, usable-on: all / TikTok only / none), fetch by
+  genre and period, a video's pick or its channel's default, the mix (fade, ducked under the voice), a license gate
+  (`tiktok_cml` / `unknown` always stop at the video gate), the track named in `sources.txt`.
+- **Not included:** the full-length audio of a CML track (the API gives a preview clip, so a short one loops under the video),
+  attaching a TikTok sound at publish time (`music_sound_id`: Postiz does not take it), automatic picking of a track per
+  topic, music in a French dub (it keeps the original's).
+- **Not verified:** a real call to the data API (the URL, header and field names come from its public docs; tests use a fake
+  transport) and its price / terms; whether CML terms allow use outside TikTok (treated as TikTok-only).
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

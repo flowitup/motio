@@ -165,6 +165,8 @@ export type ChannelInput = {
   ai_clips: number; // video AI: số cảnh thành clip AI mỗi video (0–10); 0 = chỉ ảnh chuyển động
   series: string; // video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
   cast: string; // video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu)
+  music_id: number; // nhạc nền mặc định từ thư viện nhạc; 0 = không có
+  music_volume: number;
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
@@ -300,8 +302,40 @@ export type ProjectDetail = Project & {
   has_script: boolean;
   dub: DubView | null;
   ai: AiView | null;
+  music: ProjectMusic;
   usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number; picture_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
+
+/** Nhạc nền: license = own | licensed | cc | tiktok_cml | unknown; usable_on tóm tắt nơi dùng được. */
+export type MusicTrack = {
+  id: number;
+  title: string;
+  artist: string;
+  source: "upload" | "tiktok_cml";
+  link: string;
+  genre: string;
+  rank: number | null;
+  duration: number | null;
+  license: string;
+  usable_on: "all" | "tiktok" | "none";
+  note: string;
+  audio: string | null; // đường dẫn /media; null = chỉ có tên bài, chưa có file để trộn
+  trending_at: number | null;
+  added_at: number;
+};
+export type MusicList = {
+  tracks: MusicTrack[];
+  licenses: string[];
+  fetch: boolean; // đã nhập khoá nhạc TikTok trong Cài đặt
+  windows: string[];
+  default_genre: string;
+  default_window: string;
+};
+export type MusicInput = { title?: string; artist?: string; license?: string; note?: string };
+/** Nhạc của một dự án: bài đang dùng (của video hoặc mặc định của kênh) và có buộc duyệt video không. */
+export type ProjectMusic =
+  | { supported: false }
+  | { supported: true; id: number | null; volume: number; from: "video" | "channel" | null; title: string; artist: string; license: string; needs_review: boolean };
 
 export type ScriptClip = { src: number; start: number; end: number };
 /** Bản lồng tiếng thêm: loại (intro | dub | outro), ai nói, câu gốc (zh), lúc vào / hạn (giây), số ký tự vừa chỗ. */
@@ -636,6 +670,20 @@ export function makeApi(url: string, token: string) {
     delogoRestore: (key: string) => call<DelogoTarget>("DELETE", `${dl(key)}/result`),
     delogoDelete: (key: string) => call<{ deleted: string }>("DELETE", dl(key)),
     stats: () => call<Stats>("GET", "/api/stats"),
+    music: () => call<MusicList>("GET", "/api/music"),
+    addMusic: (file: File, fields: MusicInput, onProgress?: (pct: number) => void) => {
+      const form = new FormData();
+      form.append("file", file);
+      for (const [k, v] of Object.entries(fields)) if (v) form.append(k, v);
+      return postForm<MusicTrack>("/api/music", form, onProgress);
+    },
+    updateMusic: (id: number, body: MusicInput) => call<MusicTrack>("PATCH", `/api/music/${id}`, body),
+    deleteMusic: (id: number) => call<{ id: number }>("DELETE", `/api/music/${id}`),
+    fetchMusic: (body: { genre: string; window: string }) =>
+      call<{ added: number; updated: number; listed: number; no_audio: number }>("POST", "/api/music/fetch", body),
+    /** track_id null = không nhạc (kể cả khi kênh có nhạc mặc định); dựng lại video đã xong bằng giọng đọc cũ. */
+    setProjectMusic: (id: number, body: { track_id: number | null; volume: number }) =>
+      call<{ project_id: number; rerender: boolean }>("PUT", `/api/projects/${id}/music`, body),
     toolJobs: () => call<ToolJob[]>("GET", "/api/tools/jobs"),
     /** fields: ô chữ của công cụ; files: file tải lên (`file` video / âm thanh, `subs` .srt / .vtt). */
     startTool: (

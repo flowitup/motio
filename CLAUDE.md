@@ -91,6 +91,11 @@ as authoritative for scope and milestones.
     channel / tool job from a ContextVar), and so is every Claude call (`llm`), every new AI picture (`picture`, from
     `images.make`) and every AI clip (`clip`); price and monthly budget in Settings; over budget pauses `automake` only
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
+  - `music.py` background-music library (`music` table, files in `data/music/`): tracks added by hand and the trending tracks of
+    TikTok's Commercial Music Library through a licensed data API (`TIKTOK_MUSIC_API_KEY` / `TIKTOK_MUSIC_TEAM_ID`; never scrape
+    TikTok or fetch a trending sound outside the CML: most are commercial recordings, Content ID); each track has a license
+    (`own`/`licensed`/`cc` free everywhere, `tiktok_cml` and `unknown` force the video gate, `music.needs_review`); a video's
+    pick is `meta.music`, else the channel's `music_id`; the mix is `render.music_filter` (fade, sidechain duck); a dub takes none
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
