@@ -54,6 +54,7 @@ CATEGORIES = {
     "travel": {"name": "Travel", "rankings": (), "tags": ("旅行", "旅游攻略", "citywalk")},
 }
 WINDOW_DAYS = 7  # a tag looks at what was posted in the last week
+RANKING_MAX_AGE_DAYS = 30  # a category's ranking part skips older videos (a ranking also lists year-old ones)
 TAG_TAKE = 20  # usable videos kept per tag
 TAG_POOL = 30  # search hits read (rights checked) per tag at most
 TAG_MAX = 40  # longest tag, in characters
@@ -233,9 +234,10 @@ def _category(client: httpx.Client, key: str, take: int) -> list[dict]:
     cat = CATEGORIES[key]
     lists, errors = [], []
     _anonymous_cookies(client)
+    oldest = time.time() - RANKING_MAX_AGE_DAYS * 86400
     for rid in cat["rankings"]:
         try:
-            lists.append(_ranking(client, rid))
+            lists.append([v for v in _ranking(client, rid) if (v.get("pubdate") or 0) >= oldest])
         except TrendingError as e:
             errors.append(e)
     per_tag = max(5, -(-take // max(len(cat["tags"]), 1)))  # a share each: they are interleaved below

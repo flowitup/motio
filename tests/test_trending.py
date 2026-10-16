@@ -1,6 +1,7 @@
 """Bilibili trending lists (motio/trending.py) as watch sources: parsing, filtering, the weekly cookie dance, errors."""
 import hashlib
 import sqlite3
+import time
 
 import httpx
 import pytest
@@ -275,9 +276,13 @@ def test_a_tag_stops_reading_once_it_has_enough(bili):
 
 
 def test_a_category_mixes_its_ranking_and_its_tags(bili):
-    _bilibili_tags(bili, ["BV1t1", "BV1t2"], {"BV1t1": _video("BV1t1"), "BV1t2": _video("BV1t2")})
+    now = int(time.time())
+    _bilibili_tags(bili, ["BV1t1", "BV1t2"],
+                   {"BV1t1": _video("BV1t1", pubdate=now), "BV1t2": _video("BV1t2", pubdate=now)})
     bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
-        _video("BV1r1"), _video("BV1t1"), _video("BV1r2", copyright=2), _video("BV1r3")]}}
+        _video("BV1r1", pubdate=now), _video("BV1t1", pubdate=now), _video("BV1r2", copyright=2, pubdate=now),
+        _video("BV1old", pubdate=now - 400 * 86400),  # a ranking also lists videos from last year
+        _video("BV1r3", pubdate=now - 5 * 86400)]}}
     monkey = dict(trending.CATEGORIES)
     trending.CATEGORIES["mix"] = {"name": "Mix", "rankings": (188,), "tags": ("甲", "乙")}
     try:
