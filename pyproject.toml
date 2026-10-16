@@ -11,7 +11,7 @@ dependencies = [
   "httpx>=0.27",
   "python-dotenv>=1.0",
   "yt-dlp[default]>=2026.8.19",
-  "f2==0.0.1.7",
+  "f2 @ git+https://github.com/Johnserf-Seed/f2@f6be8c0ffba9a127075bbeafe4838716650b6325",
   "pillow>=10.4",
   "numpy>=2.0",
   "onnxruntime>=1.20",
@@ -32,23 +32,15 @@ package = false
 name = "f2"
 version = "0.0.1.7"
 requires-dist = [
-  "aiofiles>=24.1",
-  "aiosqlite>=0.20",
-  "babel>=2.13",
   "click>=8.1",
-  "cryptography>=44",
   "gmssl>=3.2.2",
-  "httpx>=0.27",
-  "importlib-resources>=6.4",
-  "jsonpath-ng>=1.6.1",
-  "m3u8>=3.6",
-  "protobuf>=5.28",
+  "httpx>=0.28.1",
+  "httpx-socks>=0.11",
+  "protobuf>=5.29.6",
   "pydantic>=2.9",
-  "pyyaml>=6",
-  "qrcode>=8",
   "rich>=13.9",
-  "websockets>=13",
-  "websockets-proxy>=0.1.2",
+  "ruamel.yaml>=0.18.10",
+  "websockets>=15",
 ]
 
 [dependency-groups]

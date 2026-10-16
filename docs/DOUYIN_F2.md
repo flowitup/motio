@@ -1,7 +1,7 @@
 # Douyin downloads through f2
 
 Public Douyin videos download without a login or cookies. `motio/douyin.py` calls the [f2](https://github.com/Johnserf-Seed/f2)
-package (Apache-2.0, `f2==0.0.1.7`), which does Douyin's request signing; Motio never copies that code. `search.download`
+package (Apache-2.0, pinned to commit `f6be8c0` of its default branch `v0.0.1.8-pw3`, version string 0.0.1.7), which does Douyin's request signing; Motio never copies that code. `search.download`
 tries it first for every Douyin link and falls back to yt-dlp when f2 cannot.
 
 ## How a download goes
@@ -57,6 +57,20 @@ nothing with it.
 | Frozen engine on Linux (Python 3.12 and 3.13), no real Douyin | starts without contacting Douyin; a full link and a Share sentence download through f2 against a local stand-in; a removed video gives its message; no `./logs` folder; with the network cut it fails in 1 to 3 s |
 | Offline and stalled network (after v0.7.13, real f2 and yt-dlp, no real Douyin) | a proxy that refuses every connection: full link, then short link, then the full link again all say "Could not connect to Douyin" within 3 s (the short link in 0.5 s, and it never reaches yt-dlp); a token-server address whose accept queue is full (SYNs dropped): the first `_f2()` gives up at 15.0 s, the next two at 0.0 s |
 
+### Bump to commit `f6be8c0` (2026-10-16, the owner's Mac, home network, guest only)
+
+Reviewed: the 35 f2 files that load on Motio's path (no `subprocess`, `eval`, `exec`, pickle or ctypes; the only hosts are
+Douyin's; `curl_cffi` is not loaded, the TikTok code that needs it is not reachable). Runtime dependencies of that path:
+click, gmssl, httpx, httpx-socks, protobuf, pydantic, rich, ruamel.yaml, websockets; against 0.0.1.7 the lock file gains
+`httpx-socks` and `ruamel-yaml` and loses nine packages (aiofiles, aiosqlite, babel, cryptography, importlib-resources,
+jsonpath-ng, m3u8, qrcode, websockets-proxy). Through `search.download`: a full `/video/` link, the same without `www` and with a
+tracking query, a Share sentence, and the two older posts download (1080x1920, 22 s; 544x960, 47 s; 1280x720, 3 min 30 s); a
+photo post says "photos, not a video"; an id that does not exist says Douyin gave no video (`core_dep`). With PyPI 0.0.1.7 the
+three posts (the trending one and the two older ones) all failed in f2 (a 403 for two of them, seen directly). A frozen engine built from this branch (`tools/build_engine.py`, macOS arm64, started from an empty folder with its own data
+folder) passed the f2 bundle check, downloaded the full link through Tools → Download and refused the photo post, with nothing
+in its error output. Not retested: a `v.douyin.com` short link and a removed post (no live example at hand), the Windows
+build.
+
 Not tested: Windows, the Hetzner server (a datacenter address may be refused: an f2 user reported a server blocked while a
 local machine worked), long-term stability, keyword search, an author's video list.
 
@@ -65,8 +79,12 @@ local machine worked), long-term stability, keyword search, an author's video li
 - **f2 is a fragile upstream.** One maintainer, bursty (no commit for 222 days, then 271 in September 2026). The last PyPI
   release is 2024-12-31; every fix since then sits on the unreleased `v0.0.1.8-pw3` branch. On the path Motio uses, Douyin
   broke the access four times in two years (June 2024, February 2025, March 2025, August to September 2026): fixed on git in
-  10 days (median), on PyPI once of four. Douyin also began gating `aweme/detail` in mid-September 2026; the pinned build
-  works today from a home connection, which is what the tests above show. Expect it to be down sometimes: that is why the
+  10 days (median), on PyPI once of four. Douyin put an `ArgusSecurityPlugin` check on its API gateway in August 2026: with
+  the PyPI 0.0.1.7 every post-detail request got a 403 (checked on 2026-10-16: 3 of 3 posts, a trending one and two older ones), which is why Motio now pins
+  the git commit that fixed it (f2 issue #443, commit `9b759fc`): f2 adds an `x-tt-argus` header with a placeholder value and a
+  `uifid` header taken from the guest cookie. The gateway only checks that `x-tt-argus` is there; if Douyin starts checking its
+  value the 403 comes back and this needs a newer f2 (or a browser-made value in `~/.f2/conf.yaml`). The pinned build
+  works from a home connection, which is what the tests above show. Expect it to be down sometimes: that is why the
   fallback chain and **Add a video file** stay.
 - **A stalled network.** When the packets to Douyin's token server are silently dropped (the connection never opens),
   importing f2 would retry its `msToken` request for about 135 s (twelve attempts inside f2's own `model.py`). The import
@@ -86,6 +104,9 @@ local machine worked), long-term stability, keyword search, an author's video li
   needed; see `douyin.Unreachable` above: that case now says "Could not connect to Douyin". If a DNS filter blocks only
   `mssdk.bytedance.com`, f2 cannot start (and if yt-dlp fails too the message says it could not connect) while yt-dlp may
   still work with cookies: unblock that host.
+- **f2 reads config files.** The pinned f2 merges user-level overrides into its defaults: `~/.f2/conf.yaml`, a `conf.yaml` in
+  the engine's working directory and the file named by the `F2_CONFIG` environment variable (a proxy, headers, cookies). A
+  broken file makes f2 fail, and Motio then falls back to yt-dlp. Nobody should put one there for Motio's engine.
 - **TLS.** f2 turns certificate checking off for its own calls (an on-path attacker could forge Douyin's reply). Motio only
   follows https links to public addresses, so a forged reply cannot reach local services; it could still hand over wrong
   metadata or another public file. The CDN download itself checks certificates.
@@ -103,7 +124,10 @@ local machine worked), long-term stability, keyword search, an author's video li
    `requires-dist` against the new f2's imports), then `uv lock`. Check `git diff uv.lock` for packages that appear.
 3. `uv run pytest`, then a live check with a throwaway `MOTIO_DATA`: a full `/video/` link, a `v.douyin.com` link, a photo
    post and a removed post (`uv run python -c "from motio import search; print(search.download('<link>', Path('/tmp/x')))"`).
-4. If the new f2 only exists on a git branch, pin a commit SHA and keep its wheel; do not follow a branch.
+4. If the new f2 only exists on a git branch, pin a commit SHA (`f2 @ git+https://github.com/Johnserf-Seed/f2@<sha>`); do not follow a
+   branch. `uv.lock` records the commit, so the source cannot change under the pin. Only 35 f2 files load on Motio's Douyin
+   path (list them with a `sys.modules` check after importing `f2.apps.douyin.crawler`, `.model` and `.utils`); review those,
+   and the runtime dependencies they import, not the whole package.
 5. Rebuild the engine (`tools/build_engine.py` checks that f2's yaml files are bundled).
 
 ## Alternatives looked at

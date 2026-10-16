@@ -554,7 +554,7 @@ project files. Built in this batch:
   do not work without a browser session; Evil0ctal v5 (Docker + Postgres + Redis) and TikTokDownloader (GPL-3.0, cookie)
   were not run. Not tested: keyword search, an author's video list.
 - **Douyin through f2 (02/10)**: on the owner's go ("Gắn f2 đi rồi test lại"), `motio/douyin.py` calls f2 as a pinned
-  dependency (`f2==0.0.1.7`; its signing code is not copied into the repo). `search.download` tries it first for Douyin
+  dependency (f2 pinned to a git commit, see `docs/DOUYIN_F2.md`; its signing code is not copied into the repo). `search.download` tries it first for Douyin
   links (any form, the `v.douyin.com` short link and the pasted share sentence included), asks Douyin up to three times
   (a passing 403, or a thinner list of sizes than usual), takes the largest H.264 stream up to 1080 p on the short side
   (owner's choice, 02/10; Tools → Download can cap it lower), saves `Douyin_<id>.mp4` and returns the same metadata as the
