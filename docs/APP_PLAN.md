@@ -533,6 +533,11 @@ project files. Built in this batch:
   the source's own voice (`meta.mute_source`); *Dub in French* already separates it from the music. Douyin has no public
   category feed (f2 only fetches a known post or a creator), so Douyin stays paste-a-link. Not built: auto-make from
   trending videos, keeping the source's music under an explainer.
+- **Account feed by day** (2026-10-16, owner: click a followed account to see its videos by day): the source name on the
+  Followed page opens `/clips/:id`, every video seen from that account (any status) newest upload first under one heading
+  per day (Today, Yesterday, the date, "Date unknown" last); *Check now* checks just that account (`POST
+  /api/watches/{id}/check`). The upload time (`clip.pubdate`) comes from the YouTube RSS feed (latest 15, also filled in
+  for videos stored before) or the Bilibili video page; YouTube and Bilibili only, Douyin stays paste-a-link.
 - **HeyGen Video 1 as a second AI clip provider** (`aiclips.py`, `CLIP_PROVIDER`, `HEYGEN_API_KEY`): `POST /v3/models/videos`
   `image_to_video` with the scene picture as the first frame, 5 s, 768p, polled every 3 s up to 420 s, sound dropped. The
   output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is

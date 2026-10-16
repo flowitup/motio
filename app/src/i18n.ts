@@ -162,6 +162,19 @@ const en = {
     posted: "posted",
     sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
   },
+  account: {
+    back: "Followed",
+    today: "Today",
+    yesterday: "Yesterday",
+    unknownDate: "Date unknown",
+    unknownDateHint: "Videos whose upload date could not be read (older ones, or the site did not say).",
+    videos: (n: number) => (n === 1 ? "1 video" : `${n} videos`),
+    empty: "No video from this account yet. They appear after the next check.",
+    earlier: "Earlier",
+    earlierHint: "Already there when you started following this account",
+    open: "Videos by day",
+    openSource: "Open the account",
+  },
   watches: {
     title: "Followed sources",
     target: "Channel link, playlist or keywords",
@@ -1013,6 +1026,7 @@ const en = {
   common: { error: "Error", loading: "Loading…", noEngine: "Can't connect to the engine", cancel: "Cancel" },
   clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
   dateTime: (iso: string) => new Date(iso).toLocaleString("en-GB"),
+  day: (ts: number) => new Date(ts * 1000).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
   /** A message from the Tauri shell (engine.rs, updater.rs, always English), in this language. */
   native: (msg: string) => msg,
   age: (ts?: number | null) => {
@@ -1162,6 +1176,19 @@ const vi: Messages = {
     rank: (n: number) => `hạng ${n} trong bảng`,
     posted: "đăng",
     sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
+  },
+  account: {
+    back: "Theo dõi",
+    today: "Hôm nay",
+    yesterday: "Hôm qua",
+    unknownDate: "Chưa rõ ngày",
+    unknownDateHint: "Video chưa đọc được ngày đăng (video cũ, hoặc trang không cho biết).",
+    videos: (n: number) => `${n} video`,
+    empty: "Tài khoản này chưa có video nào. Video sẽ hiện sau lần kiểm tra tiếp theo.",
+    earlier: "Có sẵn",
+    earlierHint: "Đã có sẵn lúc bạn bắt đầu theo dõi tài khoản này",
+    open: "Xem video theo ngày",
+    openSource: "Mở tài khoản",
   },
   watches: {
     title: "Nguồn theo dõi",
@@ -2013,6 +2040,7 @@ const vi: Messages = {
   common: { error: "Lỗi", loading: "Đang tải…", noEngine: "Không kết nối được engine", cancel: "Hủy" },
   clock: (ts: number) => new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   dateTime: (iso: string) => new Date(iso).toLocaleString("vi-VN"),
+  day: (ts: number) => new Date(ts * 1000).toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" }),
   native: (msg: string) => {
     const hit = NATIVE_VI.find(([en]) => msg.startsWith(en));
     return hit ? hit[1] + msg.slice(hit[0].length) : msg;

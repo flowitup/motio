@@ -11,6 +11,7 @@ import { BUSY_MS } from "@/lib/poll";
 import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
+import AccountPage from "@/pages/account";
 import ChannelsPage from "@/pages/channels";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
@@ -245,6 +246,7 @@ export default function App() {
           <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />
           <Route path="/news" element={<EngineGate><TrendsPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
+          <Route path="/clips/:id" element={<EngineGate><AccountPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />

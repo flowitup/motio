@@ -8,8 +8,10 @@ import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from urllib.parse import parse_qs, quote_plus, urlparse
 
+import httpx
 from yt_dlp import YoutubeDL
 
 from . import db, llm, search, topic, trending
@@ -26,6 +28,9 @@ YT_TABS = ("videos", "shorts")  # kênh YouTube: theo dõi cả video thường 
 # Tìm kiếm YouTube đã bỏ sắp xếp theo ngày: lọc "tải lên tháng này" + chỉ video (tuần này hay trả về rỗng)
 YT_THIS_MONTH = "EgQIBBAB"
 VIDEO_IE = {"youtube": "Youtube", "bilibili": "BiliBili"}
+# A flat YouTube list has no upload time, but the channel's / playlist's RSS feed has it for its latest 15 videos
+YT_FEED = "https://www.youtube.com/feeds/videos.xml"
+_FEED_ENTRY = re.compile(r"<yt:videoId>([\w-]+)</yt:videoId>.*?<published>([^<]+)</published>", re.S)
 
 _YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
 _YT_CHANNEL = re.compile(r"^/(@[^/]+|channel/UC[\w-]+|c/[^/]+|user/[^/]+)")
@@ -168,7 +173,35 @@ def _clip(e: dict, w: dict, owner: str | None) -> dict | None:
         url = f"https://www.bilibili.com/video/{vid}"
     return {"id": f"{w['site']}:{vid}", "watch_id": w["id"], "site": w["site"], "url": _https(url),
             "title": (e.get("title") or "").strip(), "uploader": e.get("channel") or e.get("uploader") or owner,
-            "duration": e.get("duration") or None, "views": e.get("view_count"), "thumbnail": thumb}
+            "duration": e.get("duration") or None, "views": e.get("view_count"), "thumbnail": thumb,
+            "pubdate": _stamp(e)}
+
+
+def _stamp(e: dict) -> float | None:
+    """The upload time of a yt-dlp entry (Unix seconds), when it has one."""
+    ts = e.get("timestamp") or e.get("release_timestamp")
+    if ts:
+        return float(ts)
+    try:
+        return datetime.strptime(str(e.get("upload_date")), "%Y%m%d").timestamp()
+    except ValueError:
+        return None
+
+
+def _feed_dates(w: dict, info: dict) -> dict[str, float]:
+    """`youtube:<id>` → upload time of the latest videos of a YouTube channel or playlist ({} when unreadable)."""
+    if w["site"] != "youtube" or w["kind"] not in ("channel", "playlist"):
+        return {}
+    ident = info.get("channel_id") if w["kind"] == "channel" else info.get("id")
+    if not ident or not re.fullmatch(r"[\w-]+", str(ident)):
+        return {}
+    key = "channel_id" if w["kind"] == "channel" else "playlist_id"
+    try:
+        r = httpx.get(YT_FEED, params={key: ident}, timeout=10, follow_redirects=True)
+        r.raise_for_status()
+        return {f"youtube:{vid}": datetime.fromisoformat(at).timestamp() for vid, at in _FEED_ENTRY.findall(r.text)}
+    except (httpx.HTTPError, ValueError):
+        return {}
 
 
 def _details(c: dict) -> dict:
@@ -183,7 +216,7 @@ def _details(c: dict) -> dict:
         return {**c, "status": "retry" if _BLOCK.search(str(e)) else "old"}
     return {**c, "title": (info.get("title") or "").strip(), "uploader": info.get("uploader") or c["uploader"],
             "duration": info.get("duration") or c["duration"], "views": info.get("view_count") or c["views"],
-            "thumbnail": _thumb(info) or c["thumbnail"]}
+            "thumbnail": _thumb(info) or c["thumbnail"], "pubdate": c.get("pubdate") or _stamp(info)}
 
 
 def _short(e: Exception, site: str) -> str:
@@ -198,6 +231,7 @@ def check(w: dict) -> dict:
     first = not w["last_checked"]
     found: dict[str, dict] = {}
     owner, errors, ok = None, [], False
+    dates: dict[str, float] = {}
     if w["kind"] == "trending":
         try:
             batch = trending.fetch(w["target"])
@@ -215,6 +249,8 @@ def check(w: dict) -> dict:
             errors.append(_short(e, w["site"]))
             continue
         ok = True
+        if not dates:
+            dates = _feed_dates(w, info)
         if w["kind"] != "search":
             owner = owner or info.get("channel") or info.get("uploader") or info.get("title")
         batch = [c for c in (_clip(e, w, owner) for e in _entries(info)[:PER_LIST]) if c]
@@ -222,9 +258,14 @@ def check(w: dict) -> dict:
             c["status"] = "old" if first and i >= FIRST_TAKE else "new"
             if c["id"] not in found or c["status"] == "new":
                 found[c["id"]] = c
+    for cid, ts in dates.items():
+        if cid in found and not found[cid].get("pubdate"):
+            found[cid]["pubdate"] = ts
+    db.fill_pubdates(dates)  # videos seen before the feed was read
     known = db.known_clip_ids(list(found))
     fresh = [c for c in found.values() if c["id"] not in known]
-    need = [c for c in fresh if c["status"] == "new" and not c["title"]][:MAX_DETAILS]
+    missing = [c for c in fresh if not c["title"] or (w["site"] == "bilibili" and not c.get("pubdate"))]
+    need = sorted(missing, key=lambda c: c["status"] != "new")[:MAX_DETAILS]  # the new ones first
     if need:
         with ThreadPoolExecutor(max_workers=4) as ex:
             done = {c["id"]: c for c in ex.map(_details, need)}

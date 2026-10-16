@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Languages, Loader2, Video } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
@@ -94,7 +94,24 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             {clip.category && <span>· {clip.category}</span>}
             {clip.rank != null && <span>· {t.clips.rank(clip.rank)}</span>}
             {clip.pubdate != null && <span>· {t.clips.posted} {t.age(clip.pubdate)}</span>}
-            {clipSource(clip) && clipSource(clip) !== clip.uploader && <span>· {clipSource(clip)}</span>}
+            {clipSource(clip) && clipSource(clip) !== clip.uploader && (
+              <span>
+                ·{" "}
+                {clip.watch_id ? (
+                  <Link to={`/clips/${clip.watch_id}`} className="underline-offset-2 hover:underline" title={t.account.open}>
+                    {clipSource(clip)}
+                  </Link>
+                ) : (
+                  clipSource(clip)
+                )}
+              </span>
+            )}
+            {clip.status === "old" && (
+              <Badge variant="outline" title={t.account.earlierHint}>
+                {t.account.earlier}
+              </Badge>
+            )}
+            {clip.status === "hidden" && <Badge variant="outline">{t.clips.tabs.hidden}</Badge>}
             <span>· {t.age(clip.first_seen)}</span>
             <ExternalA href={clip.url} className="inline-flex items-center gap-1">
               <ExternalLink className="size-3" aria-label={t.clips.openOriginal} />

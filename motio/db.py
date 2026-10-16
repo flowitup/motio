@@ -336,6 +336,23 @@ def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 20
         return [dict(r) for r in c.execute(sql, (*args, limit)).fetchall()]
 
 
+def list_watch_clips(wid: int, limit: int = 300) -> list[dict]:
+    """Every video seen from one source, whatever its status, newest upload first (no upload time: last)."""
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target, "
+           "watch.rights AS rights FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.watch_id = ? "
+           "ORDER BY clip.pubdate IS NULL, clip.pubdate DESC, clip.first_seen DESC LIMIT ?")
+    with conn() as c:
+        return [dict(r) for r in c.execute(sql, (wid, limit)).fetchall()]
+
+
+def fill_pubdates(dates: dict[str, float]) -> None:
+    """Upload times for videos stored without one."""
+    if dates:
+        with _lock, conn() as c:
+            c.executemany("UPDATE clip SET pubdate=? WHERE id=? AND pubdate IS NULL",
+                          [(ts, cid) for cid, ts in dates.items()])
+
+
 def get_clip(cid: str) -> dict | None:
     with conn() as c:
         r = c.execute("SELECT clip.*, watch.name AS watch_name, watch.rights AS rights "

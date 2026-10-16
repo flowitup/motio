@@ -60,7 +60,10 @@ as authoritative for scope and milestones.
     (`needs_review`)
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
-  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos")
+  - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos"); an account's page (`/clips/:id`,
+    `GET /api/watches/{id}/videos`, `account.tsx`) lists every video seen from it by upload day: YouTube upload times come
+    from the channel's / playlist's RSS feed (a flat list has none), Bilibili's from the video page, a video with no time
+    goes last under "Date unknown"
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
   - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz

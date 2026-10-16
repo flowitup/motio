@@ -513,6 +513,21 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             threading.Thread(target=_check_watches, daemon=True).start()
         return {"started": started}
 
+    @app.get("/api/watches/{wid}/videos", dependencies=[Depends(auth)])
+    def watch_videos(wid: int, limit: int = 300):
+        """Every video seen from one account, newest upload first: the app groups them by day."""
+        _watch(wid)
+        return db.list_watch_clips(wid, max(1, min(limit, 500)))
+
+    @app.post("/api/watches/{wid}/check", status_code=202, dependencies=[Depends(auth)])
+    def check_one_watch(wid: int):
+        _watch(wid)
+        started = not state["watching"]
+        if started:
+            state["watching"] = True
+            threading.Thread(target=_check_watches, args=([wid],), daemon=True).start()
+        return {"started": started}
+
     @app.get("/api/clips", dependencies=[Depends(auth)])
     def clips(status: str = "new", watch_id: int | None = None, limit: int = 200):
         return db.list_clips(status, watch_id, limit)

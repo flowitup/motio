@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Eye, EyeOff, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { ClipCard } from "@/components/clip-card";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
@@ -126,9 +127,9 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{t.clips.sites[w.site]}</Badge>
                   <Badge variant="secondary">{t.watches.kinds[w.kind]}</Badge>
-                  <span className="truncate text-sm font-medium" title={w.target}>
+                  <Link to={`/clips/${w.id}`} className="truncate text-sm font-medium underline-offset-2 hover:underline" title={t.account.open}>
                     {watchName(w)}
-                  </span>
+                  </Link>
                   {w.new_count > 0 && <span className="text-xs text-muted-foreground">{t.watches.newCount(w.new_count)}</span>}
                 </div>
                 <div className="truncate text-xs text-muted-foreground" title={w.last_error ?? undefined}>

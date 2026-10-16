@@ -416,13 +416,13 @@ export type Clip = {
   duration: number | null;
   views: number | null;
   likes: number | null; // chỉ có ở video từ bảng xếp hạng
-  pubdate: number | null; // giờ đăng gốc (giây Unix), chỉ có ở video từ bảng xếp hạng
+  pubdate: number | null; // giờ đăng gốc (giây Unix): bảng xếp hạng, kênh YouTube (RSS), Bilibili (trang video); có thể trống
   category: string | null; // chuyên mục Bilibili
   rank: number | null; // thứ hạng trong bảng
   thumbnail: string | null;
   score: number | null;
   first_seen: number;
-  status: ClipStatus;
+  status: ClipStatus | "old"; // old = có sẵn lúc thêm nguồn (chỉ hiện trong trang tài khoản)
   rights: Rights | null;
   project_id: number | null;
 };
@@ -578,6 +578,9 @@ export function makeApi(url: string, token: string) {
       call<Watch>("PATCH", `/api/watches/${id}`, body),
     deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),
     checkWatches: () => call<{ started: boolean }>("POST", "/api/watches/check"),
+    /** Mọi video đã thấy của một tài khoản, mới đăng trước (không rõ ngày: cuối). */
+    watchVideos: (id: number) => call<Clip[]>("GET", `/api/watches/${id}/videos`),
+    checkWatch: (id: number) => call<{ started: boolean }>("POST", `/api/watches/${id}/check`),
     clips: (status: ClipStatus, watchId?: number) =>
       call<Clip[]>("GET", `/api/clips?status=${status}${watchId ? `&watch_id=${watchId}` : ""}`),
     setClipStatus: (id: string, status: "new" | "hidden") =>

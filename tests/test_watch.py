@@ -1,10 +1,12 @@
 import time
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
 from motio import api, db, llm, pipeline, watch
 
+REAL_FEED_DATES = watch._feed_dates  # the fixture below swaps it for a stand-in
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
 VOX = "https://www.youtube.com/@Vox"
@@ -45,6 +47,7 @@ def clean(monkeypatch):
         c.execute("DELETE FROM project")
     FakeYDL.pages, FakeYDL.details, FakeYDL.opts = {}, {}, []
     monkeypatch.setattr(watch, "YoutubeDL", FakeYDL)
+    monkeypatch.setattr(watch, "_feed_dates", lambda w, info: {})  # no network: see the feed test
 
 
 @pytest.mark.parametrize("text,site,kind,target", [
@@ -99,6 +102,66 @@ def test_first_check_then_only_unseen_videos():
     r = watch.check(db.get_watch(wid))
     assert r["new"] == ["youtube:n1", "youtube:n2"]
     assert db.list_watches()[0]["new_count"] == 14
+
+
+FEED = """<feed><entry><yt:videoId>v0</yt:videoId><published>2026-10-15T13:30:19+00:00</published></entry>
+<entry><yt:videoId>v1</yt:videoId><published>2026-10-08T13:00:25+00:00</published></entry></feed>"""
+
+
+class _Resp:
+    def __init__(self, text, code=200):
+        self.text, self.status_code = text, code
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise watch.httpx.HTTPStatusError("x", request=None, response=self)
+
+
+def test_youtube_upload_times_come_from_the_feed(monkeypatch):
+    monkeypatch.setattr(watch, "_feed_dates", REAL_FEED_DATES)
+    FIRST = datetime.fromisoformat("2026-10-15T13:30:19+00:00").timestamp()
+    asked = []
+    monkeypatch.setattr(watch.httpx, "get", lambda url, **kw: asked.append(kw["params"]) or _Resp(FEED))
+    wid = watch.add(VOX)
+    FakeYDL.pages = {f"{VOX}/videos": {"channel": "Vox", "channel_id": "UCvox", "entries": _yt(["v0", "v1", "v2"])},
+                     f"{VOX}/shorts": {"channel": "Vox", "channel_id": "UCvox", "entries": []}}
+    watch.check(db.get_watch(wid))
+    assert asked == [{"channel_id": "UCvox"}]  # read once for the whole channel
+    rows = db.list_watch_clips(wid)
+    assert [r["id"] for r in rows] == ["youtube:v0", "youtube:v1", "youtube:v2"]  # newest upload first, unknown last
+    assert rows[0]["pubdate"] == FIRST and rows[1]["pubdate"] < rows[0]["pubdate"] and rows[2]["pubdate"] is None
+
+    # a video stored before the feed was read gets its time on a later check
+    with db.conn() as c:
+        c.execute("UPDATE clip SET pubdate=NULL")
+    watch.check(db.get_watch(wid))
+    assert db.get_clip("youtube:v0")["pubdate"] == FIRST
+
+    monkeypatch.setattr(watch.httpx, "get", lambda url, **kw: _Resp("", 500))
+    # a feed that fails is only a missing date
+    assert watch._feed_dates(db.get_watch(wid), {"channel_id": "UCvox"}) == {}
+    assert watch._feed_dates(db.get_watch(wid), {"channel_id": "../x"}) == {}
+
+
+def test_a_followed_account_lists_all_its_videos_by_upload_day(client, monkeypatch):
+    wid = watch.add(VOX)
+    other = watch.add("https://www.youtube.com/@Other")
+    day = 86_400
+    def clip(cid, watch_id, status, pubdate=None):
+        return {"id": f"youtube:{cid}", "watch_id": watch_id, "site": "youtube", "title": cid.upper(), "url": "u",
+                "status": status, "pubdate": pubdate}
+    db.insert_clips([clip("a", wid, "new", 5 * day), clip("b", wid, "used", 9 * day), clip("c", wid, "old"),
+                     clip("d", wid, "hidden", 1 * day), clip("x", other, "new")])
+    rows = client.get(f"/api/watches/{wid}/videos", headers=H).json()
+    assert [r["id"] for r in rows] == ["youtube:b", "youtube:a", "youtube:d", "youtube:c"]  # unknown date last
+    assert {r["watch_id"] for r in rows} == {wid}
+    assert client.get("/api/watches/999/videos", headers=H).status_code == 404
+
+    checked = []
+    monkeypatch.setattr(watch, "check_all", lambda ids=None: checked.append(ids) or {})
+    assert client.post(f"/api/watches/{wid}/check", headers=H).json() == {"started": True}
+    assert _until(lambda: checked == [[wid]])
+    assert client.post("/api/watches/999/check", headers=H).status_code == 404
 
 
 def test_bilibili_space_reads_titles_and_explains_block(monkeypatch):
