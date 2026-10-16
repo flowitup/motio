@@ -362,6 +362,7 @@ export type RefreshState = {
   busy: boolean;
   refresh_every_min: number; // 0 = chỉ cập nhật bằng tay
   next_refresh: number | null;
+  news_topics?: boolean; // NEWS_TOPICS: tin hot NewsNow bật (mặc định tắt); engine cũ không có trường này
   watching: boolean;
   last_watch: number | null;
   last_watch_result: {
@@ -394,6 +395,9 @@ export type Watch = {
   new_count: number;
 };
 
+/** A video category the engine can follow (Trending): `target` is the watch's target, `name` its English name. */
+export type Category = { key: string; target: string; name: string };
+
 export type ClipStatus = "new" | "used" | "hidden";
 
 /** Video mới tìm thấy ở một nguồn theo dõi. */
@@ -415,6 +419,7 @@ export type Clip = {
   pubdate: number | null; // giờ đăng gốc (giây Unix), chỉ có ở video từ bảng xếp hạng
   category: string | null; // chuyên mục Bilibili
   rank: number | null; // thứ hạng trong bảng
+  no_reprint?: number | null; // 1 = tác giả Bilibili tick “cấm đăng lại” (mặc định của Bilibili); quyền vẫn Chưa rõ
   thumbnail: string | null;
   score: number | null;
   first_seen: number;
@@ -567,6 +572,7 @@ export function makeApi(url: string, token: string) {
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
     addLinks: (id: number, links: string[]) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
+    categories: () => call<Category[]>("GET", "/api/categories"),
     watches: () => call<Watch[]>("GET", "/api/watches"),
     addWatch: (body: { target: string; site: Site; rights?: Rights }) => call<Watch>("POST", "/api/watches", body),
     patchWatch: (id: number, body: { name?: string; rights?: Rights; enabled?: boolean }) =>
@@ -578,7 +584,7 @@ export function makeApi(url: string, token: string) {
     setClipStatus: (id: string, status: "new" | "hidden") =>
       call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
     /** Video giải thích từ một video mới; links_only bỏ trống = chỉ dùng video này khi nguồn có quyền rõ ràng. */
-    produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number }) =>
+    produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean }) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
     /** Trang dự án có lọc (kênh, kiểu, trạng thái, tìm chữ) và "tải thêm" bằng `before`. */

@@ -19,10 +19,35 @@ const seconds = (sec: number) => {
 /** "1 video" / "3 videos". */
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** Names of the categories the engine offers (`trending.CATEGORIES`), by key. */
+const categoriesEn: Record<string, string> = {
+  tech: "Tech",
+  ai: "AI & tools",
+  ai_film: "AI films & series",
+  film_tv: "Series & films",
+  knowledge: "Knowledge & science",
+  lifestyle: "Lifestyle & savoir-vivre",
+  food: "Food",
+  travel: "Travel",
+};
+const categoriesVi: Record<string, string> = {
+  tech: "Công nghệ",
+  ai: "AI & công cụ AI",
+  ai_film: "Phim & series AI",
+  film_tv: "Phim & series",
+  knowledge: "Kiến thức & khoa học",
+  lifestyle: "Lối sống & phép lịch sự",
+  food: "Ẩm thực",
+  travel: "Du lịch",
+};
+const categoryLists = (names: Record<string, string>, prefix: string) =>
+  Object.fromEntries(Object.entries(names).map(([k, v]) => [`bilibili:category:${k}`, `${prefix} · ${v}`]));
+
 const en = {
   appName: "Motio",
   nav: {
     trends: "Trending",
+    news: "News topics",
     clips: "Followed",
     projects: "Projects",
     channels: "Channels",
@@ -42,7 +67,7 @@ const en = {
     notInTauri: "Not running in Tauri: set VITE_ENGINE_URL and VITE_ENGINE_TOKEN",
   },
   trends: {
-    title: "Trending",
+    title: "News topics",
     refresh: "Refresh",
     refreshing: "Refreshing…",
     allSources: "All sources",
@@ -69,6 +94,33 @@ const en = {
     forChannel: "For channel",
     autoMade: (n: number, at: string) => `${plural(n, "video")} made automatically at ${at}`,
   },
+  trendVideos: {
+    title: "Trending",
+    intro:
+      "Videos trending on Chinese video platforms (Bilibili), by category or tag. Pick one and make a French video: the original voice is removed. Douyin has no public category feed: paste its links in Projects → New video.",
+    check: "Check now",
+    checking: "Checking…",
+    lastCheck: "Last check",
+    autoCheck: (min: number) => `Auto check every ${min} min`,
+    manualCheck: "Checks only when you click (set “Auto refresh” in Settings to check automatically)",
+    all: "All",
+    categories: categoriesEn,
+    add: "Add a category",
+    follow: "Follow",
+    unfollow: (name: string) => `Stop following ${name}`,
+    confirmUnfollow: (name: string) => `Stop following “${name}”? Its videos you haven't made yet are removed too.`,
+    tag: "Or follow a tag",
+    tagPlaceholder: "A Chinese search word, e.g. 人工智能",
+    tagHint: "Motio follows the most played videos of the last 7 days that match it.",
+    starterTitle: "Pick what to follow",
+    starterBody:
+      "Motio fetches what is trending in each category, scores it for a French video and shows it here. Start with the four below, add more any time.",
+    starter: "Follow Tech, AI, AI films & series and Lifestyle",
+    empty: "No videos yet. Click “Check now”.",
+    emptyFor: "No new videos here yet. Check again later, or pick another category.",
+    newCount: (n: number) => `${n} new`,
+    errorFor: (name: string, error: string) => `${name}: ${error}`,
+  },
   clips: {
     title: "Followed",
     check: "Check now",
@@ -92,6 +144,10 @@ const en = {
     create: "Create",
     only: "Use only this video",
     onlyHint: "Off: Motio also searches YouTube and Bilibili, and the project's rights become “Unknown”.",
+    noReprint: "No reprint",
+    noReprintHint:
+      "The creator ticked “no reprint” on Bilibili (it is Bilibili's default). Rights stay Unknown, so the video waits for your approval before anything is posted.",
+    muteVoice: "Remove the original voice",
     dub: "Dub in French",
     dubHint: "Translates the speech of this video into French and keeps its music and sound. Channel and rights as set above.",
     hide: "Hide",
@@ -148,7 +204,9 @@ const en = {
       "bilibili:ranking:119": "Ranking · Memes",
       "bilibili:popular": "Popular",
       "bilibili:weekly": "Weekly must-watch",
+      ...categoryLists(categoriesEn, "Category"),
     } as Record<string, string>,
+    tagName: (word: string) => `Tag · ${word}`,
   },
   projects: {
     title: "Projects",
@@ -737,6 +795,11 @@ const en = {
     voicePriceHint: "Used for the cost estimates on the Stats page. Creator plan is about 0.22; the Flash model counts half.",
     monthlyBudget: "Monthly voice budget ($, 0 = none)",
     monthlyBudgetHint: "The Stats page warns at 80%. At 100% videos made automatically stop until next month; videos you start yourself still run.",
+    allowNoReprint: "Show Bilibili videos marked “no reprint”",
+    allowNoReprintHint:
+      "Bilibili ticks “no reprint” by default, on almost every video, so hiding them leaves the lists empty. They are flagged on the card and, like all videos of unknown rights, wait for your approval before posting.",
+    newsTopics: "News topics (NewsNow hot lists)",
+    newsTopicsHint: "Off: Trending shows only videos by category. On: Motio also fetches and scores China's hot news, and a “News topics” page appears.",
     newsSources: "News sources (comma-separated)",
     refreshEvery: "Auto refresh trending and followed sources every (min, 0 = off)",
     newsnowUrl: "NewsNow",
@@ -991,7 +1054,8 @@ const NATIVE_VI: [string, string][] = [
 const vi: Messages = {
   appName: "Motio",
   nav: {
-    trends: "Tin hot",
+    trends: "Xu hướng",
+    news: "Tin hot",
     clips: "Theo dõi",
     projects: "Dự án",
     channels: "Kênh",
@@ -1038,6 +1102,33 @@ const vi: Messages = {
     forChannel: "Làm cho kênh",
     autoMade: (n: number, at: string) => `Tự làm ${n} video lúc ${at}`,
   },
+  trendVideos: {
+    title: "Xu hướng",
+    intro:
+      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili), theo chuyên mục hoặc thẻ. Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Douyin không có bảng theo chuyên mục công khai: dán link vào Dự án → Video mới.",
+    check: "Kiểm tra ngay",
+    checking: "Đang kiểm tra…",
+    lastCheck: "Kiểm tra lần cuối",
+    autoCheck: (min: number) => `Tự kiểm tra mỗi ${min} phút`,
+    manualCheck: "Chỉ kiểm tra khi bấm (đặt “Tự cập nhật tin” trong Cài đặt để tự động)",
+    all: "Tất cả",
+    categories: categoriesVi,
+    add: "Thêm chuyên mục",
+    follow: "Theo dõi",
+    unfollow: (name: string) => `Bỏ theo dõi ${name}`,
+    confirmUnfollow: (name: string) => `Bỏ theo dõi “${name}”? Các video chưa làm của mục này cũng bị xoá.`,
+    tag: "Hoặc theo dõi một thẻ",
+    tagPlaceholder: "Từ khoá tiếng Trung, ví dụ 人工智能",
+    tagHint: "Motio theo dõi các video được xem nhiều nhất trong 7 ngày qua khớp với từ khoá.",
+    starterTitle: "Chọn nội dung để theo dõi",
+    starterBody:
+      "Motio lấy video đang thịnh hành ở mỗi chuyên mục, chấm điểm xem có làm được video tiếng Pháp không rồi hiện ở đây. Bắt đầu với bốn mục bên dưới, thêm sau cũng được.",
+    starter: "Theo dõi Công nghệ, AI, Phim & series AI và Lối sống",
+    empty: "Chưa có video. Bấm “Kiểm tra ngay”.",
+    emptyFor: "Chưa có video mới ở đây. Kiểm tra lại sau, hoặc chọn chuyên mục khác.",
+    newCount: (n: number) => `${n} mới`,
+    errorFor: (name: string, error: string) => `${name}: ${error}`,
+  },
   clips: {
     title: "Theo dõi",
     check: "Kiểm tra ngay",
@@ -1061,6 +1152,10 @@ const vi: Messages = {
     create: "Tạo",
     only: "Chỉ dùng video này",
     onlyHint: "Tắt: Motio tìm thêm video trên YouTube, Bilibili; khi đó quyền của dự án là “Chưa rõ”.",
+    noReprint: "Cấm đăng lại",
+    noReprintHint:
+      "Tác giả đã tick “cấm đăng lại” trên Bilibili (đây là mặc định của Bilibili). Quyền vẫn là Chưa rõ nên video chờ bạn duyệt trước khi đăng.",
+    muteVoice: "Bỏ giọng gốc",
     dub: "Lồng tiếng Pháp",
     dubHint: "Dịch lời nói của video này sang tiếng Pháp, giữ nhạc nền và tiếng động. Kênh và quyền như đã chọn ở trên.",
     hide: "Ẩn",
@@ -1116,7 +1211,9 @@ const vi: Messages = {
       "bilibili:ranking:119": "Xếp hạng · Meme",
       "bilibili:popular": "Thịnh hành",
       "bilibili:weekly": "Nên xem mỗi tuần",
+      ...categoryLists(categoriesVi, "Chuyên mục"),
     } as Record<string, string>,
+    tagName: (word: string) => `Thẻ · ${word}`,
   },
   projects: {
     title: "Dự án",
@@ -1704,6 +1801,11 @@ const vi: Messages = {
     voicePriceHint: "Dùng để ước lượng chi phí ở trang Thống kê. Gói Creator khoảng 0,22; mô hình Flash tính nửa giá.",
     monthlyBudget: "Ngân sách giọng đọc mỗi tháng ($, 0 = không đặt)",
     monthlyBudgetHint: "Trang Thống kê cảnh báo ở mức 80%. Đủ 100% thì video tự làm dừng tới tháng sau; video bạn tự bấm làm vẫn chạy.",
+    allowNoReprint: "Hiện video Bilibili bị đánh dấu “cấm đăng lại”",
+    allowNoReprintHint:
+      "Bilibili mặc định tick “cấm đăng lại” cho gần như mọi video, nên ẩn chúng thì danh sách trống. Chúng có nhãn trên thẻ video và, như mọi video chưa rõ quyền, chờ bạn duyệt trước khi đăng.",
+    newsTopics: "Tin hot (danh sách hot của NewsNow)",
+    newsTopicsHint: "Tắt: Xu hướng chỉ hiện video theo chuyên mục. Bật: Motio còn lấy và chấm điểm tin hot Trung Quốc, và có thêm trang “Tin hot”.",
     newsSources: "Nguồn tin (phân cách bằng dấu phẩy)",
     refreshEvery: "Tự cập nhật tin hot và nguồn theo dõi mỗi (phút, 0 = tắt)",
     newsnowUrl: "NewsNow",
