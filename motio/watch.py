@@ -256,7 +256,9 @@ SCORE_PROMPT = """Voici de nouvelles vidéos publiées par des chaînes et des r
 Une durée null est inconnue (fréquent pour les Shorts) : ne baisse pas le score pour autant.
 Pour une vidéo d'un classement Bilibili (catégorie, likes, âge en heures), le score mesure aussi le potentiel d'un
 doublage ou d'un commentaire en français : paroles claires et courtes, situation compréhensible sans connaître la
-Chine, peu de texte incrusté. Un classement dit ce qui buzze, pas ce qu'on a le droit de reprendre : ne le suppose pas.
+Chine, peu de texte incrusté. Un classement dit ce qui buzze, pas ce qu'on a le droit de reprendre : ne le
+suppose pas.
+reprise_interdite : case que Bilibili coche par défaut pour l'auteur, n'en tiens pas rigueur.
 
 Réponds avec une liste JSON d'objets {{"id", "title_fr", "score", "reason"}}.
 
@@ -274,7 +276,8 @@ def _int(v) -> int | None:
 def _trend_fields(c: dict) -> dict:
     """Catégorie, likes et âge d'une vidéo de classement (absents des autres sources)."""
     out = {"catégorie": c.get("category"), "likes": c.get("likes"),
-           "âge_h": round((time.time() - c["pubdate"]) / 3600) if c.get("pubdate") else None}
+           "âge_h": round((time.time() - c["pubdate"]) / 3600) if c.get("pubdate") else None,
+           "reprise_interdite": True if c.get("no_reprint") else None}
     return {k: v for k, v in out.items() if v is not None}
 
 
@@ -319,11 +322,12 @@ def check_all(ids: list[int] | None = None) -> dict:
 
 
 # ---------- làm video ----------
-def produce(cid: str, duration: int = 80, links_only: bool | None = None) -> int:
+def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True) -> int:
     """Dự án chủ đề từ một video mới: link của video + tiêu đề làm chủ đề. LookupError / ValueError.
 
     Mặc định chỉ dùng video này khi nguồn có quyền rõ ràng (owned / licensed / cc) và giữ quyền đó; thêm video
     tìm được thì quyền của dự án là "unknown", vì các video đó là của người khác.
+    mute_voice (mặc định): tiếng gốc của nguồn (giọng tiếng Trung) im hẳn dưới giọng đọc Pháp, `meta.mute_source`.
     """
     c = db.get_clip(cid)
     if not c:
@@ -336,5 +340,5 @@ def produce(cid: str, duration: int = 80, links_only: bool | None = None) -> int
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]),
-                      meta={"clip": cid})
+                      meta={"clip": cid, "mute_source": bool(mute_voice)})
     return pid

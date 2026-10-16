@@ -281,6 +281,7 @@ def test_watch_routes(client, monkeypatch):
     assert r.status_code == 202
     p = db.get_project(r.json()["project_id"])
     assert p["meta"]["links_only"] is True and p["meta"]["rights"] == "licensed" and p["meta"]["duration"] == 90
+    assert p["meta"]["mute_source"] is True  # the source's own (Chinese) voice is off unless asked otherwise
     assert client.post("/api/clips/youtube:v1/produce", headers=H, json={"duration": 5}).status_code == 400
     assert client.post("/api/clips/nope/produce", headers=H).status_code == 404
     assert client.patch("/api/clips/youtube:v1", headers=H, json={"status": "hidden"}).status_code == 400

@@ -185,6 +185,17 @@ def refresh_every_min() -> int:
     return _int("REFRESH_EVERY_MIN")
 
 
+def news_topics() -> bool:
+    """Tin hot của NewsNow (trang News topics). Mặc định tắt: Trending lấy video theo chuyên mục (owner 2026-10-16)."""
+    return flag("NEWS_TOPICS")
+
+
+def allow_no_reprint() -> bool:
+    """Show Bilibili videos whose creator ticked "no reprint" (almost all of them: Bilibili's default). They carry a
+    flag (`clip.no_reprint`) and, like every video of unknown rights, wait for a person's approval before posting."""
+    return flag("ALLOW_NO_REPRINT", True)
+
+
 def news_sources() -> list[str]:
     return [s.strip() for s in env("NEWS_SOURCES", DEFAULT_SOURCES).split(",") if s.strip()]
 

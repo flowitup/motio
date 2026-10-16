@@ -67,11 +67,12 @@ def fake(monkeypatch, tmp_path):
         return {"audio": str(out_dir / "n.mp3"), "duration": sum(durs), "provider": "fake", "voice": "v",
                 "lines": [{"start": a, "end": a + d} for a, d in zip(starts, durs, strict=True)]}
 
-    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0, badge="", wide=False):
+    def fake_render(plan, sources, nar, out, progress=None, min_total=0.0, badge="", wide=False,
+                    src_volume=render.SRC_VOLUME):
         boom("render")
         total = max(nar["duration"] + render.TAIL, min_total)
         rendered.append({"words": sum(len(ln["text"].split()) for ln in plan["lines"]), "total": total,
-                         "badge": badge, "wide": wide})
+                         "badge": badge, "wide": wide, "src_volume": src_volume})
         (out / "final.mp4").write_bytes(b"v")
         if wide:
             (out / "final_wide.mp4").write_bytes(b"w")
@@ -450,6 +451,17 @@ def test_news_keeps_the_badge_and_topic_videos_get_none(fake):
     pipeline.produce(_new())
     pipeline.produce(topic.create("gấu trúc"))
     assert [r["badge"] for r in calls.rendered] == ["ACTU CHINE", ""]
+
+
+def test_a_video_from_a_trending_clip_has_no_source_voice_under_the_french_one(fake):
+    calls, _ = fake
+    pipeline.produce(topic.create("gấu trúc"))
+    muted = topic.create("gấu trúc")
+    db.update_project(muted, meta={"mute_source": True})
+    pipeline.produce(muted)
+    assert [r["src_volume"] for r in calls.rendered] == [render.SRC_VOLUME, 0.0]
+    pipeline.rerender(muted)  # the voice step again keeps the choice
+    assert calls.rendered[-1]["src_volume"] == 0.0
 
 
 def test_profile_style_voice_tags_badge_and_length(fake, prompts):

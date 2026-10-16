@@ -294,6 +294,7 @@ def test_publish_needs_config_and_finished_video(client):
 
 
 def test_scheduled_refresh(monkeypatch):
+    monkeypatch.setenv("NEWS_TOPICS", "true")
     calls, checks = [], []
     monkeypatch.setattr(newsnow, "refresh", lambda: calls.append(time.time()) or {"new": 0, "scored": 0, "errors": {}})
     monkeypatch.setattr(watch, "check_all", lambda ids=None: checks.append(ids) or {"checked": 0, "new": 0})
@@ -320,7 +321,36 @@ def test_scheduled_refresh(monkeypatch):
         assert len(calls) == 1 and len(checks) == 1  # lần sau là 30 phút nữa
 
 
+def test_news_topics_are_off_by_default_and_never_fetched(monkeypatch):
+    calls = []
+    monkeypatch.setattr(newsnow, "refresh", lambda: calls.append(1) or {"new": 0})
+    with TestClient(api.create_app(TOKEN)) as c:
+        assert c.get("/api/state", headers=H).json()["news_topics"] is False
+        assert c.post("/api/trends/refresh", headers=H).status_code == 202
+        time.sleep(0.2)
+        assert calls == [] and c.get("/api/state", headers=H).json()["last_result"] is None
+        settings.update({"NEWS_TOPICS": "true"})
+        assert c.get("/api/state", headers=H).json()["news_topics"] is True
+        c.post("/api/trends/refresh", headers=H)
+        end = time.time() + 3
+        while not calls and time.time() < end:
+            time.sleep(0.01)
+        assert calls == [1]
+
+
+def test_categories_are_listed_as_followable_targets(client, monkeypatch):
+    monkeypatch.setattr(watch, "check_all", lambda ids=None: {"checked": 0, "new": 0})  # no Bilibili in tests
+    rows = client.get("/api/categories", headers=H).json()
+    assert {"key": "ai", "target": "bilibili:category:ai", "name": "AI & tools"} in rows
+    assert [r["key"] for r in rows][:3] == ["tech", "ai", "ai_film"]
+    for r in rows:  # every one can be followed as it is
+        body = {"target": r["target"], "site": "bilibili"}
+        assert client.post("/api/watches", headers=H, json=body).status_code == 201
+    assert client.get("/api/categories").status_code == 401
+
+
 def test_scheduled_refresh_auto_makes_trends_above_a_channel_score(seeded, monkeypatch):
+    monkeypatch.setenv("NEWS_TOPICS", "true")
     monkeypatch.setattr(newsnow, "refresh", lambda: {"new": 0, "scored": 0, "errors": {}})
     monkeypatch.setattr(watch, "check_all", lambda ids=None: {"checked": 0, "new": 0})
     monkeypatch.setattr(api, "SCHED_TICK", 0.01)
