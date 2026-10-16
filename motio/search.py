@@ -1,6 +1,7 @@
 """Tìm và tải video nguồn bằng yt-dlp. Mỗi nguồn giữ lại nền tảng, kênh, link và giấy phép.
 
-Tự tìm: YouTube, Bilibili (yt-dlp không có tìm kiếm cho Douyin, X). Link dán tay: mọi trang yt-dlp tải được.
+Tự tìm: YouTube, Bilibili (yt-dlp không có tìm kiếm cho Douyin, X). Link dán tay: mọi trang yt-dlp tải được, cộng Douyin
+(f2), Haokan (haokan.py) và các trang Trung Quốc khác trong platforms.py.
 """
 import atexit
 import re
@@ -15,12 +16,12 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, douyin, localfile
+from . import config, douyin, haokan, localfile, platforms
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
 PLATFORM = {"Youtube": "YouTube", "BiliBili": "Bilibili", "Douyin": "Douyin", "TikTok": "TikTok",
-            "Twitter": "X", "Kuaishou": "Kuaishou", "Weibo": "Weibo"}
+            "Twitter": "X", "Kuaishou": "Kuaishou", **platforms.EXTRACTORS}
 
 _BASE = {"quiet": True, "no_warnings": True, "noprogress": True, "socket_timeout": 30}
 
@@ -173,6 +174,9 @@ def _cookie_opts() -> dict:
     return {"cookiesfrombrowser": (browser,)} if browser in BROWSERS else {}
 
 
+_ASKS_LOGIN = re.compile(r"cookie|log ?in|sign in|\b40[13]\b|captcha|verif", re.I)
+
+
 def _cannot_reach_douyin() -> RuntimeError:
     return RuntimeError(tr("Could not connect to Douyin. Check your internet connection (or VPN, proxy, DNS filter), "
                            "then try again"))
@@ -187,6 +191,12 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     ném lỗi trong hàm thì dừng tải."""
     if localfile.parse(url):
         return localfile.source(url)
+    url = platforms.normalize(platforms.expand(url))  # short links, link shapes yt-dlp does not understand
+    site = platforms.identify(url)
+    if haokan.find_id(url):  # no yt-dlp extractor: the page of the video carries its address
+        return haokan.download(url, out_dir, max_height, hooks)
+    if site and site.manual:  # Kuaishou: nothing can fetch it, say so before a long generic attempt
+        raise RuntimeError(platforms.hint(site))
     offline = None  # f2 không kết nối được tới Douyin: yt-dlp vẫn được thử, nhưng nếu nó cũng hỏng thì báo lỗi mạng
     if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được
         post_id = None
@@ -222,6 +232,8 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
                 raise _cannot_reach_douyin() from e
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
+        if site and site.cookies and _ASKS_LOGIN.search(str(e)):  # Xiaohongshu, Weibo, Xigua, Zhihu want a session
+            raise RuntimeError(platforms.hint(site)) from e
         raise  # lỗi khác của yt-dlp (403, video đã xoá…) là câu trả lời thật của Douyin: giữ nguyên
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))

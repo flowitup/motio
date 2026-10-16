@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from yt_dlp.utils import DownloadError
 
-from motio import douyin, search, settings
+from motio import douyin, haokan, platforms, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -290,3 +290,59 @@ def test_without_a_height_other_sites_stay_at_720(tmp_path):
     search.download("https://www.youtube.com/watch?v=abc", tmp_path)
     search.download("https://www.youtube.com/watch?v=abc", tmp_path, 1080)
     assert "height<=720" in FakeYDL.opts[0]["format"] and "height<=1080" in FakeYDL.opts[1]["format"]
+
+
+# ---------- Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py) ----------
+def test_a_weibo_link_is_given_to_yt_dlp_in_the_shape_it_understands(tmp_path):
+    search.download("https://weibo.com/2/detail/5354603969514346", tmp_path, cookies=True)
+    assert FakeYDL.urls == ["https://m.weibo.cn/detail/5354603969514346"]
+
+
+def test_a_short_xiaohongshu_link_is_followed_first(monkeypatch, tmp_path):
+    followed = []
+    monkeypatch.setattr(platforms, "expand", lambda url: followed.append(url) or "https://www.xiaohongshu.com/explore/ab12")
+    search.download("http://xhslink.com/a/AbC123", tmp_path, cookies=True)
+    assert followed == ["http://xhslink.com/a/AbC123"] and FakeYDL.urls == ["https://www.xiaohongshu.com/explore/ab12"]
+
+
+def test_haokan_links_do_not_go_through_yt_dlp(monkeypatch, tmp_path):
+    seen = []
+
+    def fake(url, out_dir, max_height, hooks):
+        seen.append((url, max_height))
+        return {"path": str(out_dir / "Haokan_1.mp4"), "id": "1", "platform": "Haokan"}
+
+    monkeypatch.setattr(haokan, "download", fake)
+    info = search.download("https://haokan.baidu.com/v?vid=123", tmp_path, 480, cookies=True)
+    assert info["platform"] == "Haokan" and seen == [("https://haokan.baidu.com/v?vid=123", 480)] and FakeYDL.opts == []
+
+
+def test_kuaishou_says_to_add_the_file_instead_of_trying(tmp_path):
+    with pytest.raises(RuntimeError, match="Kuaishou.*add the file"):
+        search.download("https://v.kuaishou.com/AbCdEf", tmp_path, cookies=True)
+    assert FakeYDL.opts == []
+
+
+@pytest.mark.parametrize("url,site", [("https://www.xiaohongshu.com/explore/ab12", "Xiaohongshu"),
+                                      ("https://www.ixigua.com/6863073327775547912", "Xigua"),
+                                      ("https://www.zhihu.com/zvideo/1387089980523728897", "Zhihu")])
+@pytest.mark.parametrize("error", ["Cookies (not necessarily logged in) are needed", "HTTP Error 403: Forbidden",
+                                   "Please log in to view this note"])
+def test_a_site_that_wants_a_session_gets_a_hint_about_cookies(url, site, error, tmp_path):
+    FakeYDL.fail = DownloadError(error)
+    with pytest.raises(RuntimeError, match=f"{site} asks for a browser session.*cookies"):
+        search.download(url, tmp_path, cookies=True)
+
+
+def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
+    FakeYDL.fail = DownloadError("[PearVideo] 1: Unable to download webpage: HTTP Error 404")
+    with pytest.raises(DownloadError, match="404"):
+        search.download("https://www.pearvideo.com/video_1", tmp_path)
+    FakeYDL.fail = DownloadError("Extractor failed to obtain id")
+    with pytest.raises(DownloadError, match="obtain id"):
+        search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)  # not a login problem: yt-dlp's text
+
+
+def test_downloaded_videos_name_their_site():
+    assert search.PLATFORM["XiaoHongShu"] == "Xiaohongshu" and search.PLATFORM["Ixigua"] == "Xigua"
+    assert search.PLATFORM["PearVideo"] == "Pear Video" and search.PLATFORM["AcFunVideo"] == "AcFun"

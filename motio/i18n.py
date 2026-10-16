@@ -592,4 +592,28 @@ VI = {
     "This video is larger than {mb} MB": "Video này lớn hơn {mb} MB",
     "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
     "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
+    # Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py, feeds.py)
+    "{site} cannot be downloaded by Motio (it blocks scripts and yt-dlp has no support). Download the video yourself "
+    "and add the file":
+        "Motio không tải được video từ {site} (trang chặn công cụ tự động, yt-dlp không hỗ trợ). Hãy tự tải video "
+        "rồi thêm file vào",
+    "{site} asks for a browser session to download this. Set a cookies file or a browser in Settings, or download "
+    "the video yourself and add the file":
+        "{site} yêu cầu phiên trình duyệt để tải video này. Hãy đặt file cookie hoặc trình duyệt trong Cài đặt, hoặc "
+        "tự tải video rồi thêm file vào",
+    "Haokan did not give an address for this video": "Haokan không trả địa chỉ cho video này",
+    "Could not connect to Haokan. Check your internet connection (or VPN, proxy, DNS filter), then try again":
+        "Không kết nối được tới Haokan. Hãy kiểm tra mạng (hoặc VPN, proxy, bộ lọc DNS) rồi thử lại",
+    "Haokan has no such video (removed, private or the link is wrong)":
+        "Haokan không có video này (đã xoá, riêng tư hoặc link sai)",
+    "Haokan sent a page, not a video": "Haokan trả về một trang web chứ không phải video",
+    "Haokan sent an empty file": "Haokan trả về file rỗng",
+    "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
+    "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
+        "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
+    "Unknown trending list: {target}": "Không có bảng xếp hạng này: {target}",
+    "Could not reach {site}: {error}": "Không kết nối được {site}: {error}",
+    "{site} returned an error: {error}": "{site} trả về lỗi: {error}",
+    "AcFun returned an error: {error}": "AcFun trả về lỗi: {error}",
+    "Pear Video returned an error: {error}": "Pear Video trả về lỗi: {error}",
 }
