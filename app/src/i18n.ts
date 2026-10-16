@@ -597,7 +597,7 @@ const en = {
   },
   stats: {
     title: "Stats",
-    hint: "What the videos cost and how many were made. Costs are estimates: ElevenLabs characters times the price in Settings, plus AI clips (seconds times the price in Settings). Claude runs on your Claude plan and isn't counted.",
+    hint: "What the videos cost and how many were made. Costs are estimates: ElevenLabs characters times the price in Settings, plus Claude tokens (the model prices) and AI clips (seconds times the price in Settings). AI pictures aren't counted.",
     monthCost: "Cost this month",
     monthVideos: "Videos this month",
     monthChars: "Characters read this month",
@@ -1564,7 +1564,7 @@ const vi: Messages = {
   },
   stats: {
     title: "Thống kê",
-    hint: "Video tốn bao nhiêu và đã làm bao nhiêu. Chi phí là ước lượng: số ký tự ElevenLabs nhân với giá trong Cài đặt, cộng clip AI (số giây nhân với giá trong Cài đặt). Claude chạy trên gói Claude của bạn nên không tính.",
+    hint: "Video tốn bao nhiêu và đã làm bao nhiêu. Chi phí là ước lượng: số ký tự ElevenLabs nhân với giá trong Cài đặt, cộng token Claude (theo giá của model) và clip AI (số giây nhân với giá trong Cài đặt). Ảnh AI không được tính.",
     monthCost: "Chi phí tháng này",
     monthVideos: "Video tháng này",
     monthChars: "Ký tự đã đọc tháng này",

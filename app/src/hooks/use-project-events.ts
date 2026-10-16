@@ -6,8 +6,8 @@ export function useProjectEvents(api: Api, id: number, active: boolean, onEnd: (
   const [ev, setEv] = useState<ProgressEvent | null>(null);
 
   useEffect(() => {
+    setEv(null); // another project's last event must not outlive the project it described
     if (!active) return;
-    setEv(null);
     const es = new EventSource(api.eventsUrl(id));
     es.onmessage = (m) => setEv(JSON.parse(m.data));
     es.addEventListener("end", () => {
