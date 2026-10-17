@@ -8,7 +8,9 @@ Two kinds of track:
   A trending sound is, most of the time, a commercial recording that TikTok may play only inside its app, so a copy
   in the video file would get a Content ID claim on YouTube, Facebook and X. The chart comes from a licensed data API
   (`TIKTOK_MUSIC_API_KEY`, `TIKTOK_MUSIC_TEAM_ID`): TikTok's own Creative Center chart answers "no permission" to a
-  request without the page's signature, and Motio does not forge that.
+  request without the page's signature, and Motio does not forge that. That chart has no country filter, so for a
+  country (France, the US…) a second source reads Apple Music's public most-played chart of that country with its
+  30 s previews (`country_chart`): what people there listen to, not TikTok's own ranking. Same rules: ideas only.
 - A **track to mix**: an audio file the owner adds (`own` / `licensed` / `cc`: usable on every platform; `unknown`:
   the video waits for approval before Postiz gets it). A video picks one in `meta.music` ({"id", "volume"}) or from
   its channel (`music_id`); the render lays it under the voice, ducked while the voice speaks (`render._compose`).
@@ -31,6 +33,7 @@ MIN_SECONDS = 8.0
 LICENSES = ("own", "licensed", "cc", "tiktok_cml", "unknown")
 OPEN = ("own", "licensed", "cc")  # nothing to check before posting anywhere
 IDEA = "tiktok_cml"  # a sound idea: added in the TikTok app when posting, never mixed into a video
+CHART = "country_chart"  # source of the ideas read from a country's most-played chart (Apple Music)
 TRENDING, POPULAR = "7DAY", "30DAY"  # the service ranks over 1DAY / 7DAY / 30DAY; there is no all-time chart
 # TikTok's genre tags, as the service's API lists them
 GENRES = ("POP", "ROCK", "LATIN", "METAL", "ELECTRONIC", "HIP_HOP/RAP", "ALTERNATIVE/INDIE", "R&B/SOUL", "COUNTRY",
@@ -39,11 +42,19 @@ GENRES = ("POP", "ROCK", "LATIN", "METAL", "ELECTRONIC", "HIP_HOP/RAP", "ALTERNA
           "DRUM&BASS", "DUBSTEP", "EDM", "FUNK", "HOUSE", "INDIE_POP", "J-POP", "K-POP", "LATIN_POP", "LO-FI",
           "OLD_SCHOOL", "PUNK", "RUSSIAN_POP", "SOUL", "SYNTH_POP", "SOUNDTRACK", "TECHNO", "TEEN_POP")
 DEFAULT_GENRE, DEFAULT_LIMIT = "POP", 30
+# countries of the most-played chart (Apple's public feed): code -> name; the TikTok chart has no country filter
+REGIONS = {"FR": "France", "US": "United States", "GB": "United Kingdom", "DE": "Germany", "ES": "Spain",
+           "IT": "Italy", "BE": "Belgium", "CA": "Canada", "BR": "Brazil", "VN": "Vietnam"}
+DEFAULT_REGION = "FR"
+CHART_URL = "https://rss.marketingtools.apple.com/api/v2/{cc}/music/most-played/{n}/songs.json"
+LOOKUP_URL = "https://itunes.apple.com/lookup"
 DEFAULT_VOLUME, MIN_VOLUME, MAX_VOLUME = 0.25, 0.05, 0.6
 TIMEOUT = 40
 CML_NOTE = ("Idea from TikTok's Commercial Music Library (pre-cleared by TikTok for posts and ads on TikTok): the "
             "trending cut, not the whole song. Add the sound in the TikTok app when you post. Motio does not put it in "
             "the video.")
+CHART_NOTE = ("Idea from a country's most-played chart (Apple Music): a 30 s preview of a commercial recording, to "
+              "listen to. Find the sound in the TikTok app when you post. Motio does not put it in the video.")
 FIND_URL = "https://www.tiktok.com/search?q="
 _transport: httpx.BaseTransport | None = None  # tests swap in an httpx.MockTransport
 
@@ -61,9 +72,9 @@ def view(row: dict) -> dict:
     """A track for the app."""
     f = row.get("file") or ""
     name = " ".join(x for x in (row["title"], row["artist"]) if x)
-    find = FIND_URL + quote(name) if row["source"] == IDEA else ""
+    find = FIND_URL + quote(name) if row["license"] == IDEA else ""
     return {"id": row["id"], "title": row["title"] or "", "artist": row["artist"] or "", "source": row["source"],
-            "link": row["link"] or "", "genre": row["genre"] or "", "rank": row["rank"],
+            "link": row["link"] or "", "genre": row["genre"] or "", "region": row["region"] or "", "rank": row["rank"],
             "rank_month": row["rank_month"], "duration": row["duration"],
             "license": row["license"], "usable_on": usable_on(row["license"]), "note": row["note"] or "",
             "audio": f if f and (config.DATA / f).is_file() else None,  # under /media/
@@ -73,7 +84,8 @@ def view(row: dict) -> dict:
 
 def listing() -> dict:
     return {"tracks": [view(r) for r in db.list_music()], "licenses": list(LICENSES), "fetch": fetch_ready(),
-            "genres": list(GENRES), "default_genre": DEFAULT_GENRE}
+            "genres": list(GENRES), "default_genre": DEFAULT_GENRE,
+            "regions": REGIONS, "default_region": DEFAULT_REGION}
 
 
 def get(mid: int) -> dict:
@@ -284,6 +296,70 @@ def refresh(genre: str = DEFAULT_GENRE, limit: int = DEFAULT_LIMIT) -> dict:
             db.delete_music(row["id"])
             removed += 1
     return {"added": added, "updated": updated, "listed": len(rows), "no_audio": no_audio, "removed": removed}
+
+
+def refresh_country(region: str = DEFAULT_REGION, limit: int = DEFAULT_LIMIT) -> dict:
+    """Pull a country's most-played songs (Apple Music's public chart, no key) as sound ideas, each with its 30 s
+    preview. This is what people listen to in that country, not TikTok's own chart (which has no country filter). A
+    song that left the chart is dropped. Returns {"added", "updated", "listed", "no_audio", "removed"}."""
+    region = str(region or DEFAULT_REGION).upper().strip()
+    if region not in REGIONS:
+        raise ValueError(tr("Unknown country: {region}", region=region))
+    top = max(1, min(int(limit), 100))
+    size = next(n for n in (10, 25, 50, 100) if n >= top)  # the sizes Apple's feed offers
+    url = CHART_URL.format(cc=region.lower(), n=size)
+    r = _http("GET", url)
+    if r.status_code in (502, 503, 504):  # the feed's edge fails now and then on a cold request: once more
+        r = _http("GET", url)
+    if r.status_code != 200:
+        raise RuntimeError(tr("The music chart answered {status}", status=r.status_code))
+    try:
+        results = [i for i in r.json()["feed"]["results"] if isinstance(i, dict) and i.get("id")][:top]
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(tr("The music chart sent something Motio cannot read")) from e
+    previews: dict[str, dict] = {}
+    if results:
+        lk = _http("GET", LOOKUP_URL, params={"id": ",".join(str(i["id"]) for i in results), "country": region.lower()})
+        if lk.status_code == 200:
+            try:
+                previews = {str(x.get("trackId")): x for x in lk.json().get("results", []) if isinstance(x, dict)}
+            except (ValueError, AttributeError):
+                previews = {}
+    now = time.time()
+    added = updated = no_audio = 0
+    kept: set[str] = set()
+    for n, item in enumerate(results, 1):
+        title = " ".join(str(item.get("name") or "").split())[:140]
+        if not title:
+            continue
+        ext_id = f"{region}:{item['id']}"
+        kept.add(ext_id)
+        have = db.find_music(CHART, ext_id)
+        fields = {"title": title, "artist": " ".join(str(item.get("artistName") or "").split())[:100],
+                  "link": str(item.get("url") or ""), "genre": "", "region": region, "rank": n, "rank_month": None,
+                  "trending_at": now}
+        if not (have and have["file"] and (config.DATA / have["file"]).is_file()):
+            got = _download(previews.get(str(item["id"]), {}).get("previewUrl"),
+                            folder() / f"chart-{hashlib.sha1(ext_id.encode()).hexdigest()[:16]}")
+            if got:
+                fields["file"] = got.relative_to(config.DATA).as_posix()
+                fields["duration"] = _probe(got)
+            else:
+                no_audio += 1
+        if have:
+            db.save_music(have["id"], **fields)
+            updated += 1
+        else:
+            db.save_music(None, source=CHART, ext_id=ext_id, license=IDEA, note=CHART_NOTE, **fields)
+            added += 1
+    removed = 0
+    for row in db.list_music():
+        if row["source"] == CHART and row["region"] == region and row["ext_id"] not in kept:
+            if row["file"]:
+                (config.DATA / row["file"]).unlink(missing_ok=True)
+            db.delete_music(row["id"])
+            removed += 1
+    return {"added": added, "updated": updated, "listed": len(kept), "no_audio": no_audio, "removed": removed}
 
 
 # ---------- a video's music ----------

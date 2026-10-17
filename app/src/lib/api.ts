@@ -311,9 +311,10 @@ export type MusicTrack = {
   id: number;
   title: string;
   artist: string;
-  source: "upload" | "tiktok_cml";
+  source: "upload" | "tiktok_cml" | "country_chart";
   link: string;
   genre: string;
+  region: string; // mã quốc gia của bảng xếp hạng nước (country_chart), "" với bài khác
   rank: number | null; // hạng trên bảng 7 ngày (đang hot)
   rank_month: number | null; // hạng trên bảng 30 ngày (nghe nhiều nhất)
   duration: number | null;
@@ -332,6 +333,8 @@ export type MusicList = {
   fetch: boolean; // đã nhập khoá nhạc TikTok trong Cài đặt
   genres: string[]; // tag (thể loại) của TikTok
   default_genre: string;
+  regions: Record<string, string>; // mã quốc gia -> tên: bảng nghe nhiều nhất của nước đó (không cần khoá)
+  default_region: string;
 };
 export type MusicInput = { title?: string; artist?: string; license?: string; note?: string };
 /** Nhạc của một dự án: bài đang dùng (của video hoặc mặc định của kênh) và có buộc duyệt video không. */
@@ -681,7 +684,7 @@ export function makeApi(url: string, token: string) {
     },
     updateMusic: (id: number, body: MusicInput) => call<MusicTrack>("PATCH", `/api/music/${id}`, body),
     deleteMusic: (id: number) => call<{ id: number }>("DELETE", `/api/music/${id}`),
-    fetchMusic: (body: { genre: string }) =>
+    fetchMusic: (body: { genre?: string; region?: string }) =>
       call<{ added: number; updated: number; listed: number; no_audio: number; removed: number }>("POST", "/api/music/fetch", body),
     /** track_id null = không nhạc (kể cả khi kênh có nhạc mặc định); dựng lại video đã xong bằng giọng đọc cũ. */
     setProjectMusic: (id: number, body: { track_id: number | null; volume: number }) =>

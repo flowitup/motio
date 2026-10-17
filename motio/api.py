@@ -199,6 +199,7 @@ class MusicIn(BaseModel):
 
 class MusicFetchIn(BaseModel):
     genre: str = "POP"  # one of music.GENRES
+    region: str = ""  # a country code of music.REGIONS: that country's most-played chart instead of a TikTok genre
     limit: int = 30
 
 
@@ -902,8 +903,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/music/fetch", dependencies=[Depends(auth)])
     def music_fetch(body: MusicFetchIn):
-        """Pull a genre's trending (7 days) and most popular (30 days) CML cuts (up to a minute)."""
+        """Pull a genre's trending (7 days) and most popular (30 days) CML cuts, or a country's most-played chart when
+        `region` is set (up to a minute)."""
         try:
+            if body.region:
+                return music.refresh_country(body.region, body.limit)
             return music.refresh(body.genre, body.limit)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

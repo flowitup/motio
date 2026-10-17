@@ -126,6 +126,10 @@ recordings that TikTok may play only inside its app, and a copy in a video file 
 claimed by Content ID). Fetching needs `TIKTOK_MUSIC_API_KEY` and `TIKTOK_MUSIC_TEAM_ID` (Settings → Music): a music data
 service (its team needs a TikTok account connected in its dashboard) returns the chart, because TikTok's own Creative Center chart answers "no permission" to a request that is not signed
 by its page, and Motio does not forge that. Trending sounds outside the Commercial Music Library are not listed.
+The same screen also lists a **country's most-played songs** (France, the US, the UK…; Apple Music's public chart with 30 s
+previews, no key needed) as sound ideas: TikTok's own chart cannot be filtered by country (the data service has no region
+parameter and follows its linked account's market), so for "what is used in France" the country list is the one to open.
+It is what people there listen to, not TikTok's ranking, and the same rules apply: ideas only, never mixed into a video.
 *Your tracks*: audio files you add, each with a **license** (mine / bought or licensed / Creative Commons / unknown). A video
 picks one on its project page (*Background music*, then it is rendered again with the voice it already has, so no new voice
 cost) or gets its channel's default (Channels → Music); the track plays under the voice, fades in and out and is pressed

@@ -95,7 +95,9 @@ as authoritative for scope and milestones.
     Library through a licensed data API (`TIKTOK_MUSIC_API_KEY` / `TIKTOK_MUSIC_TEAM_ID`; owner 2026-10-17: ideas only, the
     owner adds the sound in the TikTok app when posting; Motio never mixes a trending sound into a video, never scrapes
     TikTok or fetches a trending sound outside the CML: most are commercial recordings, Content ID; `license = tiktok_cml`
-    is never chosen by `choice`/`set_for_project`/a channel) + tracks added by hand to put under the voice (`own`/`licensed`/
+    is never chosen by `choice`/`set_for_project`/a channel; a second idea source, `country_chart` (`refresh_country`), reads
+    Apple Music's public most-played chart of a country (FR, US…) with its 30 s previews because the CML cannot be filtered by
+    country: same `tiktok_cml` license, same rules) + tracks added by hand to put under the voice (`own`/`licensed`/
     `cc` free everywhere, `unknown` forces the video gate, `music.needs_review`); a video's pick is `meta.music`, else the
     channel's `music_id`; the mix is `render.music_filter` (fade, sidechain duck); a dub takes none
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)

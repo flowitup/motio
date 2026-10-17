@@ -648,6 +648,15 @@ review screen they all need.
   trending chart the CML covers. TikTok's own Creative Center no longer has a music chart (checked 17/10: only Hashtag, Video
   and Creator tabs), so there is no browser route.
 
+- **Country charts (owner 17/10: "tài khoản tôi ở Pháp, tôi muốn tìm nhạc sử dụng ở Pháp"):** the data service has no region
+  parameter (region / country parameters are ignored; the POP chart was 43 % CJK titles for a French account), so a second idea
+  source reads **Apple Music's public most-played chart** of a country (`rss.marketingtools.apple.com/api/v2/{cc}/music/most-played/N/songs.json`,
+  previews from `itunes.apple.com/lookup?id=…&country=…`, `previewUrl` 30 s; no key). Countries in `music.REGIONS` (FR default, US, GB,
+  DE, ES, IT, BE, CA, BR, VN); one list per country (`source = "country_chart"`, `region`, `rank`). It is what people in that country
+  listen to, **not** TikTok's ranking and it has no 7 / 30-day split: shown that way in the app. Same license (`tiktok_cml` =
+  an idea), same rules: never mixed, found in the TikTok app. Checked live on 17/10: FR and US returned 25 songs each, all with a preview.
+  The feed's edge answers 504 now and then on a cold request: one retry.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

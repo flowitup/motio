@@ -653,6 +653,9 @@ VI = {
     "The music service needs a TikTok account connected to this team: connect one in its dashboard, then fetch again":
         "Dịch vụ nhạc cần một tài khoản TikTok đã nối vào team này: hãy nối trong dashboard của họ rồi lấy lại",
     "The music service answered {status}": "Dịch vụ nhạc trả lỗi {status}",
+    "Unknown country: {region}": "Không có quốc gia này: {region}",
+    "The music chart answered {status}": "Bảng xếp hạng nhạc trả lỗi {status}",
+    "The music chart sent something Motio cannot read": "Bảng xếp hạng nhạc trả về dữ liệu Motio không đọc được",
     "A French dub keeps the original video's music: it takes no other track":
         "Bản lồng tiếng giữ nhạc của video gốc nên không thêm nhạc khác",
     "This is a sound idea: add it in the TikTok app when you post. Motio does not put it in the video":

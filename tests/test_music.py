@@ -154,6 +154,60 @@ def test_fetch_errors(client, cml, monkeypatch):
     assert client.post("/api/music/fetch", headers=H, json={"genre": "NOT A TAG"}).status_code == 400
 
 
+@pytest.fixture
+def chart(monkeypatch, tmp_path):
+    """A fake Apple chart: France has Fille (#1, 30 s preview) and Sans Son (#2, no preview); `chart[0]` is the list
+    of songs a test can change, the rest are the requests."""
+    if not config.find("ffmpeg"):
+        pytest.skip("needs ffmpeg")
+    audio = tone(tmp_path / "p.mp3", 20)
+    songs = [{"id": "11", "name": "Fille", "artistName": "Zoe", "url": "https://music.apple.com/fr/song/11"},
+             {"id": "22", "name": "Sans Son", "artistName": "Yan", "url": "https://music.apple.com/fr/song/22"}]
+    seen = [songs]
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        if req.url.host == "rss.marketingtools.apple.com":
+            return httpx.Response(200, json={"feed": {"results": songs}})
+        if req.url.host == "itunes.apple.com":
+            return httpx.Response(200, json={"results": [{"trackId": 11, "previewUrl": "https://cdn.test/f.m4a"}]})
+        if req.url.path == "/f.m4a":
+            return httpx.Response(200, content=audio, headers={"content-type": "audio/mpeg"})
+        return httpx.Response(404)
+
+    monkeypatch.setattr(music, "_transport", httpx.MockTransport(handler))
+    return seen
+
+
+def test_country_chart_is_a_list_of_ideas(client, chart):
+    r = client.post("/api/music/fetch", headers=H, json={"region": "fr"})  # no key needed
+    assert r.status_code == 200, r.text
+    assert r.json() == {"added": 2, "updated": 0, "listed": 2, "no_audio": 1, "removed": 0}
+    assert any(getattr(q, "url", None) and q.url.path == "/api/v2/fr/music/most-played/50/songs.json"
+               for q in chart[1:])
+    body = client.get("/api/music", headers=H).json()
+    assert body["regions"]["FR"] == "France" and body["default_region"] == "FR"
+    fille, quiet = {t["title"]: t for t in body["tracks"]}["Fille"], {t["title"]: t for t in body["tracks"]}["Sans Son"]
+    assert fille["region"] == "FR" and fille["rank"] == 1 and fille["audio"] and fille["source"] == "country_chart"
+    assert fille["usable_on"] == "tiktok" and not fille["mixable"] and fille["find"].startswith("https://www.tiktok.com/")
+    assert fille["link"].endswith("/song/11") and quiet["audio"] is None and quiet["rank"] == 2
+    # an idea from a country chart is never mixed into a video
+    assert music.choice({"mode": "news", "meta": {"music": {"id": fille["id"]}}}, None)[0] is None
+    # a song that left the chart is dropped with its preview; another country is a separate list
+    chart[0].pop(0)
+    gone = config.DATA / fille["audio"]
+    assert client.post("/api/music/fetch", headers=H, json={"region": "FR"}).json()["removed"] == 1
+    assert not gone.exists()
+    assert client.post("/api/music/fetch", headers=H, json={"region": "US"}).json()["added"] == 1
+    assert {t["region"] for t in db.list_music()} == {"FR", "US"}
+
+
+def test_country_chart_errors(client, chart):
+    assert client.post("/api/music/fetch", headers=H, json={"region": "ZZ"}).status_code == 400
+    chart[0].clear()
+    assert client.post("/api/music/fetch", headers=H, json={"region": "FR"}).json()["listed"] == 0
+
+
 def _track(license="own", file=True, **kw) -> int:
     rel = ""
     if file:

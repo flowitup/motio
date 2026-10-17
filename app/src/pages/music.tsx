@@ -25,7 +25,7 @@ const clock = (s: number | null) => {
 function UsableBadge({ track }: { track: MusicTrack }) {
   const tone = track.usable_on === "all" ? "text-mint" : track.usable_on === "tiktok" ? "text-amber" : "text-coral";
   return (
-    <Badge variant="outline" className={tone} title={t.music.usableHint[track.usable_on]}>
+    <Badge variant="outline" className={tone} title={track.source === "country_chart" ? t.music.chartHint : t.music.usableHint[track.usable_on]}>
       {t.music.usable[track.usable_on]}
     </Badge>
   );
@@ -36,7 +36,7 @@ function TrackRow({ api, track, rank }: { api: Api; track: MusicTrack; rank?: nu
   const [license, setLicense] = useState(track.license);
   const [note, setNote] = useState(track.note);
   const [removing, setRemoving] = useState(false);
-  const idea = track.source === "tiktok_cml";
+  const idea = track.license === "tiktok_cml"; // an idea: a TikTok chart or a country chart, never mixed
   const dirty = license !== track.license || note !== track.note;
   const refresh = () => qc.invalidateQueries({ queryKey: ["music"] });
   const save = useMutation({ mutationFn: () => api.updateMusic(track.id, { license, note }), onSuccess: refresh });
@@ -114,20 +114,39 @@ function TrackRow({ api, track, rank }: { api: Api; track: MusicTrack; rank?: nu
   );
 }
 
-/** Trending cuts of TikTok's Commercial Music Library (ideas only), through the music data service set in Settings. */
-function TrendingPanel({ api, list, genre, setGenre }: { api: Api; list: MusicList; genre: string; setGenre: (g: string) => void }) {
+type Source = "country" | "tiktok";
+
+/** Sound ideas, never mixed: a country's most-played chart (no key) or TikTok's trending cuts per tag (service key). */
+function IdeasPanel(props: {
+  api: Api;
+  list: MusicList;
+  source: Source;
+  setSource: (s: Source) => void;
+  genre: string;
+  setGenre: (g: string) => void;
+  region: string;
+  setRegion: (r: string) => void;
+}) {
+  const { api, list, source, setSource, genre, setGenre, region, setRegion } = props;
   const qc = useQueryClient();
   const fetchNow = useMutation({
-    mutationFn: () => api.fetchMusic({ genre }),
+    mutationFn: () => api.fetchMusic(source === "country" ? { region } : { genre }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["music"] }),
   });
   return (
     <Section title={t.music.trending} bodyClassName="grid gap-3">
+      <Choice
+        value={source}
+        onChange={(v) => setSource(v as Source)}
+        options={[["country", t.music.byCountry], ["tiktok", t.music.byTag]]}
+        label={t.music.trending}
+        className="w-56"
+      />
       <p className="flex items-start gap-2 text-[13px] text-muted-foreground">
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
-        {t.music.licenseNote}
+        {source === "country" ? t.music.countryNote : t.music.licenseNote}
       </p>
-      {!list.fetch ? (
+      {source === "tiktok" && !list.fetch ? (
         <p className="text-[13px]">
           {t.music.needKey}{" "}
           <Link to="/settings" className="text-cyan hover:underline">
@@ -136,12 +155,18 @@ function TrendingPanel({ api, list, genre, setGenre }: { api: Api; list: MusicLi
         </p>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
-          <Field label={t.music.genre}>
-            <Choice value={genre} onChange={setGenre} options={list.genres.map((g): [string, string] => [g, g])} className="w-56" />
-          </Field>
+          {source === "country" ? (
+            <Field label={t.music.country}>
+              <Choice value={region} onChange={setRegion} options={Object.entries(list.regions).map(([c, n]): [string, string] => [c, n])} className="w-56" />
+            </Field>
+          ) : (
+            <Field label={t.music.genre}>
+              <Choice value={genre} onChange={setGenre} options={list.genres.map((g): [string, string] => [g, g])} className="w-56" />
+            </Field>
+          )}
           <Button onClick={() => fetchNow.mutate()} disabled={fetchNow.isPending}>
             {fetchNow.isPending ? <Loader2 className="animate-spin" /> : <Download />}
-            {t.music.fetch}
+            {source === "country" ? t.music.fetchCountry : t.music.fetch}
           </Button>
         </div>
       )}
@@ -241,8 +266,11 @@ export default function MusicPage() {
   const api = useApi()!;
   const { data, isLoading, error } = useQuery({ queryKey: ["music"], queryFn: () => api.music() });
   const [pick, setPick] = useState<string | null>(null);
+  const [pickRegion, setPickRegion] = useState<string | null>(null);
+  const [source, setSource] = useState<Source>("country"); // the owner posts from France: a country chart first
   const genre = pick ?? data?.default_genre ?? "POP";
-  const ideas = (data?.tracks ?? []).filter((x) => x.source === "tiktok_cml" && x.genre === genre);
+  const region = pickRegion ?? data?.default_region ?? "FR";
+  const ideas = (data?.tracks ?? []).filter((x) => (source === "country" ? x.source === "country_chart" && x.region === region : x.source === "tiktok_cml" && x.genre === genre));
   const byRank = (key: "rank" | "rank_month") =>
     ideas.filter((x) => x[key] !== null).sort((a, b) => a[key]! - b[key]!);
   return (
@@ -256,11 +284,17 @@ export default function MusicPage() {
         {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
         {data && (
           <>
-            <TrendingPanel api={api} list={data} genre={genre} setGenre={setPick} />
-            <TrackList api={api} title={t.music.trendingList(genre)} hint={t.music.trendingHint} empty={t.music.ideasEmpty} tracks={byRank("rank")} rank={(x) => x.rank} />
-            <TrackList api={api} title={t.music.popularList(genre)} hint={t.music.popularHint} empty={t.music.ideasEmpty} tracks={byRank("rank_month")} rank={(x) => x.rank_month} />
+            <IdeasPanel api={api} list={data} source={source} setSource={setSource} genre={genre} setGenre={setPick} region={region} setRegion={setPickRegion} />
+            {source === "country" ? (
+              <TrackList api={api} title={t.music.countryList(data.regions[region] ?? region)} hint={t.music.countryHint} empty={t.music.countryEmpty} tracks={byRank("rank")} rank={(x) => x.rank} />
+            ) : (
+              <>
+                <TrackList api={api} title={t.music.trendingList(genre)} hint={t.music.trendingHint} empty={t.music.ideasEmpty} tracks={byRank("rank")} rank={(x) => x.rank} />
+                <TrackList api={api} title={t.music.popularList(genre)} hint={t.music.popularHint} empty={t.music.ideasEmpty} tracks={byRank("rank_month")} rank={(x) => x.rank_month} />
+              </>
+            )}
             <AddPanel api={api} list={data} />
-            <TrackList api={api} title={t.music.mine} empty={t.music.empty} tracks={data.tracks.filter((x) => x.source !== "tiktok_cml")} />
+            <TrackList api={api} title={t.music.mine} empty={t.music.empty} tracks={data.tracks.filter((x) => x.source === "upload")} />
           </>
         )}
       </div>
