@@ -343,6 +343,8 @@ def test_categories_are_listed_as_followable_targets(client, monkeypatch):
     rows = client.get("/api/categories", headers=H).json()
     assert {"key": "ai", "target": "bilibili:category:ai", "name": "AI & tools"} in rows
     assert [r["key"] for r in rows][:3] == ["tech", "ai", "ai_film"]
+    assert {"key": "pearvideo_home", "target": "pearvideo:home", "name": "Pear Video · today"} in rows  # and AcFun
+    assert len({r["key"] for r in rows}) == len(rows)
     for r in rows:  # every one can be followed as it is
         body = {"target": r["target"], "site": "bilibili"}
         assert client.post("/api/watches", headers=H, json=body).status_code == 201
