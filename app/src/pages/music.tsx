@@ -15,7 +15,11 @@ import { useApi, type Api, type MusicList, type MusicTrack } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
-const clock = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "");
+const clock = (s: number | null) => {
+  if (!s) return "";
+  const total = Math.round(s);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
 
 /** Who may hear a track: free everywhere (mint), pre-cleared on TikTok only (amber), nothing known (coral). */
 function UsableBadge({ track }: { track: MusicTrack }) {
