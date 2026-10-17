@@ -634,4 +634,47 @@ VI = {
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
+    # music library (music.py)
+    "Background music changed: rendering again": "Đã đổi nhạc nền: đang dựng lại video",
+    "The background music must be a track of the library": "Nhạc nền phải là một bài trong thư viện nhạc",
+    "Track #{id} not found": "Không tìm thấy bài nhạc #{id}",
+    "License must be one of {choices}": "Giấy phép phải là một trong: {choices}",
+    "This file has no audio": "File này không có âm thanh",
+    "This track is too short to use (under {n} s)": "Bài nhạc quá ngắn để dùng (dưới {n} giây)",
+    "Only audio files are accepted: {types}": "Chỉ nhận file âm thanh: {types}",
+    "The track needs a title": "Bài nhạc cần có tên",
+    "Add your TikTok music API key and team id in Settings → Music to fetch trending sounds. Without them you can "
+    "still add tracks by hand.":
+        "Hãy nhập API key và team id nhạc TikTok trong Cài đặt → Nhạc để lấy nhạc đang hot. Chưa có thì vẫn thêm "
+        "bài nhạc bằng tay được.",
+    "Unknown genre: {genre}": "Thể loại không hợp lệ: {genre}",
+    "The music service refused the key: check the API key and team id in Settings":
+        "Dịch vụ nhạc từ chối key: kiểm tra API key và team id trong Cài đặt",
+    "The music service needs a TikTok account connected to this team: connect one in its dashboard, then fetch again":
+        "Dịch vụ nhạc cần một tài khoản TikTok đã nối vào team này: hãy nối trong dashboard của họ rồi lấy lại",
+    "The music service answered {status}": "Dịch vụ nhạc trả lỗi {status}",
+    "Unknown country: {region}": "Không có quốc gia này: {region}",
+    "Type one hashtag, letters and digits only": "Hãy nhập một hashtag, chỉ gồm chữ và số",
+    "TikTok showed no videos for #{tag}: the tag may not exist, or TikTok refused the page":
+        "TikTok không hiện video nào cho #{tag}: tag có thể không tồn tại, hoặc TikTok từ chối trang",
+    "Chrome, Edge or Chromium must be installed to read TikTok's pages":
+        "Cần cài Chrome, Edge hoặc Chromium để đọc trang của TikTok",
+    "Could not start the browser: {error}": "Không mở được trình duyệt: {error}",
+    "The browser did not start": "Trình duyệt không khởi động",
+    "TikTok refused the page (error {status}): try again later or from another network":
+        "TikTok từ chối trang (lỗi {status}): thử lại sau hoặc từ mạng khác",
+    "The music chart answered {status}": "Bảng xếp hạng nhạc trả lỗi {status}",
+    "The music chart sent something Motio cannot read": "Bảng xếp hạng nhạc trả về dữ liệu Motio không đọc được",
+    "A French dub keeps the original video's music: it takes no other track":
+        "Bản lồng tiếng giữ nhạc của video gốc nên không thêm nhạc khác",
+    "This is a sound idea: add it in the TikTok app when you post. Motio does not put it in the video":
+        "Đây chỉ là gợi ý nhạc: hãy thêm nhạc trong app TikTok khi đăng. Motio không chèn nhạc này vào video",
+    "This audio file cannot be read: {error}": "Không đọc được file âm thanh này: {error}",
+    "Could not reach the music service: {error}": "Không kết nối được dịch vụ nhạc: {error}",
+    "The music service sent something Motio cannot read": "Dịch vụ nhạc trả dữ liệu mà Motio không đọc được",
+    "This track has no audio to mix: add the file first":
+        "Bài nhạc này chưa có file âm thanh để trộn: hãy thêm file trước",
+    " (background music that is not known to be free on every platform: approve the video yourself before it goes "
+    "out)":
+        " (nhạc nền chưa rõ là dùng tự do trên mọi nền tảng: hãy tự duyệt video trước khi đăng)",
 }

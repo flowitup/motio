@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Music2, Newspaper, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import ProjectDetailPage from "@/pages/project-detail";
 import ProjectsPage from "@/pages/projects";
 import SettingsPage from "@/pages/settings";
 import StatsPage from "@/pages/stats";
+import MusicPage from "@/pages/music";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
@@ -33,7 +34,10 @@ const NAV: NavItem[][] = [
     { to: "/clips", label: "clips", icon: Rss },
     { to: "/projects", label: "projects", icon: FolderKanban },
   ],
-  [{ to: "/channels", label: "channels", icon: Tv }],
+  [
+    { to: "/channels", label: "channels", icon: Tv },
+    { to: "/music", label: "music", icon: Music2 },
+  ],
   [
     { to: "/delogo", label: "delogo", icon: Eraser },
     { to: "/tools", label: "tools", icon: Wrench },
@@ -251,6 +255,7 @@ export default function App() {
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
           <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
+          <Route path="/music" element={<EngineGate><MusicPage /></EngineGate>} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />
           <Route path="/tools" element={<EngineGate><ToolsPage /></EngineGate>} />
           <Route path="/stats" element={<EngineGate><StatsPage /></EngineGate>} />

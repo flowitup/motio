@@ -91,6 +91,17 @@ as authoritative for scope and milestones.
     channel / tool job from a ContextVar), and so is every Claude call (`llm`), every new AI picture (`picture`, from
     `images.make`) and every AI clip (`clip`); price and monthly budget in Settings; over budget pauses `automake` only
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
+  - `music.py` music library (`music` table, files in `data/music/`): sound ideas = the trending cut of TikTok's Commercial Music
+    Library through a licensed data API (`TIKTOK_MUSIC_API_KEY` / `TIKTOK_MUSIC_TEAM_ID`; owner 2026-10-17: ideas only, the
+    owner adds the sound in the TikTok app when posting; Motio never mixes a trending sound into a video, never scrapes
+    TikTok or fetches a trending sound outside the CML: most are commercial recordings, Content ID; `license = tiktok_cml`
+    is never chosen by `choice`/`set_for_project`/a channel; a second idea source, `country_chart` (`refresh_country`), reads
+    Apple Music's public most-played chart of a country (FR, US…) with its 30 s previews because the CML cannot be filtered by
+    country: same `tiktok_cml` license, same rules; a third, `tiktok_tag` (`refresh_tag`, `tiktokweb.py`), lists the songs used by
+    the videos of a TikTok hashtag, read by a headless Chrome / Edge on this computer: see the TikTok music exception below)
+    + tracks added by hand to put under the voice (`own`/`licensed`/
+    `cc` free everywhere, `unknown` forces the video gate, `music.needs_review`); a video's pick is `meta.music`, else the
+    channel's `music_id`; the mix is `render.music_filter` (fade, sidechain duck); a dub takes none
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
 - `app/` — Tauri 2 + React + TypeScript desktop shell (created in M2).
@@ -184,6 +195,15 @@ on every PR; keep them green.
   `execjs` (not installed: LGPL cookie-store reader and a JavaScript runner for livestreams), and tests switch it off
   (`conftest.py`). f2 does not check TLS certificates, so a stream link from its reply is fetched only when it is https to
   a public address, redirects included; keep that check when touching `_save`.
+- TikTok music ideas (owner's go of 2026-10-17, like the f2 exception for Douyin): Motio may open a TikTok *hashtag page*
+  (`tiktok.com/tag/<tag>`) in a headless Chrome / Edge / Chromium on the owner's computer (`motio/tiktokweb.py`, DevTools
+  protocol, throwaway profile, closed afterwards, no login) and keep the `item_list` answers the page itself loads, to
+  list the songs those videos use as sound **ideas** (`music.refresh_tag`). The page does TikTok's request signing; never
+  forge or copy that signing, never call TikTok's web or app API directly, never log in, never download a video, keep
+  only the sound the page plays for a song as a preview to listen to in the app (owner, 2026-10-17: "nghe thử trực tiếp
+  trong app"; kept like the other idea previews, removed with the song), and never put one of these songs in a video (the
+  owner adds the sound in the TikTok app). Nothing else
+  on TikTok is scraped. TikTok may refuse or change the page: every failure is a plain message, nothing depends on it.
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /

@@ -16,6 +16,7 @@ from . import (
     dub,
     llm,
     localfile,
+    music,
     notify,
     postiz,
     qa,
@@ -577,11 +578,13 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
     return plan, nar
 
 
-def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False) -> str:
+def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False,
+               music_line: str = "") -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
     (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
     lines = [(s["platform"], f"• {s['platform']} · {s['uploader']} — {s['url']}") for s in sources]
-    (out / "sources.txt").write_text("\n".join(ln for _, ln in lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
+    notes = [*(ln for _, ln in lines), *([music_line] if music_line else [])]
+    (out / "sources.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")  # nội bộ, không đăng
     # a video file added by hand has no uploader or web link to credit: it stays in sources.txt only
     credits = "\n".join(ln for platform, ln in lines if platform != localfile.PLATFORM)
     desc = plan.get("description", "").strip()
@@ -648,16 +651,18 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         step("Render", 70 + int(26 * done / total), None)
 
     wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
+    track = None if is_dub else music.for_render(proj, ch)  # nhạc nền: bản lồng tiếng giữ nhạc của video gốc
+    bgm = {"music": track} if track else {}
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)
     elif is_ai:
         res = render.render(**creator.render_args(plan, sources, nar, MIN_SECONDS), narration=nar, out_dir=out,
-                            progress=prog, badge=channels.badge_for(proj), wide=wide)
+                            progress=prog, badge=channels.badge_for(proj), wide=wide, **bgm)
     else:
         # a video made from a trending clip has no Chinese voice under the French one (meta.mute_source)
         res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
-                            badge=channels.badge_for(proj), wide=wide,
+                            badge=channels.badge_for(proj), wide=wide, **bgm,
                             **({"src_volume": 0.0} if proj["meta"].get("mute_source") else {}))
     if not res.get("wide"):
         (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới
@@ -674,7 +679,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, [] if is_ai else sources, out, ai_images=is_ai,
-                      ai_clips=is_ai and aiclips.used(db.get_project(pid)["meta"]))
+                      ai_clips=is_ai and aiclips.used(db.get_project(pid)["meta"]),
+                      music_line=music.credit(proj, ch))
     bg = nar.get("background") if is_dub else None
     how = (tr(" · original music and sound kept") if bg == "separated"
            else tr(" · original sound turned down") if bg == "original" else "")
@@ -712,6 +718,9 @@ def _why_held(proj: dict) -> str:
     if creator.clips_need_review(proj):
         return tr(" (clips from a provider whose terms for monetized channels are not checked yet: approve the "
                   "video yourself before it goes out)")
+    if not creator.needs_review(proj) and music.needs_review(proj, channels.for_project(proj)):
+        return tr(" (background music that is not known to be free on every platform: approve the video yourself "
+                  "before it goes out)")
     return tr(" (pictures from a provider that isn't cleared for monetized channels: approve the video yourself "
               "before it goes out)")
 
@@ -725,7 +734,8 @@ def _deliver(pid: int, ch: dict | None) -> None:
     proj = db.get_project(pid)
     sent = bool(proj["meta"].get("postiz"))
     held = bool(ch and ch["postiz"] and (dub.needs_review(proj) or topic.needs_review(proj)
-                                         or creator.needs_review(proj) or qa.failed(proj)))
+                                         or creator.needs_review(proj) or music.needs_review(proj, ch)
+                                         or qa.failed(proj)))
     if ch and not sent and (ch["gate_video"] or held):
         why = _why_held(proj) if held and not ch["gate_video"] else ""
         _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"

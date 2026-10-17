@@ -219,7 +219,7 @@ function HealthCard({ api }: { api: Api }) {
 
 
 /** One entry of the section list on the left (and the order of the sections on the page). */
-const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "engine", "advanced"] as const;
+const SECTIONS = ["general", "llm", "voice", "costs", "images", "music", "posting", "engine", "advanced"] as const;
 type SectionId = (typeof SECTIONS)[number];
 const TOC_LABEL: Record<SectionId, () => string> = {
   general: () => t.settings.general,
@@ -227,6 +227,7 @@ const TOC_LABEL: Record<SectionId, () => string> = {
   voice: () => t.settings.voice,
   costs: () => t.settings.costs,
   images: () => t.settings.imagesClips,
+  music: () => t.nav.music,
   posting: () => t.settings.posting,
   engine: () => t.settings.engine,
   advanced: () => t.settings.advanced,
@@ -340,6 +341,15 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         </Field>
         <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
           {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
+        </Field>
+      </Section>
+
+      <Section id="music" title={t.nav.music} bodyClassName={grid}>
+        <Field label={`${t.music.settingsKey} · TIKTOK_MUSIC_API_KEY`} hint={src("TIKTOK_MUSIC_API_KEY") ?? t.music.settingsKeyHint}>
+          {secret("TIKTOK_MUSIC_API_KEY")}
+        </Field>
+        <Field label={`${t.music.settingsTeam} · TIKTOK_MUSIC_TEAM_ID`} hint={src("TIKTOK_MUSIC_TEAM_ID") ?? t.music.settingsTeamHint}>
+          {text("TIKTOK_MUSIC_TEAM_ID")}
         </Field>
       </Section>
 

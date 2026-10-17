@@ -618,6 +618,58 @@ review screen they all need.
   `qwen-image-edit-2511` really keeps a face from one portrait, its exact price, and whether fal takes a data URI for
   `image_urls` as documented; the screen in a real Tauri window on Mac / Windows.
 
+## Music library: sound ideas + own tracks (added 17/10/2026)
+
+- **Ask (owner):** fetch the background music that is hot and trending on TikTok into a library. Clarified the same day
+  (later asked for one trending list per tag and one all-time most-listened list; the second is the 30-day chart):
+  it is for **ideas only** ("when I upload to TikTok I add the sound with TikTok's official feature, not steal it"), and
+  what is wanted is the **hot cut** of a song (many posts use a short cut), not the whole song.
+- **What is realistically fetchable:** TikTok has no public API or page for its trending sounds. The Creative Center chart
+  (`creative_radar_api`) answers `no permission` (code 40101) without the signature its page computes, and Motio does not forge
+  it. The licensed subset is TikTok's **Commercial Music Library** (pre-cleared for organic posts and ads **on TikTok**): its
+  chart comes from a data API (bundle.social `GET /api/v1/misc/tiktok/cml/trending-list`: name, artist, rank, genres, a
+  trending clip and a full-song clip, each with a preview valid 6 h; key + team id in Settings → Music). The trending clip is
+  kept first.
+- **Built:** *Sound ideas* (CML cuts per tag/genre, two lists: trending 7 days and most popular 30 days, since the service ranks
+  over 1/7/30 days only and has no all-time chart; one fetch pulls both: rank, preview to listen to, a "Find on TikTok" search link;
+  never mixed into a video, not selectable for a video or channel, no credit, no gate) and *Your tracks* (own audio files with
+  a license and note; a video's pick or its channel's default; the mix fades in/out and ducks under the voice; `unknown`
+  always stops at the video gate; the track is named in `sources.txt`).
+- **Not included:** mixing a trending sound into a video (it stays in the TikTok app, owner's choice and Content ID),
+  attaching a TikTok sound at publish time (`music_sound_id`: Postiz does not take it), automatic picking of a track per
+  topic, music in a French dub (it keeps the original's), sounds outside the CML (the whole chart).
+- **Checked live on 17/10 with the owner's key (free plan):** the chart needs a TikTok account connected to the service's team
+  (400 "Team does not have a Tiktok account" before that; Motio shows it as a clear error). With one connected, a real
+  `refresh("POP", 10)` returned 12 ideas, all with a preview (one without), as the docs describe (`trending_song_clip`,
+  `rank_position`, durations). The list follows the linked account's market (the first run came back Japanese / Taiwanese
+  music for a French team), and a trending clip is not always shorter than the song (172 s vs 171 s on the first one, 60 s on
+  others): the service gives no start / end of the hot part.
+- **Not verified:** whether the free plan keeps this endpoint beyond a trial, other genres, and how much of TikTok's real
+  trending chart the CML covers. TikTok's own Creative Center no longer has a music chart (checked 17/10: only Hashtag, Video
+  and Creator tabs), so there is no browser route.
+
+- **Country charts (owner 17/10: "tài khoản tôi ở Pháp, tôi muốn tìm nhạc sử dụng ở Pháp"):** the data service has no region
+  parameter (region / country parameters are ignored; the POP chart was 43 % CJK titles for a French account), so a second idea
+  source reads **Apple Music's public most-played chart** of a country (`rss.marketingtools.apple.com/api/v2/{cc}/music/most-played/N/songs.json`,
+  previews from `itunes.apple.com/lookup?id=…&country=…`, `previewUrl` 30 s; no key). Countries in `music.REGIONS` (FR default, US, GB,
+  DE, ES, IT, BE, CA, BR, VN); one list per country (`source = "country_chart"`, `region`, `rank`). It is what people in that country
+  listen to, **not** TikTok's ranking and it has no 7 / 30-day split: shown that way in the app. Same license (`tiktok_cml` =
+  an idea), same rules: never mixed, found in the TikTok app. Checked live on 17/10: FR and US returned 25 songs each, all with a preview.
+  The feed's edge answers 504 now and then on a cold request: one retry.
+- **Hashtag ideas (owner 17/10: "tìm theo tag trending, lấy bài hát đang hot ở đó"; explicit go for a browser on their machine):**
+  the in-app "Hot" list (France / Vietnam / Global, with posts and clip length) is only in the phone app behind a device
+  signature, and TikTok's web has no music chart (Creative Center redirects to the trends hub, `tiktok.com/music` to For You);
+  yt-dlp's `TikTokTag` is marked broken ("No working app info"). What does work is the public hashtag page: a real browser loads
+  `tiktok.com/tag/<tag>` with no login and the page itself calls `/api/challenge/item_list` (30 videos a page, each with its
+  `music`: id, title, authorName, duration, `original`, and `stats.playCount`). `tiktokweb.collect` (headless Chrome / Edge over
+  the DevTools protocol, `websockets`, throwaway profile) keeps those answers and `music.tag_sounds` counts the songs
+  (a sound people recorded, `original`, is left out): most used first, then plays. Stored as `source = "tiktok_tag"`,
+  `genre = <tag>`, `uses`, `plays`, link = the sound's `tiktok.com/music/<title>-<id>` page; the sound the page plays (`music.playUrl`, plain https, no cookie or
+  referer needed, ~1 MB, valid some hours) is downloaded as a preview to listen to in the app (owner 17/10), never mixed.
+  Checked live 17/10 (sandbox, US connection): `#fashion` gave 143 videos and 15 songs in 22 s (CORTIS "FaSHioN" in 3 videos,
+  George Michael, Major Lazer...). The Creative Center hashtag page shows only the top 3 tags per country without login, so tags are typed.
+  The country of the result follows the connection of the computer that runs the browser.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

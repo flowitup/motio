@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePicker } from "@/components/voice-picker";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
+import { MusicPicker } from "@/components/music-picker";
 import { ApiError, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
 import { t } from "@/i18n";
 
@@ -38,6 +39,8 @@ const BLANK: ChannelInput = {
   ai_clips: 0,
   series: "",
   cast: "",
+  music_id: 0,
+  music_volume: 0.25,
   default: false,
 };
 const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
@@ -192,6 +195,7 @@ function ChannelForm({
 }) {
   const qc = useQueryClient();
   const refreshMin = useRefreshMinutes(api);
+  const { data: library } = useQuery({ queryKey: ["music"], queryFn: () => api.music() });
   const start = useRef<Draft>(
     toDraft(
       initial ??
@@ -410,6 +414,34 @@ function ChannelForm({
             className="min-h-24 font-mono text-xs"
           />
         </Field>
+      </Section>
+
+      <Section
+        id="channel-music"
+        title={t.music.title}
+        collapsible
+        defaultOpen={false}
+        bodyClassName="grid gap-3"
+        aside={library?.tracks.find((x) => x.id === d.music_id)?.title ?? t.music.channelNone}
+      >
+        <Field label={t.music.channelTrack} hint={t.music.channelHint}>
+          <MusicPicker
+            tracks={library?.tracks ?? []}
+            value={d.music_id}
+            volume={d.music_volume}
+            onChange={(v) => set("music_id", v)}
+            onVolume={(v) => set("music_volume", v)}
+            noneLabel={t.music.channelNone}
+          />
+        </Field>
+        {library && !library.tracks.length && (
+          <p className="text-xs text-muted-foreground">
+            {t.music.channelAddFirst}{" "}
+            <Link to="/music" className="text-cyan hover:underline">
+              {t.music.library}
+            </Link>
+          </p>
+        )}
       </Section>
 
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-ground px-4 py-3">

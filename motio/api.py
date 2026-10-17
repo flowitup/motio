@@ -36,6 +36,7 @@ from . import (
     listing,
     llm,
     localfile,
+    music,
     newsnow,
     notify,
     pipeline,
@@ -184,7 +185,29 @@ class ChannelIn(BaseModel):
     ai_clips: int = 0  # video AI: số cảnh thành clip AI (fal H3 Max) mỗi video; 0 = chỉ ảnh chuyển động
     series: str = ""  # video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
     cast: str = ""  # video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, nhân vật hư cấu)
+    music_id: int = 0  # nhạc nền mặc định từ thư viện nhạc (0 = không có)
+    music_volume: float = 0.25
     default: bool = False
+
+
+class MusicIn(BaseModel):
+    title: str | None = None
+    artist: str | None = None
+    license: str | None = None
+    note: str | None = None
+
+
+class MusicFetchIn(BaseModel):
+    genre: str = "POP"  # one of music.GENRES
+    region: str = ""  # a country code of music.REGIONS: that country's most-played chart instead of a TikTok genre
+    tag: str = ""  # a TikTok hashtag: the songs its videos use (a browser on this computer reads the page)
+    limit: int = 30
+
+
+class ProjectMusicIn(BaseModel):
+    track_id: int | None = None  # None = no music (even when the channel has a default)
+    volume: float = 0.25
+    rerender: bool = True
 
 
 class ApproveIn(BaseModel):
@@ -238,13 +261,14 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
         out["dub"] = dub.view(p)
         out["ai"] = creator.view(p)
+        out["music"] = music.state(p, channels.for_project(p))
         out["usage"] = usage.for_project(p["id"])
     return out
 
 
 # The app only streams what the engine made: projects, tool jobs and cached sources. Never the database, `.env`,
 # models or whatever else sits in the data folder.
-MEDIA_DIRS = ("projects", "tools", "cache")
+MEDIA_DIRS = ("projects", "tools", "cache", "music")
 
 
 def voice_ready() -> bool:
@@ -845,6 +869,73 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                           log=tr("Queued to rerun from step {step}", step=label))
         jobs.submit(_run_job, lambda i: pipeline.resume(i, start), pid)
         return {"project_id": pid, "start": start}
+
+    # ---------- Music library ----------
+    @app.get("/api/music", dependencies=[Depends(auth)])
+    def music_list():
+        return music.listing()
+
+    @app.post("/api/music", status_code=201, dependencies=[Depends(auth)])
+    def music_add(file: UploadFile, title: str = Form(""), artist: str = Form(""), license: str = Form("unknown"),
+                  note: str = Form("")):
+        try:
+            return music.save_upload(file.filename or "", file.file, title, artist, license, note)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except (RuntimeError, OSError) as e:
+            raise HTTPException(500, str(e)[:500]) from e
+
+    @app.patch("/api/music/{mid}", dependencies=[Depends(auth)])
+    def music_edit(mid: int, body: MusicIn):
+        try:
+            return music.update(mid, body.model_dump(exclude_none=True))
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/music/{mid}", dependencies=[Depends(auth)])
+    def music_delete(mid: int):
+        try:
+            music.delete(mid)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        return {"id": mid, "deleted": True}
+
+    @app.post("/api/music/fetch", dependencies=[Depends(auth)])
+    def music_fetch(body: MusicFetchIn):
+        """Pull a genre's trending (7 days) and most popular (30 days) CML cuts, or a country's most-played chart when
+        `region` is set (up to a minute)."""
+        try:
+            if body.tag:
+                return music.refresh_tag(body.tag, body.limit)
+            if body.region:
+                return music.refresh_country(body.region, body.limit)
+            return music.refresh(body.genre, body.limit)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except RuntimeError as e:
+            raise HTTPException(502, str(e)) from e
+
+    @app.put("/api/projects/{pid}/music", status_code=202, dependencies=[Depends(auth)])
+    def project_music(pid: int, body: ProjectMusicIn):
+        """Pick (or remove) a video's background music; a finished video is rendered again with the voice it has."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        try:
+            pick = music.set_for_project(pid, body.track_id, body.volume)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        again = body.rerender and p["status"] in ("done", "review") and "render" in pipeline.available_steps(pid) \
+            and p["meta"].get("review") not in ("script", "shots")
+        if again:
+            db.update_project(pid, status="queued", step=tr("Queued for re-render"), pct=0,
+                              log=tr("Background music changed: rendering again"), meta={"review": None})
+            jobs.submit(_run_job, lambda i: pipeline.resume(i, "render"), pid)
+        return {"project_id": pid, "music": pick, "rerender": bool(again)}
 
     @app.post("/api/projects/{pid}/approve", status_code=202, dependencies=[Depends(auth)])
     def approve(pid: int, body: ApproveIn | None = None):
