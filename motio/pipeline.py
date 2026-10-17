@@ -385,6 +385,40 @@ def _transcript_cached(src: dict) -> bool:
     return Path(src["path"]).with_suffix(".transcript.json").exists()
 
 
+def source_volume(proj: dict) -> float | None:
+    """How loud the source video's own sound is under the French voice (0 = silent, 1 = as recorded), or None for the
+    renderer's default. The owner's choice (`meta.src_volume`, set from the project page) wins; otherwise a video made
+    from a trending clip has no source voice (`meta.mute_source`)."""
+    meta = proj.get("meta") or {}
+    if meta.get("src_volume") is not None:
+        return clamp_source_volume(meta["src_volume"])
+    return 0.0 if meta.get("mute_source") else None
+
+
+def clamp_source_volume(v) -> float:
+    try:
+        return round(min(1.0, max(0.0, float(v))), 2)
+    except (TypeError, ValueError):
+        return render.SRC_VOLUME
+
+
+def source_sound(proj: dict) -> dict | None:
+    """For the project page: the source's sound level in use and the default, or None when the video has no source
+    sound to turn (a dub mixes its own background, an AI video has no source)."""
+    if proj.get("mode") == dub.MODE or creator.is_ai(proj):
+        return None
+    vol = source_volume(proj)
+    return {"volume": render.SRC_VOLUME if vol is None else vol, "default": render.SRC_VOLUME,
+            "chosen": (proj.get("meta") or {}).get("src_volume") is not None}
+
+
+def set_source_volume(pid: int, volume) -> float:
+    """Keep the owner's level for the source's sound; the next render (voice kept) uses it."""
+    vol = clamp_source_volume(volume)
+    db.update_project(pid, log=tr("Original sound volume: {pct} %", pct=round(vol * 100)), meta={"src_volume": vol})
+    return vol
+
+
 def saved_narration(pid: int) -> dict | None:
     """Giọng đọc của lần dựng trước, nếu file còn và kịch bản chưa đổi câu nào kể từ đó."""
     out = config.PROJECTS / str(pid)
@@ -655,10 +689,12 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         res = render.render(**creator.render_args(plan, sources, nar, MIN_SECONDS), narration=nar, out_dir=out,
                             progress=prog, badge=channels.badge_for(proj), wide=wide)
     else:
-        # a video made from a trending clip has no Chinese voice under the French one (meta.mute_source)
+        # the source's own sound under the French voice: the owner's level (meta.src_volume), or none for a video made
+        # from a trending clip (meta.mute_source)
+        vol = source_volume(proj)
         res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
                             badge=channels.badge_for(proj), wide=wide,
-                            **({"src_volume": 0.0} if proj["meta"].get("mute_source") else {}))
+                            **({} if vol is None else {"src_volume": vol}))
     if not res.get("wide"):
         (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới
     for i, miss in delogo.uncovered(pid):  # chỉ báo: xoá logo luôn do người dùng tự bấm

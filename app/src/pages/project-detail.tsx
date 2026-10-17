@@ -30,6 +30,7 @@ import { Monitor } from "@/components/monitor";
 import { PublishCard } from "@/components/publish-card";
 import { ScriptCard, type ScriptGate } from "@/components/script-card";
 import { ShotsCard } from "@/components/shots-card";
+import { SourceSoundCard } from "@/components/source-sound-card";
 import { StatusChip } from "@/components/status-chip";
 import { Kicker, Led, PageTitle, Panel } from "@/components/studio";
 import { TimelineStrip, lineAt, mmss, useNarration, type Mark } from "@/components/timeline";
@@ -533,6 +534,15 @@ export default function ProjectDetailPage() {
               />
               <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
             </>
+          )}
+          {p.source_sound && (
+            <SourceSoundCard
+              key={`${p.source_sound.volume}`}
+              api={api}
+              p={p}
+              active={active}
+              onQueued={() => refetch()}
+            />
           )}
           {p.mode !== "ai" && <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />}
         </div>

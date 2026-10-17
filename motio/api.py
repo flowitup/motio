@@ -92,6 +92,10 @@ class DubIn(BaseModel):
     channel: int | None = None  # như ProduceIn
 
 
+class SourceVolumeIn(BaseModel):
+    volume: float  # 0 (silent) .. 1 (as recorded): the source video's own sound under the French voice
+
+
 class ClipDubIn(BaseModel):
     channel: int | None = None
 
@@ -238,6 +242,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
         out["dub"] = dub.view(p)
         out["ai"] = creator.view(p)
+        out["source_sound"] = pipeline.source_sound(p)
         out["usage"] = usage.for_project(p["id"])
     return out
 
@@ -671,6 +676,23 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if rerun and rerun not in pipeline.available_steps(pid):
             rerun = pipeline.resume_point(pid)
         return {"project": _project_out(_get(pid), full=True), "rerun": rerun}
+
+    @app.put("/api/projects/{pid}/source-volume", dependencies=[Depends(auth)])
+    def put_source_volume(pid: int, body: SourceVolumeIn):
+        """Set how loud the source video's own sound is under the French voice. When the voice is already made, the
+        video is rendered again with it (no new voice); `queued` says whether that was started."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        if pipeline.source_sound(p) is None:
+            raise HTTPException(400, tr("This video has no source sound to turn up or down"))
+        pipeline.set_source_volume(pid, body.volume)
+        queued = "render" in pipeline.available_steps(pid)
+        if queued:
+            db.update_project(pid, status="queued", step=tr("Queued to rerun: {step}", step=tr("Render")),
+                              pct=0, log=tr("Queued to rerun from step {step}", step=tr("Render")))
+            jobs.submit(_run_job, lambda i: pipeline.resume(i, "render"), pid)
+        return {"project": _project_out(_get(pid), full=True), "queued": queued}
 
     @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
     def patch_project(pid: int, body: ProjectPatch):
