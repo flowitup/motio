@@ -664,7 +664,8 @@ review screen they all need.
   `music`: id, title, authorName, duration, `original`, and `stats.playCount`). `tiktokweb.collect` (headless Chrome / Edge over
   the DevTools protocol, `websockets`, throwaway profile) keeps those answers and `music.tag_sounds` counts the songs
   (a sound people recorded, `original`, is left out): most used first, then plays. Stored as `source = "tiktok_tag"`,
-  `genre = <tag>`, `uses`, `plays`, link = the sound's `tiktok.com/music/<title>-<id>` page; no audio is downloaded.
+  `genre = <tag>`, `uses`, `plays`, link = the sound's `tiktok.com/music/<title>-<id>` page; the sound the page plays (`music.playUrl`, plain https, no cookie or
+  referer needed, ~1 MB, valid some hours) is downloaded as a preview to listen to in the app (owner 17/10), never mixed.
   Checked live 17/10 (sandbox, US connection): `#fashion` gave 143 videos and 15 songs in 22 s (CORTIS "FaSHioN" in 3 videos,
   George Michael, Major Lazer...). The Creative Center hashtag page shows only the top 3 tags per country without login, so tags are typed.
   The country of the result follows the connection of the computer that runs the browser.

@@ -199,8 +199,10 @@ on every PR; keep them green.
   (`tiktok.com/tag/<tag>`) in a headless Chrome / Edge / Chromium on the owner's computer (`motio/tiktokweb.py`, DevTools
   protocol, throwaway profile, closed afterwards, no login) and keep the `item_list` answers the page itself loads, to
   list the songs those videos use as sound **ideas** (`music.refresh_tag`). The page does TikTok's request signing; never
-  forge or copy that signing, never call TikTok's web or app API directly, never log in, never download a sound or a
-  video from it, and never put one of these songs in a video (the owner adds the sound in the TikTok app). Nothing else
+  forge or copy that signing, never call TikTok's web or app API directly, never log in, never download a video, keep
+  only the sound the page plays for a song as a preview to listen to in the app (owner, 2026-10-17: "nghe thử trực tiếp
+  trong app"; kept like the other idea previews, removed with the song), and never put one of these songs in a video (the
+  owner adds the sound in the TikTok app). Nothing else
   on TikTok is scraped. TikTok may refuse or change the page: every failure is a plain message, nothing depends on it.
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it

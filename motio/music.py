@@ -13,8 +13,8 @@ Two kinds of track:
   30 s previews (`country_chart`): what people there listen to, not TikTok's own ranking. A third source reads the
   songs used by the videos of a TikTok hashtag (`tiktok_tag`, `refresh_tag`): a real browser on this computer opens
   the hashtag page and keeps the `item_list` answers the page itself loads (`tiktokweb.py`; the page does TikTok's
-  request signing, Motio does not), so it shows the country of this computer's connection. Same rules: ideas only,
-  nothing is downloaded.
+  request signing, Motio does not), so it shows the country of this computer's connection. Same rules: ideas only;
+  the sound the page plays is kept as a preview to listen to, never mixed.
 - A **track to mix**: an audio file the owner adds (`own` / `licensed` / `cc`: usable on every platform; `unknown`:
   the video waits for approval before Postiz gets it). A video picks one in `meta.music` ({"id", "volume"}) or from
   its channel (`music_id`); the render lays it under the voice, ducked while the voice speaks (`render._compose`).
@@ -60,8 +60,9 @@ CML_NOTE = ("Idea from TikTok's Commercial Music Library (pre-cleared by TikTok 
             "the video.")
 CHART_NOTE = ("Idea from a country's most-played chart (Apple Music): a 30 s preview of a commercial recording, to "
               "listen to. Find the sound in the TikTok app when you post. Motio does not put it in the video.")
-TAG_NOTE = ("Idea from the videos of a TikTok hashtag: a song used in several of its top videos. Find it in the TikTok "
-            "app when you post (the link opens its sound page). Motio does not put it in the video.")
+TAG_NOTE = ("Idea from the videos of a TikTok hashtag: a song used in its top videos, with the sound to listen to. "
+            "Find it in the TikTok app when you post (the link opens its sound page). Motio does not put it in the "
+            "video.")
 FIND_URL = "https://www.tiktok.com/search?q="
 MUSIC_URL = "https://www.tiktok.com/music/"
 _transport: httpx.BaseTransport | None = None  # tests swap in an httpx.MockTransport
@@ -384,7 +385,8 @@ def clean_tag(tag: str) -> str:
 def tag_sounds(bodies: list, limit: int = DEFAULT_LIMIT) -> tuple[list[dict], int]:
     """The songs used by the videos in what a hashtag page loaded (`item_list` answers): one row per song with how many
     of those videos use it and their plays, most used first. A sound a person recorded themselves ("original sound")
-    is not a song and is left out. Returns (rows, number of videos read)."""
+    is not a song and is left out. A row has the sound's `preview` address (what the page plays, valid for some hours).
+    Returns (rows, number of videos read)."""
     seen: set[str] = set()
     songs: dict[str, dict] = {}
     videos = 0
@@ -405,8 +407,9 @@ def tag_sounds(bodies: list, limit: int = DEFAULT_LIMIT) -> tuple[list[dict], in
             except (TypeError, ValueError):
                 plays = 0
             artist = " ".join(str(m.get("authorName") or "").split())[:100]
-            row = songs.setdefault(str(m["id"]), {"title": title, "artist": artist,
+            row = songs.setdefault(str(m["id"]), {"title": title, "artist": artist, "preview": "",
                                                   "duration": m.get("duration") or None, "uses": 0, "plays": 0})
+            row["preview"] = row["preview"] or str(m.get("playUrl") or "")
             row["uses"] += 1
             row["plays"] += plays
     rows = sorted(songs.items(), key=lambda kv: (-kv[1]["uses"], -kv[1]["plays"]))[:max(1, int(limit))]
@@ -415,8 +418,9 @@ def tag_sounds(bodies: list, limit: int = DEFAULT_LIMIT) -> tuple[list[dict], in
 
 def refresh_tag(tag: str, limit: int = DEFAULT_LIMIT) -> dict:
     """Open a TikTok hashtag page in a headless browser on this computer and list the songs its videos use (what the
-    page shows from this computer's country). A song that is no longer in them is dropped. Ideas only, nothing is
-    downloaded. Returns {"added", "updated", "listed", "videos", "removed"}."""
+    page shows from this computer's country). A song that is no longer in them is dropped. Ideas only: the sound the
+    page plays is kept as a preview to listen to in the app (like the other ideas), never mixed into a video. Returns
+    {"added", "updated", "listed", "videos", "no_audio", "removed"}."""
     tag = clean_tag(tag)
     bodies = tiktokweb.collect(f"https://www.tiktok.com/tag/{quote(tag)}", "/api/challenge/item_list")
     rows, videos = tag_sounds(bodies, limit)
@@ -424,7 +428,7 @@ def refresh_tag(tag: str, limit: int = DEFAULT_LIMIT) -> dict:
         raise RuntimeError(tr("TikTok showed no videos for #{tag}: the tag may not exist, or TikTok refused the page",
                               tag=tag))
     now = time.time()
-    added = updated = 0
+    added = updated = no_audio = 0
     kept: set[str] = set()
     for n, t in enumerate(rows, 1):
         ext_id = f"{tag}:{t['id']}"
@@ -434,6 +438,13 @@ def refresh_tag(tag: str, limit: int = DEFAULT_LIMIT) -> dict:
                   "duration": t["duration"], "uses": t["uses"], "plays": t["plays"], "trending_at": now,
                   "link": f"{MUSIC_URL}{quote(slug)}-{t['id']}"}
         have = db.find_music(TAG, ext_id)
+        if not (have and have["file"] and (config.DATA / have["file"]).is_file()):
+            got = _download(t["preview"], folder() / f"tag-{hashlib.sha1(ext_id.encode()).hexdigest()[:16]}")
+            if got:
+                fields["file"] = got.relative_to(config.DATA).as_posix()
+                fields["duration"] = _probe(got)
+            else:
+                no_audio += 1
         if have:
             db.save_music(have["id"], **fields)
             updated += 1
@@ -443,9 +454,12 @@ def refresh_tag(tag: str, limit: int = DEFAULT_LIMIT) -> dict:
     removed = 0
     for row in db.list_music():
         if row["source"] == TAG and row["genre"] == tag and row["ext_id"] not in kept:
+            if row["file"]:
+                (config.DATA / row["file"]).unlink(missing_ok=True)
             db.delete_music(row["id"])
             removed += 1
-    return {"added": added, "updated": updated, "listed": len(kept), "videos": videos, "removed": removed}
+    return {"added": added, "updated": updated, "listed": len(kept), "videos": videos, "no_audio": no_audio,
+            "removed": removed}
 
 
 # ---------- a video's music ----------

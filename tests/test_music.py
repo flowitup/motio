@@ -212,8 +212,9 @@ def _video(vid, music, plays=1000):
     return {"id": str(vid), "music": music, "stats": {"playCount": plays}}
 
 
-SONG = {"id": "70", "title": "Fashion Song", "authorName": "Ana", "duration": 30, "original": False}
-OTHER = {"id": "71", "title": "Other Song", "authorName": "Bo", "duration": 55, "original": False}
+SONG = {"id": "70", "title": "Fashion Song", "authorName": "Ana", "duration": 30, "original": False,
+        "playUrl": "https://cdn.test/song.m4a"}
+OTHER = {"id": "71", "title": "Other Song", "authorName": "Bo", "duration": 55, "original": False}  # no sound to play
 OWN = {"id": "72", "title": "original sound", "authorName": "someone", "duration": 12, "original": True}
 
 
@@ -234,22 +235,35 @@ def test_clean_tag():
             music.clean_tag(bad)
 
 
-def test_tag_ideas_come_from_the_browser_and_are_never_mixed(client, monkeypatch):
+def test_tag_ideas_come_from_the_browser_and_are_never_mixed(client, monkeypatch, tmp_path):
+    if not config.find("ffmpeg"):
+        pytest.skip("needs ffmpeg")
+    audio = tone(tmp_path / "s.mp3", 20)
+    monkeypatch.setattr(music, "_transport", httpx.MockTransport(
+        lambda req: httpx.Response(200, content=audio, headers={"content-type": "audio/mp4"})
+        if req.url.path == "/song.m4a" else httpx.Response(404)))
     asked = []
     pages = [{"itemList": [_video(1, SONG, 500), _video(2, OTHER, 900), _video(3, SONG, 100)]}]
     monkeypatch.setattr(music.tiktokweb, "collect", lambda url, match, **kw: asked.append((url, match)) or pages)
     r = client.post("/api/music/fetch", headers=H, json={"tag": "#Fashion"})
     assert r.status_code == 200, r.text
-    assert r.json() == {"added": 2, "updated": 0, "listed": 2, "videos": 3, "removed": 0}
+    assert r.json() == {"added": 2, "updated": 0, "listed": 2, "videos": 3, "no_audio": 1, "removed": 0}
     assert asked == [("https://www.tiktok.com/tag/fashion", "/api/challenge/item_list")]
     tracks = {t["title"]: t for t in client.get("/api/music", headers=H).json()["tracks"]}
     song = tracks["Fashion Song"]
     assert song["source"] == "tiktok_tag" and song["genre"] == "fashion" and song["rank"] == 1
-    assert (song["uses"], song["plays"]) == (2, 600) and song["audio"] is None and not song["mixable"]
+    assert (song["uses"], song["plays"]) == (2, 600) and song["audio"] and not song["mixable"]
+    assert tracks["Other Song"]["audio"] is None  # a listed song with nothing to play
+    preview = config.DATA / song["audio"]
+    assert preview.is_file()
     assert song["usable_on"] == "tiktok" and song["find"] == "https://www.tiktok.com/music/Fashion-Song-70"
     # a second read moves the numbers; a song that is gone from the page is dropped; another tag is separate
     pages[0]["itemList"] = [_video(1, SONG, 500)]
     assert client.post("/api/music/fetch", headers=H, json={"tag": "fashion"}).json()["removed"] == 1
+    assert preview.is_file()  # the song that stayed keeps its preview
+    pages[0]["itemList"] = [_video(1, OTHER, 500)]
+    assert client.post("/api/music/fetch", headers=H, json={"tag": "fashion"}).json()["removed"] == 1
+    assert not preview.exists()  # a song that left takes its preview with it
     assert client.post("/api/music/fetch", headers=H, json={"tag": "mode"}).json()["added"] == 1
     assert {t["genre"] for t in db.list_music()} == {"fashion", "mode"}
 

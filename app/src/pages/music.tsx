@@ -193,7 +193,7 @@ function IdeasPanel(props: {
         {fetchNow.data && (
           <p className="text-[13px] text-muted-foreground">
             {fetchNow.data.videos !== undefined
-              ? t.music.fetchedTag(fetchNow.data.videos, fetchNow.data.added, fetchNow.data.updated, fetchNow.data.removed)
+              ? t.music.fetchedTag(fetchNow.data.videos, fetchNow.data.added, fetchNow.data.updated, fetchNow.data.removed, fetchNow.data.no_audio ?? 0)
               : t.music.fetched(fetchNow.data.added, fetchNow.data.updated, fetchNow.data.no_audio ?? 0, fetchNow.data.removed)}
           </p>
         )}

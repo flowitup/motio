@@ -131,8 +131,8 @@ previews, no key needed) as sound ideas: TikTok's own chart cannot be filtered b
 parameter and follows its linked account's market), so for "what is used in France" the country list is the one to open.
 It is what people there listen to, not TikTok's ranking, and the same rules apply: ideas only, never mixed into a video.
 A third list works from a **hashtag**: type a tag (say `fashion`) and Motio opens its TikTok page in a hidden Chrome / Edge on
-your computer (no login, nothing downloaded) and lists the songs its top videos use, most used first, with the number of
-videos and plays and a link to each sound's TikTok page. TikTok serves the videos of your connection's country, so on a computer
+your computer (no login) and lists the songs its top videos use, most used first, with a preview to listen to in the app, the
+number of videos and plays and a link to each sound's TikTok page. TikTok serves the videos of your connection's country, so on a computer
 in France it is French. It needs Chrome, Edge or Chromium installed, and TikTok can refuse the page or change it.
 *Your tracks*: audio files you add, each with a **license** (mine / bought or licensed / Creative Commons / unknown). A video
 picks one on its project page (*Background music*, then it is rendered again with the voice it already has, so no new voice
