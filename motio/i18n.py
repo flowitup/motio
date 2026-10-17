@@ -654,6 +654,15 @@ VI = {
         "Dịch vụ nhạc cần một tài khoản TikTok đã nối vào team này: hãy nối trong dashboard của họ rồi lấy lại",
     "The music service answered {status}": "Dịch vụ nhạc trả lỗi {status}",
     "Unknown country: {region}": "Không có quốc gia này: {region}",
+    "Type one hashtag, letters and digits only": "Hãy nhập một hashtag, chỉ gồm chữ và số",
+    "TikTok showed no videos for #{tag}: the tag may not exist, or TikTok refused the page":
+        "TikTok không hiện video nào cho #{tag}: tag có thể không tồn tại, hoặc TikTok từ chối trang",
+    "Chrome, Edge or Chromium must be installed to read TikTok's pages":
+        "Cần cài Chrome, Edge hoặc Chromium để đọc trang của TikTok",
+    "Could not start the browser: {error}": "Không mở được trình duyệt: {error}",
+    "The browser did not start": "Trình duyệt không khởi động",
+    "TikTok refused the page (error {status}): try again later or from another network":
+        "TikTok từ chối trang (lỗi {status}): thử lại sau hoặc từ mạng khác",
     "The music chart answered {status}": "Bảng xếp hạng nhạc trả lỗi {status}",
     "The music chart sent something Motio cannot read": "Bảng xếp hạng nhạc trả về dữ liệu Motio không đọc được",
     "A French dub keeps the original video's music: it takes no other track":

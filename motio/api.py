@@ -200,6 +200,7 @@ class MusicIn(BaseModel):
 class MusicFetchIn(BaseModel):
     genre: str = "POP"  # one of music.GENRES
     region: str = ""  # a country code of music.REGIONS: that country's most-played chart instead of a TikTok genre
+    tag: str = ""  # a TikTok hashtag: the songs its videos use (a browser on this computer reads the page)
     limit: int = 30
 
 
@@ -906,6 +907,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Pull a genre's trending (7 days) and most popular (30 days) CML cuts, or a country's most-played chart when
         `region` is set (up to a minute)."""
         try:
+            if body.tag:
+                return music.refresh_tag(body.tag, body.limit)
             if body.region:
                 return music.refresh_country(body.region, body.limit)
             return music.refresh(body.genre, body.limit)

@@ -43,6 +43,9 @@ const categoriesVi: Record<string, string> = {
 const categoryLists = (names: Record<string, string>, prefix: string) =>
   Object.fromEntries(Object.entries(names).map(([k, v]) => [`bilibili:category:${k}`, `${prefix} · ${v}`]));
 
+/** 1 234 567 -> 1.2M, for counts of plays. */
+const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
+
 const en = {
   appName: "Motio",
   nav: {
@@ -687,6 +690,19 @@ const en = {
     countryNote:
       "These are ideas only. Motio never puts these songs in your video: when you post on TikTok, search the sound in the TikTok app and add it there, the official way. They are commercial recordings, so a copy in the video file could be claimed on YouTube, Facebook and X.",
     countryEmpty: "Nothing for this country yet. Fetch it.",
+    byHashtag: "By hashtag",
+    hashtag: "Hashtag",
+    hashtagPlaceholder: "fashion",
+    fetchHashtag: "Read this hashtag",
+    hashtagList: (tag: string) => `Songs in the videos of #${tag}`,
+    hashtagHint: "The songs used most by the top videos of this hashtag, read from TikTok's page in a browser on this computer. TikTok shows videos of the country of your connection. Songs people recorded themselves are left out.",
+    hashtagNote:
+      "These are ideas only. Motio opens the hashtag page in a hidden browser on this computer and reads the songs of its videos; it downloads no sound and never puts one in your video. When you post, add the sound in the TikTok app (the link opens its page). TikTok can refuse the page or change it at any time.",
+    hashtagEmpty: "Nothing for this hashtag yet. Type it and read it.",
+    needBrowser: "Reading a hashtag needs Chrome, Edge or Chromium installed on this computer.",
+    usedIn: (n: number, plays: number) => `Used in ${n} video${n === 1 ? "" : "s"} · ${compact(plays)} plays`,
+    fetchedTag: (videos: number, added: number, updated: number, removed: number) =>
+      `${videos} videos read: ${added} new songs, ${updated} updated${removed ? `, ${removed} no longer used` : ""}.`,
     needKey: "Fetching trending cuts needs a TikTok music API key and team id (Settings → Music). Adding your own files works without them.",
     genre: "Tag",
     fetch: "Fetch this tag",
@@ -1769,6 +1785,19 @@ const vi: Messages = {
     countryNote:
       "Đây chỉ là gợi ý. Motio không bao giờ chèn các bài này vào video của bạn: khi đăng lên TikTok, hãy tìm nhạc ngay trong app TikTok rồi thêm vào đó, đúng cách chính thức. Đây là bản thu thương mại, nên bản sao nằm trong file video có thể bị khiếu nại trên YouTube, Facebook và X.",
     countryEmpty: "Quốc gia này chưa có bài nào. Hãy bấm lấy.",
+    byHashtag: "Theo hashtag",
+    hashtag: "Hashtag",
+    hashtagPlaceholder: "fashion",
+    fetchHashtag: "Đọc hashtag này",
+    hashtagList: (tag: string) => `Bài hát trong video của #${tag}`,
+    hashtagHint: "Những bài được các video hàng đầu của hashtag này dùng nhiều nhất, đọc từ trang TikTok bằng trình duyệt trên máy này. TikTok hiện video của nước ứng với kết nối của bạn. Bài do người dùng tự thu thì bỏ ra.",
+    hashtagNote:
+      "Đây chỉ là gợi ý. Motio mở trang hashtag bằng trình duyệt ẩn trên máy này và đọc bài hát của các video; nó không tải âm thanh nào và không bao giờ chèn vào video của bạn. Khi đăng, hãy thêm nhạc trong app TikTok (link mở trang bài đó). TikTok có thể từ chối trang hoặc đổi trang bất cứ lúc nào.",
+    hashtagEmpty: "Hashtag này chưa có bài nào. Hãy nhập và bấm đọc.",
+    needBrowser: "Muốn đọc hashtag cần cài Chrome, Edge hoặc Chromium trên máy này.",
+    usedIn: (n: number, plays: number) => `Dùng trong ${n} video · ${compact(plays)} lượt xem`,
+    fetchedTag: (videos: number, added: number, updated: number, removed: number) =>
+      `Đã đọc ${videos} video: ${added} bài mới, ${updated} bài cập nhật${removed ? `, ${removed} bài không còn được dùng` : ""}.`,
     needKey: "Muốn lấy đoạn đang hot cần API key và team id nhạc TikTok (Cài đặt → Nhạc). Thêm file của riêng bạn thì không cần.",
     genre: "Tag",
     fetch: "Lấy tag này",

@@ -208,6 +208,65 @@ def test_country_chart_errors(client, chart):
     assert client.post("/api/music/fetch", headers=H, json={"region": "FR"}).json()["listed"] == 0
 
 
+def _video(vid, music, plays=1000):
+    return {"id": str(vid), "music": music, "stats": {"playCount": plays}}
+
+
+SONG = {"id": "70", "title": "Fashion Song", "authorName": "Ana", "duration": 30, "original": False}
+OTHER = {"id": "71", "title": "Other Song", "authorName": "Bo", "duration": 55, "original": False}
+OWN = {"id": "72", "title": "original sound", "authorName": "someone", "duration": 12, "original": True}
+
+
+def test_tag_sounds_counts_videos_and_leaves_out_original_sounds():
+    pages = [{"itemList": [_video(1, SONG, 500), _video(2, OTHER, 9000), _video(3, OWN), _video(4, SONG, 700)]},
+             {"itemList": [_video(4, SONG, 700), _video(5, {"id": ""}), _video(6, None)]}]  # video 4 is on both pages
+    rows, videos = music.tag_sounds(pages)
+    assert videos == 6
+    assert [(r["id"], r["uses"], r["plays"]) for r in rows] == [("70", 2, 1200), ("71", 1, 9000)]
+    assert music.tag_sounds(pages, limit=1)[0][0]["title"] == "Fashion Song"
+    assert music.tag_sounds([{"x": 1}, None])[1] == 0
+
+
+def test_clean_tag():
+    assert music.clean_tag(" #Fashion ") == "fashion" and music.clean_tag("mode_fr") == "mode_fr"
+    for bad in ("", "#", "two words", "a/b", "x" * 41, "<script>"):
+        with pytest.raises(ValueError):
+            music.clean_tag(bad)
+
+
+def test_tag_ideas_come_from_the_browser_and_are_never_mixed(client, monkeypatch):
+    asked = []
+    pages = [{"itemList": [_video(1, SONG, 500), _video(2, OTHER, 900), _video(3, SONG, 100)]}]
+    monkeypatch.setattr(music.tiktokweb, "collect", lambda url, match, **kw: asked.append((url, match)) or pages)
+    r = client.post("/api/music/fetch", headers=H, json={"tag": "#Fashion"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"added": 2, "updated": 0, "listed": 2, "videos": 3, "removed": 0}
+    assert asked == [("https://www.tiktok.com/tag/fashion", "/api/challenge/item_list")]
+    tracks = {t["title"]: t for t in client.get("/api/music", headers=H).json()["tracks"]}
+    song = tracks["Fashion Song"]
+    assert song["source"] == "tiktok_tag" and song["genre"] == "fashion" and song["rank"] == 1
+    assert (song["uses"], song["plays"]) == (2, 600) and song["audio"] is None and not song["mixable"]
+    assert song["usable_on"] == "tiktok" and song["find"] == "https://www.tiktok.com/music/Fashion-Song-70"
+    # a second read moves the numbers; a song that is gone from the page is dropped; another tag is separate
+    pages[0]["itemList"] = [_video(1, SONG, 500)]
+    assert client.post("/api/music/fetch", headers=H, json={"tag": "fashion"}).json()["removed"] == 1
+    assert client.post("/api/music/fetch", headers=H, json={"tag": "mode"}).json()["added"] == 1
+    assert {t["genre"] for t in db.list_music()} == {"fashion", "mode"}
+
+
+def test_tag_errors(client, monkeypatch):
+    assert client.post("/api/music/fetch", headers=H, json={"tag": "two words"}).status_code == 400
+    monkeypatch.setattr(music.tiktokweb, "collect", lambda *a, **kw: [])  # the page asked for nothing like a video list
+    r = client.post("/api/music/fetch", headers=H, json={"tag": "fashion"})
+    assert r.status_code == 502 and "#fashion" in r.json()["detail"]
+
+    def refused(*a, **kw):
+        raise RuntimeError("TikTok refused the page (error 403)")
+
+    monkeypatch.setattr(music.tiktokweb, "collect", refused)
+    assert client.post("/api/music/fetch", headers=H, json={"tag": "fashion"}).status_code == 502
+
+
 def _track(license="own", file=True, **kw) -> int:
     rel = ""
     if file:

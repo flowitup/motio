@@ -311,9 +311,11 @@ export type MusicTrack = {
   id: number;
   title: string;
   artist: string;
-  source: "upload" | "tiktok_cml" | "country_chart";
+  source: "upload" | "tiktok_cml" | "country_chart" | "tiktok_tag";
   link: string;
   genre: string;
+  uses: number | null; // tiktok_tag: số video của tag dùng bài này
+  plays: number | null; // tiktok_tag: tổng lượt xem của các video đó
   region: string; // mã quốc gia của bảng xếp hạng nước (country_chart), "" với bài khác
   rank: number | null; // hạng trên bảng 7 ngày (đang hot)
   rank_month: number | null; // hạng trên bảng 30 ngày (nghe nhiều nhất)
@@ -335,6 +337,7 @@ export type MusicList = {
   default_genre: string;
   regions: Record<string, string>; // mã quốc gia -> tên: bảng nghe nhiều nhất của nước đó (không cần khoá)
   default_region: string;
+  browser: boolean; // máy này có Chrome / Edge / Chromium để đọc trang tag của TikTok
 };
 export type MusicInput = { title?: string; artist?: string; license?: string; note?: string };
 /** Nhạc của một dự án: bài đang dùng (của video hoặc mặc định của kênh) và có buộc duyệt video không. */
@@ -684,8 +687,8 @@ export function makeApi(url: string, token: string) {
     },
     updateMusic: (id: number, body: MusicInput) => call<MusicTrack>("PATCH", `/api/music/${id}`, body),
     deleteMusic: (id: number) => call<{ id: number }>("DELETE", `/api/music/${id}`),
-    fetchMusic: (body: { genre?: string; region?: string }) =>
-      call<{ added: number; updated: number; listed: number; no_audio: number; removed: number }>("POST", "/api/music/fetch", body),
+    fetchMusic: (body: { genre?: string; region?: string; tag?: string }) =>
+      call<{ added: number; updated: number; listed: number; no_audio?: number; videos?: number; removed: number }>("POST", "/api/music/fetch", body),
     /** track_id null = không nhạc (kể cả khi kênh có nhạc mặc định); dựng lại video đã xong bằng giọng đọc cũ. */
     setProjectMusic: (id: number, body: { track_id: number | null; volume: number }) =>
       call<{ project_id: number; rerender: boolean }>("PUT", `/api/projects/${id}/music`, body),

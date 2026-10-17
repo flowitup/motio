@@ -57,8 +57,9 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 CREATE TABLE IF NOT EXISTS music (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT, artist TEXT, source TEXT,   -- source: upload | tiktok_cml (motio/music.py)
+  title TEXT, artist TEXT, source TEXT,   -- source: upload | tiktok_cml | country_chart | tiktok_tag (motio/music.py)
   ext_id TEXT, link TEXT, genre TEXT, region TEXT, rank INTEGER, rank_month INTEGER, duration REAL,
+  uses INTEGER, plays INTEGER,    -- tiktok_tag: videos of the tag that use the sound, and their plays
   file TEXT,                      -- path under data/, empty = only listed (no audio to mix)
   license TEXT DEFAULT 'unknown', note TEXT DEFAULT '',
   trending_at REAL, added_at REAL,
@@ -77,7 +78,8 @@ def conn() -> sqlite3.Connection:
 
 # Columns added after a table first shipped: installed databases get them with ALTER TABLE.
 NEW_COLUMNS = {"clip": {"likes": "INTEGER", "pubdate": "REAL", "category": "TEXT", "rank": "INTEGER"},
-               "usage": {"tokens_in": "INTEGER", "tokens_out": "INTEGER"}}
+               "usage": {"tokens_in": "INTEGER", "tokens_out": "INTEGER"},
+               "music": {"uses": "INTEGER", "plays": "INTEGER"}}
 
 
 def _migrate(c: sqlite3.Connection) -> None:
@@ -444,7 +446,7 @@ def find_music(source: str, ext_id: str) -> dict | None:
 def save_music(mid: int | None, **fields) -> int:
     """Insert (mid None) or update the given columns of a track."""
     cols = {"title", "artist", "source", "ext_id", "link", "genre", "region", "rank", "rank_month", "duration", "file",
-            "license", "note", "trending_at"}
+            "license", "note", "trending_at", "uses", "plays"}
     bad = set(fields) - cols
     if bad:
         raise ValueError(f"unknown music column: {sorted(bad)}")

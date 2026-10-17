@@ -57,7 +57,11 @@ function TrackRow({ api, track, rank }: { api: Api; track: MusicTrack; rank?: nu
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <UsableBadge track={track} />
           {(rank ?? track.rank) != null && <span>{t.music.rank((rank ?? track.rank)!)}</span>}
-          {track.genre && <span>{track.genre}</span>}
+          {track.source === "tiktok_tag" ? (
+            track.uses ? <span>{t.music.usedIn(track.uses, track.plays ?? 0)}</span> : null
+          ) : (
+            track.genre && <span>{track.genre}</span>
+          )}
           {track.duration ? <span className="font-mono tabular-nums">{clock(track.duration)}</span> : null}
         </div>
         {track.audio ? (
@@ -114,7 +118,7 @@ function TrackRow({ api, track, rank }: { api: Api; track: MusicTrack; rank?: nu
   );
 }
 
-type Source = "country" | "tiktok";
+type Source = "country" | "tiktok" | "tag";
 
 /** Sound ideas, never mixed: a country's most-played chart (no key) or TikTok's trending cuts per tag (service key). */
 function IdeasPanel(props: {
@@ -126,11 +130,13 @@ function IdeasPanel(props: {
   setGenre: (g: string) => void;
   region: string;
   setRegion: (r: string) => void;
+  tag: string;
+  setTag: (t: string) => void;
 }) {
-  const { api, list, source, setSource, genre, setGenre, region, setRegion } = props;
+  const { api, list, source, setSource, genre, setGenre, region, setRegion, tag, setTag } = props;
   const qc = useQueryClient();
   const fetchNow = useMutation({
-    mutationFn: () => api.fetchMusic(source === "country" ? { region } : { genre }),
+    mutationFn: () => api.fetchMusic(source === "country" ? { region } : source === "tag" ? { tag } : { genre }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["music"] }),
   });
   return (
@@ -138,15 +144,17 @@ function IdeasPanel(props: {
       <Choice
         value={source}
         onChange={(v) => setSource(v as Source)}
-        options={[["country", t.music.byCountry], ["tiktok", t.music.byTag]]}
+        options={[["country", t.music.byCountry], ["tag", t.music.byHashtag], ["tiktok", t.music.byTag]]}
         label={t.music.trending}
         className="w-56"
       />
       <p className="flex items-start gap-2 text-[13px] text-muted-foreground">
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
-        {source === "country" ? t.music.countryNote : t.music.licenseNote}
+        {source === "country" ? t.music.countryNote : source === "tag" ? t.music.hashtagNote : t.music.licenseNote}
       </p>
-      {source === "tiktok" && !list.fetch ? (
+      {source === "tag" && !list.browser ? (
+        <p className="text-[13px]">{t.music.needBrowser}</p>
+      ) : source === "tiktok" && !list.fetch ? (
         <p className="text-[13px]">
           {t.music.needKey}{" "}
           <Link to="/settings" className="text-cyan hover:underline">
@@ -155,7 +163,18 @@ function IdeasPanel(props: {
         </p>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
-          {source === "country" ? (
+          {source === "tag" ? (
+            <Field label={t.music.hashtag}>
+              <Input
+                value={tag}
+                maxLength={40}
+                placeholder={t.music.hashtagPlaceholder}
+                onChange={(e) => setTag(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && tag.trim() && !fetchNow.isPending && fetchNow.mutate()}
+                className="w-56"
+              />
+            </Field>
+          ) : source === "country" ? (
             <Field label={t.music.country}>
               <Choice value={region} onChange={setRegion} options={Object.entries(list.regions).map(([c, n]): [string, string] => [c, n])} className="w-56" />
             </Field>
@@ -164,14 +183,20 @@ function IdeasPanel(props: {
               <Choice value={genre} onChange={setGenre} options={list.genres.map((g): [string, string] => [g, g])} className="w-56" />
             </Field>
           )}
-          <Button onClick={() => fetchNow.mutate()} disabled={fetchNow.isPending}>
+          <Button onClick={() => fetchNow.mutate()} disabled={fetchNow.isPending || (source === "tag" && !tag.trim())}>
             {fetchNow.isPending ? <Loader2 className="animate-spin" /> : <Download />}
-            {source === "country" ? t.music.fetchCountry : t.music.fetch}
+            {source === "country" ? t.music.fetchCountry : source === "tag" ? t.music.fetchHashtag : t.music.fetch}
           </Button>
         </div>
       )}
       <span role="status" className="contents">
-        {fetchNow.data && <p className="text-[13px] text-muted-foreground">{t.music.fetched(fetchNow.data.added, fetchNow.data.updated, fetchNow.data.no_audio, fetchNow.data.removed)}</p>}
+        {fetchNow.data && (
+          <p className="text-[13px] text-muted-foreground">
+            {fetchNow.data.videos !== undefined
+              ? t.music.fetchedTag(fetchNow.data.videos, fetchNow.data.added, fetchNow.data.updated, fetchNow.data.removed)
+              : t.music.fetched(fetchNow.data.added, fetchNow.data.updated, fetchNow.data.no_audio ?? 0, fetchNow.data.removed)}
+          </p>
+        )}
       </span>
       {fetchNow.error && <p role="alert" className="text-sm text-destructive">{fetchNow.error.message}</p>}
     </Section>
@@ -267,10 +292,18 @@ export default function MusicPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ["music"], queryFn: () => api.music() });
   const [pick, setPick] = useState<string | null>(null);
   const [pickRegion, setPickRegion] = useState<string | null>(null);
+  const [tag, setTag] = useState("");
   const [source, setSource] = useState<Source>("country"); // the owner posts from France: a country chart first
   const genre = pick ?? data?.default_genre ?? "POP";
   const region = pickRegion ?? data?.default_region ?? "FR";
-  const ideas = (data?.tracks ?? []).filter((x) => (source === "country" ? x.source === "country_chart" && x.region === region : x.source === "tiktok_cml" && x.genre === genre));
+  const tagKey = tag.trim().replace(/^#/, "").toLowerCase();
+  const ideas = (data?.tracks ?? []).filter((x) =>
+    source === "country"
+      ? x.source === "country_chart" && x.region === region
+      : source === "tag"
+        ? x.source === "tiktok_tag" && x.genre === tagKey
+        : x.source === "tiktok_cml" && x.genre === genre,
+  );
   const byRank = (key: "rank" | "rank_month") =>
     ideas.filter((x) => x[key] !== null).sort((a, b) => a[key]! - b[key]!);
   return (
@@ -284,8 +317,10 @@ export default function MusicPage() {
         {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
         {data && (
           <>
-            <IdeasPanel api={api} list={data} source={source} setSource={setSource} genre={genre} setGenre={setPick} region={region} setRegion={setPickRegion} />
-            {source === "country" ? (
+            <IdeasPanel api={api} list={data} source={source} setSource={setSource} genre={genre} setGenre={setPick} region={region} setRegion={setPickRegion} tag={tag} setTag={setTag} />
+            {source === "tag" ? (
+              <TrackList api={api} title={t.music.hashtagList(tagKey)} hint={t.music.hashtagHint} empty={t.music.hashtagEmpty} tracks={byRank("rank")} rank={(x) => x.rank} />
+            ) : source === "country" ? (
               <TrackList api={api} title={t.music.countryList(data.regions[region] ?? region)} hint={t.music.countryHint} empty={t.music.countryEmpty} tracks={byRank("rank")} rank={(x) => x.rank} />
             ) : (
               <>

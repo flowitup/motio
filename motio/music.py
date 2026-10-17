@@ -10,7 +10,11 @@ Two kinds of track:
   (`TIKTOK_MUSIC_API_KEY`, `TIKTOK_MUSIC_TEAM_ID`): TikTok's own Creative Center chart answers "no permission" to a
   request without the page's signature, and Motio does not forge that. That chart has no country filter, so for a
   country (France, the US…) a second source reads Apple Music's public most-played chart of that country with its
-  30 s previews (`country_chart`): what people there listen to, not TikTok's own ranking. Same rules: ideas only.
+  30 s previews (`country_chart`): what people there listen to, not TikTok's own ranking. A third source reads the
+  songs used by the videos of a TikTok hashtag (`tiktok_tag`, `refresh_tag`): a real browser on this computer opens
+  the hashtag page and keeps the `item_list` answers the page itself loads (`tiktokweb.py`; the page does TikTok's
+  request signing, Motio does not), so it shows the country of this computer's connection. Same rules: ideas only,
+  nothing is downloaded.
 - A **track to mix**: an audio file the owner adds (`own` / `licensed` / `cc`: usable on every platform; `unknown`:
   the video waits for approval before Postiz gets it). A video picks one in `meta.music` ({"id", "volume"}) or from
   its channel (`music_id`); the render lays it under the voice, ducked while the voice speaks (`render._compose`).
@@ -23,7 +27,7 @@ from urllib.parse import quote
 
 import httpx
 
-from . import config, db, qa
+from . import config, db, qa, tiktokweb
 from .i18n import tr
 
 API_URL = "https://api.bundle.social/api/v1/misc/tiktok/cml/trending-list"  # not run against the live service yet
@@ -34,6 +38,7 @@ LICENSES = ("own", "licensed", "cc", "tiktok_cml", "unknown")
 OPEN = ("own", "licensed", "cc")  # nothing to check before posting anywhere
 IDEA = "tiktok_cml"  # a sound idea: added in the TikTok app when posting, never mixed into a video
 CHART = "country_chart"  # source of the ideas read from a country's most-played chart (Apple Music)
+TAG = "tiktok_tag"  # source of the ideas read from the videos of a TikTok hashtag (what its videos use)
 TRENDING, POPULAR = "7DAY", "30DAY"  # the service ranks over 1DAY / 7DAY / 30DAY; there is no all-time chart
 # TikTok's genre tags, as the service's API lists them
 GENRES = ("POP", "ROCK", "LATIN", "METAL", "ELECTRONIC", "HIP_HOP/RAP", "ALTERNATIVE/INDIE", "R&B/SOUL", "COUNTRY",
@@ -55,7 +60,10 @@ CML_NOTE = ("Idea from TikTok's Commercial Music Library (pre-cleared by TikTok 
             "the video.")
 CHART_NOTE = ("Idea from a country's most-played chart (Apple Music): a 30 s preview of a commercial recording, to "
               "listen to. Find the sound in the TikTok app when you post. Motio does not put it in the video.")
+TAG_NOTE = ("Idea from the videos of a TikTok hashtag: a song used in several of its top videos. Find it in the TikTok "
+            "app when you post (the link opens its sound page). Motio does not put it in the video.")
 FIND_URL = "https://www.tiktok.com/search?q="
+MUSIC_URL = "https://www.tiktok.com/music/"
 _transport: httpx.BaseTransport | None = None  # tests swap in an httpx.MockTransport
 
 
@@ -72,9 +80,11 @@ def view(row: dict) -> dict:
     """A track for the app."""
     f = row.get("file") or ""
     name = " ".join(x for x in (row["title"], row["artist"]) if x)
-    find = FIND_URL + quote(name) if row["license"] == IDEA else ""
+    page = row["link"] if row["source"] == TAG and str(row["link"] or "").startswith(MUSIC_URL) else ""
+    find = page or (FIND_URL + quote(name) if row["license"] == IDEA else "")
     return {"id": row["id"], "title": row["title"] or "", "artist": row["artist"] or "", "source": row["source"],
             "link": row["link"] or "", "genre": row["genre"] or "", "region": row["region"] or "", "rank": row["rank"],
+            "uses": row["uses"], "plays": row["plays"],
             "rank_month": row["rank_month"], "duration": row["duration"],
             "license": row["license"], "usable_on": usable_on(row["license"]), "note": row["note"] or "",
             "audio": f if f and (config.DATA / f).is_file() else None,  # under /media/
@@ -85,7 +95,7 @@ def view(row: dict) -> dict:
 def listing() -> dict:
     return {"tracks": [view(r) for r in db.list_music()], "licenses": list(LICENSES), "fetch": fetch_ready(),
             "genres": list(GENRES), "default_genre": DEFAULT_GENRE,
-            "regions": REGIONS, "default_region": DEFAULT_REGION}
+            "regions": REGIONS, "default_region": DEFAULT_REGION, "browser": tiktokweb.available()}
 
 
 def get(mid: int) -> dict:
@@ -360,6 +370,82 @@ def refresh_country(region: str = DEFAULT_REGION, limit: int = DEFAULT_LIMIT) ->
             db.delete_music(row["id"])
             removed += 1
     return {"added": added, "updated": updated, "listed": len(kept), "no_audio": no_audio, "removed": removed}
+
+
+def clean_tag(tag: str) -> str:
+    """A hashtag as TikTok writes it in a link: no "#", lower case, letters and digits only (any script)."""
+    words = str(tag or "").replace("#", " ").split()
+    t = words[0].lower() if len(words) == 1 else ""
+    if not t or len(t) > 40 or not all(c.isalnum() or c == "_" for c in t):
+        raise ValueError(tr("Type one hashtag, letters and digits only"))
+    return t
+
+
+def tag_sounds(bodies: list, limit: int = DEFAULT_LIMIT) -> tuple[list[dict], int]:
+    """The songs used by the videos in what a hashtag page loaded (`item_list` answers): one row per song with how many
+    of those videos use it and their plays, most used first. A sound a person recorded themselves ("original sound")
+    is not a song and is left out. Returns (rows, number of videos read)."""
+    seen: set[str] = set()
+    songs: dict[str, dict] = {}
+    videos = 0
+    for body in bodies:
+        for item in (body.get("itemList") or []) if isinstance(body, dict) else []:
+            if not isinstance(item, dict) or str(item.get("id")) in seen:
+                continue
+            seen.add(str(item.get("id")))
+            videos += 1
+            m = item.get("music")
+            if not isinstance(m, dict) or m.get("original") or not m.get("id"):
+                continue
+            title = " ".join(str(m.get("title") or "").split())[:140]
+            if not title:
+                continue
+            try:
+                plays = int((item.get("stats") or {}).get("playCount") or 0)
+            except (TypeError, ValueError):
+                plays = 0
+            artist = " ".join(str(m.get("authorName") or "").split())[:100]
+            row = songs.setdefault(str(m["id"]), {"title": title, "artist": artist,
+                                                  "duration": m.get("duration") or None, "uses": 0, "plays": 0})
+            row["uses"] += 1
+            row["plays"] += plays
+    rows = sorted(songs.items(), key=lambda kv: (-kv[1]["uses"], -kv[1]["plays"]))[:max(1, int(limit))]
+    return [{"id": mid, **r} for mid, r in rows], videos
+
+
+def refresh_tag(tag: str, limit: int = DEFAULT_LIMIT) -> dict:
+    """Open a TikTok hashtag page in a headless browser on this computer and list the songs its videos use (what the
+    page shows from this computer's country). A song that is no longer in them is dropped. Ideas only, nothing is
+    downloaded. Returns {"added", "updated", "listed", "videos", "removed"}."""
+    tag = clean_tag(tag)
+    bodies = tiktokweb.collect(f"https://www.tiktok.com/tag/{quote(tag)}", "/api/challenge/item_list")
+    rows, videos = tag_sounds(bodies, limit)
+    if not videos:
+        raise RuntimeError(tr("TikTok showed no videos for #{tag}: the tag may not exist, or TikTok refused the page",
+                              tag=tag))
+    now = time.time()
+    added = updated = 0
+    kept: set[str] = set()
+    for n, t in enumerate(rows, 1):
+        ext_id = f"{tag}:{t['id']}"
+        kept.add(ext_id)
+        slug = "-".join("".join(c if c.isalnum() else " " for c in t["title"]).split()) or "sound"
+        fields = {"title": t["title"], "artist": t["artist"], "genre": tag, "region": "", "rank": n, "rank_month": None,
+                  "duration": t["duration"], "uses": t["uses"], "plays": t["plays"], "trending_at": now,
+                  "link": f"{MUSIC_URL}{quote(slug)}-{t['id']}"}
+        have = db.find_music(TAG, ext_id)
+        if have:
+            db.save_music(have["id"], **fields)
+            updated += 1
+        else:
+            db.save_music(None, source=TAG, ext_id=ext_id, license=IDEA, note=TAG_NOTE, **fields)
+            added += 1
+    removed = 0
+    for row in db.list_music():
+        if row["source"] == TAG and row["genre"] == tag and row["ext_id"] not in kept:
+            db.delete_music(row["id"])
+            removed += 1
+    return {"added": added, "updated": updated, "listed": len(kept), "videos": videos, "removed": removed}
 
 
 # ---------- a video's music ----------
