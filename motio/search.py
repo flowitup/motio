@@ -232,6 +232,10 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
                 raise _cannot_reach_douyin() from e
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
+        if site and site.key == "xiaohongshu" and "xsec_token" not in url and "No video formats" in str(e):
+            # a note link without its xsec_token is not served to a guest (tested 2026-10-17)
+            raise RuntimeError(tr("Xiaohongshu did not give a video for this link. Paste the full link with its "
+                                  "xsec_token (copy it from the address bar), or the share link (xhslink.com)")) from e
         if site and site.cookies and _ASKS_LOGIN.search(str(e)):  # Xiaohongshu, Weibo, Xigua, Zhihu want a session
             raise RuntimeError(platforms.hint(site)) from e
         raise  # lỗi khác của yt-dlp (403, video đã xoá…) là câu trả lời thật của Douyin: giữ nguyên

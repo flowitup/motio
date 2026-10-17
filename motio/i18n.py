@@ -597,6 +597,10 @@ VI = {
     "and add the file":
         "Motio không tải được video từ {site} (trang chặn công cụ tự động, yt-dlp không hỗ trợ). Hãy tự tải video "
         "rồi thêm file vào",
+    "Xiaohongshu did not give a video for this link. Paste the full link with its xsec_token (copy it from the "
+    "address bar), or the share link (xhslink.com)":
+        "Xiaohongshu không trả video cho link này. Hãy dán link đầy đủ có xsec_token (copy từ thanh địa chỉ), hoặc "
+        "link chia sẻ (xhslink.com)",
     "{site} asks for a browser session to download this. Set a cookies file or a browser in Settings, or download "
     "the video yourself and add the file":
         "{site} yêu cầu phiên trình duyệt để tải video này. Hãy đặt file cookie hoặc trình duyệt trong Cài đặt, hoặc "

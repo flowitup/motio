@@ -21,6 +21,16 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 | AcFun | yt-dlp `AcFunVideo`, downloaded a video | `acfun:rank` and `acfun:channel:<id>` (daily ranking, JSON, no login) | Sections with only articles ("Life", 63) are left out; AcFun has no tech section |
 | Zhihu | yt-dlp `Zhihu` got a 403 without cookies | no | Needs cookies. **Not tested with real cookies.** |
 
+## Checked again on a Mac, 2026-10-17 (cookies off)
+
+- Xiaohongshu: two public video notes downloaded without cookies, but only with the link as the site gives it, with
+  `?xsec_token=…`. The same note without the token fails with "No video formats found"; Motio now says to paste the full
+  link or the share link. (`normalize` keeps the query, so a pasted full link works.)
+- Xigua: three links fail with yt-dlp's "Cookies … are needed" and show the cookie hint. The web site now sends visitors
+  to "open the app", so cookies may not be enough: still unknown.
+- Zhihu: two `zvideo` links answer 403 and show the cookie hint. Browsing Zhihu without a login hits a verification page.
+- The cookies-on run is still to do: the browser cookie stores could not be read from the Remote Control session.
+
 ## Where it lives
 
 - `motio/platforms.py`: hosts, `identify`, `normalize` (link shapes), `expand` (short links), `hint`.

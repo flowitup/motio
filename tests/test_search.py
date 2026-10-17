@@ -334,6 +334,14 @@ def test_a_site_that_wants_a_session_gets_a_hint_about_cookies(url, site, error,
         search.download(url, tmp_path, cookies=True)
 
 
+def test_a_xiaohongshu_link_without_its_token_says_to_paste_the_full_link(tmp_path):
+    FakeYDL.fail = DownloadError("[XiaoHongShu] ab12: No video formats found!; please report this issue")
+    with pytest.raises(RuntimeError, match="xsec_token"):
+        search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)
+    with pytest.raises(DownloadError, match="No video formats"):  # with the token it is not the missing-token case
+        search.download("https://www.xiaohongshu.com/explore/ab12?xsec_token=T", tmp_path)
+
+
 def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
     FakeYDL.fail = DownloadError("[PearVideo] 1: Unable to download webpage: HTTP Error 404")
     with pytest.raises(DownloadError, match="404"):
