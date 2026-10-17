@@ -703,7 +703,7 @@ const en = {
       burn: "Burn subtitles",
     } as Record<string, string>,
     kindHints: {
-      download: "Any link yt-dlp can fetch (YouTube, Bilibili, X…), or a Douyin link (no login needed). Saves an MP4.",
+      download: "Any link yt-dlp can fetch (YouTube, Bilibili, X…), a Douyin, Haokan, Xiaohongshu, Weibo or Kuaishou link (some need a cookies file or the videodl tool). Saves an MP4.",
       transcribe: "Whisper turns speech into subtitles (.srt) and plain text. Works on video or audio files.",
       translate: "Claude translates an .srt or .vtt file into another language and keeps the timings.",
       speak: "ElevenLabs reads your text aloud (up to 5,000 characters) and saves an audio file.",
@@ -1717,7 +1717,7 @@ const vi: Messages = {
       burn: "Ghi phụ đề lên video",
     } as Record<string, string>,
     kindHints: {
-      download: "Link nào yt-dlp tải được (YouTube, Bilibili, X…), hoặc link Douyin (không cần đăng nhập). Lưu thành file MP4.",
+      download: "Link nào yt-dlp tải được (YouTube, Bilibili, X…), hoặc link Douyin, Haokan, Xiaohongshu, Weibo, Kuaishou (một số cần file cookie hoặc công cụ videodl). Lưu thành file MP4.",
       transcribe: "Whisper chuyển lời nói thành phụ đề (.srt) và văn bản thuần. Dùng được cho video và file âm thanh.",
       translate: "Claude dịch file .srt hoặc .vtt sang ngôn ngữ khác và giữ nguyên mốc thời gian.",
       speak: "ElevenLabs đọc văn bản của bạn thành giọng (tối đa 5.000 ký tự) và lưu thành file âm thanh.",
