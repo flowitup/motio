@@ -338,14 +338,38 @@ def test_a_xiaohongshu_link_without_its_token_says_to_paste_the_full_link(tmp_pa
     FakeYDL.fail = DownloadError("[XiaoHongShu] ab12: No video formats found!; please report this issue")
     with pytest.raises(RuntimeError, match="xsec_token"):
         search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)
-    with pytest.raises(DownloadError, match="No video formats"):  # with the token it is not the missing-token case
+    with pytest.raises(RuntimeError, match="Xiaohongshu gave no video"):  # with a token: not the missing-token case
+        search.download("https://www.xiaohongshu.com/explore/ab12?xsec_token=T", tmp_path)
+
+
+def test_a_picture_saved_instead_of_a_video_is_not_returned(monkeypatch, tmp_path):
+    class Pictures(FakeYDL):  # Weibo post with only pictures: yt-dlp leaves a .jpg under the post id
+        def extract_info(self, url, download=False, process=True):
+            (self.out / "Weibo_1.jpg").write_bytes(b"jpeg")
+            return {"id": "1", "extractor_key": "Weibo"}
+
+        def prepare_filename(self, info):
+            return str(self.out / "Weibo_1.jpg")
+
+    monkeypatch.setattr(search, "YoutubeDL", Pictures)
+    with pytest.raises(RuntimeError, match="only pictures"):
+        search.download("https://m.weibo.cn/detail/5354603969514346", tmp_path, cookies=True)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_no_video_formats_on_weibo_or_xiaohongshu_with_token_gets_a_hint(tmp_path):
+    FakeYDL.fail = DownloadError("[Weibo] 1: No video formats found!; please report this issue")
+    with pytest.raises(RuntimeError, match="Weibo gave no video.*only pictures.*cookies"):
+        search.download("https://m.weibo.cn/detail/5354603969514346", tmp_path, cookies=True)
+    FakeYDL.fail = DownloadError("[XiaoHongShu] ab12: No video formats found!")
+    with pytest.raises(RuntimeError, match="Xiaohongshu gave no video"):
         search.download("https://www.xiaohongshu.com/explore/ab12?xsec_token=T", tmp_path)
 
 
 def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
-    FakeYDL.fail = DownloadError("[PearVideo] 1: Unable to download webpage: HTTP Error 404")
+    FakeYDL.fail = DownloadError("[Zhihu] 1: Unable to download webpage: HTTP Error 404")
     with pytest.raises(DownloadError, match="404"):
-        search.download("https://www.pearvideo.com/video_1", tmp_path)
+        search.download("https://www.zhihu.com/zvideo/1", tmp_path)
     FakeYDL.fail = DownloadError("Extractor failed to obtain id")
     with pytest.raises(DownloadError, match="obtain id"):
         search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)  # not a login problem: yt-dlp's text
@@ -353,4 +377,4 @@ def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
 
 def test_downloaded_videos_name_their_site():
     assert search.PLATFORM["XiaoHongShu"] == "Xiaohongshu" and search.PLATFORM["Ixigua"] == "Xigua"
-    assert search.PLATFORM["PearVideo"] == "Pear Video" and search.PLATFORM["AcFunVideo"] == "AcFun"
+    assert search.PLATFORM["Zhihu"] == "Zhihu"

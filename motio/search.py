@@ -238,12 +238,21 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
                                   "xsec_token (copy it from the address bar), or the share link (xhslink.com)")) from e
         if site and site.cookies and _ASKS_LOGIN.search(str(e)):  # Xiaohongshu, Weibo, Xigua, Zhihu want a session
             raise RuntimeError(platforms.hint(site)) from e
+        if site and site.cookies and "No video formats" in str(e):  # a post with only pictures, or one behind a login
+            raise RuntimeError(tr("{site} gave no video for this link. The post may have only pictures, or the site "
+                                  "wants a browser session (a cookies file or a browser in Settings)",
+                                  site=site.name)) from e
         raise  # lỗi khác của yt-dlp (403, video đã xoá…) là câu trả lời thật của Douyin: giữ nguyên
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))
         if not matches:
             raise FileNotFoundError(tr("yt-dlp did not create a file for {url}", url=url))
-        path = matches[0]
+        videos = [m for m in matches if m.suffix.lower() in localfile.EXT]
+        if not videos:  # a post with only pictures: yt-dlp saved the image (Weibo), not a video
+            for m in matches:
+                m.unlink(missing_ok=True)
+            raise RuntimeError(tr("This post has no video, only pictures: {url}", url=url))
+        path = videos[0]
     key = info.get("extractor_key") or ""
     return {"path": str(path), "url": info.get("webpage_url") or url, "id": info.get("id"),
             "title": info.get("title") or "", "platform": PLATFORM.get(key, key),

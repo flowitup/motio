@@ -13,8 +13,6 @@ from motio import platforms
     ("https://www.ixigua.com/6863073327775547912", "ixigua"),
     ("https://v.kuaishou.com/AbCdEf", "kuaishou"),
     ("https://haokan.baidu.com/v?vid=9182896717567225983", "haokan"),
-    ("https://www.pearvideo.com/video_1807810", "pearvideo"),
-    ("https://www.acfun.cn/v/ac48916046", "acfun"),
     ("https://www.zhihu.com/zvideo/1387089980523728897", "zhihu"),
 ])
 def test_identify(url, key):
@@ -93,4 +91,4 @@ def test_a_short_link_that_cannot_be_reached_comes_back_unchanged(monkeypatch):
 def test_hints_say_what_to_do():
     assert "add the file" in platforms.hint(platforms.BY_KEY["kuaishou"])
     assert "cookies" in platforms.hint(platforms.BY_KEY["xiaohongshu"])
-    assert platforms.BY_KEY["kuaishou"].manual and not platforms.BY_KEY["acfun"].cookies
+    assert platforms.BY_KEY["kuaishou"].manual and not platforms.BY_KEY["haokan"].cookies

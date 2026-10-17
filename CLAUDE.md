@@ -51,13 +51,12 @@ as authoritative for scope and milestones.
     categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
     Bilibili search with the public wbi signature, most played of the last 7 days, rights read from `wbi/view`);
     Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
-  - `platforms.py` + `haokan.py` + `feeds.py` more Chinese sites for pasted links and the Trending screen (owner, 2026-10-17):
-    `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Pear Video, AcFun, Zhihu), fixes link shapes
+  - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
+    `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
     once (`expand`) and words the hint when a site wants cookies or cannot be downloaded (Kuaishou: add the file);
-    `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); `feeds.py` reads
-    AcFun's daily ranking per section (`acfun:rank`, `acfun:channel:<id>`) and Pear Video's home page (`pearvideo:home`) as
-    followed sources, offered next to Bilibili's categories by `GET /api/categories`; details and what was tested in
+    `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); no feed for these
+    sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
     `docs/CN_PLATFORMS.md`
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)

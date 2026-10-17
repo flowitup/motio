@@ -40,31 +40,6 @@ const categoriesVi: Record<string, string> = {
   food: "Ẩm thực",
   travel: "Du lịch",
 };
-/** AcFun sections and Pear Video (`feeds.py`), by target: the engine offers them next to Bilibili's categories. */
-const feedsEn: Record<string, string> = {
-  "acfun:rank": "AcFun · All sections",
-  "acfun:channel:201": "AcFun · Food",
-  "acfun:channel:68": "AcFun · Film talk",
-  "acfun:channel:70": "AcFun · Cars",
-  "acfun:channel:60": "AcFun · Comedy",
-  "acfun:channel:1": "AcFun · Short films & dubbing",
-  "acfun:channel:59": "AcFun · Games",
-  "acfun:channel:125": "AcFun · Military",
-  "acfun:channel:69": "AcFun · Fitness & fighting",
-  "pearvideo:home": "Pear Video · Today",
-};
-const feedsVi: Record<string, string> = {
-  "acfun:rank": "AcFun · Mọi mục",
-  "acfun:channel:201": "AcFun · Ẩm thực",
-  "acfun:channel:68": "AcFun · Bàn phim",
-  "acfun:channel:70": "AcFun · Xe hơi",
-  "acfun:channel:60": "AcFun · Hài",
-  "acfun:channel:1": "AcFun · Phim ngắn & lồng tiếng",
-  "acfun:channel:59": "AcFun · Game",
-  "acfun:channel:125": "AcFun · Quân sự",
-  "acfun:channel:69": "AcFun · Thể hình & võ thuật",
-  "pearvideo:home": "Pear Video · Hôm nay",
-};
 const categoryLists = (names: Record<string, string>, prefix: string) =>
   Object.fromEntries(Object.entries(names).map(([k, v]) => [`bilibili:category:${k}`, `${prefix} · ${v}`]));
 
@@ -122,7 +97,7 @@ const en = {
   trendVideos: {
     title: "Trending",
     intro:
-      "Videos trending on Chinese video platforms (Bilibili by category or tag, AcFun and Pear Video by section). Pick one and make a French video: the original voice is removed. Douyin, Xiaohongshu, Weibo, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
+      "Videos trending on Chinese video platforms (Bilibili) by category or tag. Pick one and make a French video: the original voice is removed. Douyin, Xiaohongshu, Weibo, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
     check: "Check now",
     checking: "Checking…",
     lastCheck: "Last check",
@@ -185,7 +160,7 @@ const en = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} likes`,
     rank: (n: number) => `#${n} in the list`,
     posted: "posted",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", acfun: "AcFun", pearvideo: "Pear Video" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
   },
   account: {
     back: "Followed",
@@ -240,7 +215,6 @@ const en = {
       "bilibili:popular": "Popular",
       "bilibili:weekly": "Weekly must-watch",
       ...categoryLists(categoriesEn, "Category"),
-      ...feedsEn,
     } as Record<string, string>,
     tagName: (word: string) => `Tag · ${word}`,
   },
@@ -257,7 +231,7 @@ const en = {
     madePartial: (done: number, total: number) => `${done} of ${total} videos started, then it stopped.`,
     seeProjects: "See Projects",
     links: "Video links (optional)",
-    linksHint: "One link per line: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, AcFun, Pear Video, Facebook, YouTube… Links are always used. With links and no topic, Motio makes the video from those videos only. Xiaohongshu, Weibo, Xigua and Zhihu may need a cookies file or a browser in Settings; Kuaishou cannot be downloaded: add the file.",
+    linksHint: "One link per line: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, Facebook, YouTube… Links are always used. With links and no topic, Motio makes the video from those videos only. Xiaohongshu, Weibo, Xigua and Zhihu may need a cookies file or a browser in Settings; Kuaishou cannot be downloaded: add the file.",
     linksOnly: "Use only these links",
     duration: "Length",
     durations: { "70": "1 min 10 s", "80": "1 min 20 s", "90": "1 min 30 s" } as Record<string, string>,
@@ -1139,7 +1113,7 @@ const vi: Messages = {
   trendVideos: {
     title: "Xu hướng",
     intro:
-      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili theo chuyên mục hoặc thẻ, AcFun và Pear Video theo mục). Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Douyin, Xiaohongshu, Weibo, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
+      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili) theo chuyên mục hoặc thẻ. Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Douyin, Xiaohongshu, Weibo, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
     check: "Kiểm tra ngay",
     checking: "Đang kiểm tra…",
     lastCheck: "Kiểm tra lần cuối",
@@ -1201,7 +1175,7 @@ const vi: Messages = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} lượt thích`,
     rank: (n: number) => `hạng ${n} trong bảng`,
     posted: "đăng",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", acfun: "AcFun", pearvideo: "Pear Video" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili" } as Record<string, string>,
   },
   account: {
     back: "Theo dõi",
@@ -1256,7 +1230,6 @@ const vi: Messages = {
       "bilibili:popular": "Thịnh hành",
       "bilibili:weekly": "Nên xem mỗi tuần",
       ...categoryLists(categoriesVi, "Chuyên mục"),
-      ...feedsVi,
     } as Record<string, string>,
     tagName: (word: string) => `Thẻ · ${word}`,
   },
@@ -1273,7 +1246,7 @@ const vi: Messages = {
     madePartial: (done: number, total: number) => `Đã bắt đầu ${done}/${total} video rồi dừng lại.`,
     seeProjects: "Xem Dự án",
     links: "Link video (không bắt buộc)",
-    linksHint: "Mỗi dòng một link: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, AcFun, Pear Video, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó. Xiaohongshu, Weibo, Xigua, Zhihu có thể cần file cookies hoặc trình duyệt trong Cài đặt; Kuaishou không tải được: hãy thêm file video.",
+    linksHint: "Mỗi dòng một link: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó. Xiaohongshu, Weibo, Xigua, Zhihu có thể cần file cookies hoặc trình duyệt trong Cài đặt; Kuaishou không tải được: hãy thêm file video.",
     linksOnly: "Chỉ dùng các link này",
     duration: "Độ dài",
     durations: { "70": "1 phút 10", "80": "1 phút 20", "90": "1 phút 30" } as Record<string, string>,

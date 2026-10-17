@@ -143,7 +143,7 @@ export default function TrendVideosPage() {
                   <Choice
                     value={chosen}
                     onChange={setPick}
-                    options={left.map((c) => [c.target, t.trendVideos.categories[c.key] ?? t.watches.lists[c.target] ?? c.name])}
+                    options={left.map((c) => [c.target, t.trendVideos.categories[c.key] ?? c.name])}
                     className="w-64"
                   />
                 </Field>

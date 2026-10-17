@@ -32,7 +32,6 @@ from . import (
     delogo,
     dub,
     edit,
-    feeds,
     images,
     listing,
     llm,
@@ -403,8 +402,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def categories():
         """Chuyên mục video thịnh hành có thể theo dõi (Trending): khoá, target của nguồn, tên tiếng Anh."""
         return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"]}
-                for k, c in trending.CATEGORIES.items()] + [
-            {"key": target.replace(":", "_"), "target": target, "name": feeds.name(target)} for target in feeds.TARGETS]
+                for k, c in trending.CATEGORIES.items()]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])

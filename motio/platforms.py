@@ -5,7 +5,6 @@ What was checked from a cloud sandbox on 2026-10-16 (a person's own Mac or PC ma
 - Weibo: yt-dlp reads `m.weibo.cn/detail/<id>`, but not the `weibo.com/2/detail/<id>` shape the site shows now.
 - Xigua: yt-dlp asks for cookies ("not necessarily logged in"); a bare `ttwid` guest cookie was not enough.
 - Haokan: yt-dlp has no extractor; the mobile page carries the video address (`haokan.py`).
-- Pear Video, AcFun: yt-dlp works without a login.
 - Zhihu: yt-dlp got a 403 without cookies.
 - Kuaishou: no yt-dlp extractor, and its web answers a risk-control page to a script; the video has to be added by hand.
 `normalize` fixes the link shapes yt-dlp does not understand, `expand` follows a short link once. Nothing here removes a
@@ -38,14 +37,12 @@ PLATFORMS = (
     Platform("ixigua", "Xigua", ("ixigua.com",), cookies=True),
     Platform("kuaishou", "Kuaishou", ("kuaishou.com", "chenzhongtech.com", "gifshow.com", "kwai.com"), manual=True),
     Platform("haokan", "Haokan", ("haokan.baidu.com",)),
-    Platform("pearvideo", "Pear Video", ("pearvideo.com",)),
-    Platform("acfun", "AcFun", ("acfun.cn",)),
     Platform("zhihu", "Zhihu", ("zhihu.com",), cookies=True),
 )
 BY_KEY = {p.key: p for p in PLATFORMS}
 # yt-dlp's extractor_key → name shown on a source (search.PLATFORM)
 EXTRACTORS = {"XiaoHongShu": "Xiaohongshu", "Weibo": "Weibo", "WeiboVideo": "Weibo", "Ixigua": "Xigua",
-              "PearVideo": "Pear Video", "AcFunVideo": "AcFun", "Zhihu": "Zhihu", "BaiduVideo": "Baidu Video"}
+              "Zhihu": "Zhihu", "BaiduVideo": "Baidu Video"}
 
 _SHORT_HOSTS = ("xhslink.com",)
 _MAX_HOPS = 4
