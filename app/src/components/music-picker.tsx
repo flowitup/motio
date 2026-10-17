@@ -6,7 +6,7 @@ const VOLUMES = ["0.1", "0.15", "0.25", "0.4", "0.6"];
 /** The closest level the picker offers (the engine accepts any value between 0.05 and 0.6). */
 export const nearestVolume = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(Number(b) - v) < Math.abs(Number(a) - v) ? b : a));
 
-/** A track of the music library (only those with audio to mix) and how loud it plays under the voice. */
+/** A track of the music library (only your own files; a TikTok sound idea is never mixed) and how loud it plays under the voice. */
 export function MusicPicker({
   tracks,
   value,
@@ -25,7 +25,7 @@ export function MusicPicker({
   const options: [string, string][] = [
     ["0", noneLabel],
     ...tracks
-      .filter((x) => x.audio || x.id === value)
+      .filter((x) => x.mixable || x.id === value)
       .map((x): [string, string] => [String(x.id), `${x.title}${x.artist ? ` · ${x.artist}` : ""} (${t.music.usable[x.usable_on]})`]),
   ];
   return (

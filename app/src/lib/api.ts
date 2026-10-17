@@ -314,12 +314,15 @@ export type MusicTrack = {
   source: "upload" | "tiktok_cml";
   link: string;
   genre: string;
-  rank: number | null;
+  rank: number | null; // hạng trên bảng 7 ngày (đang hot)
+  rank_month: number | null; // hạng trên bảng 30 ngày (nghe nhiều nhất)
   duration: number | null;
   license: string;
   usable_on: "all" | "tiktok" | "none";
   note: string;
-  audio: string | null; // đường dẫn /media; null = chỉ có tên bài, chưa có file để trộn
+  audio: string | null; // đường dẫn /media; null = chỉ có tên bài, chưa có file để nghe
+  mixable: boolean; // false với gợi ý nhạc TikTok: không bao giờ chèn vào video
+  find: string; // gợi ý TikTok: link tìm bài trong TikTok; còn lại ""
   trending_at: number | null;
   added_at: number;
 };
@@ -327,9 +330,8 @@ export type MusicList = {
   tracks: MusicTrack[];
   licenses: string[];
   fetch: boolean; // đã nhập khoá nhạc TikTok trong Cài đặt
-  windows: string[];
+  genres: string[]; // tag (thể loại) của TikTok
   default_genre: string;
-  default_window: string;
 };
 export type MusicInput = { title?: string; artist?: string; license?: string; note?: string };
 /** Nhạc của một dự án: bài đang dùng (của video hoặc mặc định của kênh) và có buộc duyệt video không. */
@@ -679,8 +681,8 @@ export function makeApi(url: string, token: string) {
     },
     updateMusic: (id: number, body: MusicInput) => call<MusicTrack>("PATCH", `/api/music/${id}`, body),
     deleteMusic: (id: number) => call<{ id: number }>("DELETE", `/api/music/${id}`),
-    fetchMusic: (body: { genre: string; window: string }) =>
-      call<{ added: number; updated: number; listed: number; no_audio: number }>("POST", "/api/music/fetch", body),
+    fetchMusic: (body: { genre: string }) =>
+      call<{ added: number; updated: number; listed: number; no_audio: number; removed: number }>("POST", "/api/music/fetch", body),
     /** track_id null = không nhạc (kể cả khi kênh có nhạc mặc định); dựng lại video đã xong bằng giọng đọc cũ. */
     setProjectMusic: (id: number, body: { track_id: number | null; volume: number }) =>
       call<{ project_id: number; rerender: boolean }>("PUT", `/api/projects/${id}/music`, body),

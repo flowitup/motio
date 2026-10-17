@@ -198,8 +198,7 @@ class MusicIn(BaseModel):
 
 
 class MusicFetchIn(BaseModel):
-    genre: str = "POP"
-    window: str = "7DAY"  # 1DAY | 7DAY | 30DAY
+    genre: str = "POP"  # one of music.GENRES
     limit: int = 30
 
 
@@ -903,9 +902,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/music/fetch", dependencies=[Depends(auth)])
     def music_fetch(body: MusicFetchIn):
-        """Pull the trending Commercial Music Library tracks of a genre (previews download: up to a minute)."""
+        """Pull a genre's trending (7 days) and most popular (30 days) CML cuts (up to a minute)."""
         try:
-            return music.refresh(body.genre, body.window, body.limit)
+            return music.refresh(body.genre, body.limit)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         except RuntimeError as e:

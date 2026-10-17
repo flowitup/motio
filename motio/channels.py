@@ -90,7 +90,8 @@ def clean(data: dict) -> dict:
         d["music_id"] = max(0, int(d["music_id"] or 0))
     except (TypeError, ValueError):
         raise ValueError(tr("The background music must be a track of the library")) from None
-    if d["music_id"] and not db.get_music(d["music_id"]):
+    row = db.get_music(d["music_id"]) if d["music_id"] else None
+    if d["music_id"] and (not row or row["license"] == music.IDEA):
         raise ValueError(tr("The background music must be a track of the library"))
     d["music_volume"] = music.clamp_volume(d["music_volume"])
     return d

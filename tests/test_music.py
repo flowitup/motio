@@ -30,24 +30,31 @@ def client(monkeypatch):
 
 @pytest.fixture
 def cml(monkeypatch, tmp_path):
-    """A fake music API: two Commercial Music Library tracks, the first with a playable preview."""
+    """A fake music API. 7 days: Sunny Day (#1, playable trending cut) and No Preview (#2). 30 days: Old Hit (#1,
+    playable) and Sunny Day (#2). `cml[0]` holds the charts by dateRange so a test can change them, the rest are the
+    requests."""
     if not config.find("ffmpeg"):
         pytest.skip("needs ffmpeg")
     audio = tone(tmp_path / "preview.mp3", 20)
     seen = []
+    sunny = {"commercial_music_name": "Sunny Day", "artist": "Ana", "duration": 180, "rank_position": "1",
+             "full_duration_song_clip": {"preview_url": "https://cdn.test/full.mp3", "duration": 180,
+                                         "song_clip_id": "clip-full"},
+             "trending_song_clip": {"preview_url": "https://cdn.test/a.mp3", "duration": 20, "song_clip_id": "clip-a"}}
+    quiet = {"commercial_music_name": "No Preview", "artist": "Bo", "rank_position": "2", "preview_url": None}
+    old = {"commercial_music_name": "Old Hit", "artist": "Cy", "rank_position": "1",
+           "trending_song_clip": {"preview_url": "https://cdn.test/b.mp3", "duration": 20, "song_clip_id": "clip-b"}}
+    month = [old, {**sunny, "rank_position": "2"}, {"commercial_music_name": "", "artist": "ignored"}]
+    charts = {"7DAY": [sunny, quiet], "30DAY": month}
+    seen.append(charts)
 
     def handler(req: httpx.Request) -> httpx.Response:
-        seen.append(req)
         if req.url.host == "api.bundle.social":
+            seen.append(req)
             if req.headers.get("x-api-key") != "k-1":
                 return httpx.Response(401, json={"message": "bad key"})
-            return httpx.Response(200, json=[
-                {"commercial_music_name": "Sunny Day", "artist": "Ana", "duration": 20, "rank_position": "1",
-                 "full_duration_song_clip": {"preview_url": "https://cdn.test/a.mp3", "duration": 20,
-                                             "song_clip_id": "clip-a"}},
-                {"commercial_music_name": "No Preview", "artist": "Bo", "rank_position": "2", "preview_url": None},
-                {"commercial_music_name": "", "artist": "ignored"}])
-        if req.url.path == "/a.mp3":
+            return httpx.Response(200, json=charts[req.url.params["dateRange"]])
+        if req.url.path in ("/a.mp3", "/b.mp3"):
             return httpx.Response(200, content=audio, headers={"content-type": "audio/mpeg"})
         return httpx.Response(404)
 
@@ -99,21 +106,33 @@ def test_fetch_needs_a_key(client):
     assert client.get("/api/music", headers=H).json()["fetch"] is False
 
 
-def test_fetch_trending(client, cml):
-    r = client.post("/api/music/fetch", headers=H, json={"genre": "pop", "window": "7DAY"})
+def test_fetch_trending_and_popular(client, cml):
+    r = client.post("/api/music/fetch", headers=H, json={"genre": "pop"})
     assert r.status_code == 200, r.text
-    assert r.json() == {"added": 2, "updated": 0, "listed": 2, "no_audio": 1}
-    sent = cml[0]
-    assert sent.url.params["genre"] == "POP" and sent.url.params["dateRange"] == "7DAY" \
-        and sent.url.params["teamId"] == "team-1"
+    assert r.json() == {"added": 3, "updated": 0, "listed": 3, "no_audio": 1, "removed": 0}
+    sent = [q for q in cml[1:] if hasattr(q, "url")]
+    assert {q.url.params["dateRange"] for q in sent} == {"7DAY", "30DAY"}
+    assert all(q.url.params["genre"] == "POP" and q.url.params["teamId"] == "team-1" for q in sent)
     tracks = {t["title"]: t for t in client.get("/api/music", headers=H).json()["tracks"]}
-    sunny, quiet = tracks["Sunny Day"], tracks["No Preview"]
+    sunny, quiet, old = tracks["Sunny Day"], tracks["No Preview"], tracks["Old Hit"]
     assert sunny["license"] == quiet["license"] == "tiktok_cml" and sunny["usable_on"] == "tiktok"
-    assert sunny["audio"] and sunny["rank"] == 1 and "not checked" in sunny["note"]
-    assert quiet["audio"] is None  # listed, but nothing to mix
-    # a second pull moves ranks, it does not duplicate
-    assert client.post("/api/music/fetch", headers=H, json={}).json()["updated"] == 2
-    assert len(db.list_music()) == 2
+    assert sunny["rank"] == 1 and sunny["rank_month"] == 2 and sunny["audio"] and sunny["duration"]
+    assert "trending cut" in sunny["note"]
+    assert quiet["rank"] == 2 and quiet["rank_month"] is None and quiet["audio"] is None  # nothing to listen to
+    assert old["rank"] is None and old["rank_month"] == 1 and old["audio"] and old["genre"] == "POP"
+    # an idea is never mixed; it points to the TikTok app's search instead
+    assert not sunny["mixable"] and sunny["find"].startswith("https://www.tiktok.com/search?q=Sunny")
+    # a second pull moves ranks, it does not duplicate; a track off both charts is dropped with its preview
+    cml[0]["30DAY"] = cml[0]["30DAY"][1:]
+    gone = config.DATA / old["audio"]
+    assert gone.is_file()
+    assert client.post("/api/music/fetch", headers=H, json={"genre": "POP"}).json() == \
+        {"added": 0, "updated": 2, "listed": 2, "no_audio": 1, "removed": 1}
+    assert len(db.list_music()) == 2 and not gone.exists()
+    # another tag is a separate list, the first one is left alone
+    assert client.post("/api/music/fetch", headers=H, json={"genre": "LO-FI"}).json()["added"] == 2
+    assert {t["genre"] for t in db.list_music()} == {"POP", "LO-FI"} and len(db.list_music()) == 4
+    assert "LO-FI" in client.get("/api/music", headers=H).json()["genres"]
 
 
 def test_fetch_errors(client, cml, monkeypatch):
@@ -121,7 +140,7 @@ def test_fetch_errors(client, cml, monkeypatch):
     r = client.post("/api/music/fetch", headers=H, json={})
     assert r.status_code == 502 and "refused" in r.json()["detail"]
     assert client.post("/api/music/fetch", headers=H, json={"genre": "<script>"}).status_code == 400
-    assert client.post("/api/music/fetch", headers=H, json={"window": "1YEAR"}).status_code == 400
+    assert client.post("/api/music/fetch", headers=H, json={"genre": "NOT A TAG"}).status_code == 400
 
 
 def _track(license="own", file=True, **kw) -> int:
@@ -160,15 +179,18 @@ def test_choice_ignores_a_track_without_file():
 
 
 def test_needs_review_and_credit():
-    free, cml_, unknown = _track("own"), _track("tiktok_cml"), _track("unknown")
+    free, idea, unknown = _track("own"), _track("tiktok_cml"), _track("unknown")
     assert not music.needs_review(_project(), {"music_id": free})
-    assert music.needs_review(_project(), {"music_id": cml_}) and music.needs_review(_project(), {"music_id": unknown})
+    assert music.needs_review(_project(), {"music_id": unknown})
     assert not music.needs_review(_project(), None) and music.credit(_project(), None) == ""
-    assert music.credit(_project(), {"music_id": cml_}) == "Music: T – A [tiktok_cml]"
+    # a sound idea is never part of a video: no mix, no credit, no gate
+    assert music.choice(_project(), {"music_id": idea})[0] is None
+    assert not music.needs_review(_project(), {"music_id": idea}) and music.credit(_project(), {"music_id": idea}) == ""
+    assert music.for_render(_project(), {"music_id": idea}) is None
 
 
 def test_video_gate_held_for_unverified_music(monkeypatch):
-    mid = _track("tiktok_cml")
+    mid = _track("unknown")
     ch = channels.create({"name": "Chan", "postiz": ["tt1"], "gate_video": False, "music_id": mid})
     pid = db.create_project(None, "p")
     db.update_project(pid, meta={"channel": ch["id"]})
@@ -181,6 +203,8 @@ def test_video_gate_held_for_unverified_music(monkeypatch):
 def test_channel_music_must_exist():
     with pytest.raises(ValueError, match="library"):
         channels.clean({"name": "C", "music_id": 99999})
+    with pytest.raises(ValueError, match="library"):  # a sound idea cannot be a channel's music
+        channels.clean({"name": "C", "music_id": _track("tiktok_cml")})
     d = channels.clean({"name": "C", "music_id": _track(), "music_volume": 5})
     assert d["music_volume"] == music.MAX_VOLUME
 
@@ -208,6 +232,8 @@ def test_project_pick_rerenders_from_the_voice_it_has(client, monkeypatch):
     # unknown track, a running project, a dub
     db.update_project(pid, status="done")
     assert client.put(f"/api/projects/{pid}/music", headers=H, json={"track_id": 9999}).status_code == 404
+    idea = client.put(f"/api/projects/{pid}/music", headers=H, json={"track_id": _track("tiktok_cml")})
+    assert idea.status_code == 400 and "TikTok app" in idea.json()["detail"]
     dubbed = db.create_project(None, "d", "dub")
     db.update_project(dubbed, status="done")
     assert client.put(f"/api/projects/{dubbed}/music", headers=H, json={"track_id": mid}).status_code == 400

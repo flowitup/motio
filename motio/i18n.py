@@ -648,12 +648,13 @@ VI = {
         "Hãy nhập API key và team id nhạc TikTok trong Cài đặt → Nhạc để lấy nhạc đang hot. Chưa có thì vẫn thêm "
         "bài nhạc bằng tay được.",
     "Unknown genre: {genre}": "Thể loại không hợp lệ: {genre}",
-    "Period must be one of {choices}": "Khoảng thời gian phải là một trong: {choices}",
     "The music service refused the key: check the API key and team id in Settings":
         "Dịch vụ nhạc từ chối key: kiểm tra API key và team id trong Cài đặt",
     "The music service answered {status}": "Dịch vụ nhạc trả lỗi {status}",
     "A French dub keeps the original video's music: it takes no other track":
         "Bản lồng tiếng giữ nhạc của video gốc nên không thêm nhạc khác",
+    "This is a sound idea: add it in the TikTok app when you post. Motio does not put it in the video":
+        "Đây chỉ là gợi ý nhạc: hãy thêm nhạc trong app TikTok khi đăng. Motio không chèn nhạc này vào video",
     "This audio file cannot be read: {error}": "Không đọc được file âm thanh này: {error}",
     "Could not reach the music service: {error}": "Không kết nối được dịch vụ nhạc: {error}",
     "The music service sent something Motio cannot read": "Dịch vụ nhạc trả dữ liệu mà Motio không đọc được",

@@ -1,26 +1,23 @@
-"""Background-music library: tracks added by hand, plus the trending sounds of TikTok's Commercial Music Library.
+"""Music library: ideas from TikTok's trending sounds, plus tracks that can go under a video's voice.
 
-Why only the Commercial Music Library: a sound that is trending on TikTok is, most of the time, a commercial recording
-that TikTok may play inside the app but nobody may copy out of it. Motio posts to TikTok, YouTube Shorts, Facebook Reels
-and X, so a copied hit would be claimed by Content ID there (and a claim costs the video its revenue). TikTok's own
-Creative Center chart has no public list either: its API answers "no permission" to a request without the page's
-signature, and Motio does not forge that. So trending sounds come from a licensed data API (`TIKTOK_MUSIC_API_KEY`,
-`TIKTOK_MUSIC_TEAM_ID`; the tracks of the Commercial Music Library that TikTok pre-cleared for organic posts and ads),
-and every track carries a license that tells what it may be used for:
+Two kinds of track:
 
-- `own` / `licensed` / `cc`: the owner made it, bought it, or it is Creative Commons: usable on every platform.
-- `tiktok_cml`: pre-cleared by TikTok. Its terms outside TikTok are not checked, so a video that uses it is never sent
-  to Postiz without a person approving it first (`needs_review`).
-- `unknown`: nothing known, the same gate.
-
-A video picks a track in `meta.music` ({"id", "volume"}) or from its channel (`music_id`); the render lays it under the
-voice, ducked while the voice speaks (`render._compose`). A French dub keeps the original video's music, so it
-takes none.
+- A **sound idea** (`tiktok_cml`): a trending track of TikTok's Commercial Music Library, listed with its rank, genre
+  and the trending cut (the short part posts use, not the whole song) to listen to. Motio never puts it in a video:
+  the owner adds the sound inside the TikTok app when posting there (the official way, the sound stays TikTok's).
+  A trending sound is, most of the time, a commercial recording that TikTok may play only inside its app, so a copy
+  in the video file would get a Content ID claim on YouTube, Facebook and X. The chart comes from a licensed data API
+  (`TIKTOK_MUSIC_API_KEY`, `TIKTOK_MUSIC_TEAM_ID`): TikTok's own Creative Center chart answers "no permission" to a
+  request without the page's signature, and Motio does not forge that.
+- A **track to mix**: an audio file the owner adds (`own` / `licensed` / `cc`: usable on every platform; `unknown`:
+  the video waits for approval before Postiz gets it). A video picks one in `meta.music` ({"id", "volume"}) or from
+  its channel (`music_id`); the render lays it under the voice, ducked while the voice speaks (`render._compose`).
+  A French dub keeps the original video's music, so it takes none.
 """
 import hashlib
-import re
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -33,14 +30,22 @@ MAX_BYTES = 100 * 1024**2
 MIN_SECONDS = 8.0
 LICENSES = ("own", "licensed", "cc", "tiktok_cml", "unknown")
 OPEN = ("own", "licensed", "cc")  # nothing to check before posting anywhere
-WINDOWS = ("1DAY", "7DAY", "30DAY")
-DEFAULT_GENRE, DEFAULT_WINDOW, DEFAULT_LIMIT = "POP", "7DAY", 30
+IDEA = "tiktok_cml"  # a sound idea: added in the TikTok app when posting, never mixed into a video
+TRENDING, POPULAR = "7DAY", "30DAY"  # the service ranks over 1DAY / 7DAY / 30DAY; there is no all-time chart
+# TikTok's genre tags, as the service's API lists them
+GENRES = ("POP", "ROCK", "LATIN", "METAL", "ELECTRONIC", "HIP_HOP/RAP", "ALTERNATIVE/INDIE", "R&B/SOUL", "COUNTRY",
+          "CLASSICAL", "JAZZ", "CHILDHOOD", "ALTERNATIVE_HIP_HOP", "AMBIENT", "BOSSA_NOVA", "BRAZILIAN_FUNK_STYLE",
+          "CHILL_BEATS", "CHILLOUT", "CHINESE_POP", "CHRISTIAN_MUSIC", "COUNTRY_POP", "DANCE_POP", "DISCO", "DJ",
+          "DRUM&BASS", "DUBSTEP", "EDM", "FUNK", "HOUSE", "INDIE_POP", "J-POP", "K-POP", "LATIN_POP", "LO-FI",
+          "OLD_SCHOOL", "PUNK", "RUSSIAN_POP", "SOUL", "SYNTH_POP", "SOUNDTRACK", "TECHNO", "TEEN_POP")
+DEFAULT_GENRE, DEFAULT_LIMIT = "POP", 30
 DEFAULT_VOLUME, MIN_VOLUME, MAX_VOLUME = 0.25, 0.05, 0.6
 TIMEOUT = 40
-CML_NOTE = ("TikTok Commercial Music Library: pre-cleared by TikTok for organic posts and ads. Its terms for YouTube, "
-            "Facebook and X are not checked.")
+CML_NOTE = ("Idea from TikTok's Commercial Music Library (pre-cleared by TikTok for posts and ads on TikTok): the "
+            "trending cut, not the whole song. Add the sound in the TikTok app when you post. Motio does not put it in "
+            "the video.")
+FIND_URL = "https://www.tiktok.com/search?q="
 _transport: httpx.BaseTransport | None = None  # tests swap in an httpx.MockTransport
-_GENRE = re.compile(r"^[A-Z0-9][A-Z0-9 _/&-]{0,29}$")
 
 
 def folder() -> Path:
@@ -48,23 +53,27 @@ def folder() -> Path:
 
 
 def usable_on(license: str) -> str:
-    """"all" · "tiktok" (pre-cleared there only) · "none" (nothing known)."""
+    """"all" · "tiktok" (an idea: added in the TikTok app) · "none" (nothing known)."""
     return "all" if license in OPEN else "tiktok" if license == "tiktok_cml" else "none"
 
 
 def view(row: dict) -> dict:
     """A track for the app."""
     f = row.get("file") or ""
+    name = " ".join(x for x in (row["title"], row["artist"]) if x)
+    find = FIND_URL + quote(name) if row["source"] == IDEA else ""
     return {"id": row["id"], "title": row["title"] or "", "artist": row["artist"] or "", "source": row["source"],
-            "link": row["link"] or "", "genre": row["genre"] or "", "rank": row["rank"], "duration": row["duration"],
+            "link": row["link"] or "", "genre": row["genre"] or "", "rank": row["rank"],
+            "rank_month": row["rank_month"], "duration": row["duration"],
             "license": row["license"], "usable_on": usable_on(row["license"]), "note": row["note"] or "",
             "audio": f if f and (config.DATA / f).is_file() else None,  # under /media/
+            "mixable": row["license"] != IDEA and bool(f and (config.DATA / f).is_file()), "find": find,
             "trending_at": row["trending_at"], "added_at": row["added_at"]}
 
 
 def listing() -> dict:
     return {"tracks": [view(r) for r in db.list_music()], "licenses": list(LICENSES), "fetch": fetch_ready(),
-            "windows": list(WINDOWS), "default_genre": DEFAULT_GENRE, "default_window": DEFAULT_WINDOW}
+            "genres": list(GENRES), "default_genre": DEFAULT_GENRE}
 
 
 def get(mid: int) -> dict:
@@ -164,8 +173,9 @@ def _http(method: str, url: str, **kw) -> httpx.Response:
 
 
 def _clip(item: dict) -> dict:
-    """The clip to keep: the whole song first, then the trending part, then the plain preview."""
-    for k in ("full_duration_song_clip", "trending_song_clip"):
+    """The clip to keep: the trending part (the cut people use in their posts), then the whole song, then the plain
+    preview."""
+    for k in ("trending_song_clip", "full_duration_song_clip"):
         c = item.get(k)
         if isinstance(c, dict) and c.get("preview_url"):
             return c
@@ -196,15 +206,8 @@ def _download(url: str, dest_stem: Path) -> Path | None:
     return out
 
 
-def refresh(genre: str = DEFAULT_GENRE, window: str = DEFAULT_WINDOW, limit: int = DEFAULT_LIMIT) -> dict:
-    """Pull the trending Commercial Music Library tracks of a genre into the library. A track keeps one row (its clip
-    id), so a second pull only moves ranks. Returns {"added", "updated", "listed", "no_audio"}."""
-    check_ready()
-    genre = " ".join(str(genre or DEFAULT_GENRE).upper().split())
-    if not _GENRE.match(genre):
-        raise ValueError(tr("Unknown genre: {genre}", genre=genre))
-    if window not in WINDOWS:
-        raise ValueError(tr("Period must be one of {choices}", choices=", ".join(WINDOWS)))
+def _chart(genre: str, window: str) -> list[dict]:
+    """One chart of the data service: [{"title", "artist", "rank", "ext_id", "clip", "duration"}] in rank order."""
     r = _http("GET", API_URL, headers={"x-api-key": config.env("TIKTOK_MUSIC_API_KEY")},
               params={"teamId": config.env("TIKTOK_MUSIC_TEAM_ID"), "genre": genre, "dateRange": window})
     if r.status_code in (401, 403):
@@ -217,22 +220,46 @@ def refresh(genre: str = DEFAULT_GENRE, window: str = DEFAULT_WINDOW, limit: int
         items = [i for i in items if isinstance(i, dict)]
     except (ValueError, AttributeError, TypeError) as e:
         raise RuntimeError(tr("The music service sent something Motio cannot read")) from e
-    now, seen = time.time(), set()
-    added = updated = no_audio = 0
-    for n, item in enumerate(items[: max(1, int(limit))], 1):
+    out = []
+    for n, item in enumerate(items, 1):
         title = " ".join(str(item.get("commercial_music_name") or "").split())[:140]
-        artist = " ".join(str(item.get("artist") or "").split())[:100]
         if not title:
             continue
+        artist = " ".join(str(item.get("artist") or "").split())[:100]
         clip = _clip(item)
-        ext_id = str(clip.get("song_clip_id") or hashlib.sha1(f"{title}|{artist}".encode()).hexdigest()[:16])
+        clip_id = str(clip.get("song_clip_id") or hashlib.sha1(f"{title}|{artist}".encode()).hexdigest()[:16])
         try:
             rank = int(item.get("rank_position") or n)
         except (TypeError, ValueError):
             rank = n
+        out.append({"title": title, "artist": artist, "rank": rank, "ext_id": f"{genre}:{clip_id}", "clip": clip,
+                    "duration": clip.get("duration") or item.get("duration") or None})
+    return out
+
+
+def refresh(genre: str = DEFAULT_GENRE, limit: int = DEFAULT_LIMIT) -> dict:
+    """Pull the Commercial Music Library charts of one genre (a "tag"): the trending cuts of the last 7 days and the
+    most popular of the last 30 days (the longest range the service has: it has no all-time chart). A track of a genre
+    keeps one row, with its rank on each chart; a track that left both charts is dropped. Returns {"added", "updated",
+    "listed", "no_audio", "removed"}."""
+    check_ready()
+    genre = " ".join(str(genre or DEFAULT_GENRE).upper().split())
+    if genre not in GENRES:
+        raise ValueError(tr("Unknown genre: {genre}", genre=genre))
+    top = max(1, int(limit))
+    charts = {col: _chart(genre, window)[:top] for col, window in (("rank", TRENDING), ("rank_month", POPULAR))}
+    now = time.time()
+    rows: dict[str, dict] = {}  # ext_id -> fields, ranks of both charts
+    for col, chart in charts.items():
+        for t in chart:
+            f = rows.setdefault(t["ext_id"], {"title": t["title"], "artist": t["artist"], "clip": t["clip"],
+                                              "duration": t["duration"], "rank": None, "rank_month": None})
+            f[col] = t["rank"]
+    added = updated = no_audio = 0
+    for ext_id, f in rows.items():
+        clip = f.pop("clip")
         have = db.find_music("tiktok_cml", ext_id)
-        fields = {"title": title, "artist": artist, "genre": genre, "region": "", "rank": rank, "trending_at": now,
-                  "duration": clip.get("duration") or item.get("duration") or None}
+        fields = {**f, "genre": genre, "region": "", "trending_at": now}
         if not (have and have["file"] and (config.DATA / have["file"]).is_file()):
             got = _download(clip.get("preview_url"), folder() / f"cml-{hashlib.sha1(ext_id.encode()).hexdigest()[:16]}")
             if got:
@@ -246,11 +273,14 @@ def refresh(genre: str = DEFAULT_GENRE, window: str = DEFAULT_WINDOW, limit: int
         else:
             db.save_music(None, source="tiktok_cml", ext_id=ext_id, license="tiktok_cml", note=CML_NOTE, **fields)
             added += 1
-        seen.add(ext_id)
-    for row in db.list_music():  # ranks of this genre that are no longer on the chart
-        if row["source"] == "tiktok_cml" and row["genre"] == genre and row["ext_id"] not in seen:
-            db.save_music(row["id"], rank=None, trending_at=None)
-    return {"added": added, "updated": updated, "listed": len(seen), "no_audio": no_audio}
+    removed = 0
+    for row in db.list_music():  # ideas of this genre that are on neither chart any more
+        if row["source"] == "tiktok_cml" and row["genre"] == genre and row["ext_id"] not in rows:
+            if row["file"]:
+                (config.DATA / row["file"]).unlink(missing_ok=True)
+            db.delete_music(row["id"])
+            removed += 1
+    return {"added": added, "updated": updated, "listed": len(rows), "no_audio": no_audio, "removed": removed}
 
 
 # ---------- a video's music ----------
@@ -272,7 +302,7 @@ def choice(proj: dict, ch: dict | None) -> tuple[dict | None, float]:
     else:
         mid, vol = (ch or {}).get("music_id"), (ch or {}).get("music_volume")
     row = db.get_music(int(mid)) if mid else None
-    if not row or not row["file"] or not (config.DATA / row["file"]).is_file():
+    if not row or row["license"] == IDEA or not row["file"] or not (config.DATA / row["file"]).is_file():
         return None, DEFAULT_VOLUME
     return row, clamp_volume(vol if vol is not None else DEFAULT_VOLUME)
 
@@ -307,6 +337,9 @@ def set_for_project(pid: int, track_id: int | None, volume=None) -> dict:
         raise ValueError(tr("A French dub keeps the original video's music: it takes no other track"))
     if track_id:
         row = get(int(track_id))
+        if row["license"] == IDEA:
+            raise ValueError(tr("This is a sound idea: add it in the TikTok app when you post. Motio does not put it "
+                                "in the video"))
         if not row["file"] or not (config.DATA / row["file"]).is_file():
             raise ValueError(tr("This track has no audio to mix: add the file first"))
     pick = {"id": int(track_id) if track_id else None, "volume": clamp_volume(volume)}

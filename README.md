@@ -117,18 +117,21 @@ Settings → AI pictures (default $0.08 for fal, $0.02 for HeyGen), and the mont
 budget, leaves its scene with the picture and camera move. The post then says "Images et vidéos générées par IA."; the
 platforms' AI flags stay on. Needs the fal key (or the HeyGen key) as well as the one for the pictures.
 
-**Background music** (the *Music* screen). A library of tracks, each with its source, title, artist and a **license**
-(mine / bought or licensed / Creative Commons / TikTok Commercial Music Library / unknown) that says where it may be used.
-Add your own audio files, or fetch the trending sounds of TikTok's **Commercial Music Library** (needs
-`TIKTOK_MUSIC_API_KEY` and `TIKTOK_MUSIC_TEAM_ID`, Settings → Music: a music data service returns the chart, because TikTok's
-own Creative Center chart answers "no permission" to a request that is not signed by its page, and Motio does not forge
-that). Trending sounds that are not in the Commercial Music Library are not fetched: most are commercial recordings that
-TikTok may play only inside the app, and a copy posted to YouTube, Facebook or X would be claimed by Content ID. A video
-picks a track on its project page (*Background music*, then it is rendered again with the voice it already has, so no new
-voice cost) or gets its channel's default (Channels → Music); the track plays under the voice, fades in and out and is
-pressed down while the voice speaks. A track that is not known to be free on every platform (`tiktok_cml`, `unknown`)
-makes the video stop at **Awaiting video approval** even when the channel has no gate, like the other rights gates. A French
-dub keeps the original video's music and takes none. The track is named in `sources.txt`, not in the post.
+**Music** (the *Music* screen) has two lists.
+*Sound ideas*: the **trending cuts** (the short part posts use, not the whole song) of TikTok's **Commercial Music Library**,
+per TikTok tag (genre): a *Trending now* list (last 7 days) and a *Most listened* list (last 30 days; the data service has no
+all-time chart), with rank, a preview to listen to and a **Find on TikTok** link. They are ideas only: when you post on TikTok you add
+the sound in the TikTok app, the official way, and Motio never puts a trending sound in a video (most are commercial
+recordings that TikTok may play only inside its app, and a copy in a video file posted to YouTube, Facebook or X would be
+claimed by Content ID). Fetching needs `TIKTOK_MUSIC_API_KEY` and `TIKTOK_MUSIC_TEAM_ID` (Settings → Music): a music data
+service returns the chart, because TikTok's own Creative Center chart answers "no permission" to a request that is not signed
+by its page, and Motio does not forge that. Trending sounds outside the Commercial Music Library are not listed.
+*Your tracks*: audio files you add, each with a **license** (mine / bought or licensed / Creative Commons / unknown). A video
+picks one on its project page (*Background music*, then it is rendered again with the voice it already has, so no new voice
+cost) or gets its channel's default (Channels → Music); the track plays under the voice, fades in and out and is pressed
+down while the voice speaks. A track whose license is `unknown` makes the video stop at **Awaiting video approval** even
+when the channel has no gate, like the other rights gates. A French dub keeps the original video's music and takes none.
+The track is named in `sources.txt`, not in the post.
 
 **Series and recurring characters** (Channels → *Series* and *Cast*, AI videos only). *Cast* is one character per line,
 `Name: how they look` (English, fictional people only, up to 8). The look is saved with each script, and every scene whose
@@ -281,7 +284,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
 | `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
 | `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the fal model: `seedream` (default, Seedream 5 Pro) / `nano-banana-2` / `nano-banana-2.1` / `nano-banana-pro` / `gpt-image-2` / `flux-3` (no fal model is cleared for monetized channels yet, so they all stop at the video gate); the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
-| `TIKTOK_MUSIC_API_KEY`, `TIKTOK_MUSIC_TEAM_ID` | Music data service (bundle.social) that lists the trending TikTok Commercial Music Library tracks for the Music screen; empty = add tracks by hand only |
+| `TIKTOK_MUSIC_API_KEY`, `TIKTOK_MUSIC_TEAM_ID` | Music data service (bundle.social) that lists the trending cuts of TikTok's Commercial Music Library as sound ideas on the Music screen; empty = no ideas, your own tracks still work |
 | `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
 
 Data (SQLite, source videos, projects) lives in `data/`.
@@ -318,7 +321,7 @@ motio/delogo.py    "Remove logo": remove a static logo from a video you own (dra
 motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
 motio/toolbox.py   Tools: download, transcribe, translate subtitles, read text aloud, burn subtitles (jobs chain)
 motio/usage.py     Stats: ElevenLabs characters and estimated cost per project / channel / tool, monthly budget
-motio/music.py     music library: tracks added by hand + trending TikTok Commercial Music Library, license per track, a video's pick
+motio/music.py     music library: sound ideas (trending TikTok cuts, never mixed) + tracks added by hand (license per track, a video's pick)
 motio/web.py       legacy dashboard (to be removed)
 ```
 

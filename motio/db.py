@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS usage (
 CREATE TABLE IF NOT EXISTS music (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT, artist TEXT, source TEXT,   -- source: upload | tiktok_cml (motio/music.py)
-  ext_id TEXT, link TEXT, genre TEXT, region TEXT, rank INTEGER, duration REAL,
+  ext_id TEXT, link TEXT, genre TEXT, region TEXT, rank INTEGER, rank_month INTEGER, duration REAL,
   file TEXT,                      -- path under data/, empty = only listed (no audio to mix)
   license TEXT DEFAULT 'unknown', note TEXT DEFAULT '',
   trending_at REAL, added_at REAL,
@@ -424,7 +424,8 @@ def delete_channel(cid: int) -> None:
 def list_music() -> list[dict]:
     """Trending first (best rank on top), then the tracks added by hand, newest first."""
     with conn() as c:
-        rows = c.execute("SELECT * FROM music ORDER BY (trending_at IS NULL), rank IS NULL, rank, id DESC").fetchall()
+        rows = c.execute("SELECT * FROM music ORDER BY (trending_at IS NULL), rank IS NULL, rank, "
+                         "rank_month IS NULL, rank_month, id DESC").fetchall()
     return [dict(r) for r in rows]
 
 
@@ -442,8 +443,8 @@ def find_music(source: str, ext_id: str) -> dict | None:
 
 def save_music(mid: int | None, **fields) -> int:
     """Insert (mid None) or update the given columns of a track."""
-    cols = {"title", "artist", "source", "ext_id", "link", "genre", "region", "rank", "duration", "file", "license",
-            "note", "trending_at"}
+    cols = {"title", "artist", "source", "ext_id", "link", "genre", "region", "rank", "rank_month", "duration", "file",
+            "license", "note", "trending_at"}
     bad = set(fields) - cols
     if bad:
         raise ValueError(f"unknown music column: {sorted(bad)}")
