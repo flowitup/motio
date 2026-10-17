@@ -28,7 +28,8 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
   link or the share link. (`normalize` keeps the query, so a pasted full link works.)
 - Xigua: three links fail with yt-dlp's "Cookies … are needed" and show the cookie hint. The web site now sends visitors
   to "open the app", so cookies may not be enough: still unknown.
-- Zhihu: two `zvideo` links answer 403 and show the cookie hint. Browsing Zhihu without a login hits a verification page.
+- Zhihu: from the Mac two `zvideo` links answered 403 and showed the cookie hint; from the cloud sandbox the same day a
+  `zvideo` downloaded with no cookies (476p, 93 s), so it depends on the network or the day. Browsing Zhihu without a login hits a verification page.
 - The cookies-on run is still to do: the browser cookie stores could not be read from the Remote Control session.
 
 ## Where it lives
