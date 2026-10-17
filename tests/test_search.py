@@ -358,6 +358,37 @@ def test_a_picture_saved_instead_of_a_video_is_not_returned(monkeypatch, tmp_pat
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_xigua_video_that_is_also_on_douyin_comes_from_douyin(monkeypatch, tmp_path):
+    asked = []
+
+    def fake(url, out_dir, max_height, hooks, post_id):
+        asked.append((url, max_height, post_id))
+        return {"path": str(out_dir / f"Douyin_{post_id}.mp4"), "id": post_id, "platform": "Douyin"}
+
+    monkeypatch.setattr(douyin, "download", fake)
+    for link in ("https://www.ixigua.com/7296116808145175092", "https://m.ixigua.com/video/7296116808145175092",
+                 "https://www.ixigua.com/7296116808145175092?logTag=x"):
+        info = search.download(link, tmp_path, 480, cookies=True)
+        assert info["platform"] == "Douyin"
+    assert asked[0] == ("https://www.douyin.com/video/7296116808145175092", 480, "7296116808145175092")
+    assert FakeYDL.opts == []  # yt-dlp was not needed
+
+
+def test_a_xigua_video_not_on_douyin_goes_to_yt_dlp_and_then_says_so(monkeypatch, tmp_path):
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: None)
+    FakeYDL.fail = DownloadError("Cookies (not necessarily logged in) are needed")
+    with pytest.raises(RuntimeError, match="Xigua asks for a browser session.*not on Douyin either.*cookies"):
+        search.download("https://www.ixigua.com/7359024563227656714", tmp_path, cookies=True)
+    assert FakeYDL.urls == ["https://www.ixigua.com/7359024563227656714/"]
+
+
+def test_xigua_cookies_set_by_the_user_are_used_before_douyin(monkeypatch, tmp_path):
+    monkeypatch.setattr(search, "_cookie_opts", lambda: {"cookiefile": "x"})
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: pytest.fail("Douyin tried first"))
+    search.download("https://www.ixigua.com/7359024563227656714", tmp_path, cookies=True)
+    assert FakeYDL.urls == ["https://www.ixigua.com/7359024563227656714/"]
+
+
 def test_no_video_formats_on_weibo_or_xiaohongshu_with_token_gets_a_hint(tmp_path):
     FakeYDL.fail = DownloadError("[Weibo] 1: No video formats found!; please report this issue")
     with pytest.raises(RuntimeError, match="Weibo gave no video.*only pictures.*cookies"):

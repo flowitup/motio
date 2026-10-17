@@ -606,6 +606,10 @@ VI = {
         "{site} không trả video cho link này. Bài có thể chỉ có ảnh, hoặc trang cần phiên trình duyệt (file cookie "
         "hoặc trình duyệt trong Cài đặt)",
     "This post has no video, only pictures: {url}": "Bài này không có video, chỉ có ảnh: {url}",
+    "Xigua asks for a browser session to download this, and the video is not on Douyin either. Set a cookies file "
+    "or a browser in Settings, or download the video yourself and add the file":
+        "Xigua yêu cầu phiên trình duyệt để tải video này, và video cũng không có trên Douyin. Hãy đặt file cookie "
+        "hoặc trình duyệt trong Cài đặt, hoặc tự tải video rồi thêm file vào",
     "{site} asks for a browser session to download this. Set a cookies file or a browser in Settings, or download "
     "the video yourself and add the file":
         "{site} yêu cầu phiên trình duyệt để tải video này. Hãy đặt file cookie hoặc trình duyệt trong Cài đặt, hoặc "

@@ -15,7 +15,7 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 |---|---|---|---|
 | Xiaohongshu | yt-dlp `XiaoHongShu`, downloaded a public note (960p, no cookies). `xhslink.com` short links are followed once | no | Many notes want a logged-in session: a cookies file or browser (Settings) is used; the error says so |
 | Weibo | yt-dlp `Weibo`, downloaded a post | no | `weibo.com/2/detail/<id>` is rewritten to `m.weibo.cn/detail/<id>` (yt-dlp does not match the first); a post with only pictures says "No video formats found" |
-| Xigua | yt-dlp `Ixigua` asks for cookies ("not necessarily logged in"); a bare `ttwid` guest cookie was **not** enough | no | Needs a cookies file or browser. **Not tested with real cookies.** Ids are written `…/<id>/` because yt-dlp drops the last digit of an id with nothing after it |
+| Xigua | A link is first tried on **Douyin** under the same id (`search._xigua_on_douyin`, f2, no cookies): Xigua mirrored many videos there. Otherwise yt-dlp `Ixigua`, which asks for cookies | no | Cookie-free only for videos that are also on Douyin (tested: `7296116808145175092`, 480p, 1136 s; 8 older ids were not). The web page is a bot check, the mobile page is app-only, videodl fails too. Videos not on Douyin need a cookies file or the file added by hand. If the user has set cookies, yt-dlp is tried first. Ids are written `…/<id>/` because yt-dlp drops the last digit of an id with nothing after it |
 | Kuaishou | `kuaishou.py` runs the separate **videodl** program (`pipx install videofetch`, or `MOTIO_VIDEODL`) with only its Kuaishou client; no yt-dlp extractor exists | no | Works on some links, not all (Mac, 2026-10-17: 2 of 5; a sandbox run of a 6 s clip also worked). Without videodl, or when it reads nothing: download the video yourself and add the file. videodl is PolyForm Noncommercial: never bundled or imported, only called as a command |
 | Haokan | `haokan.py`: the phone page carries the mp4 (`curVideoMeta.clarityUrl`), 360p to 720p+, no cookies | no | Needs the phone User-Agent; the desktop one gets an empty page. The home page lists no feed we could read |
 | Zhihu | yt-dlp `Zhihu` got a 403 without cookies | no | Needs cookies. **Not tested with real cookies.** |
@@ -26,7 +26,8 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
   `?xsec_token=…`. The same note without the token fails with "No video formats found"; Motio now says to paste the full
   link or the share link. (`normalize` keeps the query, so a pasted full link works.)
 - Xigua: three links fail with yt-dlp's "Cookies … are needed" and show the cookie hint. The web site now sends visitors
-  to "open the app", so cookies may not be enough: still unknown.
+  to "open the app", so cookies may not be enough: still unknown. A headless Chromium with no login gets a guest session
+  but the mobile page carries no video data either. The Douyin route above is the cookie-free way.
 - Zhihu: from the Mac two `zvideo` links answered 403 and showed the cookie hint; from the cloud sandbox the same day a
   `zvideo` downloaded with no cookies (476p, 93 s), so it depends on the network or the day. Browsing Zhihu without a login hits a verification page.
 - Weibo (Mac, through the engine API): `weibo.com/2/detail/<id>` video posts download; a post with only pictures used to be
@@ -53,6 +54,6 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 
 ## Still open
 
-- Xigua and Zhihu with real browser cookies, and Xiaohongshu notes that need a login: try them on the Mac.
+- Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Weibo / Haokan feed (category or account page): none could be read without a login.
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.
