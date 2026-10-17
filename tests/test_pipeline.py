@@ -464,6 +464,25 @@ def test_a_video_from_a_trending_clip_has_no_source_voice_under_the_french_one(f
     assert calls.rendered[-1]["src_volume"] == 0.0
 
 
+def test_the_owners_source_volume_wins_and_a_render_without_a_new_voice_uses_it(fake):
+    calls, _ = fake
+    muted = topic.create("gấu trúc")
+    db.update_project(muted, meta={"mute_source": True})
+    pipeline.produce(muted)
+    assert calls.rendered[-1]["src_volume"] == 0.0
+    assert pipeline.source_sound(db.get_project(muted)) == {"volume": 0.0, "default": render.SRC_VOLUME,
+                                                            "chosen": False}
+    assert pipeline.set_source_volume(muted, 0.35) == 0.35 and pipeline.set_source_volume(muted, 7) == 1.0
+    pipeline.set_source_volume(muted, 0.35)
+    pipeline.resume(muted, "render")  # the voice is kept: no new voice, the picture and sound are mixed again
+    assert calls.rendered[-1]["src_volume"] == 0.35 and calls.count("voice") == 1
+    assert pipeline.source_sound(db.get_project(muted))["volume"] == 0.35
+    plain = topic.create("gấu trúc")
+    assert pipeline.source_sound(db.get_project(plain)) == {"volume": render.SRC_VOLUME, "default": render.SRC_VOLUME,
+                                                            "chosen": False}
+    assert pipeline.clamp_source_volume("x") == render.SRC_VOLUME and pipeline.clamp_source_volume(-1) == 0.0
+
+
 def test_profile_style_voice_tags_badge_and_length(fake, prompts):
     calls, _ = fake
     ch = _profile(badge="INSOLITE", style="Ton léger, public 18-25 ans.", voice_id="vx", hashtags=["#ChineInsolite"],

@@ -4,7 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, config, db, newsnow, pipeline, settings, watch
+from motio import api, config, db, newsnow, pipeline, render, settings, watch
 
 TOKEN = "test-token"
 H = {"Authorization": f"Bearer {TOKEN}"}
@@ -107,6 +107,33 @@ def test_rerender(client):
     assert client.post(f"/api/projects/{pid}/rerender", headers=H).status_code == 202
     assert _wait_done(client, pid)["status"] == "done"
     assert client.post("/api/projects/999/rerender", headers=H).status_code == 404
+
+
+def test_source_volume(client, monkeypatch):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    assert client.get(f"/api/projects/{pid}", headers=H).json()["source_sound"]["chosen"] is False
+    r = client.put(f"/api/projects/{pid}/source-volume", headers=H, json={"volume": 0.4})  # no saved voice here
+    assert r.status_code == 200 and r.json()["queued"] is False
+    assert client.get(f"/api/projects/{pid}", headers=H).json()["source_sound"] == {
+        "volume": 0.4, "default": render.SRC_VOLUME, "chosen": True}
+    asked = []
+    monkeypatch.setattr(pipeline, "available_steps", lambda i: ["render"])
+
+    def resume(i, start=None):
+        asked.append((i, start))
+        db.update_project(i, status="done")
+
+    monkeypatch.setattr(pipeline, "resume", resume)
+    r = client.put(f"/api/projects/{pid}/source-volume", headers=H, json={"volume": 0.2})
+    assert r.status_code == 200 and r.json()["queued"] is True and r.json()["project"]["meta"]["src_volume"] == 0.2
+    _wait_done(client, pid)
+    assert asked == [(pid, "render")]
+    assert client.put(f"/api/projects/{pid}/source-volume", headers=H, json={"volume": "loud"}).status_code == 422
+    assert client.put("/api/projects/999/source-volume", headers=H, json={"volume": 0.4}).status_code == 404
+    dubbed = db.create_project(None, "dub", mode="dub")
+    db.update_project(dubbed, status="done")
+    assert client.put(f"/api/projects/{dubbed}/source-volume", headers=H, json={"volume": 0.4}).status_code == 400
 
 
 def test_retry(client):

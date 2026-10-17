@@ -453,6 +453,16 @@ const en = {
     outro: "Outro",
     chars: (n: number, max: number) => `${n} / ${max} characters`,
   },
+  sourceSound: {
+    title: "Original sound",
+    hint: "How loud the source video's own sound is under the French voice. The video is rendered again with the voice it already has, so nothing is recorded or paid again.",
+    volume: (n: number) => `Original sound volume: ${n} %`,
+    chosen: "Your level.",
+    muted: "Silent: the source's own voice is off for this video.",
+    default: (n: number) => `Motio's level: ${n} %.`,
+    reset: "Back to Motio's level",
+    save: "Save and re-render",
+  },
   dub: {
     kinds: { topic: "Explainer", dub: "French dub", ai: "AI video" } as Record<string, string>,
     link: "Video link",
@@ -1466,6 +1476,16 @@ const vi: Messages = {
     intro: "Mở đầu",
     outro: "Kết",
     chars: (n: number, max: number) => `${n} / ${max} ký tự`,
+  },
+  sourceSound: {
+    title: "Tiếng gốc",
+    hint: "Tiếng của video nguồn to nhỏ thế nào dưới giọng đọc Pháp. Video được dựng lại với giọng đọc đã có, nên không phải đọc lại hay trả thêm tiền.",
+    volume: (n: number) => `Âm lượng tiếng gốc: ${n} %`,
+    chosen: "Mức bạn đã chọn.",
+    muted: "Im: video này đã tắt giọng gốc của nguồn.",
+    default: (n: number) => `Mức của Motio: ${n} %.`,
+    reset: "Về mức của Motio",
+    save: "Lưu và dựng lại",
   },
   dub: {
     kinds: { topic: "Giải thích", dub: "Lồng tiếng Pháp", ai: "Video AI" } as Record<string, string>,

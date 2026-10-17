@@ -300,8 +300,12 @@ export type ProjectDetail = Project & {
   has_script: boolean;
   dub: DubView | null;
   ai: AiView | null;
+  source_sound: SourceSound | null; // tiếng gốc của video nguồn dưới giọng đọc; null = video này không có (lồng tiếng, video AI)
   usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number; picture_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
+
+/** Âm lượng tiếng gốc dưới giọng Pháp: 0 = im, 1 = như đã thu; mặc định của Motio; chosen = người dùng đã tự chọn. */
+export type SourceSound = { volume: number; default: number; chosen: boolean };
 
 export type ScriptClip = { src: number; start: number; end: number };
 /** Bản lồng tiếng thêm: loại (intro | dub | outro), ai nói, câu gốc (zh), lúc vào / hạn (giây), số ký tự vừa chỗ. */
@@ -562,6 +566,9 @@ export function makeApi(url: string, token: string) {
     dubClip: (id: string, channel?: number) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
+    /** Đặt âm lượng tiếng gốc (0..1); nếu đã có giọng đọc thì dựng lại video ngay, không đọc lại. */
+    setSourceVolume: (id: number, volume: number) =>
+      call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/source-volume`, { volume }),
     updateDub: (
       id: number,
       body: { start?: number | null; end?: number | null; blur?: BlurBox | null; voices?: Record<string, string> },

@@ -46,6 +46,8 @@ VI = {
     "Queued for re-render": "Chờ dựng lại",
     "Queued for voice and render": "Chờ đọc giọng và dựng",
     "Queued to rerun: {step}": "Chờ chạy lại: {step}",
+    "Original sound volume: {pct} %": "Âm lượng tiếng gốc: {pct} %",
+    "This video has no source sound to turn up or down": "Video này không có tiếng gốc để chỉnh to nhỏ",
     # counted nouns (tr_n)
     "pasted link": "link dán tay",
     "candidate": "ứng viên",

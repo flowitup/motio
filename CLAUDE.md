@@ -18,7 +18,10 @@ as authoritative for scope and milestones.
   - `douyin.py` public Douyin videos without a login through the `f2` package (it does Douyin's request signing; Motio only
     calls it): `search.download` tries it first for Douyin links and falls back to yt-dlp when f2 cannot
   - `llm.py` Claude API (Anthropic SDK; main + fast model, each call's cost goes to `usage`) · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
-  - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`)
+  - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`); the
+    source video's own sound under the French voice is the owner's level `meta.src_volume` (0–1, project page card "Original
+    sound", `PUT /api/projects/{id}/source-volume` renders again with the saved voice), else 0 for a trending clip
+    (`meta.mute_source`), else `render.SRC_VOLUME`; a dub and an AI video have none (`pipeline.source_sound`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
   - `creator.py` AI video mode (`mode = "ai"`): Claude writes scenes (spoken line + English picture prompt + camera move),
@@ -192,6 +195,10 @@ on every PR; keep them green.
   owned / licensed / cc, otherwise it stops at the video gate (`dub.needs_review`; `unknown` counts as not owned). The
   subtitle blur covers only the subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is
   built to dodge duplicate / Content ID detection.
+- Browsers (owner, 2026-10-17): when a task needs a browser (Claude in Chrome, browser-use, a Playwright or DevTools
+  window), use the owner's own Chrome with their profile (already signed in), not a fresh throwaway profile. Chrome will
+  not let a program drive the profile in daily use, so attach to their running Chrome through the Claude in Chrome
+  extension; never read or print its cookies, passwords or history.
 - Before committing: `uv run ruff check motio` (add ruff as a dev dependency if missing),
   `uv run pytest`, and for render changes `uv run python -m motio rerender 1` + inspect a frame.
 
