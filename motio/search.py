@@ -16,7 +16,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, douyin, haokan, localfile, platforms
+from . import config, douyin, haokan, kuaishou, localfile, platforms
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -195,7 +195,9 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     site = platforms.identify(url)
     if haokan.find_id(url):  # no yt-dlp extractor: the page of the video carries its address
         return haokan.download(url, out_dir, max_height, hooks)
-    if site and site.manual:  # Kuaishou: nothing can fetch it, say so before a long generic attempt
+    if site and site.key == "kuaishou":  # no yt-dlp extractor: the separate videodl tool, when it is installed
+        return kuaishou.download(url, out_dir, hooks)
+    if site and site.manual:  # nothing can fetch it: say so before a long generic attempt
         raise RuntimeError(platforms.hint(site))
     offline = None  # f2 không kết nối được tới Douyin: yt-dlp vẫn được thử, nhưng nếu nó cũng hỏng thì báo lỗi mạng
     if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được

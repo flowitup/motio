@@ -55,8 +55,10 @@ as authoritative for scope and milestones.
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
     once (`expand`) and words the hint when a site wants cookies or cannot be downloaded (Kuaishou: add the file);
-    `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); no feed for these
-    sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
+    `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); `kuaishou.py` runs the separate
+    videodl program for Kuaishou (owner 2026-10-17: "dùng videodl"; PolyForm Noncommercial, so never bundled or imported, only
+    called as a command, only its Kuaishou client, never its generic parsers that use watermark-removal sites); no feed
+    for these sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
     `docs/CN_PLATFORMS.md`
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)

@@ -610,6 +610,16 @@ VI = {
     "the video yourself and add the file":
         "{site} yêu cầu phiên trình duyệt để tải video này. Hãy đặt file cookie hoặc trình duyệt trong Cài đặt, hoặc "
         "tự tải video rồi thêm file vào",
+    "Kuaishou needs the videodl tool, which is not installed. Install it (pipx install videofetch; its licence is "
+    "non-commercial) or download the video yourself and add the file":
+        "Kuaishou cần công cụ videodl nhưng máy chưa cài. Hãy cài (pipx install videofetch; giấy phép của nó là "
+        "phi thương mại) hoặc tự tải video rồi thêm file vào",
+    "Could not run videodl for Kuaishou: {error}": "Không chạy được videodl cho Kuaishou: {error}",
+    "videodl could not read this Kuaishou link (it works on some links only). Download the video yourself and add "
+    "the file":
+        "videodl không đọc được link Kuaishou này (nó chỉ chạy được với một số link). Hãy tự tải video rồi thêm file "
+        "vào",
+    "videodl saved a file that is not a video: {error}": "videodl lưu một file không phải video: {error}",
     "Haokan did not give an address for this video": "Haokan không trả địa chỉ cho video này",
     "Could not connect to Haokan. Check your internet connection (or VPN, proxy, DNS filter), then try again":
         "Không kết nối được tới Haokan. Hãy kiểm tra mạng (hoặc VPN, proxy, bộ lọc DNS) rồi thử lại",

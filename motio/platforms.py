@@ -6,7 +6,8 @@ What was checked from a cloud sandbox on 2026-10-16 (a person's own Mac or PC ma
 - Xigua: yt-dlp asks for cookies ("not necessarily logged in"); a bare `ttwid` guest cookie was not enough.
 - Haokan: yt-dlp has no extractor; the mobile page carries the video address (`haokan.py`).
 - Zhihu: yt-dlp got a 403 without cookies.
-- Kuaishou: no yt-dlp extractor, and its web answers a risk-control page to a script; the video has to be added by hand.
+- Kuaishou: no yt-dlp extractor, and its web answers a risk-control page to a script from a data-centre address;
+  `kuaishou.py` runs the separate videodl tool when it is installed, otherwise the video has to be added by hand.
 `normalize` fixes the link shapes yt-dlp does not understand, `expand` follows a short link once. Nothing here removes a
 watermark or tries to hide where a video came from.
 """

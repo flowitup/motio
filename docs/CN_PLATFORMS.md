@@ -16,7 +16,7 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 | Xiaohongshu | yt-dlp `XiaoHongShu`, downloaded a public note (960p, no cookies). `xhslink.com` short links are followed once | no | Many notes want a logged-in session: a cookies file or browser (Settings) is used; the error says so |
 | Weibo | yt-dlp `Weibo`, downloaded a post | no | `weibo.com/2/detail/<id>` is rewritten to `m.weibo.cn/detail/<id>` (yt-dlp does not match the first); a post with only pictures says "No video formats found" |
 | Xigua | yt-dlp `Ixigua` asks for cookies ("not necessarily logged in"); a bare `ttwid` guest cookie was **not** enough | no | Needs a cookies file or browser. **Not tested with real cookies.** Ids are written `…/<id>/` because yt-dlp drops the last digit of an id with nothing after it |
-| Kuaishou | not downloadable: no yt-dlp extractor, no f2 support, and the web answers a risk-control page to a script | no | Recognised so the error is clear: download the video yourself and add the file |
+| Kuaishou | `kuaishou.py` runs the separate **videodl** program (`pipx install videofetch`, or `MOTIO_VIDEODL`) with only its Kuaishou client; no yt-dlp extractor exists | no | Works on some links, not all (Mac, 2026-10-17: 2 of 5; a sandbox run of a 6 s clip also worked). Without videodl, or when it reads nothing: download the video yourself and add the file. videodl is PolyForm Noncommercial: never bundled or imported, only called as a command |
 | Haokan | `haokan.py`: the phone page carries the mp4 (`curVideoMeta.clarityUrl`), 360p to 720p+, no cookies | no | Needs the phone User-Agent; the desktop one gets an empty page. The home page lists no feed we could read |
 | Zhihu | yt-dlp `Zhihu` got a 403 without cookies | no | Needs cookies. **Not tested with real cookies.** |
 
@@ -39,9 +39,11 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 
 - `motio/platforms.py`: hosts, `identify`, `normalize` (link shapes), `expand` (short links), `hint`.
 - `motio/haokan.py`: Haokan download (public https only, same guard as Douyin's CDN fetch).
+- `motio/kuaishou.py`: Kuaishou through the `videodl` command (`-a KuaishouVideoClient` only, never its generic parsers,
+  which send the link to third-party watermark-removal sites); the saved file is moved to `Kuaishou_<id>.mp4`.
 - `search.download`: `expand` and `normalize` first, then Haokan (own downloader), Kuaishou (clear error), then yt-dlp;
   a login/403 error from a site that may want cookies becomes `platforms.hint`.
-- Tests: `tests/test_platforms.py`, `test_haokan.py`, the last block of `test_search.py`. They use
+- Tests: `tests/test_platforms.py`, `test_haokan.py`, `test_kuaishou.py`, the last block of `test_search.py`. They use
   mocked transports; the real sites were checked by hand (above), not in CI.
 
 ## Adding a site
@@ -53,4 +55,4 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 
 - Xigua and Zhihu with real browser cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Weibo / Haokan feed (category or account page): none could be read without a login.
-- Kuaishou: only a hand-added file for now. A logged-in crawler such as MediaCrawler would be a separate decision.
+- Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from yt_dlp.utils import DownloadError
 
-from motio import douyin, haokan, platforms, search, settings
+from motio import douyin, haokan, kuaishou, platforms, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -317,7 +317,8 @@ def test_haokan_links_do_not_go_through_yt_dlp(monkeypatch, tmp_path):
     assert info["platform"] == "Haokan" and seen == [("https://haokan.baidu.com/v?vid=123", 480)] and FakeYDL.opts == []
 
 
-def test_kuaishou_says_to_add_the_file_instead_of_trying(tmp_path):
+def test_kuaishou_says_to_add_the_file_instead_of_trying(monkeypatch, tmp_path):
+    monkeypatch.setattr(kuaishou, "tool", lambda: None)  # videodl not installed
     with pytest.raises(RuntimeError, match="Kuaishou.*add the file"):
         search.download("https://v.kuaishou.com/AbCdEf", tmp_path, cookies=True)
     assert FakeYDL.opts == []
