@@ -650,6 +650,8 @@ VI = {
     "Unknown genre: {genre}": "Thể loại không hợp lệ: {genre}",
     "The music service refused the key: check the API key and team id in Settings":
         "Dịch vụ nhạc từ chối key: kiểm tra API key và team id trong Cài đặt",
+    "The music service needs a TikTok account connected to this team: connect one in its dashboard, then fetch again":
+        "Dịch vụ nhạc cần một tài khoản TikTok đã nối vào team này: hãy nối trong dashboard của họ rồi lấy lại",
     "The music service answered {status}": "Dịch vụ nhạc trả lỗi {status}",
     "A French dub keeps the original video's music: it takes no other track":
         "Bản lồng tiếng giữ nhạc của video gốc nên không thêm nhạc khác",

@@ -719,7 +719,7 @@ const en = {
     settingsKey: "TikTok music API key",
     settingsKeyHint: "From the music data service that returns TikTok's Commercial Music Library chart (bundle.social). Fetching sound ideas is optional: your own files always work.",
     settingsTeam: "Team id",
-    settingsTeamHint: "The service's team id, sent with the key.",
+    settingsTeamHint: "The service's team id, sent with the key. The team needs a TikTok account connected in the service's dashboard: it reads the chart through that account.",
   },
   stats: {
     title: "Stats",
@@ -1791,7 +1791,7 @@ const vi: Messages = {
     settingsKey: "API key nhạc TikTok",
     settingsKeyHint: "Từ dịch vụ dữ liệu nhạc trả về bảng Commercial Music Library của TikTok (bundle.social). Lấy gợi ý nhạc là tuỳ chọn: file của bạn luôn dùng được.",
     settingsTeam: "Team id",
-    settingsTeamHint: "Team id của dịch vụ đó, gửi kèm key.",
+    settingsTeamHint: "Team id của dịch vụ đó, gửi kèm key. Team cần một tài khoản TikTok đã nối trong dashboard của dịch vụ: nó đọc bảng xếp hạng qua tài khoản đó.",
   },
   stats: {
     title: "Thống kê",

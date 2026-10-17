@@ -135,6 +135,17 @@ def test_fetch_trending_and_popular(client, cml):
     assert "LO-FI" in client.get("/api/music", headers=H).json()["genres"]
 
 
+def test_fetch_needs_a_tiktok_account_on_the_team(client, monkeypatch):
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"statusCode": 400, "message": "Team does not have a Tiktok account"})
+
+    monkeypatch.setattr(music, "_transport", httpx.MockTransport(handler))
+    monkeypatch.setenv("TIKTOK_MUSIC_API_KEY", "k-1")
+    monkeypatch.setenv("TIKTOK_MUSIC_TEAM_ID", "team-1")
+    r = client.post("/api/music/fetch", headers=H, json={})
+    assert r.status_code == 502 and "TikTok account" in r.json()["detail"]
+
+
 def test_fetch_errors(client, cml, monkeypatch):
     monkeypatch.setenv("TIKTOK_MUSIC_API_KEY", "wrong")
     r = client.post("/api/music/fetch", headers=H, json={})

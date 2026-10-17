@@ -212,6 +212,9 @@ def _chart(genre: str, window: str) -> list[dict]:
               params={"teamId": config.env("TIKTOK_MUSIC_TEAM_ID"), "genre": genre, "dateRange": window})
     if r.status_code in (401, 403):
         raise RuntimeError(tr("The music service refused the key: check the API key and team id in Settings"))
+    if r.status_code == 400 and "Tiktok account" in r.text:  # the service reads the chart through a TikTok account
+        raise RuntimeError(tr("The music service needs a TikTok account connected to this team: connect one in its "
+                              "dashboard, then fetch again"))
     if r.status_code != 200:
         raise RuntimeError(tr("The music service answered {status}", status=r.status_code))
     try:

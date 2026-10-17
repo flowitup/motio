@@ -638,6 +638,8 @@ review screen they all need.
 - **Not included:** mixing a trending sound into a video (it stays in the TikTok app, owner's choice and Content ID),
   attaching a TikTok sound at publish time (`music_sound_id`: Postiz does not take it), automatic picking of a track per
   topic, music in a French dub (it keeps the original's), sounds outside the CML (the whole chart).
+- **Checked on 17/10 with the owner's key:** the key works and `/team` lists the team, but the chart answers 400 "Team does not have a
+  Tiktok account": the service reads it through a TikTok account connected to the team (Motio shows this as a clear error).
 - **Not verified:** a real call to the data API (URL, header and field names, including `trending_song_clip`, come from its
   public docs; tests use a fake transport), its price / terms, and how much of TikTok's real trending chart the CML covers.
 

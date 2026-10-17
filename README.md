@@ -124,7 +124,7 @@ all-time chart), with rank, a preview to listen to and a **Find on TikTok** link
 the sound in the TikTok app, the official way, and Motio never puts a trending sound in a video (most are commercial
 recordings that TikTok may play only inside its app, and a copy in a video file posted to YouTube, Facebook or X would be
 claimed by Content ID). Fetching needs `TIKTOK_MUSIC_API_KEY` and `TIKTOK_MUSIC_TEAM_ID` (Settings → Music): a music data
-service returns the chart, because TikTok's own Creative Center chart answers "no permission" to a request that is not signed
+service (its team needs a TikTok account connected in its dashboard) returns the chart, because TikTok's own Creative Center chart answers "no permission" to a request that is not signed
 by its page, and Motio does not forge that. Trending sounds outside the Commercial Music Library are not listed.
 *Your tracks*: audio files you add, each with a **license** (mine / bought or licensed / Creative Commons / unknown). A video
 picks one on its project page (*Background music*, then it is rendered again with the voice it already has, so no new voice
