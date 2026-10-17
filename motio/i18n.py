@@ -592,7 +592,7 @@ VI = {
     "This video is larger than {mb} MB": "Video này lớn hơn {mb} MB",
     "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
     "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
-    # Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py, feeds.py)
+    # Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py)
     "{site} cannot be downloaded by Motio (it blocks scripts and yt-dlp has no support). Download the video yourself "
     "and add the file":
         "Motio không tải được video từ {site} (trang chặn công cụ tự động, yt-dlp không hỗ trợ). Hãy tự tải video "
@@ -601,10 +601,29 @@ VI = {
     "address bar), or the share link (xhslink.com)":
         "Xiaohongshu không trả video cho link này. Hãy dán link đầy đủ có xsec_token (copy từ thanh địa chỉ), hoặc "
         "link chia sẻ (xhslink.com)",
+    "{site} gave no video for this link. The post may have only pictures, or the site wants a browser session "
+    "(a cookies file or a browser in Settings)":
+        "{site} không trả video cho link này. Bài có thể chỉ có ảnh, hoặc trang cần phiên trình duyệt (file cookie "
+        "hoặc trình duyệt trong Cài đặt)",
+    "This post has no video, only pictures: {url}": "Bài này không có video, chỉ có ảnh: {url}",
+    "Xigua asks for a browser session to download this, and the video is not on Douyin either. Set a cookies file "
+    "or a browser in Settings, or download the video yourself and add the file":
+        "Xigua yêu cầu phiên trình duyệt để tải video này, và video cũng không có trên Douyin. Hãy đặt file cookie "
+        "hoặc trình duyệt trong Cài đặt, hoặc tự tải video rồi thêm file vào",
     "{site} asks for a browser session to download this. Set a cookies file or a browser in Settings, or download "
     "the video yourself and add the file":
         "{site} yêu cầu phiên trình duyệt để tải video này. Hãy đặt file cookie hoặc trình duyệt trong Cài đặt, hoặc "
         "tự tải video rồi thêm file vào",
+    "Kuaishou needs the videodl tool, which is not installed. Install it (pipx install videofetch; its licence is "
+    "non-commercial) or download the video yourself and add the file":
+        "Kuaishou cần công cụ videodl nhưng máy chưa cài. Hãy cài (pipx install videofetch; giấy phép của nó là "
+        "phi thương mại) hoặc tự tải video rồi thêm file vào",
+    "Could not run videodl for Kuaishou: {error}": "Không chạy được videodl cho Kuaishou: {error}",
+    "videodl could not read this Kuaishou link (it works on some links only). Download the video yourself and add "
+    "the file":
+        "videodl không đọc được link Kuaishou này (nó chỉ chạy được với một số link). Hãy tự tải video rồi thêm file "
+        "vào",
+    "videodl saved a file that is not a video: {error}": "videodl lưu một file không phải video: {error}",
     "Haokan did not give an address for this video": "Haokan không trả địa chỉ cho video này",
     "Could not connect to Haokan. Check your internet connection (or VPN, proxy, DNS filter), then try again":
         "Không kết nối được tới Haokan. Hãy kiểm tra mạng (hoặc VPN, proxy, bộ lọc DNS) rồi thử lại",
@@ -615,9 +634,4 @@ VI = {
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
-    "Unknown trending list: {target}": "Không có bảng xếp hạng này: {target}",
-    "Could not reach {site}: {error}": "Không kết nối được {site}: {error}",
-    "{site} returned an error: {error}": "{site} trả về lỗi: {error}",
-    "AcFun returned an error: {error}": "AcFun trả về lỗi: {error}",
-    "Pear Video returned an error: {error}": "Pear Video trả về lỗi: {error}",
 }

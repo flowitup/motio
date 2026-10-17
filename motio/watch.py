@@ -2,8 +2,7 @@
 
 yt-dlp chỉ liệt kê được kênh và tìm kiếm trên YouTube, Bilibili; Douyin, Facebook chỉ tải từng video (dán link
 vào Tạo video). Danh sách phẳng (extract_flat) không có ngày đăng, nên "mới" = chưa thấy bao giờ.
-Bảng xếp hạng / thịnh hành / "mỗi tuần một xem" của Bilibili (kind "trending") đọc qua API công khai, xem trending.py;
-bảng xếp hạng AcFun và trang chủ Pear Video cũng là kind "trending", xem feeds.py.
+Bảng xếp hạng / thịnh hành / "mỗi tuần một xem" của Bilibili (kind "trending") đọc qua API công khai, xem trending.py.
 """
 import json
 import re
@@ -15,7 +14,7 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import db, feeds, llm, search, topic, trending
+from . import db, llm, search, topic, trending
 from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search", "trending")
@@ -56,8 +55,6 @@ def classify(text: str, site: str = "youtube") -> dict:
         raise ValueError(tr("Paste a channel / playlist link or enter search keywords"))
     if text.startswith(trending.PREFIX):  # "bilibili:ranking:181", "bilibili:popular", "bilibili:weekly"
         return {"kind": "trending", "site": "bilibili", "target": text, "name": trending.name(text)}
-    if feeds.is_target(text):  # "acfun:rank", "acfun:channel:63", "pearvideo:home"
-        return {"kind": "trending", "site": feeds.site(text), "target": text, "name": feeds.name(text)}
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
             raise ValueError(tr("Search works only on YouTube or Bilibili, not {site}", site=site))
@@ -237,7 +234,7 @@ def check(w: dict) -> dict:
     dates: dict[str, float] = {}
     if w["kind"] == "trending":
         try:
-            batch = (feeds if feeds.is_target(w["target"]) else trending).fetch(w["target"])
+            batch = trending.fetch(w["target"])
         except (trending.TrendingError, ValueError) as e:
             errors.append(str(e)[:300])
         else:

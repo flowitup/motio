@@ -16,7 +16,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, douyin, haokan, localfile, platforms
+from . import config, douyin, haokan, kuaishou, localfile, platforms
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -182,6 +182,18 @@ def _cannot_reach_douyin() -> RuntimeError:
                            "then try again"))
 
 
+def _xigua_on_douyin(url: str, out_dir: Path, max_height: int | None, hooks: list | None) -> dict | None:
+    """The same video on Douyin (f2, no cookies) when Xigua mirrored it there under the same id, else None."""
+    m = re.search(r"ixigua\.com/(?:video/|douyin/share/video/)?(\d{10,})", url)
+    if not m:
+        return None
+    try:
+        return douyin.download(f"https://www.douyin.com/video/{m[1]}", out_dir, max_height or douyin.DEFAULT_HEIGHT,
+                               hooks, m[1])
+    except (douyin.Unavailable, douyin.Unreachable):
+        return None
+
+
 def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bool = False,
              hooks: list | None = None) -> dict:
     """Tải 1 video (≤ max_height, mp4; không nói thì 720, riêng Douyin là 1080). Trả metadata + đường dẫn file.
@@ -195,8 +207,16 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     site = platforms.identify(url)
     if haokan.find_id(url):  # no yt-dlp extractor: the page of the video carries its address
         return haokan.download(url, out_dir, max_height, hooks)
-    if site and site.manual:  # Kuaishou: nothing can fetch it, say so before a long generic attempt
+    if site and site.key == "kuaishou":  # no yt-dlp extractor: the separate videodl tool, when it is installed
+        return kuaishou.download(url, out_dir, hooks)
+    if site and site.manual:  # nothing can fetch it: say so before a long generic attempt
         raise RuntimeError(platforms.hint(site))
+    on_douyin = False  # Xigua's web page is a bot check now; some of its videos are also on Douyin under the same id
+    if site and site.key == "ixigua" and not (cookies and _cookie_opts()):
+        on_douyin = True
+        info = _xigua_on_douyin(url, out_dir, max_height, hooks)
+        if info:
+            return info
     offline = None  # f2 không kết nối được tới Douyin: yt-dlp vẫn được thử, nhưng nếu nó cũng hỏng thì báo lỗi mạng
     if douyin.is_douyin(url):  # f2 lấy được video Douyin công khai không cần cookie; yt-dlp chỉ khi f2 không làm được
         post_id = None
@@ -232,18 +252,31 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
                 raise _cannot_reach_douyin() from e
             raise RuntimeError(tr("Douyin asks for fresh browser cookies to download this. Download the video yourself "
                                   "and add the file, or set a cookies file in Settings")) from e
+        if on_douyin and _ASKS_LOGIN.search(str(e)):  # Xigua: not on Douyin either, and the page wants a session
+            raise RuntimeError(tr("Xigua asks for a browser session to download this, and the video is not on Douyin "
+                                  "either. Set a cookies file or a browser in Settings, or download the video "
+                                  "yourself and add the file")) from e
         if site and site.key == "xiaohongshu" and "xsec_token" not in url and "No video formats" in str(e):
             # a note link without its xsec_token is not served to a guest (tested 2026-10-17)
             raise RuntimeError(tr("Xiaohongshu did not give a video for this link. Paste the full link with its "
                                   "xsec_token (copy it from the address bar), or the share link (xhslink.com)")) from e
         if site and site.cookies and _ASKS_LOGIN.search(str(e)):  # Xiaohongshu, Weibo, Xigua, Zhihu want a session
             raise RuntimeError(platforms.hint(site)) from e
+        if site and site.cookies and "No video formats" in str(e):  # a post with only pictures, or one behind a login
+            raise RuntimeError(tr("{site} gave no video for this link. The post may have only pictures, or the site "
+                                  "wants a browser session (a cookies file or a browser in Settings)",
+                                  site=site.name)) from e
         raise  # lỗi khác của yt-dlp (403, video đã xoá…) là câu trả lời thật của Douyin: giữ nguyên
     if not path.exists():
         matches = sorted(out_dir.glob(f"*_{info.get('id')}.*"))
         if not matches:
             raise FileNotFoundError(tr("yt-dlp did not create a file for {url}", url=url))
-        path = matches[0]
+        videos = [m for m in matches if m.suffix.lower() in localfile.EXT]
+        if not videos:  # a post with only pictures: yt-dlp saved the image (Weibo), not a video
+            for m in matches:
+                m.unlink(missing_ok=True)
+            raise RuntimeError(tr("This post has no video, only pictures: {url}", url=url))
+        path = videos[0]
     key = info.get("extractor_key") or ""
     return {"path": str(path), "url": info.get("webpage_url") or url, "id": info.get("id"),
             "title": info.get("title") or "", "platform": PLATFORM.get(key, key),

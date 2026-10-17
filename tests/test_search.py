@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from yt_dlp.utils import DownloadError
 
-from motio import douyin, haokan, platforms, search, settings
+from motio import douyin, haokan, kuaishou, platforms, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -317,7 +317,8 @@ def test_haokan_links_do_not_go_through_yt_dlp(monkeypatch, tmp_path):
     assert info["platform"] == "Haokan" and seen == [("https://haokan.baidu.com/v?vid=123", 480)] and FakeYDL.opts == []
 
 
-def test_kuaishou_says_to_add_the_file_instead_of_trying(tmp_path):
+def test_kuaishou_says_to_add_the_file_instead_of_trying(monkeypatch, tmp_path):
+    monkeypatch.setattr(kuaishou, "tool", lambda: None)  # videodl not installed
     with pytest.raises(RuntimeError, match="Kuaishou.*add the file"):
         search.download("https://v.kuaishou.com/AbCdEf", tmp_path, cookies=True)
     assert FakeYDL.opts == []
@@ -338,14 +339,69 @@ def test_a_xiaohongshu_link_without_its_token_says_to_paste_the_full_link(tmp_pa
     FakeYDL.fail = DownloadError("[XiaoHongShu] ab12: No video formats found!; please report this issue")
     with pytest.raises(RuntimeError, match="xsec_token"):
         search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)
-    with pytest.raises(DownloadError, match="No video formats"):  # with the token it is not the missing-token case
+    with pytest.raises(RuntimeError, match="Xiaohongshu gave no video"):  # with a token: not the missing-token case
+        search.download("https://www.xiaohongshu.com/explore/ab12?xsec_token=T", tmp_path)
+
+
+def test_a_picture_saved_instead_of_a_video_is_not_returned(monkeypatch, tmp_path):
+    class Pictures(FakeYDL):  # Weibo post with only pictures: yt-dlp leaves a .jpg under the post id
+        def extract_info(self, url, download=False, process=True):
+            (self.out / "Weibo_1.jpg").write_bytes(b"jpeg")
+            return {"id": "1", "extractor_key": "Weibo"}
+
+        def prepare_filename(self, info):
+            return str(self.out / "Weibo_1.jpg")
+
+    monkeypatch.setattr(search, "YoutubeDL", Pictures)
+    with pytest.raises(RuntimeError, match="only pictures"):
+        search.download("https://m.weibo.cn/detail/5354603969514346", tmp_path, cookies=True)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_xigua_video_that_is_also_on_douyin_comes_from_douyin(monkeypatch, tmp_path):
+    asked = []
+
+    def fake(url, out_dir, max_height, hooks, post_id):
+        asked.append((url, max_height, post_id))
+        return {"path": str(out_dir / f"Douyin_{post_id}.mp4"), "id": post_id, "platform": "Douyin"}
+
+    monkeypatch.setattr(douyin, "download", fake)
+    for link in ("https://www.ixigua.com/7296116808145175092", "https://m.ixigua.com/video/7296116808145175092",
+                 "https://www.ixigua.com/7296116808145175092?logTag=x"):
+        info = search.download(link, tmp_path, 480, cookies=True)
+        assert info["platform"] == "Douyin"
+    assert asked[0] == ("https://www.douyin.com/video/7296116808145175092", 480, "7296116808145175092")
+    assert FakeYDL.opts == []  # yt-dlp was not needed
+
+
+def test_a_xigua_video_not_on_douyin_goes_to_yt_dlp_and_then_says_so(monkeypatch, tmp_path):
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: None)
+    FakeYDL.fail = DownloadError("Cookies (not necessarily logged in) are needed")
+    with pytest.raises(RuntimeError, match="Xigua asks for a browser session.*not on Douyin either.*cookies"):
+        search.download("https://www.ixigua.com/7359024563227656714", tmp_path, cookies=True)
+    assert FakeYDL.urls == ["https://www.ixigua.com/7359024563227656714/"]
+
+
+def test_xigua_cookies_set_by_the_user_are_used_before_douyin(monkeypatch, tmp_path):
+    monkeypatch.setattr(search, "_cookie_opts", lambda: {"cookiefile": "x"})
+    monkeypatch.setattr(douyin, "download", lambda *a, **k: pytest.fail("Douyin tried first"))
+    search.download("https://www.ixigua.com/7359024563227656714", tmp_path, cookies=True)
+    assert FakeYDL.urls == ["https://www.ixigua.com/7359024563227656714/"]
+
+
+def test_no_video_formats_on_weibo_or_xiaohongshu_with_token_gets_a_hint(tmp_path):
+    FakeYDL.fail = DownloadError("[Weibo] 1: No video formats found!; please report this issue")
+    with pytest.raises(RuntimeError, match="Weibo gave no video.*only pictures.*cookies"):
+        search.download("https://m.weibo.cn/detail/5354603969514346", tmp_path, cookies=True)
+    FakeYDL.fail = DownloadError("[XiaoHongShu] ab12: No video formats found!")
+    with pytest.raises(RuntimeError, match="Xiaohongshu gave no video"):
         search.download("https://www.xiaohongshu.com/explore/ab12?xsec_token=T", tmp_path)
 
 
 def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
-    FakeYDL.fail = DownloadError("[PearVideo] 1: Unable to download webpage: HTTP Error 404")
+    FakeYDL.fail = DownloadError("[Zhihu] 1: Unable to download webpage: HTTP Error 404")
     with pytest.raises(DownloadError, match="404"):
-        search.download("https://www.pearvideo.com/video_1", tmp_path)
+        search.download("https://www.zhihu.com/zvideo/1", tmp_path)
     FakeYDL.fail = DownloadError("Extractor failed to obtain id")
     with pytest.raises(DownloadError, match="obtain id"):
         search.download("https://www.xiaohongshu.com/explore/ab12", tmp_path)  # not a login problem: yt-dlp's text
@@ -353,4 +409,4 @@ def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
 
 def test_downloaded_videos_name_their_site():
     assert search.PLATFORM["XiaoHongShu"] == "Xiaohongshu" and search.PLATFORM["Ixigua"] == "Xigua"
-    assert search.PLATFORM["PearVideo"] == "Pear Video" and search.PLATFORM["AcFunVideo"] == "AcFun"
+    assert search.PLATFORM["Zhihu"] == "Zhihu"
