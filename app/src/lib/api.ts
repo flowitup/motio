@@ -228,6 +228,7 @@ export type DubSpeaker = {
 export type DubView = {
   start: number | null; // đoạn do người dùng đặt, null = tự chọn
   end: number | null;
+  whole: boolean; // lồng cả video: không cắt đoạn, không giới hạn 62–90 giây
   excerpt: [number, number] | null; // đoạn đã chọn (sau bước kịch bản)
   pad: [number, number] | null; // giây mở / kết bằng khung hình đứng yên
   blur: BlurBox | null;
@@ -531,8 +532,8 @@ export function makeApi(url: string, token: string) {
       channel?: number;
     }) =>
       call<{ project_id: number }>("POST", "/api/projects", body),
-    /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn. */
-    createDub: (body: { link: string; start?: number; end?: number; rights: Rights; channel?: number }) =>
+    /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn; whole = cả video, mọi độ dài. */
+    createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; rights: Rights; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
     createAi: (body: {
@@ -559,12 +560,18 @@ export function makeApi(url: string, token: string) {
     redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
     continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
-    dubClip: (id: string, channel?: number) =>
-      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel }),
+    dubClip: (id: string, channel?: number, whole?: boolean) =>
+      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel, whole }),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
     updateDub: (
       id: number,
-      body: { start?: number | null; end?: number | null; blur?: BlurBox | null; voices?: Record<string, string> },
+      body: {
+        start?: number | null;
+        end?: number | null;
+        whole?: boolean;
+        blur?: BlurBox | null;
+        voices?: Record<string, string>;
+      },
     ) =>
       call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/dub`, body),
     setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),

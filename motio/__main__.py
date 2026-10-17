@@ -89,10 +89,11 @@ def main(argv: list[str]) -> None:
         except (ValueError, aiclips.ClipError) as e:
             sys.exit(str(e))
         print(f"{path} · about ${usd:.2f}")
-    elif cmd == "dub":  # dub <link> [đầu cuối]: lồng tiếng Pháp một video
+    elif cmd == "dub":  # dub <link> [đầu cuối | whole]: lồng tiếng Pháp một video (whole = cả video, mọi độ dài)
         from . import channels, dub, pipeline
         try:
-            pid = dub.create(argv[1] if len(argv) > 1 else "", *(argv[2:4]))
+            whole = argv[2:3] == ["whole"]
+            pid = dub.create(argv[1] if len(argv) > 1 else "", *([] if whole else argv[2:4]), whole=whole)
         except ValueError as e:
             sys.exit(str(e))
         channels.attach(pid, channels.pick(None))

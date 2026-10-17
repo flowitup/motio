@@ -28,6 +28,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
   // a trending video is made on its own; a followed channel's, when its rights are known
   const [only, setOnly] = useState(clip.watch_kind === "trending" || (clip.rights ?? "unknown") !== "unknown");
   const [mute, setMute] = useState(true); // the source's own voice (Chinese) off under the French one
+  const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
   const choice = useChannelChoice(api);
   const produce = useMutation({
     mutationFn: () =>
@@ -40,7 +41,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
     },
   });
   const dub = useMutation({
-    mutationFn: () => api.dubClip(clip.id, choice.channel),
+    mutationFn: () => api.dubClip(clip.id, choice.channel, whole),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["clips"] });
@@ -173,6 +174,10 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
           <label className="flex items-center gap-2 pb-1 text-sm">
             <Switch checked={mute} onCheckedChange={setMute} />
             {t.clips.muteVoice}
+          </label>
+          <label className="flex items-center gap-2 pb-1 text-sm" title={t.dub.wholeClipHint}>
+            <Switch checked={whole} onCheckedChange={setWhole} />
+            {t.dub.wholeClip}
           </label>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" onClick={() => dub.mutate()} disabled={produce.isPending || dub.isPending} title={t.clips.dubHint}>

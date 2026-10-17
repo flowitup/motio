@@ -183,10 +183,55 @@ def write_wav(path: Path, audio: np.ndarray) -> Path:
     return path
 
 
+WINDOW = 240.0  # giây: đoạn dài hơn thì tách từng cửa sổ này, để không giữ cả bản âm thanh dài trong bộ nhớ
+CONTEXT = 1.5  # giây âm thanh thêm ở hai đầu mỗi cửa sổ (bỏ đi sau khi tách) cho chỗ nối không lộ
+
+
+def windows(dur: float, size: float | None = None) -> list[tuple[float, float]]:
+    """(đầu, dài) của các cửa sổ phủ [0, dur]; cửa sổ cuối không ngắn hơn nửa cỡ (gộp vào cửa sổ trước)."""
+    size = size or WINDOW
+    out, t = [], 0.0
+    while dur - t > 1e-6:
+        d = min(size, dur - t)
+        if 0 < dur - t - d < size / 2:
+            d = dur - t
+        out.append((round(t, 3), round(d, 3)))
+        t += d
+    return out
+
+
+def _append_wav(w: "wave.Wave_write", audio: np.ndarray) -> None:
+    w.writeframes((np.clip(audio.T, -1, 1) * 32767).astype("<i2").tobytes())
+
+
 def instrumental(src: Path, out: Path, start: float, dur: float,
                  progress: Callable[[int, int], None] | None = None, sess=None) -> Path:
     """Nhạc nền + tiếng động (không giọng nói) của src trong [start, start + dur] → out (WAV)."""
-    mix = _decode(src, start, dur)
-    if mix.shape[1] == 0:
-        raise RuntimeError(tr("The source has no audio in this part"))
-    return write_wav(out, demix(mix, sess or session(), progress))
+    sess = sess or session()
+    if dur <= WINDOW * 1.5:
+        mix = _decode(src, start, dur)
+        if mix.shape[1] == 0:
+            raise RuntimeError(tr("The source has no audio in this part"))
+        return write_wav(out, demix(mix, sess, progress))
+    # Đoạn dài (cả video): từng cửa sổ, ghi nối tiếp vào WAV, mỗi cửa sổ có thêm CONTEXT giây ở hai đầu
+    wins = windows(dur)
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        for k, (a, d) in enumerate(wins):
+            lo = max(0.0, a - CONTEXT)
+            hi = min(dur, a + d + CONTEXT)
+            mix = _decode(src, start + lo, hi - lo)
+            if mix.shape[1] == 0:
+                raise RuntimeError(tr("The source has no audio in this part"))
+            res = demix(mix, sess)
+            first = round((a - lo) * SR)
+            keep = round(d * SR)
+            piece = res[:, first:first + keep]
+            if piece.shape[1] < keep:  # nguồn ngắn hơn dự tính: bù im lặng cho đủ dài
+                piece = np.pad(piece, ((0, 0), (0, keep - piece.shape[1])))
+            _append_wav(w, piece)
+            if progress:
+                progress(k + 1, len(wins))
+    return out

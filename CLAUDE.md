@@ -62,7 +62,9 @@ as authoritative for scope and milestones.
     `docs/CN_PLATFORMS.md`
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
-  - `dub.py` French dub mode: one video → excerpt (62–90 s) → line-by-line translation that fits each original line's
+  - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option
+    (`meta.dub.whole`: no excerpt, no intro/outro, any length; translated 40 lines at a time, voiced in batches, separated
+    in windows) → line-by-line translation that fits each original line's
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
     (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions; rights gate
@@ -114,7 +116,7 @@ uv run python -m motio produce <trend_id>   # full pipeline for one topic
 uv run python -m motio rerender <project>   # voice + render again from script.json
 uv run python -m motio topic "<topic>" [link ...]   # explainer on any topic and/or video links ("" = links only)
 uv run python -m motio ai "<topic>" [70|80|90] [ai clips]   # video made only of AI pictures (IMAGE_PROVIDER=placeholder to try it free)
-uv run python -m motio dub <link> [start end]      # French dub of one video (times in seconds; none = whole video if short, else Claude picks)
+uv run python -m motio dub <link> [start end | whole]  # French dub of one video (times in seconds; none = whole video if short, else Claude picks; whole = the whole video, any length)
 uv run python -m motio watch "<channel link | search words>" [bilibili]   # follow a source and check it now
 uv run python -m motio check                # check every followed source · `clips` lists the new videos
 uv run python -m motio approve <project> [nosend]  # approve a script / video waiting at a channel's gate
@@ -165,7 +167,9 @@ on every PR; keep them green.
   on by default), a dub separates the voice and keeps the music (`dub.py`). Nothing from here is auto-sent: rights stay
   unknown, so a person approves first.
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
-  `MAX_SECONDS`, enforced after the voice, not only in the prompt.
+  `MAX_SECONDS`, enforced after the voice, not only in the prompt. The one exception is a dub made with the "Whole
+  video" option (owner, 2026-10-18: "giữ trọn video gốc"): it lasts as long as the source, and one longer than
+  `MAX_SECONDS` is never sent to Postiz on its own (`dub.too_long_to_send`, held at the video gate).
 - Douyin: `motio/douyin.py` downloads public videos with the `f2` package (Johnserf-Seed/f2, Apache-2.0), added on the
   owner's go of 2026-10-02 (what it does, the test results and how to bump f2: `docs/DOUYIN_F2.md`). f2 is a pinned
   dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`); never copy that signing code into this

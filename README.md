@@ -70,7 +70,8 @@ Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explai
 **French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in Followed) turns one video
 (Douyin, Bilibili, YouTube…) into a French version that keeps its pictures, music and sound effects. Motio transcribes
 it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
-on a sentence, or you type from–to), and Claude translates every line so it fits the time of the line it replaces: *tu*
+on a sentence, or you type from–to; choose **Whole video** to dub the video from start to end whatever its length, and
+such a dub longer than 90 s is never sent to Postiz on its own), and Claude translates every line so it fits the time of the line it replaces: *tu*
 or *vous* depending on who talks to whom, the channel's glossary (Channels → Glossary) for names and terms, and the
 speaker and gender of each line. ElevenLabs reads the lines, each one placed where the original line started, with
 one French voice per speaker: the channel's voice first, then the extra voices of the channel profile (Channels →
@@ -170,7 +171,7 @@ month (videos you start yourself still run). Claude runs on your Claude plan and
 per platform aren't tracked (they need each platform's account).
 
 Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds] [ai clips]` (a video made only of AI pictures, 70 / 80 / 90 s, with some scenes as AI clips), `... dub <link> [start end]` (French dub of one video, times in seconds), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
+`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds] [ai clips]` (a video made only of AI pictures, 70 / 80 / 90 s, with some scenes as AI clips), `... dub <link> [start end | whole]` (French dub of one video, times in seconds; `whole` = the whole video, any length), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
 `... rerender <project>`, `... retry <project> [step]` (continue from the failed
 step, or redo from `search` / `download` / `transcribe` / `script` / `voice` / `render`), `... approve <project> [nosend]`
 (approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's

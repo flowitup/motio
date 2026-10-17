@@ -42,6 +42,9 @@ MAX_VOICES = 4  # số giọng Pháp khác nhau tối đa trong một bản (gi�
 BAND_EDGE = 60  # chênh sáng giữa hai điểm ảnh liền nhau coi là nét chữ (thang 0–255)
 BAND_MIN = 0.05  # tỉ lệ điểm nét chữ tối thiểu của một hàng phụ đề
 BAND_W = 320  # bề ngang khung hình thu nhỏ để tìm dải phụ đề
+BATCH_LINES = 40  # số câu gốc Claude dịch một lượt; video dài hơn thì dịch từng đợt nối tiếp
+MIX_GROUP = 24  # số câu trộn cùng một lượt khi ghép giọng (video dài: nhiều nhóm, mỗi nhóm dời về đúng chỗ)
+LONG_FILTER = 6000  # đồ thị lọc dài hơn chừng này ký tự thì đưa cho ffmpeg bằng file (dòng lệnh Windows ≤ 32 K)
 
 EXCERPT_SYSTEM = "Tu choisis un extrait de vidéo à doubler en français. Réponds uniquement en JSON."
 EXCERPT_PROMPT = """Vidéo : « {title} » ({duration:.0f} s). Transcription (segments [début–fin] en secondes, texte) :
@@ -84,6 +87,26 @@ PADS_RULE = """
   caractères : une conclusion ou une question au public)."""
 PADS_KEYS = """
   "intro": "...", "outro": "...","""
+PART_NOTE = """
+- La vidéo est traitée en plusieurs parties : voici la première (répliques {first} à {last}). Les suivantes viendront
+  ensuite ; garde des étiquettes de personnes stables."""
+MORE_PROMPT = """Suite de la même vidéo : « {title} » ({platform}{uploader}), langue parlée : {language}.
+Personnes déjà identifiées : {people}
+Registre : {register}
+Dernières répliques françaises déjà écrites (pour la continuité) :
+{previous}
+
+Répliques d'origine à traduire (i · [début–fin] dans la vidéo finale, en secondes · place en caractères · texte) :
+{segments}
+
+Mêmes règles que pour la première partie : traduis le sens naturellement, respecte la place (au plus « place »
+caractères, sinon raccourcis ; une réplique inutile peut rester vide ""), tu / vous comme avant, garde les noms propres,
+n'ajoute aucun fait absent de la vidéo. Réutilise les étiquettes des personnes déjà identifiées ; n'ajoute une étiquette
+que pour une nouvelle personne.
+
+Réponds :
+{{"speakers": {{"C": {{"who": "uniquement les nouvelles personnes", "gender": "f ou m"}}}},
+  "lines": [{{"i": {first}, "speaker": "A", "text": "..."}}]}}"""
 
 
 def _one(text) -> str:
@@ -112,30 +135,34 @@ def clean_excerpt(start, end) -> tuple[float | None, float | None]:
     return a, b
 
 
-def create(link: str, start=None, end=None, rights: str = "unknown", title: str = "") -> int:
-    """Tạo dự án lồng tiếng (chưa chạy). ValueError nếu thiếu / sai dữ liệu."""
+def create(link: str, start=None, end=None, rights: str = "unknown", title: str = "", whole: bool = False) -> int:
+    """Tạo dự án lồng tiếng (chưa chạy). ValueError nếu thiếu / sai dữ liệu. whole = lồng cả video, không cắt đoạn và
+    không giới hạn 62–90 s (đoạn start / end bị bỏ qua)."""
     links = search.clean_links([link])
     if len(links) != 1:
         raise ValueError(tr("Enter the link of the video to dub"))
     if rights not in topic.RIGHTS:
         raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
-    a, b = clean_excerpt(start, end)
+    a, b = (None, None) if whole else clean_excerpt(start, end)
     site = localfile.title(links[0]) if localfile.parse(links[0]) else urlparse(links[0]).hostname or "video"
     title = _one(title)[:200] or tr("Dub: {site}", site=site)
     pid = db.create_project(None, title, mode=MODE)
-    part = (tr(" · part {a}–{b}", a=clock(a or 0), b=clock(b) if b is not None else tr("end"))
+    part = (tr(" · whole video") if whole else
+            tr(" · part {a}–{b}", a=clock(a or 0), b=clock(b) if b is not None else tr("end"))
             if a is not None or b is not None else "")
     db.update_project(pid, log=tr("Dub in French: {url}{part}", url=links[0], part=part),
-                      meta={"links": links, "links_only": True, "rights": rights, "dub": {"start": a, "end": b}})
+                      meta={"links": links, "links_only": True, "rights": rights,
+                            "dub": {"start": a, "end": b, **({"whole": True} if whole else {})}})
     return pid
 
 
-def from_clip(cid: str) -> int:
+def from_clip(cid: str, whole: bool = False) -> int:
     """Dự án lồng tiếng từ một video mới (Followed), giữ quyền của nguồn theo dõi. LookupError nếu không có."""
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
-    pid = create(c["url"], rights=c.get("rights") or "unknown", title=c.get("title_fr") or c.get("title") or "")
+    pid = create(c["url"], rights=c.get("rights") or "unknown", title=c.get("title_fr") or c.get("title") or "",
+                 whole=whole)
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]), meta={"clip": cid})
@@ -145,6 +172,20 @@ def from_clip(cid: str) -> int:
 def needs_review(proj: dict) -> bool:
     """Bản lồng tiếng mà quyền nguồn chưa rõ: không tự gửi Postiz, dừng chờ duyệt video."""
     return proj.get("mode") == MODE and (proj.get("meta") or {}).get("rights") not in OK_RIGHTS
+
+
+def is_whole(proj: dict) -> bool:
+    """Bản lồng cả video (không cắt đoạn, không giới hạn 62–90 s)."""
+    return proj.get("mode") == MODE and bool(((proj.get("meta") or {}).get("dub") or {}).get("whole"))
+
+
+def too_long_to_send(proj: dict) -> bool:
+    """Bản lồng cả video đã dựng mà dài hơn giới hạn Reels (pipeline.MAX_SECONDS): không tự gửi Postiz, dừng chờ duyệt;
+    đăng bằng tay từ app khi chủ muốn."""
+    from . import pipeline
+    meta = proj.get("meta") or {}
+    total = ((meta.get("dub") or {}).get("total")) or 0
+    return is_whole(proj) and float(total) > pipeline.MAX_SECONDS
 
 
 # ---------- kịch bản: chọn đoạn, dịch ----------
@@ -169,6 +210,10 @@ def pick_excerpt(opts: dict, duration: float, segs: list[dict], title: str) -> t
     """(đầu, cuối, lý do) của đoạn lồng tiếng: đoạn người dùng đặt, cả video nếu ≤ MAX_EXCERPT, không thì Claude chọn
     một đoạn AIM giây bắt đầu / kết thúc ở ranh giới câu. ValueError nếu đoạn quá ngắn / dài."""
     from . import pipeline
+    if opts.get("whole"):  # cả video: không cắt đoạn, không giới hạn độ dài
+        if duration <= 0:
+            raise ValueError(tr("Could not read the length of this video"))
+        return 0.0, round(duration, 2), tr("whole video")
     starts, ends = [g["start"] for g in segs], [g["end"] for g in segs]
     a0, b0 = opts.get("start"), opts.get("end")
     if a0 is not None or b0 is not None:
@@ -254,7 +299,7 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
     step("Script", 55, tr("Choosing the part to dub"))
     a, b, why = pick_excerpt(opts, duration, segs, src.get("title") or proj["title"])
     length = b - a
-    pad_in, pad_out = pads(length)
+    pad_in, pad_out = (0.0, 0.0) if opts.get("whole") else pads(length)
     parts = merge_short(in_excerpt(segs, a, b))
     if not parts:
         raise RuntimeError(tr("No speech between {a} and {b}: pick another part to dub", a=clock(a), b=clock(b)))
@@ -279,13 +324,7 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
     ch = channels.for_project(proj)
     b_in, b_out = _budget(pad_in - 0.5), _budget(pad_out - 0.6)
     step("Script", 58, tr("Claude is translating {lines} into French", lines=tr_n(len(parts), "line")))
-    res = llm.ask_json(DUB_PROMPT.format(
-        title=src.get("title") or proj["title"], platform=src.get("platform") or "video",
-        uploader=f" · {src['uploader']}" if src.get("uploader") else "", language=transcript.get("language") or "?",
-        start=a, end=b, segments="\n".join(rows),
-        pads=PADS_RULE.format(intro=b_in, outro=b_out) if pad_in else "",
-        pad_keys=PADS_KEYS if pad_in else ""), DUB_SYSTEM + channels.style_note(ch))
-    res = res if isinstance(res, dict) else {}
+    res = translate(proj, src, transcript, ch, rows, (a, b), (pad_in, pad_out), (b_in, b_out), step)
     got: dict[int, dict] = {}
     for ln in res.get("lines") or []:
         try:
@@ -312,6 +351,7 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
             "description": _one(res.get("description")),
             "hashtags": channels.merge_tags(ch, [str(t) for t in res.get("hashtags") or []]),
             "dub": {"start": a, "end": b, "pad_in": pad_in, "pad_out": pad_out, "why": why,
+                    **({"whole": True} if opts.get("whole") else {}),
                     "language": transcript.get("language"), "register": _one(res.get("register"))[:200],
                     "speakers": who, "genders": gender}}
     # JSON thuần ASCII (\uXXXX): dòng gốc tiếng Trung không ghi được bằng mã hoá mặc định của Windows (cp1252)
@@ -324,6 +364,49 @@ def script(proj: dict, src: dict, transcript: dict, out: Path, step) -> dict:
     step("Script", 62, tr_n(len(spoken(lines)), "French line") + (tr(" ({n} left silent)", n=empty) if empty else "")
          + (f" · {plan['dub']['register']}" if plan["dub"]["register"] else ""), title=plan["title_fr"])
     return plan
+
+
+def translate(proj: dict, src: dict, transcript: dict, ch: dict | None, rows: list[str], span: tuple[float, float],
+              pad: tuple[float, float], budgets: tuple[int, int], step) -> dict:
+    """Claude dịch các dòng `rows` ("i · [đầu–cuối] · chỗ · lời gốc"). Ít dòng thì một lượt; video dài (cả video) thì
+    dịch từng đợt BATCH_LINES dòng: đợt đầu cho tiêu đề, mô tả, hashtag, người nói; các đợt sau nhận danh sách người
+    nói, giọng văn và vài câu Pháp vừa viết. Trả cùng dạng JSON của một lượt (lines nối theo thứ tự, speakers gộp)."""
+    a, b = span
+    pad_in, pad_out = pad
+    b_in, b_out = budgets
+    title = src.get("title") or proj["title"]
+    uploader = f" · {src['uploader']}" if src.get("uploader") else ""
+    language = transcript.get("language") or "?"
+    system = DUB_SYSTEM + channels.style_note(ch)
+    many = len(rows) > BATCH_LINES
+    first = rows[:BATCH_LINES] if many else rows
+    note = PART_NOTE.format(first=0, last=len(first) - 1) if many else ""
+    res = llm.ask_json(DUB_PROMPT.format(
+        title=title, platform=src.get("platform") or "video", uploader=uploader, language=language,
+        start=a, end=b, segments="\n".join(first),
+        pads=(PADS_RULE.format(intro=b_in, outro=b_out) if pad_in else "") + note,
+        pad_keys=PADS_KEYS if pad_in else ""), system)
+    res = res if isinstance(res, dict) else {}
+    if not many:
+        return res
+    lines = [ln for ln in res.get("lines") or [] if isinstance(ln, dict)]
+    speakers = dict(res.get("speakers") or {}) if isinstance(res.get("speakers"), dict) else {}
+    for k in range(BATCH_LINES, len(rows), BATCH_LINES):
+        chunk = rows[k:k + BATCH_LINES]
+        step("Script", 58, tr("Claude is translating lines {a}–{b} of {n}", a=k + 1, b=k + len(chunk), n=len(rows)))
+        who, _ = parse_speakers(speakers)
+        done = [_one(ln.get("text")) for ln in lines if _one(ln.get("text"))][-4:]
+        more = llm.ask_json(MORE_PROMPT.format(
+            title=title, platform=src.get("platform") or "video", uploader=uploader, language=language,
+            people="; ".join(f"{k2} = {v}" for k2, v in who.items()) or "?",
+            register=_one(res.get("register")) or "?", previous="\n".join(f"- {t}" for t in done) or "-",
+            segments="\n".join(chunk), first=k), system)
+        more = more if isinstance(more, dict) else {}
+        lines += [ln for ln in more.get("lines") or [] if isinstance(ln, dict)]
+        if isinstance(more.get("speakers"), dict):
+            for label, info in more["speakers"].items():
+                speakers.setdefault(label, info)
+    return {**res, "lines": lines, "speakers": speakers}
 
 
 def spoken(lines: list[dict]) -> list[dict]:
@@ -588,7 +671,11 @@ def mix(voice_audio: str | list[str], placed: list[dict], bg: Path | None, how: 
         length: float, pad_in: float, total: float, dst: Path) -> Path:
     """Trộn các câu Pháp (đặt đúng chỗ, nén khi cần) với nền gốc (bắt đầu sau phần mở) → WAV dài đúng total.
 
-    voice_audio: một file giọng, hoặc danh sách (mỗi giọng một file; câu nào lấy file nào ghi ở placed[i]["v"])."""
+    voice_audio: một file giọng, hoặc danh sách (mỗi giọng một file; câu nào lấy file nào ghi ở placed[i]["v"]).
+
+    Chia các câu thành nhóm MIX_GROUP câu liên tiếp: mỗi nhóm trộn riêng (câu tính từ đầu nhóm), rồi dời nhóm về đúng
+    chỗ và trộn các nhóm. Mỗi câu vẫn bám vị trí tuyệt đối của nó (video dài không bị lệch dần) nhưng không phải trộn
+    cả trăm luồng dài cùng lúc."""
     n = len(placed)
     audios = [voice_audio] if isinstance(voice_audio, str) else list(voice_audio)
     inputs = [x for f in audios for x in ("-i", f)]
@@ -598,12 +685,21 @@ def mix(voice_audio: str | list[str], placed: list[dict], bg: Path | None, how: 
         if ks:
             fc.append(f"[{v}:a]aresample=44100,aformat=channel_layouts=stereo,asplit={len(ks)}"
                       + "".join(f"[s{k}]" for k in ks))
-    for k, p in enumerate(placed):
-        ms = round(p["at"] * 1000)
-        tempo = f",atempo={p['rate']:.4f}" if p["rate"] > 1.001 else ""
-        fc.append(f"[s{k}]atrim=start={p['src_start']:.3f}:end={p['src_end']:.3f},asetpts=PTS-STARTPTS{tempo},"
-                  f"adelay={ms}|{ms}[v{k}]")
-    fc.append("".join(f"[v{k}]" for k in range(n)) + f"amix=inputs={n}:duration=longest:normalize=0[voice]")
+    groups = [list(range(i, min(i + MIX_GROUP, n))) for i in range(0, n, MIX_GROUP)]
+    segs = []
+    for g, ks in enumerate(groups):
+        t0 = 0.0 if g == 0 else float(placed[ks[0]]["at"])
+        for k in ks:
+            p = placed[k]
+            ms = max(round((p["at"] - t0) * 1000), 0)
+            tempo = f",atempo={p['rate']:.4f}" if p["rate"] > 1.001 else ""
+            fc.append(f"[s{k}]atrim=start={p['src_start']:.3f}:end={p['src_end']:.3f},asetpts=PTS-STARTPTS{tempo},"
+                      f"adelay={ms}|{ms}[v{k}]")
+        gms = round(t0 * 1000)
+        fc.append("".join(f"[v{k}]" for k in ks) + f"amix=inputs={len(ks)}:duration=longest:normalize=0,"
+                  f"adelay={gms}|{gms}[g{g}]")
+        segs.append(f"[g{g}]")
+    fc.append("".join(segs) + f"amix=inputs={len(segs)}:duration=longest:normalize=0[voice]")
     if bg is not None or how == "original":
         if bg is not None:
             inputs += ["-i", str(bg)]
@@ -617,9 +713,18 @@ def mix(voice_audio: str | list[str], placed: list[dict], bg: Path | None, how: 
     else:
         fc.append("[voice]apad[out]")
     dst.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-nostdin", *inputs, "-filter_complex", ";".join(fc),
-                        "-map", "[out]", "-t", f"{total:.3f}", "-c:a", "pcm_s16le", "-ar", "44100", str(dst)],
-                       capture_output=True, text=True)
+    graph = ";".join(fc)
+    tail = ["-map", "[out]", "-t", f"{total:.3f}", "-c:a", "pcm_s16le", "-ar", "44100", str(dst)]
+    base = [config.ffmpeg(), "-y", "-v", "error", "-nostdin", *inputs]
+    if len(graph) <= LONG_FILTER:
+        r = subprocess.run([*base, "-filter_complex", graph, *tail], capture_output=True, text=True)
+    else:  # đồ thị dài: đưa bằng file, tránh giới hạn độ dài dòng lệnh (Windows)
+        script = dst.with_suffix(".filter.txt")
+        script.write_text(graph, encoding="utf-8")
+        r = subprocess.run([*base, "-/filter_complex", str(script), *tail], capture_output=True, text=True)
+        if r.returncode != 0 and "Unrecognized option" in r.stderr:  # ffmpeg trước 7.0
+            r = subprocess.run([*base, "-filter_complex_script", str(script), *tail], capture_output=True, text=True)
+        script.unlink(missing_ok=True)
     if r.returncode != 0:
         raise RuntimeError(tr("ffmpeg could not mix the dub: {error}", error=r.stderr[-800:]))
     return dst
@@ -671,9 +776,10 @@ def voice(plan: dict, src: dict, out: Path, step, voice_id: str | None = None, p
     end = placed[-1]["end"] + 0.4
     if end > total:  # câu cuối đọc lố: giữ khung hình cuối thêm một chút
         pad_out, total = round(pad_out + end - total, 2), end
-    if total < pipeline.MIN_SECONDS:
+    whole = bool(d.get("whole"))  # cả video: độ dài theo video gốc, không bó trong 62–90 s
+    if total < pipeline.MIN_SECONDS and not whole:
         pad_out, total = round(pad_out + pipeline.MIN_SECONDS - total, 2), float(pipeline.MIN_SECONDS)
-    if total > pipeline.MAX_SECONDS:
+    if total > pipeline.MAX_SECONDS and not whole:
         raise RuntimeError(tr("The dub would last {n} s, over {max} s: shorten the French lines or pick a shorter "
                               "part", n=f"{total:.0f}", max=pipeline.MAX_SECONDS))
     fast = sum(1 for p in placed if p["rate"] > 1.001)
@@ -699,8 +805,9 @@ def remember_voices(pid: int, nar: dict) -> None:
     """Giọng đã gán cho từng người nói, để trang dự án hiện tên giọng."""
     p = db.get_project(pid)
     opts = dict((p["meta"].get("dub") or {}) if p else {})
-    if opts.get("assigned", {}) != nar.get("assigned", {}):
+    if opts.get("assigned", {}) != nar.get("assigned", {}) or opts.get("total") != nar.get("total"):
         opts["assigned"] = nar.get("assigned", {})
+        opts["total"] = nar.get("total")  # độ dài video lồng (giây): bản dài hơn giới hạn Reels không tự gửi Postiz
         db.update_project(pid, meta={"dub": opts})
 
 
@@ -767,7 +874,8 @@ def view(proj: dict) -> dict | None:
     speakers = [{**sp, "voice_id": picks.get(sp["label"], ""),
                  "voice_name": (assigned.get(sp["label"]) or {}).get("name", "")}
                 for sp in opts.get("speakers") or []]
-    return {"start": opts.get("start"), "end": opts.get("end"), "excerpt": opts.get("excerpt"),
+    return {"start": opts.get("start"), "end": opts.get("end"), "whole": bool(opts.get("whole")),
+            "excerpt": opts.get("excerpt"),
             "pad": opts.get("pad"), "blur": opts.get("blur"), "blur_auto": bool(opts.get("blur_auto")),
             "source": media, "needs_review": needs_review(proj), "speakers": speakers}
 
@@ -806,7 +914,15 @@ def update(pid: int, data: dict) -> str | None:
             logs.append(tr("Blur box set at {a}–{b} % of the height", a=round(box[1] * 100),
                            b=round((box[1] + box[3]) * 100)) if box else tr("Blur box turned off"))
             rerun = rerun or "render"  # chạy lại từ giọng cũng dựng lại
-    if "start" in data or "end" in data:
+    if "whole" in data:
+        whole = bool(data["whole"])
+        if whole != bool(opts.get("whole")):
+            opts["whole"] = whole
+            if whole:
+                opts.update(start=None, end=None)
+            logs.append(tr("Dub the whole video") if whole else tr("Dub a part of the video"))
+            rerun = "script"
+    if ("start" in data or "end" in data) and not opts.get("whole"):
         a, b = clean_excerpt(data.get("start", opts.get("start")), data.get("end", opts.get("end")))
         if (a, b) != (opts.get("start"), opts.get("end")):
             opts.update(start=a, end=b)
