@@ -358,7 +358,7 @@ def fill_pubdates(dates: dict[str, float]) -> None:
 
 def get_clip(cid: str) -> dict | None:
     with conn() as c:
-        r = c.execute("SELECT clip.*, watch.name AS watch_name "
+        r = c.execute("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target "
                       "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.id=?", (cid,)).fetchone()
     return dict(r) if r else None
 

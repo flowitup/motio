@@ -1,18 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ExternalLink, Eye, EyeOff, FolderOpen, Languages, Loader2, Video } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Eye, EyeOff, FolderOpen, Video } from "lucide-react";
 import { Link, useNavigate } from "react-router";
-import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { ExternalA } from "@/components/external-link";
-import { Choice, Field } from "@/components/form";
 import { ScoreBadge } from "@/components/status-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import type { Api, Clip } from "@/lib/api";
 import { listName } from "@/lib/watch-name";
-import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** The followed source a clip came from; a Bilibili list is named in the UI language, not with the engine's English text. */
@@ -23,32 +18,6 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).
 export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [duration, setDuration] = useState("80");
-  // a trending video is made on its own; any other source's, only when the toggle is on
-  const [only, setOnly] = useState(clip.watch_kind === "trending");
-  const [mute, setMute] = useState(true); // the source's own voice (Chinese) off under the French one
-  const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
-  const choice = useChannelChoice(api);
-  const produce = useMutation({
-    mutationFn: () =>
-      api.produceClip(clip.id, { duration: Number(duration), links_only: only, channel: choice.channel, mute_voice: mute }),
-    onSuccess: ({ project_id }) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["clips"] });
-      qc.invalidateQueries({ queryKey: ["watches"] });
-      navigate(`/projects/${project_id}`);
-    },
-  });
-  const dub = useMutation({
-    mutationFn: () => api.dubClip(clip.id, choice.channel, whole),
-    onSuccess: ({ project_id }) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["clips"] });
-      qc.invalidateQueries({ queryKey: ["watches"] });
-      navigate(`/projects/${project_id}`);
-    },
-  });
   const status = useMutation({
     mutationFn: (s: "new" | "hidden") => api.setClipStatus(clip.id, s),
     onSuccess: () => {
@@ -57,7 +26,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
     },
   });
   const title = clip.title_fr || clip.title || clip.url;
-  const error = produce.error ?? dub.error ?? status.error;
+  const error = status.error;
 
   return (
     <Card className="gap-3 p-4">
@@ -137,57 +106,14 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
               >
                 {clip.status === "hidden" ? <Eye /> : <EyeOff />}
               </Button>
-              <Button variant={open ? "outline" : "default"} aria-expanded={open} onClick={() => setOpen(!open)}>
+              <Button onClick={() => navigate(`/projects/new?clip=${encodeURIComponent(clip.id)}`)}>
                 <Video />
                 {t.clips.produce}
-                <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
               </Button>
             </>
           )}
         </div>
       </div>
-      {open && (
-        <div className="flex flex-wrap items-end gap-4 border-t pt-3">
-          {choice.channels.length > 0 && (
-            <Field label={t.channels.pick}>
-              <ChannelChoice choice={choice} className="w-44" />
-            </Field>
-          )}
-          <Field label={t.projects.duration}>
-            <Choice
-              value={duration}
-              onChange={setDuration}
-              options={["70", "80", "90"].map((d) => [d, t.projects.durations[d]])}
-              className="w-36"
-            />
-          </Field>
-          <div className="grid gap-1 pb-1">
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={only} onCheckedChange={setOnly} />
-              {t.clips.only}
-            </label>
-            {!only && <p className="text-xs text-muted-foreground">{t.clips.onlyHint}</p>}
-          </div>
-          <label className="flex items-center gap-2 pb-1 text-sm">
-            <Switch checked={mute} onCheckedChange={setMute} />
-            {t.clips.muteVoice}
-          </label>
-          <label className="flex items-center gap-2 pb-1 text-sm" title={t.dub.wholeClipHint}>
-            <Switch checked={whole} onCheckedChange={setWhole} />
-            {t.dub.wholeClip}
-          </label>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" onClick={() => dub.mutate()} disabled={produce.isPending || dub.isPending} title={t.clips.dubHint}>
-              {dub.isPending ? <Loader2 className="animate-spin" /> : <Languages />}
-              {t.clips.dub}
-            </Button>
-            <Button onClick={() => produce.mutate()} disabled={produce.isPending || dub.isPending}>
-              {produce.isPending ? <Loader2 className="animate-spin" /> : <Video />}
-              {t.clips.create}
-            </Button>
-          </div>
-        </div>
-      )}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
     </Card>
   );

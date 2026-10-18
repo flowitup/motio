@@ -441,6 +441,14 @@ def test_dub_from_a_new_video(client):
     assert p["mode"] == "dub" and "rights" not in p["meta"] and p["title"] == "熊猫"
     assert db.get_clip("youtube:z1")["status"] == "used"
     assert client.post("/api/clips/nope/dub", headers=H).status_code == 404
+    db.insert_clips([{"id": "youtube:z2", "watch_id": wid, "site": "youtube", "url": "https://youtube.com/watch?v=z2",
+                      "title": "熊猫2", "duration": 300, "status": "new"}])
+    whole = client.post("/api/clips/youtube:z2/dub", headers=H, json={"whole": True})
+    assert db.get_project(whole.json()["project_id"])["meta"]["dub"]["whole"] is True
+    db.insert_clips([{"id": "youtube:z3", "watch_id": wid, "site": "youtube", "url": "https://youtube.com/watch?v=z3",
+                      "title": "熊猫3", "duration": 300, "status": "new"}])
+    part = client.post("/api/clips/youtube:z3/dub", headers=H, json={"start": 10, "end": 80})  # a part set on the form
+    assert db.get_project(part.json()["project_id"])["meta"]["dub"] == {"start": 10.0, "end": 80.0}
 
 
 # ---------- dựng thật bằng FFmpeg ----------

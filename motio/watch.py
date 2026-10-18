@@ -368,18 +368,21 @@ def check_all(ids: list[int] | None = None) -> dict:
 
 
 # ---------- làm video ----------
-def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True) -> int:
+def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True,
+            subject: str | None = None) -> int:
     """Dự án chủ đề từ một video mới: link của video + tiêu đề làm chủ đề. LookupError / ValueError.
 
     links_only: None (mặc định) hoặc False = tìm thêm video cho chủ đề; True = chỉ dùng video này. Không còn khai báo
     quyền nguồn (chủ, 2026-10-18: video từ đâu cũng được).
     mute_voice (mặc định): tiếng gốc của nguồn (giọng tiếng Trung) im hẳn dưới giọng đọc Pháp, `meta.mute_source`.
+    subject: chủ đề chủ đã sửa ở trang "Video mới"; None = tiêu đề của video, "" = chỉ dùng link.
     """
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
     title_fr, title = c.get("title_fr") or "", c.get("title") or ""
-    subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
+    if subject is None:
+        subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
     pid = topic.create(subject, [c["url"]], bool(links_only), duration)
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
