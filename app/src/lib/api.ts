@@ -582,8 +582,8 @@ export function makeApi(url: string, token: string) {
     redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
     continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới. */
-    dubClip: (id: string, channel?: number, whole?: boolean) =>
-      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel, whole }),
+    dubClip: (id: string, body: { channel?: number; whole?: boolean; start?: number; end?: number }) =>
+      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, body),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
     /** Đặt âm lượng tiếng gốc (0..1); nếu đã có giọng đọc thì dựng lại video ngay, không đọc lại. */
     setSourceVolume: (id: number, volume: number) =>
@@ -619,10 +619,14 @@ export function makeApi(url: string, token: string) {
     checkWatch: (id: number) => call<{ started: boolean }>("POST", `/api/watches/${id}/check`),
     clips: (status: ClipStatus, watchId?: number) =>
       call<Clip[]>("GET", `/api/clips?status=${status}${watchId ? `&watch_id=${watchId}` : ""}`),
+    clip: (id: string) => call<Clip>("GET", `/api/clips/${encodeURIComponent(id)}`),
     setClipStatus: (id: string, status: "new" | "hidden") =>
       call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
     /** Video giải thích từ một video mới; links_only = chỉ dùng video này, không tìm thêm YouTube / Bilibili. */
-    produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean }) =>
+    produceClip: (
+      id: string,
+      body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean; topic?: string },
+    ) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
     /** Trang dự án có lọc (kênh, kiểu, trạng thái, tìm chữ) và "tải thêm" bằng `before`. */

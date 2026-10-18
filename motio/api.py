@@ -115,6 +115,8 @@ class EffectsIn(BaseModel):
 class ClipDubIn(BaseModel):
     channel: int | None = None
     whole: bool = False  # lồng cả video (xem DubIn)
+    start: float | None = None  # đoạn lồng tiếng (xem DubIn)
+    end: float | None = None
 
 
 class DubPatch(BaseModel):
@@ -150,6 +152,7 @@ class ClipProduceIn(BaseModel):
     links_only: bool | None = None  # None = tìm thêm video ngoài video này (mặc định)
     channel: int | None = None  # như ProduceIn
     mute_voice: bool = True  # tắt hẳn tiếng gốc của nguồn (giọng tiếng Trung) dưới giọng đọc Pháp
+    topic: str | None = None  # chủ đề chủ đã sửa; None = tiêu đề của video, "" = chỉ dùng link
 
 
 class ScriptIn(BaseModel):
@@ -561,6 +564,10 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(404, tr("Video not found"))
         return c
 
+    @app.get("/api/clips/{cid}", dependencies=[Depends(auth)])
+    def get_clip(cid: str):
+        return _clip(cid)
+
     @app.patch("/api/clips/{cid}", dependencies=[Depends(auth)])
     def patch_clip(cid: str, body: ClipPatch):
         c = _clip(cid)
@@ -580,7 +587,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = watch.produce(cid, body.duration, body.links_only, body.mute_voice)
+            pid = watch.produce(cid, body.duration, body.links_only, body.mute_voice, body.topic)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -597,7 +604,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = dub.from_clip(cid, whole=bool(body and body.whole))
+            pid = dub.from_clip(cid, whole=bool(body and body.whole), start=body and body.start, end=body and body.end)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)

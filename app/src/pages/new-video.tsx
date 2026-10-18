@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice, type ChannelChoiceState } from "@/components/channel-choice";
 import { clock, parseClock } from "@/components/dub-cards";
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useApi, type Api } from "@/lib/api";
+import { ExternalA } from "@/components/external-link";
+import { useApi, type Api, type Clip } from "@/lib/api";
 import { estimate } from "@/lib/estimate";
 import { imageProviderLabel, providerName, videoPicturesUsd } from "@/lib/image-models";
 import { cn } from "@/lib/utils";
@@ -181,36 +182,62 @@ function useEstimateLine(api: Api) {
 const channelName = (choice: ChannelChoiceState) => choice.channels.find((c) => String(c.id) === choice.value)?.name;
 const minSec = (n: number) => t.studio.minSec(n);
 
+/** The video picked in a list (Trending, Followed) that this form makes a video from: it stands in for the link fields. */
+function ClipSection({ clip, children }: { clip: Clip; children?: ReactNode }) {
+  const title = clip.title_fr || clip.title || clip.url;
+  return (
+    <Section icon={Link2} label={t.clips.source} hint={t.clips.sourceHint}>
+      <div className="flex items-center gap-4">
+        {clip.thumbnail ? (
+          <img src={clip.thumbnail} alt="" referrerPolicy="no-referrer" className="aspect-video w-32 shrink-0 rounded-md bg-muted object-cover" />
+        ) : (
+          <div className="aspect-video w-32 shrink-0 rounded-md bg-muted" />
+        )}
+        <div className="min-w-0 space-y-1">
+          <div className="text-[13px] leading-5 font-medium">{title}</div>
+          <ExternalA href={clip.url} className="block truncate font-mono text-xs text-muted-foreground">
+            {clip.url.replace(/^https?:\/\/(www\.)?/, "")}
+          </ExternalA>
+        </div>
+      </div>
+      {children}
+    </Section>
+  );
+}
+
 /** Lồng tiếng Pháp một video (Douyin, Bilibili, YouTube…), tuỳ chọn đặt đoạn cần lồng. */
-function DubConsole({ api }: { api: Api }) {
+function DubConsole({ api, clip }: { api: Api; clip?: Clip }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [link, setLink] = useState("");
+  const [link, setLink] = useState(clip?.url ?? "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
+  const [whole, setWhole] = useState(!!clip); // dub the whole video, whatever its length; a video picked in a list is dubbed whole
+
   const choice = useChannelChoice(api);
   const start = parseClock(from);
   const end = parseClock(to);
   const badTime = !whole && (Number.isNaN(start) || Number.isNaN(end));
   const create = useMutation({
-    mutationFn: () =>
-      api.createDub({
-        link: link.trim(),
+    mutationFn: () => {
+      const body = {
         ...(!whole && start != null ? { start } : {}),
         ...(!whole && end != null ? { end } : {}),
         ...(whole ? { whole } : {}),
         channel: choice.channel,
-      }),
+      };
+      return clip ? api.dubClip(clip.id, body) : api.createDub({ link: link.trim(), ...body });
+    },
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
+      if (clip) for (const k of ["clips", "watches"]) qc.invalidateQueries({ queryKey: [k] });
       navigate(`/projects/${project_id}`);
     },
   });
   const part = !whole && start != null && end != null && !badTime && end > start ? end - start : null;
   const line = useEstimateLine(api);
   const summary = [
-    link.trim().replace(/^https?:\/\/(www\.)?/, ""),
+    (clip?.title_fr || clip?.title || link.trim()).replace(/^https?:\/\/(www\.)?/, ""),
     whole ? t.dub.lengthWhole : "",
     part != null ? `${clock(start)} → ${clock(end)}` : "",
     part != null ? minSec(part) : "",
@@ -239,19 +266,23 @@ function DubConsole({ api }: { api: Api }) {
         </>
       }
     >
-      <Section icon={Link2} label={t.dub.link} htmlFor="dub-link" hint={t.dub.linkHint}>
-        <div className="flex flex-wrap items-start gap-3">
-          <Input
-            id="dub-link"
-            autoFocus
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder={t.dub.linkPlaceholder}
-            className="h-11 min-w-0 flex-1 font-mono"
-          />
-          <AddVideoFile api={api} onAdded={setLink} size="lg" />
-        </div>
-      </Section>
+      {clip ? (
+        <ClipSection clip={clip} />
+      ) : (
+        <Section icon={Link2} label={t.dub.link} htmlFor="dub-link" hint={t.dub.linkHint}>
+          <div className="flex flex-wrap items-start gap-3">
+            <Input
+              id="dub-link"
+              autoFocus
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder={t.dub.linkPlaceholder}
+              className="h-11 min-w-0 flex-1 font-mono"
+            />
+            <AddVideoFile api={api} onAdded={setLink} size="lg" />
+          </div>
+        </Section>
+      )}
       <Section icon={Clock} label={t.dub.length} hint={t.dub.lengthHint}>
         <Pick
           label={t.dub.length}
@@ -309,12 +340,17 @@ function DubConsole({ api }: { api: Api }) {
 }
 
 /** Video giải thích từ một chủ đề bất kỳ và / hoặc link video, không cần tin hot. */
-function TopicConsole({ api }: { api: Api }) {
+function TopicConsole({ api, clip }: { api: Api; clip?: Clip }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [topic, setTopic] = useState("");
+  // a video picked in a list: its title is the topic to start from, a trending video is made from itself alone
+  const [topic, setTopic] = useState(() => {
+    const title = clip?.title_fr || clip?.title || "";
+    return clip?.title_fr && clip.title && clip.title_fr !== clip.title ? `${title} (${clip.title})` : title;
+  });
   const [text, setText] = useState("");
-  const [linksOnly, setLinksOnly] = useState(false);
+  const [linksOnly, setLinksOnly] = useState(clip?.watch_kind === "trending");
+  const [mute, setMute] = useState(true); // the source's own voice (Chinese) off under the French one
   const [duration, setDuration] = useState("80");
   const choice = useChannelChoice(api);
   const lines = (v: string) =>
@@ -323,12 +359,22 @@ function TopicConsole({ api }: { api: Api }) {
       .map((l) => l.trim())
       .filter(Boolean);
   const topics = lines(topic);
-  const several = topics.length > 1; // one video per topic; links belong to a single topic
-  const links = several ? [] : lines(text);
+  const several = !clip && topics.length > 1; // one video per topic; links belong to a single topic
+  const links = clip ? [clip.url] : several ? [] : lines(text);
   const [result, setResult] = useState<{ done: number; total: number; error?: string } | null>(null);
   const create = useMutation({
     // One project per topic, one after the other; the first failure stops the rest and keeps those topics in the box.
     mutationFn: async () => {
+      if (clip) {
+        const r = await api.produceClip(clip.id, {
+          topic: topics.join(" "),
+          duration: Number(duration),
+          links_only: linksOnly,
+          channel: choice.channel,
+          mute_voice: mute,
+        });
+        return { first: r.project_id, done: 1, total: 1, error: undefined, rest: [] as string[] };
+      }
       const list = topics.length ? topics : [""];
       let done = 0;
       let error: string | undefined;
@@ -349,6 +395,7 @@ function TopicConsole({ api }: { api: Api }) {
     onMutate: () => setResult(null),
     onSuccess: ({ first, done, total, error, rest }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
+      if (clip) for (const k of ["clips", "watches"]) qc.invalidateQueries({ queryKey: [k] });
       if (total === 1) return navigate(`/projects/${first}`);
       setResult({ done, total, error });
       setTopic(rest.join("\n"));
@@ -357,7 +404,7 @@ function TopicConsole({ api }: { api: Api }) {
   const line = useEstimateLine(api);
   const summary = [
     several ? t.projects.topicsCount(topics.length) : topic.trim(),
-    links.length ? t.studio.linkCount(links.length) : "",
+    links.length && !clip ? t.studio.linkCount(links.length) : "",
     t.projects.durations[duration],
     channelName(choice),
   ]
@@ -394,16 +441,35 @@ function TopicConsole({ api }: { api: Api }) {
         </>
       }
     >
-      <Section icon={Search} label={t.projects.topic} htmlFor="topic" hint={`${t.projects.topicHint} ${t.projects.topicsHint}`}>
+      {clip && (
+        <ClipSection clip={clip}>
+          <label className="mt-2 flex min-h-10 items-center gap-3 text-[13px]">
+            <Switch checked={linksOnly} onCheckedChange={setLinksOnly} />
+            {t.clips.only}
+          </label>
+          {!linksOnly && <p className="text-xs leading-[18px] text-muted-foreground">{t.clips.onlyHint}</p>}
+          <label className="flex min-h-10 items-center gap-3 text-[13px]">
+            <Switch checked={mute} onCheckedChange={setMute} />
+            {t.clips.muteVoice}
+          </label>
+        </ClipSection>
+      )}
+      <Section
+        icon={Search}
+        label={t.projects.topic}
+        htmlFor="topic"
+        hint={clip ? t.clips.topicFromVideo : `${t.projects.topicHint} ${t.projects.topicsHint}`}
+      >
         <Textarea
           id="topic"
-          autoFocus
+          autoFocus={!clip}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           placeholder={t.projects.topicPlaceholder}
           className="h-[92px] min-h-[92px] resize-none"
         />
       </Section>
+      {!clip && (
       <Section icon={Link2} label={t.projects.links} htmlFor="topic-links" hint={`${t.projects.linksHint} ${t.upload.hint}`}>
         <Textarea
           id="topic-links"
@@ -421,6 +487,7 @@ function TopicConsole({ api }: { api: Api }) {
           </label>
         )}
       </Section>
+      )}
       <Section icon={Clock} label={t.projects.duration} hint={t.projects.durationHint}>
         <Pick label={t.projects.duration} value={duration} onChange={setDuration} options={["70", "80", "90"].map((d): [string, string] => [d, t.projects.durations[d]])} />
       </Section>
@@ -555,10 +622,15 @@ function AiConsole({ api }: { api: Api }) {
   );
 }
 
-/** Video mới: giải thích một chủ đề / link video, video AI, hoặc lồng tiếng Pháp một video. */
+/** Video mới: giải thích một chủ đề / link video, video AI, hoặc lồng tiếng Pháp một video. `?clip=<id>`: làm từ một video đã chọn ở Trending / Theo dõi. */
 export default function NewVideoPage() {
   const api = useApi()!;
+  const [params] = useSearchParams();
+  const clipId = params.get("clip");
   const [kind, setKind] = useState<Kind>("topic");
+  const clip = useQuery({ queryKey: ["clip", clipId], queryFn: () => api.clip(clipId!), enabled: !!clipId, retry: false });
+  const kinds = clipId ? KINDS.filter((k) => k.value !== "ai") : KINDS; // an AI video has no source video
+  const waiting = !!clipId && !clip.data && !clip.error;
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar>
@@ -568,7 +640,7 @@ export default function NewVideoPage() {
           value={kind}
           onChange={setKind}
           className="w-[460px] max-w-full"
-          options={KINDS.map(({ value, icon: Icon }) => ({
+          options={kinds.map(({ value, icon: Icon }) => ({
             value,
             label: (
               <>
@@ -581,7 +653,21 @@ export default function NewVideoPage() {
       </TopBar>
       <SetupCard />
       <BudgetNotice />
-      {kind === "topic" ? <TopicConsole api={api} /> : kind === "ai" ? <AiConsole api={api} /> : <DubConsole api={api} />}
+      {clipId && clip.error ? (
+        <p role="alert" className="px-8 py-6 text-sm text-destructive">
+          {t.clips.notFound}
+        </p>
+      ) : waiting ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="animate-spin text-muted-foreground" />
+        </div>
+      ) : kind === "topic" ? (
+        <TopicConsole api={api} clip={clip.data} />
+      ) : kind === "ai" ? (
+        <AiConsole api={api} />
+      ) : (
+        <DubConsole api={api} clip={clip.data} />
+      )}
     </div>
   );
 }
