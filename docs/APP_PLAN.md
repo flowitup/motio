@@ -618,6 +618,40 @@ review screen they all need.
   `qwen-image-edit-2511` really keeps a face from one portrait, its exact price, and whether fal takes a data URI for
   `image_urls` as documented; the screen in a real Tauri window on Mac / Windows.
 
+## Hide text or watermark on a source (added 18/10/2026)
+
+Asked by the owner on 18/10 ("mask blur che chữ hoặc watermark cố định của nguồn"). Brainstorm options: (A) boxes per
+source applied at render, (B) a blur mode in Remove logo, (C) one box per channel applied to every video. The owner
+picked A with a plain blur; C was left out because it would apply a box with no person choosing it.
+
+- `motio/masks.py`: the boxes live in `meta.masks` (keyed by source link, fractions of the source frame, up to 6 per
+  source, each side at least 2 %; shape below), keyed by link so they survive a new download or a logo clean.
+  `masks.attach` adds them to the sources right before the render (news, topic and dub; AI videos have no footage);
+  `render.blur_filter` now takes several boxes and blurs each one (gblur, sigma 22) on the source picture only, so the
+  title, badge and French captions stay sharp, in the 9:16 video and the 16:9 copy. A dub blurs its subtitle band
+  (`meta.dub.blur`) plus these boxes.
+- `PUT /api/projects/{id}/masks {sources: [{boxes, keep}, …]}` (one entry per source) saves them and, when the voice is
+  already made and a box changed, renders again with that voice (`queued`); the project view has `masks` (each
+  source's /media path, length and boxes).
+- Project page: **Hide text or watermark** card: pick the source, slide to a frame, drag to add boxes, remove one,
+  clear the source, **Save and re-render**. The drawing layer has the video's own size, so a box matches the picture
+  when it is letterboxed.
+- Nothing finds or places a box on its own; a moving logo still needs Remove logo. Posts, `sources.txt` and the rights
+  flag are unchanged.
+- Added the same day on the owner's ask ("phủ ảnh (logo) … hoặc zoom"), options agreed: a logo library in Settings and
+  a drawn keep area.
+  - **Logos** (`motio/logos.py`, Settings → Logos, `GET / POST /api/logos`, `DELETE /api/logos/{id}`): up to 20
+    pictures, opened with Pillow, stored as RGBA PNG ≤ 1024 px in `data/logos/<id>.png` (id = start of the sha256, so
+    one picture is one logo), name in `<id>.json`; `/media` serves the `logos` folder.
+  - A box can carry a logo (`{"box": [...], "logo": id}`): it is still blurred, and `masks.cover_png` draws every logo
+    fitted and centred in its box on one transparent PNG at the source's size, which `render_piece` overlays after the
+    blur. A deleted logo leaves its box blurred only.
+  - **Keep area** (`meta.masks[url].keep`, at least 25 % of the width and height, so at most a 4× zoom): `render_piece`
+    crops the source to it after the blur and logos and before the blurred background and the fit, so text or a
+    watermark outside it is gone from both, and the picture grows to fill the frame.
+  - `meta.masks[url]` is now `{"boxes": [{"box", "logo"}], "keep"}`; the card has a tool choice (Blur, Cover with
+    logo + which logo, Area to keep), shows the logo in its box and dims what the keep area cuts.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

@@ -95,6 +95,10 @@ as authoritative for scope and milestones.
   - `usage.py` Stats page: every successful ElevenLabs call is a `usage` row (characters, estimated USD, project /
     channel / tool job from a ContextVar), and so is every Claude call (`llm`), every new AI picture (`picture`, from
     `images.make`) and every AI clip (`clip`); price and monthly budget in Settings; over budget pauses `automake` only
+  - `masks.py` what the user draws on each project source to hide burned-in text or a fixed watermark: blurred boxes
+    (optionally covered with a logo) and a keep area (zoom); `meta.masks` keyed by source link, applied at render on
+    the source picture only (`render.render_piece`: `blur`, `cover`, `keep`)
+  - `logos.py` the owner's logo library (Settings → Logos), RGBA PNGs in `data/logos/`, served under `/media/logos/`
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
   - `__main__.py` CLI
@@ -194,7 +198,10 @@ on every PR; keep them green.
 - Logo/watermark removal exists only as the manual "Remove logo" tool (`motio/delogo.py`): the user picks one video and
   starts processing without a rights confirmation form. Preserve previously recorded rights metadata. Never run it
   automatically in the news / topic pipelines or as a batch step, and never add features that evade duplicate /
-  Content ID detection.
+  Content ID detection. The other manual path (owner, 2026-10-18) is `motio/masks.py`: boxes the user draws on a
+  project's source (burned-in text, a watermark that stays in place) are blurred, optionally covered with one of the
+  owner's logos (`motio/logos.py`), and a drawn keep area zooms the rest out of the frame, all at render; nothing finds
+  or places a box by itself, and there is no channel-wide or batch box.
 - A dub (`motio/dub.py`) keeps someone else's pictures and words: it is auto-sent to Postiz only when `meta.rights` is
   owned / licensed / cc, otherwise it stops at the video gate (`dub.needs_review`; `unknown` counts as not owned). The
   subtitle blur covers only the subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is

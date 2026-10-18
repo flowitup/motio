@@ -138,6 +138,14 @@ avoid posting the same thing twice). The thresholds are Motio's own, not a platf
 On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
 description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
 
+**Hide text or watermark** (project page, news / topic / dub videos) hides burned-in text or a watermark that stays in
+one place on a source video. Pick the source, move the slider to a frame, choose a tool and drag on the picture:
+**Blur** adds a blurred box, **Cover with logo** adds a blurred box with one of your logos drawn on it (add logos in
+**Settings → Logos**; a PNG with a transparent background works best), **Area to keep (zoom)** keeps only the part you
+draw, so what is outside leaves the frame. Up to 6 boxes per source. **Save and re-render** renders the video again with
+the voice it already has. It all applies to the whole source and sits under the title and French captions; nothing is
+detected or hidden on its own. A logo that moves needs **Remove logo**.
+
 **Remove logo** cleans a static logo or watermark off one of your own videos: pick a project's source clip
 or upload a file, draw a box around the logo on a frame (or press **Auto-detect** to find logos that stay in place), then
 press **Remove logo**. The LaMa AI model redraws what was behind the logo on every frame.
