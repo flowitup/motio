@@ -396,7 +396,7 @@ export type RefreshState = {
   last_auto: { at: number; projects: number[] } | null; // lượt tự làm gần nhất (sau lượt tự cập nhật)
 };
 
-export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending";
+export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending" | "account";
 export type Site = "youtube" | "bilibili" | "kuaishou" | "douyin" | "weibo";
 
 /** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
@@ -411,6 +411,37 @@ export type Watch = {
   last_checked: number | null;
   last_error: string | null;
   new_count: number;
+};
+
+export type ScanMode = "account" | "keyword" | "hashtag";
+export type ScanOptions = { platforms: { site: Site; modes: ScanMode[] }[]; limits: number[]; default_limit: number; max_lines: number };
+/** One video of a scan: the table's columns. views / likes are null when the site does not say. */
+export type ScanRow = {
+  id: string;
+  video_id: string;
+  site: Site;
+  url: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  views: number | null;
+  likes: number | null;
+  pubdate: number | null; // Unix seconds
+  thumbnail: string | null;
+  source: string; // the input line it came from
+};
+export type ScanJob = {
+  id: string;
+  site: Site;
+  mode: ScanMode;
+  lines: string[];
+  limit: number;
+  status: "running" | "done" | "failed" | "stopped";
+  message: string | null;
+  rows: ScanRow[];
+  errors: string[]; // one per input line that could not be read
+  created_at: number;
+  finished_at: number | null;
 };
 
 /** A video category the engine can follow (Trending): `target` is the watch's target, `name` its English name. */
@@ -614,6 +645,12 @@ export function makeApi(url: string, token: string) {
       call<Watch>("PATCH", `/api/watches/${id}`, body),
     deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),
     checkWatches: () => call<{ started: boolean }>("POST", "/api/watches/check"),
+    scanOptions: () => call<ScanOptions>("GET", "/api/scan/options"),
+    startScan: (body: { site: Site; mode: ScanMode; text: string; limit: number }) => call<ScanJob>("POST", "/api/scan", body),
+    scan: (id: string) => call<ScanJob>("GET", `/api/scan/${id}`),
+    /** The scan started last (null after an engine restart): the Scan screen shows it again when you come back. */
+    latestScan: () => call<ScanJob | null>("GET", "/api/scan/latest"),
+    stopScan: (id: string) => call<ScanJob>("POST", `/api/scan/${id}/stop`),
     /** Mọi video đã thấy của một tài khoản, mới đăng trước (không rõ ngày: cuối). */
     watchVideos: (id: number) => call<Clip[]>("GET", `/api/watches/${id}/videos`),
     checkWatch: (id: number) => call<{ started: boolean }>("POST", `/api/watches/${id}/check`),

@@ -45,6 +45,7 @@ from . import (
     notify,
     pipeline,
     postiz,
+    scan,
     search,
     settings,
     shots,
@@ -134,6 +135,13 @@ class TrendPatch(BaseModel):
 class WatchIn(BaseModel):
     target: str  # link kênh / playlist YouTube, không gian Bilibili, hoặc từ khoá tìm
     site: str = "youtube"  # nơi tìm khi `target` là từ khoá: youtube | bilibili
+
+
+class ScanIn(BaseModel):
+    site: str  # youtube | bilibili | douyin | kuaishou | weibo
+    mode: str  # account | keyword | hashtag
+    text: str  # one to ten lines: links, ids, hashtags or keywords
+    limit: int = scan.DEFAULT_LIMIT
 
 
 class WatchPatch(BaseModel):
@@ -550,6 +558,36 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             state["watching"] = True
             threading.Thread(target=_check_watches, args=([wid],), daemon=True).start()
         return {"started": started}
+
+    # ---------- scan: read accounts, hashtags, keywords into a table ----------
+    @app.get("/api/scan/options", dependencies=[Depends(auth)])
+    def scan_options():
+        return scan.options()
+
+    @app.post("/api/scan", status_code=202, dependencies=[Depends(auth)])
+    def scan_start(body: ScanIn):
+        try:
+            return scan.start(body.site, body.mode, body.text, body.limit)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/scan/latest", dependencies=[Depends(auth)])
+    def scan_latest():
+        return scan.latest()
+
+    @app.get("/api/scan/{job_id}", dependencies=[Depends(auth)])
+    def scan_get(job_id: str):
+        try:
+            return scan.view(job_id)
+        except KeyError:
+            raise HTTPException(404, tr("Scan not found")) from None
+
+    @app.post("/api/scan/{job_id}/stop", dependencies=[Depends(auth)])
+    def scan_stop(job_id: str):
+        try:
+            return scan.stop(job_id)
+        except KeyError:
+            raise HTTPException(404, tr("Scan not found")) from None
 
     @app.get("/api/clips", dependencies=[Depends(auth)])
     def clips(status: str = "new", watch_id: int | None = None, limit: int = 200):

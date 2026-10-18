@@ -109,7 +109,7 @@ def _title(status: dict) -> str:
     return " ".join(text.split())
 
 
-def _clip(status: dict, rank: int) -> tuple[dict, str] | None:
+def _clip(status: dict, rank: int, min_seconds: float = MIN_SECONDS) -> tuple[dict, str] | None:
     """A video post as a `clip` row and the address of its mp4; None for any other post."""
     page = status.get("page_info") or {}
     media = page.get("media_info") or {}
@@ -118,7 +118,7 @@ def _clip(status: dict, rank: int) -> tuple[dict, str] | None:
     mid = str(status.get("mblogid") or "")
     seconds = float(media.get("duration") or 0)
     title = _title(status)
-    if page.get("object_type") != "video" or not stream or not title or seconds < MIN_SECONDS \
+    if page.get("object_type") != "video" or not stream or not title or seconds < min_seconds \
             or not uid.isdigit() or not re.fullmatch(r"[A-Za-z0-9]{6,16}", mid):
         return None
     cover = next((u for u in (page.get("page_pic"), ((page.get("pic_info") or {}).get("pic_big") or {}).get("url"))

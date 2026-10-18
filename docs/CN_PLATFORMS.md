@@ -56,6 +56,19 @@ Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou,
   not copy that signing, so it stays paste-a-link. Xigua (unreachable) and Zhihu (hot list readable, but only text questions)
   also stay paste-a-link.
 
+## Accounts and the Scan screen (2026-10-18)
+
+Owner's ask: follow a channel on Kuaishou, Douyin and Weibo, and a scanner (platform, link / id / hashtag / keyword, results table).
+- **Weibo**: `weibo.com/ajax/profile/getWaterFallContent?uid=<id>&cursor=` answers the same guest session as the hot feed (the
+  profile's `mymblog` list is a 403 for a guest). Views = `media_info.online_users_number`. Tested from a cloud sandbox.
+- **Douyin**: f2's `fetch_user_post` (signed by f2, `sec_user_id`), same anonymous session as a download. Not tested from the
+  cloud sandbox (Douyin's API is out of its reach) nor yet on the Mac.
+- **Kuaishou**: `visionProfilePhotoList` with a guest `did` cookie answers `result: 400002` and a slider captcha (checked
+  2026-10-18), so Motio reads it only with the owner's own cookies (cookie file or browser) and reports a captcha as an error. Not
+  tried with real cookies yet. Kuaishou's search stays unread (it wants a `did`-bound session too).
+- Hashtag / keyword scans: YouTube (`ytsearch`, `/hashtag/`) and Bilibili (tag search, up to 20). None for the other three.
+- Xiaohongshu, Haokan, Xigua: no account page that a visitor can read (see above), so no account follow.
+
 ## Where it lives
 
 - `motio/platforms.py`: hosts, `identify`, `normalize` (link shapes), `expand` (short links), `hint`.

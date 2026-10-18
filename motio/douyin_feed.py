@@ -54,12 +54,12 @@ async def _page(index: int) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def _clip(post: dict, rank: int) -> dict | None:
+def _clip(post: dict, rank: int, min_seconds: float = MIN_SECONDS) -> dict | None:
     video = post.get("video") or {}
     seconds = (video.get("duration") or 0) / 1000
     desc = " ".join(str(post.get("desc") or "").split())
     pid = str(post.get("aweme_id") or "")
-    if not pid.isdigit() or not desc or post.get("is_ads") or post.get("images") or seconds < MIN_SECONDS:
+    if not pid.isdigit() or not desc or post.get("is_ads") or post.get("images") or seconds < min_seconds:
         return None
     stat = post.get("statistics") or {}
     cover = next((u for u in (video.get("cover") or {}).get("url_list") or [] if str(u).startswith("https://")), None)

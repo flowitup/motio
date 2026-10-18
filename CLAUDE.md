@@ -75,6 +75,13 @@ as authoritative for scope and milestones.
     called as a command, only its Kuaishou client, never its generic parsers that use watermark-removal sites); no feed
     for these sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
     `docs/CN_PLATFORMS.md`
+  - `accounts.py` + `scan.py` the videos of one account on Kuaishou, Douyin and Weibo (owner, 2026-10-18: follow a channel, and a
+    scanner): `accounts.fetch` reads a Weibo profile (guest session, no signing), a Douyin account (f2 signs it) and a
+    Kuaishou account (its page answers only a signed-in browser, so it uses the owner's own cookies from the cookie file /
+    browser, `search.site_cookies`; a slider captcha is reported, never solved); `watch.py` follows such an account (kind
+    `account`, target `<site>:user:<id>`, `accounts.identify` reads the link); `scan.py` is the Scan screen's engine (one
+    platform + mode account / hashtag / keyword, 1–10 lines, a background job read by polling, nothing saved or made;
+    YouTube / Bilibili go through yt-dlp and `trending.py`, hashtag and keyword exist only where a site's search is open)
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option

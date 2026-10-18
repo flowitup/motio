@@ -132,6 +132,25 @@ def check_cookie_file(raw: str) -> None:
         raise ValueError(tr("Not a cookies.txt file (Netscape format): {path}", path=raw)) from None
 
 
+def site_cookies(domain: str) -> dict[str, str]:
+    """The owner's own login cookies for one site, name → value: from the cookie file, else from the browser named in
+    YTDLP_COOKIES_FROM_BROWSER. {} when neither is set or readable. The values are only sent back to that site."""
+    try:
+        path = cookie_file()
+        if path:
+            jar = YoutubeDLCookieJar(str(path))
+            jar.load(ignore_discard=True, ignore_expires=True)
+        else:
+            browser = config.env("YTDLP_COOKIES_FROM_BROWSER").lower()
+            if browser not in BROWSERS:
+                return {}
+            from yt_dlp.cookies import extract_cookies_from_browser
+            jar = extract_cookies_from_browser(browser)
+    except Exception:
+        return {}
+    return {c.name: c.value for c in jar if c.value and c.domain.lstrip(".").endswith(domain)}
+
+
 _jar = threading.local()
 _jar_lock = threading.Lock()
 _jar_dir: Path | None = None

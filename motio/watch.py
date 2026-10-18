@@ -14,10 +14,10 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import db, douyin_feed, kuaishou_feed, llm, search, topic, trending, weibo_feed
+from . import accounts, db, douyin_feed, kuaishou_feed, llm, search, topic, trending, weibo_feed
 from .i18n import tr
 
-KINDS = ("channel", "playlist", "space", "search", "trending")
+KINDS = ("channel", "playlist", "space", "search", "trending", "account")
 SITES = ("youtube", "bilibili")
 # the other trending lists; Bilibili's is trending.py
 FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed, "weibo": weibo_feed}
@@ -37,8 +37,8 @@ _FEED_ENTRY = re.compile(r"<yt:videoId>([\w-]+)</yt:videoId>.*?<published>([^<]+
 _YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
 _YT_CHANNEL = re.compile(r"^/(@[^/]+|channel/UC[\w-]+|c/[^/]+|user/[^/]+)")
 NOT_A_LIST = "This is a link to a single video: paste a channel or playlist link, or use Projects → New video"
-UNSUPPORTED = ("Only YouTube channels and playlists, Bilibili spaces or search keywords can be followed. "
-               "Douyin, Facebook: paste each video link in Projects → New video")
+UNSUPPORTED = ("Only YouTube channels and playlists, Bilibili spaces, Kuaishou / Douyin / Weibo accounts or search "
+               "keywords can be followed. Facebook and other sites: paste each video link in Projects → New video")
 BILI_BLOCKED = ("Bilibili blocks requests without a login: pick a browser or set a cookie file in "
                 "Settings → Browser cookies")
 _BLOCK = re.compile(r"\b(412|352|401)\b")
@@ -55,6 +55,8 @@ def classify(text: str, site: str = "youtube") -> dict:
     text = " ".join((text or "").split())
     if not text:
         raise ValueError(tr("Paste a channel / playlist link or enter search keywords"))
+    if got := accounts.identify(text):  # a Kuaishou / Douyin / Weibo account page
+        return {"kind": "account", "site": got[0], "target": accounts.target(*got), "name": None}
     if text.startswith(trending.PREFIX):  # "bilibili:ranking:181", "bilibili:popular", "bilibili:weekly"
         return {"kind": "trending", "site": "bilibili", "target": text, "name": trending.name(text)}
     if text.startswith(kuaishou_feed.PREFIX):  # "kuaishou:featured"
@@ -123,7 +125,7 @@ def _opts(site: str, n: int | None = None) -> dict:
 
 
 def _urls(w: dict) -> list[str]:
-    if w["kind"] == "trending":  # đọc bằng trending.fetch, không qua yt-dlp
+    if w["kind"] in ("trending", "account"):  # đọc bằng trending.fetch / accounts.fetch, không qua yt-dlp
         return []
     if w["kind"] == "channel" and w["site"] == "youtube":
         return [f"{w['target']}/{tab}" for tab in YT_TABS]
@@ -248,6 +250,15 @@ def check(w: dict) -> dict:
             ok = True
             for i, c in enumerate(batch):
                 found[c["id"]] = {**c, "watch_id": w["id"], "status": "old" if first and i >= TRENDING_TAKE else "new"}
+    if w["kind"] == "account":
+        try:
+            owner, batch = accounts.fetch(w["site"], accounts.split(w["target"])[1], PER_LIST * 2)
+        except (accounts.AccountError, TypeError, ValueError) as e:
+            errors.append(str(e)[:300])
+        else:
+            ok = True
+            for i, c in enumerate(batch):
+                found[c["id"]] = {**c, "watch_id": w["id"], "status": "old" if first and i >= FIRST_TAKE else "new"}
     for url in _urls(w):
         try:
             with YoutubeDL(_opts(w["site"], PER_LIST)) as y:
