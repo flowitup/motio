@@ -330,6 +330,10 @@ VI = {
     "Douyin returned an error: {error}": "Douyin báo lỗi: {error}",
     "Douyin gave no videos (its feed may want a login from this network)":
         "Douyin không trả video nào (có thể trang chủ của họ đòi đăng nhập từ mạng này)",
+    "Unknown Weibo list: {target}": "Không có danh sách Weibo này: {target}",
+    "Could not reach Weibo: {error}": "Không kết nối được Weibo: {error}",
+    "Weibo returned an error: {error}": "Weibo báo lỗi: {error}",
+    "Weibo gave no videos": "Weibo không trả video nào",
     # French dub (dub.py, separate.py)
     "French line": "dòng tiếng Pháp",
     "Dub: {site}": "Lồng tiếng: {site}",

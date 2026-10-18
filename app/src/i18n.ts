@@ -31,6 +31,7 @@ const categoriesEn: Record<string, string> = {
   travel: "Travel",
   kuaishou_featured: "Kuaishou · Featured",
   douyin_feed: "Douyin · Home feed",
+  weibo_hot: "Weibo · Hot videos",
 };
 const categoriesVi: Record<string, string> = {
   tech: "Công nghệ",
@@ -43,6 +44,7 @@ const categoriesVi: Record<string, string> = {
   travel: "Du lịch",
   kuaishou_featured: "Kuaishou · Nổi bật",
   douyin_feed: "Douyin · Trang chủ",
+  weibo_hot: "Weibo · Video hot",
 };
 const categoryLists = (names: Record<string, string>, prefix: string) =>
   Object.fromEntries(Object.entries(names).map(([k, v]) => [`bilibili:category:${k}`, `${prefix} · ${v}`]));
@@ -101,7 +103,7 @@ const en = {
   trendVideos: {
     title: "Trending",
     intro:
-      "Videos trending on Chinese video platforms (Bilibili by category or tag, plus Kuaishou's featured list and Douyin's home feed). Pick one and make a French video: the original voice is removed. Xiaohongshu, Weibo, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
+      "Videos trending on Chinese video platforms (Bilibili by category or tag, plus Kuaishou's featured list, Douyin's home feed and Weibo's hot videos). Pick one and make a French video: the original voice is removed. Xiaohongshu, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
     check: "Check now",
     checking: "Checking…",
     lastCheck: "Last check",
@@ -118,7 +120,7 @@ const en = {
     tagHint: "Motio follows the most played videos of the last 7 days that match it.",
     sources: "Fetch videos from",
     sourcesHint: "Click a source to pause or resume it: a paused source keeps its list but is not checked or shown.",
-    feedHint: "Kuaishou's featured list and Douyin's home feed are not rankings: each check shows a fresh selection of what the site recommends to a visitor.",
+    feedHint: "Kuaishou's featured list, Douyin's home feed and Weibo's hot videos are not rankings: each check shows a fresh selection of what the site recommends to a visitor.",
     starterTitle: "Pick what to follow",
     starterBody:
       "Motio fetches what is trending in each category, scores it for a French video and shows it here. Start with the four below, add more any time.",
@@ -167,7 +169,7 @@ const en = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} likes`,
     rank: (n: number) => `#${n} in the list`,
     posted: "posted",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo" } as Record<string, string>,
   },
   account: {
     back: "Followed",
@@ -1172,7 +1174,7 @@ const vi: Messages = {
   trendVideos: {
     title: "Xu hướng",
     intro:
-      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili theo chuyên mục hoặc thẻ, danh sách Nổi bật của Kuaishou và trang chủ Douyin). Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Xiaohongshu, Weibo, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
+      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili theo chuyên mục hoặc thẻ, danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo). Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Xiaohongshu, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
     check: "Kiểm tra ngay",
     checking: "Đang kiểm tra…",
     lastCheck: "Kiểm tra lần cuối",
@@ -1189,7 +1191,7 @@ const vi: Messages = {
     tagHint: "Motio theo dõi các video được xem nhiều nhất trong 7 ngày qua khớp với từ khoá.",
     sources: "Lấy video từ",
     sourcesHint: "Bấm một nguồn để tạm dừng hoặc bật lại: nguồn tạm dừng giữ nguyên danh sách nhưng không được kiểm tra và không hiện.",
-    feedHint: "Danh sách Nổi bật của Kuaishou và trang chủ Douyin không phải bảng xếp hạng: mỗi lần kiểm tra là một lượt video mới mà trang gợi ý cho khách vãng lai.",
+    feedHint: "Danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo không phải bảng xếp hạng: mỗi lần kiểm tra là một lượt video mới mà trang gợi ý cho khách vãng lai.",
     starterTitle: "Chọn nội dung để theo dõi",
     starterBody:
       "Motio lấy video đang thịnh hành ở mỗi chuyên mục, chấm điểm xem có làm được video tiếng Pháp không rồi hiện ở đây. Bắt đầu với bốn mục bên dưới, thêm sau cũng được.",
@@ -1237,7 +1239,7 @@ const vi: Messages = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} lượt thích`,
     rank: (n: number) => `hạng ${n} trong bảng`,
     posted: "đăng",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo" } as Record<string, string>,
   },
   account: {
     back: "Theo dõi",

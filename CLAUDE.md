@@ -62,6 +62,10 @@ as authoritative for scope and milestones.
     `tab/feed` request (the same guest session as a download), ~10 videos per answer, a fresh draw, no categories; photos, ads and
     clips under 15 s are skipped; a row is downloaded like any pasted Douyin link; a login wall or a signature out of date shows as the
     source's error
+  - `weibo_feed.py` Weibo's hot timeline (`weibo:hot`, Trending screen): the visitor cookie comes from Weibo's own guest endpoint
+    (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are videos, a fresh draw, no categories; each row's
+    mp4 address (http on `*.weibocdn.com`, only that host and only public addresses are fetched) is kept in
+    `data/cache/weibo_media.json` so `search.download` gets the file without yt-dlp (`weibo_feed.download`)
   - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
@@ -182,7 +186,7 @@ on every PR; keep them green.
   `ai_clips` or a per-video count, off by default) change the post label to "Images et vidéos générées par IA."; they are
   paid per new clip (`AI_CLIP_USD_PER_SEC`, recorded in the `usage` table) and stop when the monthly budget is reached.
 - Trending (owner, 2026-10-16): the Trending screen shows videos by category or tag from Chinese video platforms
-  (Bilibili by category or tag; Kuaishou's featured list and Douyin's home feed are fresh draws, not rankings, with no category; Xiaohongshu, Weibo, Xigua and Haokan have no public list, so they stay paste-a-link). NewsNow hot news is off by default
+  (Bilibili by category or tag; Kuaishou's featured list, Douyin's home feed and Weibo's hot videos are fresh draws, not rankings, with no category; Xiaohongshu, Xigua and Haokan have no public list, so they stay paste-a-link). NewsNow hot news is off by default
   (`NEWS_TOPICS`, `config.news_topics()`; the "News topics" page and the refresh only exist when it is on). A video made
   from a clip removes the source's own voice: an explainer mutes the source (`meta.mute_source`, `ClipProduceIn.mute_voice`,
   on by default), a dub separates the voice and keeps the music (`dub.py`). Nothing from here is sent on its own unless

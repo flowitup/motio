@@ -17,13 +17,14 @@ const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
 const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
 /** The sources the owner can switch on or off, and what switching one on follows when nothing of it is followed yet. */
-const SOURCES = ["bilibili", "kuaishou", "douyin"] as const;
+const SOURCES = ["bilibili", "kuaishou", "douyin", "weibo"] as const;
 /** Followed lists that are not a Bilibili category: target → key of the name in `t.trendVideos.categories`. */
-const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:feed": "douyin_feed" };
+const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:feed": "douyin_feed", "weibo:hot": "weibo_hot" };
 const STARTERS: Record<(typeof SOURCES)[number], { target: string; site: Site }[]> = {
   bilibili: STARTER,
   kuaishou: [{ target: "kuaishou:featured", site: "kuaishou" }],
   douyin: [{ target: "douyin:feed", site: "douyin" }],
+  weibo: [{ target: "weibo:hot", site: "weibo" }],
 };
 
 /** "Tech", "Tag · 人工智能": what a chip and a message call the source. */

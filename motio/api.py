@@ -54,6 +54,7 @@ from . import (
     tts,
     usage,
     watch,
+    weibo_feed,
 )
 from .i18n import tr
 
@@ -424,7 +425,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                 ] + [{"key": "kuaishou_featured", "target": kuaishou_feed.FEATURED, "name": kuaishou_feed.NAMES[
                     kuaishou_feed.FEATURED], "site": "kuaishou"},
                      {"key": "douyin_feed", "target": douyin_feed.FEED, "name": douyin_feed.NAMES[douyin_feed.FEED],
-                      "site": "douyin"}]
+                      "site": "douyin"},
+                     {"key": "weibo_hot", "target": weibo_feed.HOT, "name": weibo_feed.NAMES[weibo_feed.HOT],
+                      "site": "weibo"}]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
