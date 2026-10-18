@@ -14,13 +14,13 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import db, douyin_feed, kuaishou_feed, llm, search, topic, trending, weibo_feed
+from . import db, douyin_feed, feeds, kuaishou_feed, llm, search, topic, trending, weibo_feed
 from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search", "trending")
 SITES = ("youtube", "bilibili")
 # the other trending lists; Bilibili's is trending.py
-FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed, "weibo": weibo_feed}
+FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed, "weibo": weibo_feed, "acfun": feeds, "pearvideo": feeds}
 FIRST_TAKE = 10  # nguồn mới thêm: hiện 10 video mới nhất mỗi danh sách, phần còn lại coi như đã thấy
 TRENDING_TAKE = 20  # bảng xếp hạng mới thêm: hiện 20 video đầu bảng
 PER_LIST = 15  # mỗi lần kiểm tra đọc tối đa 15 mục đầu của mỗi danh sách
@@ -61,6 +61,8 @@ def classify(text: str, site: str = "youtube") -> dict:
         return {"kind": "trending", "site": "kuaishou", "target": text, "name": kuaishou_feed.name(text)}
     if text.startswith(douyin_feed.PREFIX):  # "douyin:feed"
         return {"kind": "trending", "site": "douyin", "target": text, "name": douyin_feed.name(text)}
+    if feeds.is_target(text):  # "acfun:rank", "acfun:channel:63", "pearvideo:home"
+        return {"kind": "trending", "site": feeds.site(text), "target": text, "name": feeds.name(text)}
     if text.startswith(weibo_feed.PREFIX):  # "weibo:hot"
         return {"kind": "trending", "site": "weibo", "target": text, "name": weibo_feed.name(text)}
     if not re.match(r"^https?://", text, re.I):

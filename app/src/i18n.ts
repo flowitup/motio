@@ -32,6 +32,16 @@ const categoriesEn: Record<string, string> = {
   kuaishou_featured: "Kuaishou · Featured",
   douyin_feed: "Douyin · Home feed",
   weibo_hot: "Weibo · Hot videos",
+  acfun_rank: "AcFun · All sections",
+  acfun_channel_201: "AcFun · Food",
+  acfun_channel_68: "AcFun · Film talk",
+  acfun_channel_70: "AcFun · Cars",
+  acfun_channel_60: "AcFun · Comedy",
+  acfun_channel_1: "AcFun · Short films & dubbing",
+  acfun_channel_59: "AcFun · Games",
+  acfun_channel_125: "AcFun · Military",
+  acfun_channel_69: "AcFun · Fitness & fighting",
+  pearvideo_home: "Pear Video · Today",
 };
 const categoriesVi: Record<string, string> = {
   tech: "Công nghệ",
@@ -45,7 +55,24 @@ const categoriesVi: Record<string, string> = {
   kuaishou_featured: "Kuaishou · Nổi bật",
   douyin_feed: "Douyin · Trang chủ",
   weibo_hot: "Weibo · Video hot",
+  acfun_rank: "AcFun · Mọi mục",
+  acfun_channel_201: "AcFun · Ẩm thực",
+  acfun_channel_68: "AcFun · Bàn phim",
+  acfun_channel_70: "AcFun · Xe hơi",
+  acfun_channel_60: "AcFun · Hài",
+  acfun_channel_1: "AcFun · Phim ngắn & lồng tiếng",
+  acfun_channel_59: "AcFun · Game",
+  acfun_channel_125: "AcFun · Quân sự",
+  acfun_channel_69: "AcFun · Thể hình & võ thuật",
+  pearvideo_home: "Pear Video · Hôm nay",
 };
+/** The other followed lists by target ("acfun:channel:201"): their category keys are the target with ":" turned into "_". */
+const feedLists = (names: Record<string, string>) =>
+  Object.fromEntries(
+    Object.entries(names)
+      .filter(([k]) => /^(kuaishou|douyin|weibo|acfun|pearvideo)_/.test(k))
+      .map(([k, v]) => [k.replace("_", ":").replace(/_/g, ":"), v]),
+  );
 const categoryLists = (names: Record<string, string>, prefix: string) =>
   Object.fromEntries(Object.entries(names).map(([k, v]) => [`bilibili:category:${k}`, `${prefix} · ${v}`]));
 
@@ -103,7 +130,7 @@ const en = {
   trendVideos: {
     title: "Trending",
     intro:
-      "Videos trending on Chinese video platforms (Bilibili by category or tag, plus Kuaishou's featured list, Douyin's home feed and Weibo's hot videos). Pick one and make a French video: the original voice is removed. Xiaohongshu, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
+      "Videos trending on Chinese video platforms (Bilibili by category or tag, plus Kuaishou's featured list, Douyin's home feed and Weibo's hot videos, AcFun by section, Pear Video's day). Pick one and make a French video: the original voice is removed. Xiaohongshu, Xigua and Haokan have no public feed: paste their links in Projects → New video.",
     check: "Check now",
     checking: "Checking…",
     lastCheck: "Last check",
@@ -169,7 +196,7 @@ const en = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} likes`,
     rank: (n: number) => `#${n} in the list`,
     posted: "posted",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo", acfun: "AcFun", pearvideo: "Pear Video" } as Record<string, string>,
   },
   account: {
     back: "Followed",
@@ -222,6 +249,7 @@ const en = {
       "bilibili:popular": "Popular",
       "bilibili:weekly": "Weekly must-watch",
       ...categoryLists(categoriesEn, "Category"),
+      ...feedLists(categoriesEn),
     } as Record<string, string>,
     tagName: (word: string) => `Tag · ${word}`,
   },
@@ -238,7 +266,7 @@ const en = {
     madePartial: (done: number, total: number) => `${done} of ${total} videos started, then it stopped.`,
     seeProjects: "See Projects",
     links: "Video links (optional)",
-    linksHint: "One link per line: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, Facebook, YouTube… Links are always used. With links and no topic, Motio makes the video from those videos only. Xiaohongshu, Weibo, Xigua and Zhihu may need a cookies file or a browser in Settings; Kuaishou needs the videodl tool installed (pipx install videofetch); otherwise add the file.",
+    linksHint: "One link per line: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, AcFun, Pear Video, Facebook, YouTube… Links are always used. With links and no topic, Motio makes the video from those videos only. Xiaohongshu, Weibo, Xigua and Zhihu may need a cookies file or a browser in Settings; Kuaishou needs the videodl tool installed (pipx install videofetch); otherwise add the file.",
     linksOnly: "Use only these links",
     duration: "Length",
     durations: { "70": "1 min 10 s", "80": "1 min 20 s", "90": "1 min 30 s" } as Record<string, string>,
@@ -770,7 +798,7 @@ const en = {
       burn: "Burn subtitles",
     } as Record<string, string>,
     kindHints: {
-      download: "Any link yt-dlp can fetch (YouTube, Bilibili, X…), a Douyin, Haokan, Xiaohongshu, Weibo or Kuaishou link (some need a cookies file or the videodl tool). Saves an MP4.",
+      download: "Any link yt-dlp can fetch (YouTube, Bilibili, X…), a Douyin, Haokan, Xiaohongshu, Weibo, AcFun, Pear Video or Kuaishou link (some need a cookies file or the videodl tool). Saves an MP4.",
       transcribe: "Whisper turns speech into subtitles (.srt) and plain text. Works on video or audio files.",
       translate: "Claude translates an .srt or .vtt file into another language and keeps the timings.",
       speak: "ElevenLabs reads your text aloud (up to 5,000 characters) and saves an audio file.",
@@ -1174,7 +1202,7 @@ const vi: Messages = {
   trendVideos: {
     title: "Xu hướng",
     intro:
-      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili theo chuyên mục hoặc thẻ, danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo). Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Xiaohongshu, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
+      "Video đang thịnh hành trên các nền tảng video Trung Quốc (Bilibili theo chuyên mục hoặc thẻ, danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo, AcFun theo mục, Pear Video trong ngày). Chọn một video và làm video tiếng Pháp: giọng gốc được bỏ đi. Xiaohongshu, Xigua và Haokan không có bảng công khai: dán link vào Dự án → Video mới.",
     check: "Kiểm tra ngay",
     checking: "Đang kiểm tra…",
     lastCheck: "Kiểm tra lần cuối",
@@ -1239,7 +1267,7 @@ const vi: Messages = {
     likes: (n: number) => `${n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : n} lượt thích`,
     rank: (n: number) => `hạng ${n} trong bảng`,
     posted: "đăng",
-    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo" } as Record<string, string>,
+    sites: { youtube: "YouTube", bilibili: "Bilibili", kuaishou: "Kuaishou", douyin: "Douyin", weibo: "Weibo", acfun: "AcFun", pearvideo: "Pear Video" } as Record<string, string>,
   },
   account: {
     back: "Theo dõi",
@@ -1292,6 +1320,7 @@ const vi: Messages = {
       "bilibili:popular": "Thịnh hành",
       "bilibili:weekly": "Nên xem mỗi tuần",
       ...categoryLists(categoriesVi, "Chuyên mục"),
+      ...feedLists(categoriesVi),
     } as Record<string, string>,
     tagName: (word: string) => `Thẻ · ${word}`,
   },
@@ -1308,7 +1337,7 @@ const vi: Messages = {
     madePartial: (done: number, total: number) => `Đã bắt đầu ${done}/${total} video rồi dừng lại.`,
     seeProjects: "Xem Dự án",
     links: "Link video (không bắt buộc)",
-    linksHint: "Mỗi dòng một link: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó. Xiaohongshu, Weibo, Xigua, Zhihu có thể cần file cookies hoặc trình duyệt trong Cài đặt; Kuaishou cần cài công cụ videodl (pipx install videofetch); nếu không, hãy thêm file video.",
+    linksHint: "Mỗi dòng một link: Douyin, Bilibili, Xiaohongshu, Weibo, Haokan, AcFun, Pear Video, Facebook, YouTube… Link luôn được dùng. Chỉ có link thì Motio làm từ các video đó. Xiaohongshu, Weibo, Xigua, Zhihu có thể cần file cookies hoặc trình duyệt trong Cài đặt; Kuaishou cần cài công cụ videodl (pipx install videofetch); nếu không, hãy thêm file video.",
     linksOnly: "Chỉ dùng các link này",
     duration: "Độ dài",
     durations: { "70": "1 phút 10", "80": "1 phút 20", "90": "1 phút 30" } as Record<string, string>,
@@ -1839,7 +1868,7 @@ const vi: Messages = {
       burn: "Ghi phụ đề lên video",
     } as Record<string, string>,
     kindHints: {
-      download: "Link nào yt-dlp tải được (YouTube, Bilibili, X…), hoặc link Douyin, Haokan, Xiaohongshu, Weibo, Kuaishou (một số cần file cookie hoặc công cụ videodl). Lưu thành file MP4.",
+      download: "Link nào yt-dlp tải được (YouTube, Bilibili, X…), hoặc link Douyin, Haokan, Xiaohongshu, Weibo, AcFun, Pear Video, Kuaishou (một số cần file cookie hoặc công cụ videodl). Lưu thành file MP4.",
       transcribe: "Whisper chuyển lời nói thành phụ đề (.srt) và văn bản thuần. Dùng được cho video và file âm thanh.",
       translate: "Claude dịch file .srt hoặc .vtt sang ngôn ngữ khác và giữ nguyên mốc thời gian.",
       speak: "ElevenLabs đọc văn bản của bạn thành giọng (tối đa 5.000 ký tự) và lưu thành file âm thanh.",

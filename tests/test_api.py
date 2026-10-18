@@ -452,6 +452,11 @@ def test_categories_are_listed_as_followable_targets(client, monkeypatch):
             "site": "kuaishou"} in rows
     assert {"key": "douyin_feed", "target": "douyin:feed", "name": "Douyin feed", "site": "douyin"} in rows
     assert {"key": "weibo_hot", "target": "weibo:hot", "name": "Weibo hot videos", "site": "weibo"} in rows
+    assert {"key": "pearvideo_home", "target": "pearvideo:home", "name": "Pear Video · today",
+            "site": "pearvideo"} in rows  # and AcFun's sections
+    assert {"key": "acfun_rank", "target": "acfun:rank", "name": "AcFun ranking · all sections",
+            "site": "acfun"} in rows
+    assert len({r["key"] for r in rows}) == len(rows)
     assert [r["key"] for r in rows][:3] == ["tech", "ai", "ai_film"]
     for r in rows:  # every one can be followed as it is
         body = {"target": r["target"], "site": r["site"]}

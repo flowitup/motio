@@ -34,6 +34,7 @@ from . import (
     dub,
     edit,
     effects,
+    feeds,
     images,
     kuaishou_feed,
     listing,
@@ -427,7 +428,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                      {"key": "douyin_feed", "target": douyin_feed.FEED, "name": douyin_feed.NAMES[douyin_feed.FEED],
                       "site": "douyin"},
                      {"key": "weibo_hot", "target": weibo_feed.HOT, "name": weibo_feed.NAMES[weibo_feed.HOT],
-                      "site": "weibo"}]
+                      "site": "weibo"}
+                     ] + [{"key": target.replace(":", "_"), "target": target, "name": feeds.name(target),
+                           "site": feeds.site(target)} for target in feeds.TARGETS]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])
