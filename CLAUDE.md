@@ -66,6 +66,10 @@ as authoritative for scope and milestones.
     (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are videos, a fresh draw, no categories; each row's
     mp4 address (http on `*.weibocdn.com`, only that host and only public addresses are fetched) is kept in
     `data/cache/weibo_media.json` so `search.download` gets the file without yt-dlp (`weibo_feed.download`)
+  - `feeds.py` AcFun's daily ranking (`acfun:rank`, `acfun:channel:<id>` for 8 sections) and Pear Video's home page
+    (`pearvideo:home`) as Trending sources, plus both as pasted links (yt-dlp has an extractor for each, no login; they
+    were removed on 2026-10-17 and put back on the owner's word of 2026-10-18: "Thêm AcFun và PearVideo"); Pear Video's
+    list has no length, so a row can be a few seconds long
   - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
@@ -73,7 +77,7 @@ as authoritative for scope and milestones.
     `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); Xigua links are tried on Douyin first (same id, f2, no cookies; the web page is a bot check); `kuaishou.py` runs the separate
     videodl program for Kuaishou (owner 2026-10-17: "dùng videodl"; PolyForm Noncommercial, so never bundled or imported, only
     called as a command, only its Kuaishou client, never its generic parsers that use watermark-removal sites); no feed
-    for these sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
+    for these sites except as below; details and what was tested in
     `docs/CN_PLATFORMS.md`
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)

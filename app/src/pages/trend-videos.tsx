@@ -17,7 +17,7 @@ const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
 const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
 /** The sources the owner can switch on or off, and what switching one on follows when nothing of it is followed yet. */
-const SOURCES = ["bilibili", "kuaishou", "douyin", "weibo"] as const;
+const SOURCES = ["bilibili", "kuaishou", "douyin", "weibo", "acfun", "pearvideo"] as const;
 /** Followed lists that are not a Bilibili category: target → key of the name in `t.trendVideos.categories`. */
 const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:feed": "douyin_feed", "weibo:hot": "weibo_hot" };
 const STARTERS: Record<(typeof SOURCES)[number], { target: string; site: Site }[]> = {
@@ -25,11 +25,13 @@ const STARTERS: Record<(typeof SOURCES)[number], { target: string; site: Site }[
   kuaishou: [{ target: "kuaishou:featured", site: "kuaishou" }],
   douyin: [{ target: "douyin:feed", site: "douyin" }],
   weibo: [{ target: "weibo:hot", site: "weibo" }],
+  acfun: [{ target: "acfun:rank", site: "acfun" }],
+  pearvideo: [{ target: "pearvideo:home", site: "pearvideo" }],
 };
 
 /** "Tech", "Tag · 人工智能": what a chip and a message call the source. */
 const nameOf = (w: Watch) => {
-  const key = FEED_KEYS[w.target] ?? w.target.match(/^bilibili:category:(.+)$/)?.[1];
+  const key = FEED_KEYS[w.target] ?? (/^(acfun|pearvideo):/.test(w.target) ? w.target.replace(/:/g, "_") : w.target.match(/^bilibili:category:(.+)$/)?.[1]);
   return (key && t.trendVideos.categories[key]) || listName(w.target) || w.name || w.target;
 };
 
