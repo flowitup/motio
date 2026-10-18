@@ -6,12 +6,10 @@ Cách này chạy được với mọi bản FFmpeg.
 - Phụ đề karaoke: chuỗi PNG có thời lượng (concat demuxer), overlay một lần ở bước trộn cuối.
 - Bản 16:9 dùng lại đúng các mảnh, giọng đọc và phụ đề của bản 9:16, chỉ đổi bố cục (Layout).
 """
-import hashlib
 import json
-import math
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -301,8 +299,6 @@ COLOR_FILTERS = {
     "vivid": "eq=saturation=1.35:contrast=1.08",
     "faded": "eq=saturation=0.7:contrast=0.9:brightness=0.03",
 }
-REVERSED_MOTION = {"zoom_in": "zoom_out", "zoom_out": "zoom_in", "pan_left": "pan_right", "pan_right": "pan_left"}
-REVERSE_CHUNK = 2.0  # s: đảo ngược từng đoạn ngắn rồi nối ngược lại, để bộ lọc reverse không giữ cả mảnh trong RAM
 
 
 def effect_filter(fx: dict | None) -> str:
@@ -310,36 +306,6 @@ def effect_filter(fx: dict | None) -> str:
     fx = fx or {}
     parts = (["hflip"] if fx.get("mirror") else []) + ([COLOR_FILTERS[fx["color"]]] if fx.get("color") else [])
     return ",".join(parts)
-
-
-def reversed_segment(src_path: str, start: float, span: float, sound: bool, work: Path) -> Path:
-    """Đoạn [start, start + span] của nguồn, phát ngược (hình và tiếng), làm theo từng đoạn REVERSE_CHUNK giây. Giữ
-    trong `work` theo nguồn và đoạn, nên bản 16:9 và lần dựng sau dùng lại."""
-    st = Path(src_path).stat()
-    key = hashlib.sha1(f"{Path(src_path).resolve()}|{st.st_size}|{st.st_mtime_ns}|{start:.3f}|{span:.3f}|{sound}"
-                       .encode()).hexdigest()[:16]
-    out = work / f"rev_{key}.mkv"
-    if out.exists():
-        return out
-    n = max(math.ceil((span - 0.2) / REVERSE_CHUNK), 1)  # đoạn cuối dài thêm tối đa 0,2 s thay vì một mẩu rất ngắn
-    chunks = []
-    for i in range(n):
-        a = start + i * REVERSE_CHUNK
-        length = REVERSE_CHUNK if i < n - 1 else start + span - a
-        f = work / f"rev_{key}_{i:03d}.mkv"
-        audio = ["-map", "0:a:0", "-af", "areverse,aresample=48000", "-c:a", "pcm_s16le"] if sound else ["-an"]
-        _run([config.ffmpeg(), "-y", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{length:.3f}", "-i", src_path,
-              "-map", "0:v:0", "-vf", "reverse", *audio, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-              "-pix_fmt", "yuv420p", str(f)])
-        chunks.append(f)
-    lst = work / f"rev_{key}.txt"
-    lst.write_text("".join(f"file '{f.name}'\n" for f in reversed(chunks)))
-    tmp = out.with_suffix(".part.mkv")
-    _run([config.ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(tmp)])
-    tmp.replace(out)
-    for f in [*chunks, lst]:
-        f.unlink(missing_ok=True)
-    return out
 
 
 def kenburns(motion: str, dur: float, w: int, h: int) -> str:
@@ -371,19 +337,14 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
     src["blur"]: các vùng làm mờ trên hình nguồn (phụ đề cũ, watermark), xem blur_filter; src["cover"]: ảnh PNG cỡ
     nguồn có logo của người dùng đặt lên các vùng đó (masks.cover_png); src["keep"]: chỉ giữ vùng [x, y, w, h] của nguồn
     (phóng to để chữ / watermark ngoài vùng ra khỏi khung). Cả ba làm trên hình nguồn, trước nền mờ và khung.
-    src["effects"]: lật gương, phát ngược, bộ lọc màu người dùng bật (effects.attach), sau ba thứ trên.
+    src["effects"]: lật gương, bộ lọc màu người dùng bật (effects.attach), sau ba thứ trên.
     p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video."""
     fw, fh = layout.w, layout.h
     src_path = src["path"]
     fx = src.get("effects") or {}
     sound = bool(src.get("has_audio")) and not p.still and not p.motion and volume > 0
     span = 0.5 if p.still else p.dur + 0.1
-    start = p.src_start
-    if fx.get("reverse") and p.motion:  # ảnh tĩnh: phát ngược = chuyển động ngược lại
-        p = replace(p, motion=REVERSED_MOTION.get(p.motion, p.motion))
-    elif fx.get("reverse") and not p.still:
-        src_path, start = str(reversed_segment(src_path, p.src_start, span, sound, out.parent)), 0.0
-    inputs = (["-i", src_path] if p.motion else ["-ss", f"{start:.3f}", "-t", f"{span:.3f}", "-i", src_path]) \
+    inputs = (["-i", src_path] if p.motion else ["-ss", f"{p.src_start:.3f}", "-t", f"{span:.3f}", "-i", src_path]) \
         + ["-loop", "1", "-t", f"{p.dur + 0.1:.3f}", "-i", str(overlay)]
     if not sound:
         inputs += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]

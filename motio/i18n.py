@@ -379,7 +379,6 @@ VI = {
         "Hiệu ứng chỉ dùng cho video nguồn bạn sở hữu, có giấy phép hoặc CC: hãy đặt quyền nguồn trước",
     "Effects changed": "Đã đổi hiệu ứng",
     "mirrored": "lật gương",
-    "reversed": "phát ngược",
     "colour filter {name}": "bộ lọc màu {name}",
     "no effect": "không hiệu ứng",
     "Effects left out: the source rights are not owned, licensed or CC":

@@ -1,12 +1,12 @@
-"""Effects the user turns on by hand for a project's source videos: mirror (flip left-right), reverse (play backwards)
-and a colour filter (`render.COLOR_FILTERS`).
+"""Effects the user turns on by hand for a project's source videos: mirror (flip left-right) and a colour filter
+(`render.COLOR_FILTERS`).
 
 Only for footage the owner may change (owner, 2026-10-18): a project whose rights are owned / licensed / cc, or an AI
 video (its pictures and clips are made for it). `unknown` counts as not owned: the switches are locked, and a render
 skips effects saved earlier if the rights went back to unknown. Nothing here runs by itself, per channel or in batch,
 and it is not a way to slip someone else's video past duplicate / Content ID detection.
 
-Stored in `meta.effects`: {url: {"mirror": bool, "reverse": bool, "color": name | None}} per source link (like
+Stored in `meta.effects`: {url: {"mirror": bool, "color": name | None}} per source link (like
 `meta.masks`), or {"ai": {...}} for an AI video, where one setting covers every scene. `attach` hands them to the
 renderer as `source["effects"]`; they work on the source picture only (never the title, badge or French captions)."""
 
@@ -17,7 +17,7 @@ from .i18n import tr
 
 AI_KEY = "ai"
 COLORS = tuple(render.COLOR_FILTERS)
-NONE = {"mirror": False, "reverse": False, "color": None}
+NONE = {"mirror": False, "color": None}
 
 
 def allowed(proj: dict) -> bool:
@@ -33,7 +33,7 @@ def clean(raw) -> dict:
     color = raw.get("color") or None
     if color is not None and color not in COLORS:
         raise ValueError(tr("Unknown colour filter: {color}", color=color))
-    return {"mirror": bool(raw.get("mirror")), "reverse": bool(raw.get("reverse")), "color": color}
+    return {"mirror": bool(raw.get("mirror")), "color": color}
 
 
 def _keys(proj: dict) -> list[str]:
@@ -57,7 +57,7 @@ def attach(proj: dict, sources: list[dict]) -> list[dict]:
 
 
 def _summary(fx: dict) -> str:
-    parts = ([tr("mirrored")] if fx["mirror"] else []) + ([tr("reversed")] if fx["reverse"] else [])
+    parts = [tr("mirrored")] if fx["mirror"] else []
     if fx["color"]:
         parts.append(tr("colour filter {name}", name=fx["color"]))
     return ", ".join(parts) or tr("no effect")
@@ -103,5 +103,5 @@ def view(proj: dict) -> dict | None:
     ai = creator.is_ai(proj)
     paths = [None] if ai else [s.get("path") for s in meta.get("sources") or []]
     return {"allowed": allowed(proj), "whole_video": ai, "colors": list(COLORS),
-            "sources": [{"media": creator.media(Path(path)) if path else None, **NONE, **(saved.get(k) or {})}
+            "sources": [{"media": creator.media(Path(path)) if path else None, **clean(saved.get(k))}
                         for k, path in zip(keys, paths, strict=True)]}

@@ -1,10 +1,9 @@
-"""Effects the user turns on per source: mirror, reverse, colour filter. Only for footage owned / licensed / CC, or an
+"""Effects the user turns on per source: mirror, colour filter. Only for footage owned / licensed / CC, or an
 AI video. Checked, saved per link, handed to the render, and made for real with FFmpeg."""
-import json
 import subprocess
 
 import pytest
-from PIL import Image, ImageStat
+from PIL import Image
 
 from motio import config, db, effects, render
 
@@ -17,8 +16,8 @@ def _project(sources: list[dict], mode: str = "news", rights: str | None = "owne
 
 def test_clean():
     assert effects.clean(None) == effects.NONE
-    assert effects.clean({"mirror": 1, "reverse": "", "color": "warm", "other": 3}) == \
-        {"mirror": True, "reverse": False, "color": "warm"}
+    got = effects.clean({"mirror": 1, "reverse": True, "color": "warm", "other": 3})  # old / unknown keys dropped
+    assert got == {"mirror": True, "color": "warm"}
     assert effects.clean({"color": ""})["color"] is None
     for bad in ({"color": "neon"}, "mirror", [True]):
         with pytest.raises(ValueError):
@@ -38,11 +37,11 @@ def test_update_attach_and_view():
     clip.write_bytes(b"x")
     srcs = [{"url": "https://a", "path": str(clip)}, {"url": "https://b", "path": "/gone.mp4"}]
     pid = _project(srcs)
-    a = {"mirror": True, "reverse": True, "color": "sepia"}
+    a = {"mirror": True, "color": "sepia"}
     assert effects.update(pid, [a, {}]) is True
     p = db.get_project(pid)
     assert p["meta"]["effects"] == {"https://a": a}
-    assert "Effects changed: Source 1: mirrored, reversed, colour filter sepia" in p["log"]
+    assert "Effects changed: Source 1: mirrored, colour filter sepia" in p["log"]
     assert effects.update(pid, [a, None]) is False  # nothing changed
     view = effects.view(p)
     assert view["allowed"] is True and view["whole_video"] is False and "warm" in view["colors"]
@@ -76,11 +75,11 @@ def test_ai_video_has_one_setting_for_every_scene():
     p = db.get_project(pid)
     assert effects.view(p) == {"allowed": True, "whole_video": True, "colors": list(effects.COLORS),
                                "sources": [{"media": None, **effects.NONE}]}
-    assert effects.update(pid, [{"reverse": True, "color": "vivid"}]) is True
+    assert effects.update(pid, [{"mirror": True, "color": "vivid"}]) is True
     p = db.get_project(pid)
-    assert "Effects changed: reversed, colour filter vivid" in p["log"]
+    assert "Effects changed: mirrored, colour filter vivid" in p["log"]
     scenes = effects.attach(p, [{"path": "1.png", "url": None}, {"path": "2.png", "url": None}])
-    assert [s["effects"] for s in scenes] == [{"mirror": False, "reverse": True, "color": "vivid"}] * 2
+    assert [s["effects"] for s in scenes] == [{"mirror": True, "color": "vivid"}] * 2
 
 
 def test_no_source_yet():
@@ -94,44 +93,9 @@ def test_effect_filter():
     assert render.effect_filter(None) == "" and render.effect_filter(effects.NONE) == ""
     assert render.effect_filter({"mirror": True}) == "hflip"
     assert render.effect_filter({"mirror": True, "color": "mono"}) == "hflip,hue=s=0"
-    assert set(render.REVERSED_MOTION) == set(render.MOTIONS)
-    assert all(render.REVERSED_MOTION[render.REVERSED_MOTION[m]] == m for m in render.MOTIONS)
 
 
 ffmpeg = pytest.mark.skipif(not config.find("ffmpeg"), reason="needs ffmpeg")
-
-
-def _grey(path, at: float) -> float:
-    png = path.with_suffix(f".{at}.png")
-    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-ss", f"{at}", "-i", str(path), "-frames:v", "1", str(png)],
-                   check=True)
-    return ImageStat.Stat(Image.open(png).convert("L")).mean[0]
-
-
-def _length(path) -> float:
-    r = subprocess.run([config.ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
-                       capture_output=True, text=True, check=True)
-    return float(json.loads(r.stdout)["format"]["duration"])
-
-
-@pytest.fixture
-def ramp(tmp_path):
-    """4 s from black to white, with a tone: brighter means later."""
-    src = tmp_path / "ramp.mp4"
-    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=white:s=64x64:d=4:r=25",
-                    "-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-vf", "fade=in:st=0:d=4",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src)], check=True)
-    return src
-
-
-@ffmpeg
-def test_reversed_segment_plays_backwards_in_chunks(ramp, tmp_path):
-    out = render.reversed_segment(str(ramp), 0.5, 3.0, True, tmp_path)
-    assert abs(_length(out) - 3.0) < 0.15
-    first, middle, last = _grey(out, 0.1), _grey(out, 1.5), _grey(out, 2.85)
-    assert first > middle > last and first - last > 120
-    assert render.reversed_segment(str(ramp), 0.5, 3.0, True, tmp_path) == out  # kept for the 16:9 copy
-    assert sorted(f.name for f in tmp_path.glob("rev_*.mkv")) == [out.name]  # chunks cleaned up
 
 
 @pytest.fixture
@@ -167,13 +131,3 @@ def test_render_piece_mirrors_and_filters(tmp_path, overlay):
     assert b > 150 and r < 100  # blue on the left
     r, g, b = _frame(src, overlay, tmp_path, "mono", piece, effects={"color": "mono"}).getpixel((200, mid))
     assert max(r, g, b) - min(r, g, b) < 12
-
-
-@ffmpeg
-def test_render_piece_reverses_the_source(ramp, tmp_path, overlay):
-    piece = render.Piece(0, 0.5, 2.5, 0.0)
-    fx = {"reverse": True}
-    early = _frame(ramp, overlay, tmp_path, "rev_early", piece, at=0.1, effects=fx, has_audio=True)
-    late = _frame(ramp, overlay, tmp_path, "rev_late", piece, at=2.3, effects=fx, has_audio=True)
-    mid = (render.VERTICAL.w // 2, render.VERTICAL.h // 2)
-    assert early.getpixel(mid)[0] > late.getpixel(mid)[0] + 80  # plays from bright (late) to dark (early)

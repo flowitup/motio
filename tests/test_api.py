@@ -174,7 +174,7 @@ def test_effects(client, monkeypatch):
     _wait_done(client, pid)
     assert client.get(f"/api/projects/{pid}", headers=H).json()["effects"] is None  # no source yet
     db.update_project(pid, meta={"sources": [{"url": "https://a", "path": "/gone.mp4"}], "rights": "unknown"})
-    on = {"mirror": True, "reverse": False, "color": "warm"}
+    on = {"mirror": True, "color": "warm"}
     r = client.put(f"/api/projects/{pid}/effects", headers=H, json={"sources": [on]})
     assert r.status_code == 400 and "rights" in r.json()["detail"]  # locked: someone else's footage
     db.update_project(pid, meta={"rights": "licensed"})

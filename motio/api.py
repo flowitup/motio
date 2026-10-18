@@ -107,7 +107,7 @@ class MasksIn(BaseModel):
 
 
 class EffectsIn(BaseModel):
-    # one entry per source, in meta.sources order (one for an AI video): {mirror, reverse, color: name | null}
+    # one entry per source, in meta.sources order (one for an AI video): {mirror, color: name | null}
     sources: list
 
 
@@ -724,7 +724,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.put("/api/projects/{pid}/effects", dependencies=[Depends(auth)])
     def put_effects(pid: int, body: EffectsIn):
-        """Set the mirror / reverse / colour filter of each source (footage the owner may change, or an AI video). When
+        """Set the mirror / colour filter of each source (footage the owner may change, or an AI video). When
         the voice is already made and an effect changed, the video is rendered again with it (no new voice)."""
         p = _get(pid)
         if p["status"] in ("queued", "running"):

@@ -223,8 +223,8 @@ export type MaskBox = { box: BlurBox; logo: string | null };
 export type SourceMasks = { boxes: MaskBox[]; keep: BlurBox | null };
 /** Như trên, kèm video (/media, null = file không còn) và độ dài để vẽ. */
 export type SourceMask = SourceMasks & { media: string | null; duration: number | null };
-// lật gương / phát ngược / bộ lọc màu bật tay (motio/effects.py); color = tên trong ProjectEffects.colors
-export type SourceEffects = { mirror: boolean; reverse: boolean; color: string | null };
+// lật gương / bộ lọc màu bật tay (motio/effects.py); color = tên trong ProjectEffects.colors
+export type SourceEffects = { mirror: boolean; color: string | null };
 export type ProjectEffects = {
   allowed: boolean; // chỉ nguồn owned / licensed / cc, hoặc video AI
   whole_video: boolean; // video AI: một thiết lập cho mọi cảnh

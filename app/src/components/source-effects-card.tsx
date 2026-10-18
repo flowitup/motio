@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import type { Api, ProjectDetail, SourceEffects } from "@/lib/api";
 import { t } from "@/i18n";
 
-const NONE: SourceEffects = { mirror: false, reverse: false, color: null };
+const NONE: SourceEffects = { mirror: false, color: null };
 
 // gần giống render.COLOR_FILTERS của engine, chỉ để xem trước trên trình duyệt
 const PREVIEW: Record<string, string> = {
@@ -20,7 +20,7 @@ const PREVIEW: Record<string, string> = {
   faded: "saturate(0.7) contrast(0.9) brightness(1.03)",
 };
 
-/** Lật gương, phát ngược, bộ lọc màu người dùng bật tay trên từng nguồn (video AI: một thiết lập cho mọi cảnh). Chỉ dùng
+/** Lật gương, bộ lọc màu người dùng bật tay trên từng nguồn (video AI: một thiết lập cho mọi cảnh). Chỉ dùng
  * được cho nguồn owned / licensed / cc hoặc video AI (effects.allowed): nguồn chưa rõ quyền thì khoá. */
 export function SourceEffectsCard({
   api,
@@ -34,7 +34,7 @@ export function SourceEffectsCard({
   onQueued: () => void;
 }) {
   const fx = p.effects;
-  const saved = (fx?.sources ?? []).map(({ mirror, reverse, color }) => ({ mirror, reverse, color }));
+  const saved = (fx?.sources ?? []).map(({ mirror, color }) => ({ mirror, color }));
   const [sel, setSel] = useState(0);
   const [edits, setEdits] = useState<SourceEffects[]>(saved);
   const save = useMutation({ mutationFn: () => api.setEffects(p.id, edits), onSuccess: onQueued });
@@ -45,7 +45,7 @@ export function SourceEffectsCard({
   const dirty = JSON.stringify(edits) !== JSON.stringify(saved);
   const locked = !fx.allowed;
   const off = active || locked;
-  const isOn = (e: SourceEffects) => e.mirror || e.reverse || !!e.color;
+  const isOn = (e: SourceEffects) => e.mirror || !!e.color;
   const setMine = (next: Partial<SourceEffects>) => setEdits((all) => all.map((e, i) => (i === sel ? { ...e, ...next } : e)));
 
   return (
@@ -68,10 +68,6 @@ export function SourceEffectsCard({
       <label className="flex min-h-10 items-center gap-3">
         <Switch checked={mine.mirror} onCheckedChange={(v) => setMine({ mirror: v })} disabled={off} />
         {t.effects.mirror}
-      </label>
-      <label className="flex min-h-10 items-center gap-3">
-        <Switch checked={mine.reverse} onCheckedChange={(v) => setMine({ reverse: v })} disabled={off} />
-        {t.effects.reverse}
       </label>
       <Field label={t.effects.color}>
         {/* Choice không có trạng thái tắt: khi khoá thì chỉ hiện tên bộ lọc */}
