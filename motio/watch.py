@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import db, llm, search, topic, trending
+from . import db, kuaishou_feed, llm, search, topic, trending
 from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search", "trending")
@@ -55,6 +55,8 @@ def classify(text: str, site: str = "youtube") -> dict:
         raise ValueError(tr("Paste a channel / playlist link or enter search keywords"))
     if text.startswith(trending.PREFIX):  # "bilibili:ranking:181", "bilibili:popular", "bilibili:weekly"
         return {"kind": "trending", "site": "bilibili", "target": text, "name": trending.name(text)}
+    if text.startswith(kuaishou_feed.PREFIX):  # "kuaishou:featured"
+        return {"kind": "trending", "site": "kuaishou", "target": text, "name": kuaishou_feed.name(text)}
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
             raise ValueError(tr("Search works only on YouTube or Bilibili, not {site}", site=site))
@@ -232,8 +234,8 @@ def check(w: dict) -> dict:
     dates: dict[str, float] = {}
     if w["kind"] == "trending":
         try:
-            batch = trending.fetch(w["target"])
-        except (trending.TrendingError, ValueError) as e:
+            batch = (kuaishou_feed if w["site"] == "kuaishou" else trending).fetch(w["target"])
+        except (trending.TrendingError, kuaishou_feed.FeedError, ValueError) as e:
             errors.append(str(e)[:300])
         else:
             ok = True

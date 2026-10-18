@@ -34,6 +34,7 @@ from . import (
     edit,
     effects,
     images,
+    kuaishou_feed,
     listing,
     llm,
     localfile,
@@ -417,8 +418,10 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.get("/api/categories", dependencies=[Depends(auth)])
     def categories():
         """Chuyên mục video thịnh hành có thể theo dõi (Trending): khoá, target của nguồn, tên tiếng Anh."""
-        return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"]}
-                for k, c in trending.CATEGORIES.items()]
+        return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"], "site": "bilibili"}
+                for k, c in trending.CATEGORIES.items()
+                ] + [{"key": "kuaishou_featured", "target": kuaishou_feed.FEATURED, "name": kuaishou_feed.NAMES[
+                    kuaishou_feed.FEATURED], "site": "kuaishou"}]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])

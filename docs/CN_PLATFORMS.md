@@ -16,7 +16,7 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 | Xiaohongshu | yt-dlp `XiaoHongShu`, downloaded a public note (960p, no cookies). `xhslink.com` short links are followed once | no | Many notes want a logged-in session: a cookies file or browser (Settings) is used; the error says so |
 | Weibo | yt-dlp `Weibo`, downloaded a post | no | `weibo.com/2/detail/<id>` is rewritten to `m.weibo.cn/detail/<id>` (yt-dlp does not match the first); a post with only pictures says "No video formats found" |
 | Xigua | A link is first tried on **Douyin** under the same id (`search._xigua_on_douyin`, f2, no cookies): Xigua mirrored many videos there. Otherwise yt-dlp `Ixigua`, which asks for cookies | no | Cookie-free only for videos that are also on Douyin (tested: `7296116808145175092`, 480p, 1136 s; 8 older ids were not). The web page is a bot check, the mobile page is app-only, videodl fails too. Videos not on Douyin need a cookies file or the file added by hand. If the user has set cookies, yt-dlp is tried first. Ids are written `…/<id>/` because yt-dlp drops the last digit of an id with nothing after it |
-| Kuaishou | `kuaishou.py` runs the separate **videodl** program (`pipx install videofetch`, or `MOTIO_VIDEODL`) with only its Kuaishou client; no yt-dlp extractor exists | no | Works on some links, not all (Mac, 2026-10-17: 2 of 5; a sandbox run of a 6 s clip also worked). Without videodl, or when it reads nothing: download the video yourself and add the file. videodl is PolyForm Noncommercial: never bundled or imported, only called as a command |
+| Kuaishou | `kuaishou.py` runs the separate **videodl** program (`pipx install videofetch`, or `MOTIO_VIDEODL`) with only its Kuaishou client; no yt-dlp extractor exists | **yes, one list** (Trending → "Kuaishou · Featured", `kuaishou_feed.py`) | Works on some links, not all (Mac, 2026-10-17: 2 of 5; a sandbox run of a 6 s clip also worked). Without videodl, or when it reads nothing: download the video yourself and add the file. videodl is PolyForm Noncommercial: never bundled or imported, only called as a command |
 | Haokan | `haokan.py`: the phone page carries the mp4 (`curVideoMeta.clarityUrl`), 360p to 720p+, no cookies | no | Needs the phone User-Agent; the desktop one gets an empty page. The home page lists no feed we could read |
 | Zhihu | yt-dlp `Zhihu` got a 403 without cookies | no | Needs cookies. **Not tested with real cookies.** |
 
@@ -35,6 +35,17 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
   found" (now a hint: pictures only, or a login is wanted).
 - Haokan: two fresh videos downloaded; an old id from a search had been removed and gave "no such video".
 - The cookies-on run is still to do: the browser cookie stores could not be read from the Remote Control session.
+
+## Trending feeds (2026-10-18)
+
+Owner's question: why does Trending show only Bilibili? Only Bilibili and Kuaishou have a list that a plain visitor can read:
+- **Kuaishou**: the Featured page (`kuaishou.com/brilliant`) asks one GraphQL query (`brilliantTypeData`, channel `00`) that
+  answers with no cookie: ~20 videos per answer with the mp4 address. It is a random draw, not a ranking, and there is no
+  category. Its search (`visionSearchPhoto`) and detail (`visionVideoDetail`) answer `result: 2` (risk control) without a `did`
+  cookie, so they are not used. Tested from a cloud sandbox: feed read and one video downloaded and probed.
+- Douyin (needs f2's signed `tab/feed`, only a recommendation feed; not reachable from the sandbox, untested), Weibo (hot
+  search answers 403 without a visitor cookie), Xiaohongshu (feed needs a signed header), Xigua (unreachable), Zhihu (403): no
+  public list could be read, so these stay paste-a-link.
 
 ## Where it lives
 
@@ -56,4 +67,5 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 
 - Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Weibo / Haokan feed (category or account page): none could be read without a login.
+- A Douyin feed through f2's `tab/feed` (home recommendation, signed by f2): worth a try on the owner's Mac, not testable from the cloud.
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.

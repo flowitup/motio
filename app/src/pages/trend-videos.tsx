@@ -9,17 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useApi, type Watch } from "@/lib/api";
+import { useApi, type Site, type Watch } from "@/lib/api";
 import { isCategory, listName } from "@/lib/watch-name";
 import { t } from "@/i18n";
 
 const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
-const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => `bilibili:category:${k}`);
+const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
 
 /** "Tech", "Tag · 人工智能": what a chip and a message call the source. */
 const nameOf = (w: Watch) => {
-  const key = w.target.match(/^bilibili:category:(.+)$/)?.[1];
+  const key = w.target === "kuaishou:featured" ? "kuaishou_featured" : w.target.match(/^bilibili:category:(.+)$/)?.[1];
   return (key && t.trendVideos.categories[key]) || listName(w.target) || w.name || w.target;
 };
 
@@ -64,7 +64,7 @@ export default function TrendVideosPage() {
     qc.invalidateQueries({ queryKey: ["clips"] });
   };
   const follow = useMutation({
-    mutationFn: (targets: string[]) => targets.reduce((p, target) => p.then(() => api.addWatch({ target, site: "bilibili" }).then(() => {})), Promise.resolve()),
+    mutationFn: (targets: { target: string; site: Site }[]) => targets.reduce((p, body) => p.then(() => api.addWatch(body).then(() => {})), Promise.resolve()),
     onSuccess: () => {
       setPick("");
       setTag("");
@@ -147,7 +147,7 @@ export default function TrendVideosPage() {
                     className="w-64"
                   />
                 </Field>
-                <Button variant="outline" onClick={() => follow.mutate([chosen])} disabled={!chosen || follow.isPending}>
+                <Button variant="outline" onClick={() => follow.mutate([{ target: chosen, site: left.find((c) => c.target === chosen)?.site ?? "bilibili" }])} disabled={!chosen || follow.isPending}>
                   {follow.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
                   {t.trendVideos.follow}
                 </Button>
@@ -157,7 +157,7 @@ export default function TrendVideosPage() {
               className="flex items-end gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (word) follow.mutate([`bilibili:tag:${word}`]);
+                if (word) follow.mutate([{ target: `bilibili:tag:${word}`, site: "bilibili" }]);
               }}
             >
               <Field label={t.trendVideos.tag}>
@@ -171,6 +171,7 @@ export default function TrendVideosPage() {
           </div>
           <p className="text-xs text-muted-foreground">{t.trendVideos.tagHint}</p>
         </div>
+        {chosen === "kuaishou:featured" && <p className="text-xs text-muted-foreground">{t.trendVideos.kuaishouHint}</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         {broken.map((w) => (
           <p key={w.id} className="text-sm text-destructive">

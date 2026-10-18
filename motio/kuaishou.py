@@ -11,6 +11,7 @@ with only the Kuaishou client (`-a KuaishouVideoClient`). videodl's "generic" pa
 third-party watermark-removal sites, are never used. Motio downloads it like any pasted link.
 """
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -18,11 +19,14 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import config, qa
+import httpx
+
+from . import config, douyin, kuaishou_feed, qa
 from .i18n import tr
 
 CLIENT = "KuaishouVideoClient"
 TIMEOUT = 300
+_transport: httpx.BaseTransport | None = None  # tests swap in an httpx.MockTransport
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".webm", ".flv", ".ts")
 
 
@@ -45,17 +49,67 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
 
 
+def _from_feed(vid: str, url: str, path: Path, hooks: list | None) -> dict | None:
+    """The video from the mp4 address the Kuaishou feed gave (kuaishou_feed.py), or None when there is none, it
+    expired or the download failed: videodl then gets its turn."""
+    stream = kuaishou_feed.media_url(vid)
+    if not stream:
+        return None
+    if not (path.is_file() and path.stat().st_size):
+        part = path.with_name(path.name + ".part")
+        try:
+            with douyin._client({"User-Agent": kuaishou_feed.UA, "Referer": "https://www.kuaishou.com/"},
+                                transport=_transport) as client, client.stream("GET", stream) as r:
+                r.raise_for_status()
+                if r.headers.get("content-type", "").lower().startswith(("text/", "application/json")):
+                    return None
+                total = int(r.headers.get("content-length") or 0)
+                if total > douyin.MAX_BYTES:
+                    raise douyin._too_big()
+                got = 0
+                with part.open("wb") as f:
+                    for chunk in r.iter_bytes(1 << 17):
+                        got += len(chunk)
+                        if got > douyin.MAX_BYTES:
+                            raise douyin._too_big()
+                        f.write(chunk)
+                        for hook in hooks or []:
+                            hook({"status": "downloading", "downloaded_bytes": got, "total_bytes": total})
+            if not got:
+                return None
+            os.replace(part, path)
+        except (httpx.HTTPError, OSError):
+            return None
+        finally:
+            part.unlink(missing_ok=True)
+    try:
+        info = qa.probe(path)
+    except (RuntimeError, OSError):
+        path.unlink(missing_ok=True)
+        return None
+    video = info.get("video") or {}
+    size = path.stat().st_size
+    for hook in hooks or []:
+        hook({"status": "finished", "downloaded_bytes": size, "total_bytes": size})
+    return {"path": str(path), "url": url, "id": vid, "title": "", "platform": "Kuaishou", "uploader": "",
+            "uploader_url": "", "upload_date": "", "duration": info.get("duration") or 0, "license": "",
+            "width": video.get("width"), "height": video.get("height")}
+
+
 def download(url: str, out_dir: Path, hooks: list | None = None) -> dict:
     """One Kuaishou video into out_dir/Kuaishou_<id>.mp4, answering like search.download. Unavailable when videodl
     is missing or cannot read the link."""
+    vid = find_id(url) or f"{int(time.time())}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"Kuaishou_{vid}.mp4"
+    got = _from_feed(vid, url, path, hooks)  # a video of the Trending feed carries its own mp4 address
+    if got:
+        return got
     exe = tool()
     if not exe:
         raise Unavailable(tr("Kuaishou needs the videodl tool, which is not installed. Install it (pipx install "
                              "videofetch; its licence is non-commercial) or download the video yourself and add the "
                              "file"))
-    vid = find_id(url) or f"{int(time.time())}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"Kuaishou_{vid}.mp4"
     work = out_dir / f".kuaishou-{vid}"
     title = ""
     try:
