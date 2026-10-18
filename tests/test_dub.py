@@ -209,7 +209,7 @@ def test_full_dub_run(fake):
     assert fake["texts"][-1][0] == "Direction la Chine." and "" not in fake["texts"][-1]  # câu trống không đọc
     r = fake["render"][-1]
     assert r["src_volume"] == 0.0 and r["delay"] == 0.0 and r["badge"] == "VF" and r["caption_hold"] == 1.2
-    assert r["sources"][0]["blur"] == [0.03, 0.8, 0.94, 0.1] and len(r["lines"]) == 5
+    assert r["sources"][0]["blur"] == [[0.03, 0.8, 0.94, 0.1]] and len(r["lines"]) == 5
     assert r["pieces"][0].still and r["pieces"][-1].still and 62 <= r["total"] <= 90
     assert fake["mix"]["how"] == "original" and fake["mix"]["pad_in"] == 6.25
     assert p["meta"]["dub"]["excerpt"] == [0.0, 50.0] and p["meta"]["dub"]["blur_auto"] is True
@@ -219,7 +219,7 @@ def test_full_dub_run(fake):
     assert "render" in pipeline.available_steps(pid)
     dub.update(pid, {"blur": [0.1, 0.7, 0.8, 0.12]})
     pipeline.resume(pid, "render")
-    assert len(fake["texts"]) == 1 and fake["render"][-1]["sources"][0]["blur"] == [0.1, 0.7, 0.8, 0.12]
+    assert len(fake["texts"]) == 1 and fake["render"][-1]["sources"][0]["blur"] == [[0.1, 0.7, 0.8, 0.12]]
     assert fake["render"][-1]["total"] == r["total"]
 
 

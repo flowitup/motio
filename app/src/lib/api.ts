@@ -216,6 +216,15 @@ export type RetryStep = "search" | "download" | "transcribe" | "script" | "voice
 
 /** Khung theo tỉ lệ khung hình (0..1): [x, y, rộng, cao]. */
 export type BlurBox = [number, number, number, number];
+/** Một khung trên video nguồn: làm mờ, và phủ logo của người dùng lên nếu có logo (id trong thư viện Logo). */
+export type MaskBox = { box: BlurBox; logo: string | null };
+/** Những gì người dùng vẽ trên một video nguồn để giấu chữ in sẵn / watermark đứng yên: các khung và vùng giữ lại
+ * (phóng to, null = cả khung). */
+export type SourceMasks = { boxes: MaskBox[]; keep: BlurBox | null };
+/** Như trên, kèm video (/media, null = file không còn) và độ dài để vẽ. */
+export type SourceMask = SourceMasks & { media: string | null; duration: number | null };
+/** Logo của người dùng (Settings → Logo): ảnh PNG phục vụ qua /media. */
+export type Logo = { id: string; name: string; media: string; width: number; height: number };
 /** Một người nói trong bản lồng tiếng: nhãn Claude gán, giới tính, giọng người dùng chọn và giọng đã dùng. */
 export type DubSpeaker = {
   label: string;
@@ -301,6 +310,7 @@ export type ProjectDetail = Project & {
   has_script: boolean;
   dub: DubView | null;
   ai: AiView | null;
+  masks: SourceMask[] | null; // khung làm mờ theo từng nguồn (thứ tự meta.sources); null = video không có nguồn (video AI)
   source_sound: SourceSound | null; // tiếng gốc của video nguồn dưới giọng đọc; null = video này không có (lồng tiếng, video AI)
   usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number; picture_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
@@ -518,6 +528,13 @@ export function makeApi(url: string, token: string) {
       form.append("file", file);
       return postForm<UploadedVideo>("/api/uploads", form, onProgress, signal);
     },
+    logos: () => call<Logo[]>("GET", "/api/logos"),
+    addLogo: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return postForm<Logo>("/api/logos", form);
+    },
+    deleteLogo: (id: string) => call<{ deleted: string }>("DELETE", `/api/logos/${encodeURIComponent(id)}`),
     health: () => call<Health>("GET", "/api/health"),
     state: () => call<RefreshState>("GET", "/api/state"),
     trends: (source?: string) =>
@@ -570,6 +587,9 @@ export function makeApi(url: string, token: string) {
     /** Đặt âm lượng tiếng gốc (0..1); nếu đã có giọng đọc thì dựng lại video ngay, không đọc lại. */
     setSourceVolume: (id: number, volume: number) =>
       call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/source-volume`, { volume }),
+    /** Đặt khung / vùng giữ lại cho mọi nguồn (một mục mỗi nguồn); nếu đã có giọng đọc thì dựng lại video ngay. */
+    setMasks: (id: number, sources: SourceMasks[]) =>
+      call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/masks`, { sources }),
     updateDub: (
       id: number,
       body: {

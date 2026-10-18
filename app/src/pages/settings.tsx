@@ -3,6 +3,7 @@ import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
+import { LogosCard } from "@/components/logos-card";
 import { Section } from "@/components/section";
 import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
@@ -219,7 +220,7 @@ function HealthCard({ api }: { api: Api }) {
 
 
 /** One entry of the section list on the left (and the order of the sections on the page). */
-const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "engine", "advanced"] as const;
+const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "logos", "engine", "advanced"] as const;
 type SectionId = (typeof SECTIONS)[number];
 const TOC_LABEL: Record<SectionId, () => string> = {
   general: () => t.settings.general,
@@ -228,6 +229,7 @@ const TOC_LABEL: Record<SectionId, () => string> = {
   costs: () => t.settings.costs,
   images: () => t.settings.imagesClips,
   posting: () => t.settings.posting,
+  logos: () => t.settings.logos,
   engine: () => t.settings.engine,
   advanced: () => t.settings.advanced,
 };
@@ -507,6 +509,7 @@ export default function SettingsPage() {
           {api && s && (
             <>
               <SettingsForm api={api} s={s} draft={draft} setDraft={setDraft} changed={changed} />
+              <LogosCard api={api} />
               <EngineCard />
               <UpdateCard />
               <HealthCard api={api} />

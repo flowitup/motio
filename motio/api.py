@@ -36,6 +36,8 @@ from . import (
     listing,
     llm,
     localfile,
+    logos,
+    masks,
     newsnow,
     notify,
     pipeline,
@@ -95,6 +97,12 @@ class DubIn(BaseModel):
 
 class SourceVolumeIn(BaseModel):
     volume: float  # 0 (silent) .. 1 (as recorded): the source video's own sound under the French voice
+
+
+class MasksIn(BaseModel):
+    # one entry per source, in meta.sources order: {boxes: [{box: [x, y, w, h], logo: id | null}], keep: [x, y, w, h] |
+    # null}, fractions of the source frame (see masks.clean)
+    sources: list
 
 
 class ClipDubIn(BaseModel):
@@ -246,13 +254,14 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["dub"] = dub.view(p)
         out["ai"] = creator.view(p)
         out["source_sound"] = pipeline.source_sound(p)
+        out["masks"] = masks.view(p)
         out["usage"] = usage.for_project(p["id"])
     return out
 
 
-# The app only streams what the engine made: projects, tool jobs and cached sources. Never the database, `.env`,
-# models or whatever else sits in the data folder.
-MEDIA_DIRS = ("projects", "tools", "cache")
+# The app only streams what the engine made or the owner added: projects, tool jobs, cached sources and logos. Never the
+# database, `.env`, models or whatever else sits in the data folder.
+MEDIA_DIRS = ("projects", "tools", "cache", "logos")
 
 
 def voice_ready() -> bool:
@@ -690,12 +699,30 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if pipeline.source_sound(p) is None:
             raise HTTPException(400, tr("This video has no source sound to turn up or down"))
         pipeline.set_source_volume(pid, body.volume)
-        queued = "render" in pipeline.available_steps(pid)
-        if queued:
-            db.update_project(pid, status="queued", step=tr("Queued to rerun: {step}", step=tr("Render")),
-                              pct=0, log=tr("Queued to rerun from step {step}", step=tr("Render")))
-            jobs.submit(_run_job, lambda i: pipeline.resume(i, "render"), pid)
+        return {"project": _project_out(_get(pid), full=True), "queued": _rerender_kept_voice(pid)}
+
+    @app.put("/api/projects/{pid}/masks", dependencies=[Depends(auth)])
+    def put_masks(pid: int, body: MasksIn):
+        """Set the blur boxes the user drew on each source (burned-in text, a fixed watermark). When the voice is
+        already made and a box changed, the video is rendered again with it (no new voice); `queued` says so."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        try:
+            changed = masks.update(pid, body.sources)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        queued = changed and _rerender_kept_voice(pid)
         return {"project": _project_out(_get(pid), full=True), "queued": queued}
+
+    def _rerender_kept_voice(pid: int) -> bool:
+        """Queue the render step again with the saved voice, when there is one."""
+        if "render" not in pipeline.available_steps(pid):
+            return False
+        db.update_project(pid, status="queued", step=tr("Queued to rerun: {step}", step=tr("Render")),
+                          pct=0, log=tr("Queued to rerun from step {step}", step=tr("Render")))
+        jobs.submit(_run_job, lambda i: pipeline.resume(i, "render"), pid)
+        return True
 
     @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
     def patch_project(pid: int, body: ProjectPatch):
@@ -1125,6 +1152,27 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(502, tr("ElevenLabs error: {error}", error=str(e)[:200])) from e
         return [{"id": v["voice_id"], "name": v.get("name", v["voice_id"]), "labels": v.get("labels") or {},
                  "preview_url": v.get("preview_url")} for v in vs]
+
+    @app.get("/api/logos", dependencies=[Depends(auth)])
+    def get_logos():
+        return logos.list_all()
+
+    @app.post("/api/logos", status_code=201, dependencies=[Depends(auth)])
+    def add_logo(file: UploadFile):
+        """One of the owner's logos, to cover a box drawn on a source (Settings → Logos)."""
+        try:
+            return logos.add(file.filename or "", file.file)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/logos/{lid}", dependencies=[Depends(auth)])
+    def delete_logo(lid: str):
+        """Boxes that used this logo are only blurred from the next render on."""
+        try:
+            logos.remove(lid)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        return {"deleted": lid}
 
     @app.get("/api/settings", dependencies=[Depends(auth)])
     def get_settings():

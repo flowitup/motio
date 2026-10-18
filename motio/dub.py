@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from . import channels, config, db, llm, localfile, render, search, separate, topic, tts
+from . import channels, config, db, llm, localfile, masks, render, search, separate, topic, tts
 from .asr import has_audio
 from .i18n import tr, tr_n
 
@@ -539,19 +539,7 @@ def detect_band(src: Path, times: list[float], n: int = 10) -> list[float] | Non
         return None
 
 
-def clean_blur(box) -> list[float] | None:
-    """Khung làm mờ từ app: [x, y, w, h] theo tỉ lệ khung, None / [] = tắt. ValueError nếu sai."""
-    if not box:
-        return None
-    try:
-        x, y, w, h = (float(v) for v in box)
-    except (TypeError, ValueError):
-        raise ValueError(tr("The blur box needs x, y, width and height")) from None
-    x, y = min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0)
-    w, h = min(w, 1.0 - x), min(h, 1.0 - y)
-    if w < 0.02 or h < 0.02:
-        raise ValueError(tr("The blur box is too small"))
-    return [round(x, 4), round(y, 4), round(w, 4), round(h, 4)]
+clean_blur = masks.clean_box  # khung làm mờ phụ đề: [x, y, w, h] theo tỉ lệ khung, None / [] = tắt
 
 
 # ---------- giọng: đặt từng câu vào chỗ, tách nền, trộn ----------
@@ -850,7 +838,8 @@ def timeline(nar: dict) -> list[render.Piece]:
 def render_args(proj: dict, plan: dict, sources: list[dict], nar: dict) -> dict:
     """Tham số render.render cho bản lồng tiếng: các câu đã đọc, nguồn kèm vùng làm mờ, mảnh hình và độ dài định sẵn,
     tiếng nguồn tắt (nền đã nằm trong bản trộn), giọng không vào trễ, phụ đề tắt khi hết câu."""
-    blur = ((proj.get("meta") or {}).get("dub") or {}).get("blur")
+    band = ((proj.get("meta") or {}).get("dub") or {}).get("blur")
+    blur = ([band] if band else []) + (sources[0].get("blur") or [])  # dải phụ đề + khung người dùng vẽ (masks)
     return {"plan": {**plan, "lines": spoken(plan["lines"])}, "sources": [{**sources[0], "blur": blur or None}],
             "pieces": timeline(nar), "total": nar["total"], "src_volume": 0.0, "delay": 0.0,
             "caption_hold": CAPTION_HOLD}

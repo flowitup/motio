@@ -274,14 +274,20 @@ def _run(cmd: list[str]) -> None:
         raise RuntimeError(tr("ffmpeg failed: {error}", error=r.stderr[-1500:]))
 
 
-def blur_filter(box: list[float] | None) -> str:
-    """Bộ lọc làm mờ một vùng của hình nguồn (phụ đề cũ in sẵn): box [x, y, w, h] theo tỉ lệ khung (0..1).
-    Rỗng khi không có vùng. Nhận một luồng hình, trả một luồng hình."""
-    if not box:
+def blur_filter(boxes: list | None) -> str:
+    """Bộ lọc làm mờ các vùng của hình nguồn (phụ đề in sẵn, watermark đứng yên do người dùng vẽ): mỗi khung
+    [x, y, w, h] theo tỉ lệ khung (0..1); nhận một khung hoặc danh sách khung. Rỗng khi không có vùng. Nhận một luồng
+    hình, trả một luồng hình."""
+    if not boxes:
         return ""
-    x, y, w, h = (f"{float(v):.4f}" for v in box)
-    return (f"split[o][c];[c]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},gblur=sigma=22[bl];"
-            f"[o][bl]overlay=W*{x}:H*{y}")
+    if not isinstance(boxes[0], (list, tuple)):
+        boxes = [boxes]
+    parts = []
+    for i, box in enumerate(boxes):
+        x, y, w, h = (f"{float(v):.4f}" for v in box)
+        parts.append(f"split[bo{i}][bc{i}];[bc{i}]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},gblur=sigma=22[bb{i}];"
+                     f"[bo{i}][bb{i}]overlay=W*{x}:H*{y}")
+    return ",".join(parts)
 
 
 def kenburns(motion: str, dur: float, w: int, h: int) -> str:
@@ -310,7 +316,9 @@ def moving_size(src_path: str, layout: Layout) -> tuple[int, int]:
 def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout = VERTICAL,
                  volume: float = 0.10) -> None:
     """Một mảnh: nền mờ + hình nguồn + lớp chữ tĩnh. volume: âm lượng tiếng của nguồn (0 = im).
-    src["blur"]: vùng làm mờ trên hình nguồn (phụ đề cũ), xem blur_filter.
+    src["blur"]: các vùng làm mờ trên hình nguồn (phụ đề cũ, watermark), xem blur_filter; src["cover"]: ảnh PNG cỡ
+    nguồn có logo của người dùng đặt lên các vùng đó (masks.cover_png); src["keep"]: chỉ giữ vùng [x, y, w, h] của nguồn
+    (phóng to để chữ / watermark ngoài vùng ra khỏi khung). Cả ba làm trên hình nguồn, trước nền mờ và khung.
     p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video."""
     fw, fh = layout.w, layout.h
     src_path = src["path"]
@@ -325,6 +333,13 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
         if p.still else []
     if blur := blur_filter(src.get("blur")):
         head.append(blur)
+    pre = f"[0:v]{','.join(head) or 'null'}"
+    if src.get("cover"):  # logo của người dùng phủ lên các vùng đã làm mờ (ảnh tĩnh: overlay giữ khung cuối)
+        pre += f"[mk];[mk][{3 if not sound else 2}:v]overlay=0:0"
+        inputs += ["-i", src["cover"]]
+    if keep := src.get("keep"):
+        x, y, w, h = (f"{float(v):.4f}" for v in keep)
+        pre += f",crop=iw*{w}:ih*{h}:iw*{x}:ih*{y}"
     bg_tail = f",tpad=stop_mode=clone:stop_duration={p.dur + 0.3:.3f}" if p.motion else ""  # ảnh chỉ có một khung
     if p.motion:
         ow, oh = moving_size(src_path, layout)
@@ -332,7 +347,7 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
               f"{kenburns(p.motion, p.dur, ow, oh)}[fg];")
     else:
         fg = f"[b]scale={fw}:{fh}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
-    fc = (f"[0:v]{','.join([*head, 'split[a][b]'])};"
+    fc = (f"{pre},split[a][b];"
           f"[a]scale={fw}:{fh}:force_original_aspect_ratio=increase,crop={fw}:{fh},gblur=sigma=36,"
           f"eq=brightness=-0.10:saturation=0.9{bg_tail}[bg];"
           f"{fg}"
