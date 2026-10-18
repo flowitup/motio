@@ -293,7 +293,7 @@ def test_sources_move_unless_a_project_in_progress_uses_them(signed_in):
     free.write_bytes(os.urandom(SIZE))
     busy.write_bytes(os.urandom(SIZE))
     _project("running", {"sources": [{"path": str(busy), "url": "u", "id": "busy"}]})
-    assert drive.offload_sources(min_age=0) == SIZE
+    assert drive.offload_sources(min_age=-60) == SIZE
     assert not free.exists() and busy.exists()
     assert signed_in.names() == ["Motio/cache/sources/Bili_free.mp4"]
 
@@ -313,7 +313,7 @@ def test_a_run_brings_the_source_back_first(signed_in):
     data = os.urandom(SIZE)
     f.write_bytes(data)
     pid = _project("done", {"sources": [{"path": str(f), "url": "https://b/x?v=abc", "id": "abc"}]})
-    drive.offload_sources(min_age=0)
+    drive.offload_sources(min_age=-60)
     assert not f.exists()
     assert pipeline._load_sources(pid)[0]["path"] == str(f) and f.read_bytes() == data
     f.unlink()
@@ -432,6 +432,6 @@ def test_a_video_file_added_by_hand_comes_back_from_drive(signed_in):
     f = localfile.folder() / f"{localfile.PLATFORM}_{uid}.mp4"
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_bytes(os.urandom(SIZE))
-    drive.offload_sources(min_age=0)
+    drive.offload_sources(min_age=-60)
     assert not f.exists()
     assert localfile.path_of(uid) == f and f.exists()
