@@ -170,15 +170,6 @@ def is_whole(proj: dict) -> bool:
     return proj.get("mode") == MODE and bool(((proj.get("meta") or {}).get("dub") or {}).get("whole"))
 
 
-def too_long_to_send(proj: dict) -> bool:
-    """Bản lồng cả video đã dựng mà dài hơn giới hạn Reels (pipeline.MAX_SECONDS): không tự gửi Postiz, dừng chờ duyệt;
-    đăng bằng tay từ app khi chủ muốn."""
-    from . import pipeline
-    meta = proj.get("meta") or {}
-    total = ((meta.get("dub") or {}).get("total")) or 0
-    return is_whole(proj) and float(total) > pipeline.MAX_SECONDS
-
-
 # ---------- kịch bản: chọn đoạn, dịch ----------
 def _fmt_segments(segs: list[dict], max_chars: int = 12000) -> str:
     rows, used = [], 0
@@ -784,9 +775,8 @@ def remember_voices(pid: int, nar: dict) -> None:
     """Giọng đã gán cho từng người nói, để trang dự án hiện tên giọng."""
     p = db.get_project(pid)
     opts = dict((p["meta"].get("dub") or {}) if p else {})
-    if opts.get("assigned", {}) != nar.get("assigned", {}) or opts.get("total") != nar.get("total"):
+    if opts.get("assigned", {}) != nar.get("assigned", {}):
         opts["assigned"] = nar.get("assigned", {})
-        opts["total"] = nar.get("total")  # độ dài video lồng (giây): bản dài hơn giới hạn Reels không tự gửi Postiz
         db.update_project(pid, meta={"dub": opts})
 
 

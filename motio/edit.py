@@ -187,6 +187,7 @@ def script_view(pid: int) -> dict:
     is_ai = creator.is_ai(p)
     provider = ((p["meta"].get("ai") or {}).get("provider")) or images.provider()  # the one that made the pictures
     rate = _measured_rate(pid, plan) or p["meta"].get("speech_rate") or pipeline.WORDS_PER_SEC
+    rule = pipeline.length_rule(p)  # 62–90 s, or the length the owner picked for an AI video
     final = _dir(pid) / "final.mp4"
     edited = p["meta"].get("edited_at")
     return {
@@ -205,8 +206,8 @@ def script_view(pid: int) -> dict:
         # video dựng trước lần sửa (lệch 1 s vì đồng hồ mtime của hệ thống file thô hơn time.time())
         "stale": bool(edited and (made := drive.mtime(final)) and edited > made + 1),
         "words_per_sec": round(rate, 3),
-        "min_seconds": pipeline.MIN_SECONDS,
-        "max_seconds": pipeline.MAX_SECONDS,
+        "min_seconds": rule["lo"],
+        "max_seconds": rule["hi"],
         "tail": render.TAIL,
         "version": (_dir(pid) / "script.json").stat().st_mtime,
         # bản lồng tiếng: ai nói, tu / vous; mỗi dòng kèm câu gốc (zh), lúc vào / hạn (giây) và số ký tự vừa chỗ

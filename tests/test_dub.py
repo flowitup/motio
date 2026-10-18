@@ -592,22 +592,22 @@ def test_whole_video_is_translated_in_batches_and_keeps_its_own_length(fake, mon
     r = fake["render"][-1]
     assert r["total"] == pytest.approx(400.0) and not any(pc.still for pc in r["pieces"])
     assert sum(pc.dur for pc in r["pieces"]) == pytest.approx(400.0)
-    assert dub.too_long_to_send(p) and p["meta"]["dub"]["total"] == pytest.approx(400.0)
+    assert pipeline.too_long_to_send(p) and p["meta"]["seconds"] == pytest.approx(400.0)
 
 
 def test_whole_dub_longer_than_reels_waits_at_the_video_gate(fake, fake_postiz, monkeypatch):
     ch = _profile(postiz=["tt1"])
     pid = dub.create("https://www.douyin.com/video/1", whole=True)
     channels.attach(pid, ch)
-    db.update_project(pid, status="running", meta={"dub": {"whole": True, "total": 200.0}})
+    db.update_project(pid, status="running", meta={"dub": {"whole": True}, "seconds": 200.0})
     pipeline._deliver(pid, ch)
     p = db.get_project(pid)
     assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
     assert "longer than 90 s" in pipeline._why_held(p)
     short = dub.create("https://www.douyin.com/video/2", whole=True)
     channels.attach(short, ch)
-    db.update_project(short, status="running", meta={"dub": {"whole": True, "total": 80.0}})
-    assert not dub.too_long_to_send(db.get_project(short))
+    db.update_project(short, status="running", meta={"dub": {"whole": True}, "seconds": 80.0})
+    assert not pipeline.too_long_to_send(db.get_project(short))
 
 
 def test_batches_of_lines_stay_within_the_request_limit():

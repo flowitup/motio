@@ -25,7 +25,8 @@ as authoritative for scope and milestones.
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
   - `topic.py` topic mode: explainer from any topic or video links (prompts, `create`)
   - `creator.py` AI video mode (`mode = "ai"`): Claude writes scenes (spoken line + English picture prompt + camera move),
-    one picture per scene, one moving piece per scene (Ken Burns, `render.Piece.motion`); no source footage; pictures
+    one picture per scene, one moving piece per scene (Ken Burns, `render.Piece.motion`); the length is a preset or any length
+    from 30 s to 30 min; no source footage; pictures
     from a provider that isn't cleared for monetized channels force the video gate (`creator.needs_review`)
   - `shots.py` picture review for AI videos ("Review the pictures first", `meta.ai.review_shots`): after the pictures are made the
     video waits in `meta.review == "shots"`; each shot is approved by the key of its current picture (a new prompt, seed, style or
@@ -228,8 +229,11 @@ on every PR; keep them green.
   2026-10-18).
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt. The one exception is a dub made with the "Whole
-  video" option (owner, 2026-10-18: "giữ trọn video gốc"): it lasts as long as the source, and one longer than
-  `MAX_SECONDS` is never sent to Postiz on its own (`dub.too_long_to_send`, held at the video gate).
+  video" option (owner, 2026-10-18: "giữ trọn video gốc"): it lasts as long as the source. The other is an AI video
+  whose length the owner picks (owner, 2026-10-18: "tôi có thể chọn thời gian"): `creator.is_free`, 30 s to 30 min, not
+  one of the 70 / 80 / 90 s presets; `pipeline.length_rule` fits it to ±10 % up to `creator.LONG` (150 s), and writes a
+  longer one part by part (`creator.write_long`) without fitting or trimming it. Any finished video longer than
+  `MAX_SECONDS` is never sent to Postiz on its own (`pipeline.too_long_to_send`, `meta.seconds`, held at the video gate).
 - Douyin: `motio/douyin.py` downloads public videos with the `f2` package (Johnserf-Seed/f2, Apache-2.0), added on the
   owner's go of 2026-10-02 (what it does, the test results and how to bump f2: `docs/DOUYIN_F2.md`). f2 is a pinned
   dependency and does Douyin's request signing (`a_bogus`, `msToken`, `ttwid`); never copy that signing code into this

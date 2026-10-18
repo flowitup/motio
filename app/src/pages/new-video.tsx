@@ -505,12 +505,17 @@ function AiConsole({ api }: { api: Api }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
-  const [duration, setDuration] = useState("80");
+  const [duration, setDuration] = useState("80"); // "70" | "80" | "90" | "custom"
+  const [custom, setCustom] = useState(""); // a length of the owner's own, "5:00" or seconds
   const [clips, setClips] = useState(""); // trống = theo kênh
   const [reviewShots, setReviewShots] = useState(true); // dừng sau khi làm ảnh để duyệt từng ảnh
   const [cast, setCast] = useState(""); // nhân vật riêng của video, mỗi dòng "Tên: ngoại hình"
   const [sameFace, setSameFace] = useState(true); // cảnh làm từ ảnh chân dung tham chiếu của nhân vật
   const choice = useChannelChoice(api);
+  const customSec = parseClock(custom);
+  const free = duration === "custom";
+  const badLength = free && (customSec == null || Number.isNaN(customSec) || customSec < 30 || customSec > 1800);
+  const seconds = free ? (badLength ? 0 : Math.round(customSec ?? 0)) : Number(duration);
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings() });
   const baseProvider = settings?.IMAGE_PROVIDER?.value || "fal";
   const provider = providerName(baseProvider, settings?.FAL_IMAGE_MODEL?.value);
@@ -526,7 +531,7 @@ function AiConsole({ api }: { api: Api }) {
     mutationFn: () =>
       api.createAi({
         topic: topic.trim(),
-        duration: Number(duration),
+        duration: seconds,
         channel: choice.channel,
         review_shots: reviewShots,
         cast: cast.trim(),
@@ -543,21 +548,27 @@ function AiConsole({ api }: { api: Api }) {
     : needsClipKey
       ? t.ai.needsClipKey(clipProvider === "heygen" ? "HeyGen" : "fal")
       : t.ai.providerHint(imageProviderLabel(provider), videoPicturesUsd(provider));
-  const summary = [topic.trim(), t.projects.durations[duration], channelName(choice)].filter(Boolean).join(" · ");
+  const summary = [topic.trim(), free ? (seconds ? clock(seconds) : "") : t.projects.durations[duration], channelName(choice)]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <Console
       title={t.dub.kinds.ai}
       summary={summary || t.ai.make}
       estimate={line({
-        seconds: Number(duration),
+        seconds: seconds || Number(MAX_S),
         videos: 1,
-        pictures: Number(videoPicturesUsd(provider)),
+        pictures: Number(videoPicturesUsd(provider)) * Math.max(1, (seconds || MAX_S) / 80), // the pictures grow with the length
         clips: clips !== "" ? Number(clips) : channelClips,
         clipPerSec,
       })}
       error={create.error?.message}
       action={
-        <Button size="lg" onClick={() => create.mutate()} disabled={!topic.trim() || needsKey || needsClipKey || create.isPending}>
+        <Button
+          size="lg"
+          onClick={() => create.mutate()}
+          disabled={!topic.trim() || badLength || needsKey || needsClipKey || create.isPending}
+        >
           {create.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
           {t.ai.make}
         </Button>
@@ -566,7 +577,7 @@ function AiConsole({ api }: { api: Api }) {
         <>
           <Pipeline steps={t.studio.aiSteps} />
           <SidePanel title={t.studio.rules}>
-            <LengthRule />
+            {free ? <p className="p-4 text-[13px] leading-5 text-muted-foreground">{t.ai.lengthRule}</p> : <LengthRule />}
             <p className={cn("px-4 pb-4 text-xs leading-[18px]", needsKey || needsClipKey ? "text-coral" : "text-muted-foreground")}>{note}</p>
           </SidePanel>
         </>
@@ -575,8 +586,30 @@ function AiConsole({ api }: { api: Api }) {
       <Section icon={Sparkles} label={t.ai.topic} htmlFor="ai-topic" hint={t.ai.topicHint}>
         <Input id="ai-topic" autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t.ai.topicPlaceholder} className="h-11" />
       </Section>
-      <Section icon={Clock} label={t.projects.duration} hint={t.projects.durationHint}>
-        <Pick label={t.projects.duration} value={duration} onChange={setDuration} options={["70", "80", "90"].map((d): [string, string] => [d, t.projects.durations[d]])} />
+      <Section
+        icon={Clock}
+        label={t.ai.length}
+        hint={<span className={badLength ? "text-coral" : undefined}>{badLength ? t.ai.lengthBad : t.ai.lengthHint}</span>}
+      >
+        <Pick
+          label={t.ai.length}
+          value={duration}
+          onChange={setDuration}
+          options={[
+            ...["70", "80", "90"].map((d): [string, string] => [d, t.projects.durations[d]]),
+            ["custom", t.ai.lengthCustom],
+          ]}
+        />
+        {free && (
+          <Input
+            aria-label={t.ai.lengthCustom}
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder={t.ai.lengthPlaceholder}
+            inputMode="numeric"
+            className="mt-3 h-11 w-40 font-mono"
+          />
+        )}
       </Section>
       <Section icon={Film} label={t.ai.clips} htmlFor="ai-clips" hint={t.ai.clipsHint(clipUsd)}>
         <Input

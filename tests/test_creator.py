@@ -110,8 +110,9 @@ def _last_log(pid: int) -> str:
 def test_create_checks_topic_duration_and_the_provider(monkeypatch):
     with pytest.raises(ValueError, match="Enter a topic"):
         creator.create("   ")
-    with pytest.raises(ValueError, match="70, 80, 90"):
-        creator.create("Pandas", 60)
+    for bad in (10, 29, 1801, 5000):  # the presets, or any length from 30 s to 30 min
+        with pytest.raises(ValueError, match="30–1800"):
+            creator.create("Pandas", bad)
     with pytest.raises(ValueError, match="fal key"):  # fal is the default and has no key yet
         creator.create("Pandas")
     monkeypatch.setenv("FAL_KEY", "k")
@@ -804,7 +805,7 @@ def test_ai_routes(client, monkeypatch):
     assert p["mode"] == "ai" and p["ai"]["provider"] == "placeholder" and p["ai"]["needs_review"] is True
     assert p["dub"] is None and p["meta"]["duration"] == 70 and p["retry"]["steps"] == ["script"]
     assert client.post("/api/ai", headers=H, json={"topic": " "}).status_code == 400
-    assert client.post("/api/ai", headers=H, json={"topic": "x", "duration": 50}).status_code == 400
+    assert client.post("/api/ai", headers=H, json={"topic": "x", "duration": 20}).status_code == 400
     assert client.post("/api/ai", headers=H, json={"topic": "x", "channel": 999}).status_code == 400
     monkeypatch.setenv("IMAGE_PROVIDER", "fal")  # no key
     bad = client.post("/api/ai", headers=H, json={"topic": "x"})
@@ -1349,3 +1350,86 @@ def test_fal_model_setting_is_validated(monkeypatch):
     with pytest.raises(ValueError, match="FAL_IMAGE_MODEL must be one of nano-banana-2, nano-banana-2.1"):
         settings.update({"FAL_IMAGE_MODEL": "qwen"})
     settings.update({"FAL_IMAGE_MODEL": None})
+
+
+# ---------- a length the owner picks (not the 70 / 80 / 90 s presets) ----------
+def test_length_rule_keeps_62_90_for_the_presets_and_other_modes(monkeypatch):
+    monkeypatch.setenv("IMAGE_PROVIDER", "placeholder")
+
+    def ai(d):
+        return {"mode": "ai", "meta": {"duration": d}}
+
+    assert pipeline.length_rule(ai(80)) == {"free": False, "long": False, "target": 80, "lo": 62.0, "hi": 90.0}
+    assert pipeline.length_rule({"mode": "topic", "meta": {"duration": 300}})["free"] is False  # other modes keep it
+    assert pipeline.length_rule({"mode": "ai", "meta": {}})["target"] == 80
+    short = pipeline.length_rule(ai(120))
+    assert short == {"free": True, "long": False, "target": 120, "lo": 108.0, "hi": 132.0}
+    long = pipeline.length_rule(ai(600))
+    assert long == {"free": True, "long": True, "target": 600, "lo": 0.0, "hi": 86400.0}
+    assert creator.is_free(45) and creator.is_free(30) and creator.is_free(1800)
+    assert not creator.is_free(80) and not creator.is_free(29) and not creator.is_free(1801)
+    assert not creator.is_free("x") and not creator.is_free(None)
+    assert creator.create("Pandas", 45) and creator.create("Pandas", 1800)  # any length from 30 s to 30 min
+
+
+def test_a_length_between_30_and_150_seconds_is_fitted_to_ten_percent(fake):
+    pid = creator.create("Les pandas", 120)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    fit = next(pr for pr, _ in fake["prompts"] if pr.startswith("Voici"))
+    assert "entre 108 et 132 secondes" in fit
+    r = fake["render"][-1]
+    assert 108 <= r["total"] <= 132 and p["meta"]["seconds"] == pytest.approx(r["total"], abs=0.1)
+    assert edit.script_view(pid)["min_seconds"] == 108.0 and edit.script_view(pid)["max_seconds"] == 132.0
+    assert pipeline.too_long_to_send(p)  # more than the Reels limit: it waits for the owner
+
+
+def test_a_short_chosen_length_is_not_padded_to_62_seconds(fake):
+    pid = creator.create("Les pandas", 40)
+    pipeline.produce(pid)
+    r = fake["render"][-1]
+    assert db.get_project(pid)["status"] == "done" and 36 <= r["total"] <= 44
+    assert not pipeline.too_long_to_send(db.get_project(pid))
+
+
+def test_a_long_video_is_written_part_by_part_and_never_fitted(fake, monkeypatch):
+    calls = []
+
+    def ask(prompt, system, **kw):
+        calls.append(prompt)
+        if '"sections"' in prompt:
+            return {"title_fr": "Les pandas, en long", "style": "warm documentary photo", "description": "Desc.",
+                    "hashtags": ["#Panda"],
+                    "sections": [{"title": f"Partie {i}", "summary": f"Résumé {i}"} for i in range(4)]}
+        k = int(re.search(r"Tu écris la partie (\d+) sur", prompt)[1])
+        return {"lines": [{"text": " ".join([f"p{k}m{i}"] * 24), "image": f"Panda scene {k}.{i}",
+                           "motion": render.MOTIONS[i % 4]} for i in range(8)]}
+
+    monkeypatch.setattr(llm, "ask_json", ask)
+    pid = creator.create("Les pandas", 300)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert len(calls) == 5 and '"sections"' in calls[0] and "4 parties" in calls[0]  # a plan, then one call per part
+    assert "accroche" in calls[1] and "accroche" not in calls[2] and "question ou une ouverture" in calls[4]
+    assert "Fin de la partie précédente" in calls[2] and "p1m7" in calls[2] and "Style visuel commun" in calls[2]
+    assert fake["order"] == ["voice", "render"]  # no fit, no trim: the length stays what it came out
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_text(encoding="utf-8"))
+    assert len(plan["lines"]) == 32 and plan["title_fr"] == "Les pandas, en long" and plan["style"]
+    assert all(ln["image"] and ln["motion"] in render.MOTIONS for ln in plan["lines"])
+    r = fake["render"][-1]
+    assert len(r["pieces"]) == 32 and 300 <= r["total"] <= 320
+    assert r["pieces"][-1].t0 + r["pieces"][-1].dur == pytest.approx(r["total"])
+    assert pipeline.too_long_to_send(p) and p["meta"]["seconds"] == pytest.approx(r["total"], abs=0.1)
+    view = edit.script_view(pid)
+    assert view["min_seconds"] == 0.0 and view["max_seconds"] == 86400.0
+    assert "you asked for about 300 s" in p["log"]
+
+
+def test_a_long_video_without_a_plan_stops_with_a_clear_error(fake, monkeypatch):
+    monkeypatch.setattr(llm, "ask_json", lambda prompt, system, **kw: {"title_fr": "x", "sections": [{"title": "a"}]})
+    pid = creator.create("Les pandas", 600)
+    with pytest.raises(RuntimeError, match="no plan"):
+        pipeline.produce(pid)
+    assert db.get_project(pid)["status"] == "failed"

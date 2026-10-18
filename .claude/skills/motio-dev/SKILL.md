@@ -190,7 +190,7 @@ live in `data/tools/delogo/<hex>/`.
   actions that need to put it as mine, we don't mind if the video came from nowhere"): no rights field in the UI or the
   API, and no rights gate — a dub or an explainer is auto-sent like any video through a channel profile that lists
   Postiz channels with its video gate off. Don't add a rights step back unless the owner asks.
-- **Video length 62–90 s** (owner rule, 2026-09-26; the dub "Whole video" option is the owner's one exception, 2026-10-18). Every video, news or topic, lasts at least 62 s
+- **Video length 62–90 s** (owner rule, 2026-09-26; the dub "Whole video" option and an AI video of a length the owner picks (`creator.is_free`, 30 s–30 min, `pipeline.length_rule`) are the owner's exceptions, 2026-10-18; a finished video over 90 s never goes to Postiz on its own, `pipeline.too_long_to_send`). Every video, news or topic, lasts at least 62 s
   (1 min 2 s) and at most 90 s (Facebook Reels API cap): `pipeline.MIN_SECONDS` / `MAX_SECONDS`,
   `target_seconds()` clamps requests (default 80), `_fit()` has Claude lengthen or shorten the script once,
   and render pads the tail to `MIN_SECONDS`. Don't change these bounds without the owner.
