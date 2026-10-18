@@ -93,7 +93,79 @@ def _post_with_retry(url: str, body: dict) -> httpx.Response:
     raise AssertionError("unreachable")
 
 
+EL_MAX_CHARS = 4800  # one request reads at most this many characters; a longer script goes in batches
+
+
+def batches(lines: list[str], limit: int | None = None) -> list[list[str]]:
+    """Consecutive lines grouped so that each group, joined with spaces, stays within `limit` characters (default
+    EL_MAX_CHARS). A line longer than `limit` is alone in its group."""
+    limit = limit or EL_MAX_CHARS
+    out: list[list[str]] = []
+    size = 0
+    for ln in lines:
+        n = len(ln.strip()) + 1
+        if out and size + n <= limit:
+            out[-1].append(ln)
+            size += n
+        else:
+            out.append([ln])
+            size = n
+    return out
+
+
 def _elevenlabs(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:
+    """One request when the script fits, else one request per batch and the batches joined into one narration."""
+    parts = batches(lines)
+    if len(parts) <= 1:
+        return _elevenlabs_once(lines, out_dir, voice)
+    runs = []
+    for k, part in enumerate(parts):
+        d = out_dir / f"part{k:02d}"
+        d.mkdir(parents=True, exist_ok=True)
+        runs.append(_elevenlabs_once(part, d, voice))
+    return _join_runs(runs, parts, out_dir)
+
+
+def _join_runs(runs: list[dict], parts: list[list[str]], out_dir: Path) -> dict:
+    """The batches' narrations as one: audio joined (same format), each line's span and the character timings moved
+    by the length of the batches before it. Characters stay in step with the lines joined by one space."""
+    listing = out_dir / "parts.txt"
+    listing.write_text("".join(f"file '{Path(r['audio']).resolve().as_posix()}'\n" for r in runs), encoding="utf-8")
+    audio = out_dir / "narration.mp3"
+    p = subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-nostdin", "-f", "concat", "-safe", "0",
+                        "-i", str(listing), "-c", "copy", str(audio)], capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"ffmpeg could not join the voice parts: {p.stderr[-400:]}")
+    total = probe_duration(audio)
+    spans: list[dict] = []
+    chars: list[str] = []
+    starts: list[float] = []
+    ends: list[float] = []
+    exact, cut = True, 0.0
+    for k, r in enumerate(runs):
+        spans += [{"start": round(s["start"] + cut, 3), "end": round(s["end"] + cut, 3)} for s in r["lines"]]
+        al = r.get("alignment") or {}
+        c, a, b = (al.get("characters") or []), (al.get("character_start_times_seconds") or []), \
+            (al.get("character_end_times_seconds") or [])
+        if not (len(c) == len(a) == len(b) == len(" ".join(x.strip() for x in parts[k]))):
+            exact = False
+        elif exact:
+            if k:
+                chars.append(" ")
+                starts.append(round(cut, 3))
+                ends.append(round(cut, 3))
+            chars += list(c)
+            starts += [round(float(x) + cut, 3) for x in a]
+            ends += [round(float(x) + cut, 3) for x in b]
+        cut += r["duration"]
+    alignment = ({"characters": chars, "character_start_times_seconds": starts, "character_end_times_seconds": ends}
+                 if exact else None)
+    (out_dir / "narration.alignment.json").write_text(json.dumps(alignment, ensure_ascii=False), encoding="utf-8")
+    return {"audio": str(audio), "duration": total, "lines": spans, "provider": runs[0]["provider"],
+            "voice": runs[0]["voice"], "model": runs[0]["model"], "alignment": alignment}
+
+
+def _elevenlabs_once(lines: list[str], out_dir: Path, voice: str | None = None) -> dict:
     voice_id, voice_name = pick_voice(voice)
     model = config.env("ELEVENLABS_MODEL", "eleven_multilingual_v2")
     text, offsets = "", []

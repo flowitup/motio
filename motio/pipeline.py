@@ -703,7 +703,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                               "Open Remove logo, click Remove logo again, then Re-render video", n=i + 1, spans=spans))
 
     # 6b. Kiểm tra chất lượng video vừa dựng: lỗi nặng thì không tự gửi Postiz (xem _deliver)
-    verdict = qa.check_project(pid, Path(res.get("video") or out / "final.mp4"), MIN_SECONDS, MAX_SECONDS)
+    # a whole-video dub lasts as long as the source video: no 62–90 s window for the length check
+    lo, hi = (0, 24 * 3600) if dub.is_whole(proj) else (MIN_SECONDS, MAX_SECONDS)
+    verdict = qa.check_project(pid, Path(res.get("video") or out / "final.mp4"), lo, hi)
     bad = [c["msg"] for c in verdict["checks"] if c["level"] != "ok"]
     step("Render", 97, tr("Quality check: {problems}", problems=" · ".join(bad)) if bad else tr("Quality check passed"),
          qa=verdict)
@@ -739,6 +741,9 @@ def _why_held(proj: dict) -> str:
         problems = " · ".join(c["msg"] for c in proj["meta"]["qa"]["checks"] if c["level"] == "fail")
         return tr(" (quality check failed: {problems}; fix it, or approve the video yourself before it goes out)",
                   problems=problems)
+    if dub.too_long_to_send(proj):
+        return tr(" (a dub of the whole video is longer than {max} s, the Facebook Reels limit: approve it and send "
+                  "it yourself)", max=MAX_SECONDS)
     if dub.needs_review(proj):
         return tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it "
                   "without approval)")
@@ -760,8 +765,9 @@ def _deliver(pid: int, ch: dict | None) -> None:
     (Modal, ảnh giữ chỗ), không bao giờ tự gửi: luôn dừng chờ duyệt video."""
     proj = db.get_project(pid)
     sent = bool(proj["meta"].get("postiz"))
-    held = bool(ch and ch["postiz"] and (dub.needs_review(proj) or topic.needs_review(proj)
-                                         or creator.needs_review(proj) or qa.failed(proj)))
+    held = bool(ch and ch["postiz"] and (dub.needs_review(proj) or dub.too_long_to_send(proj)
+                                         or topic.needs_review(proj) or creator.needs_review(proj)
+                                         or qa.failed(proj)))
     if ch and not sent and (ch["gate_video"] or held):
         why = _why_held(proj) if held and not ch["gate_video"] else ""
         _await_review(pid, "video", tr("Channel {name}: awaiting your video approval before sending to Postiz"

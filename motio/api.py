@@ -88,6 +88,7 @@ class DubIn(BaseModel):
     link: str  # video cần lồng tiếng (Douyin, Bilibili, YouTube…)
     start: float | None = None  # đoạn lồng tiếng (giây); bỏ trống = tự chọn (cả video nếu ≤ 88 s)
     end: float | None = None
+    whole: bool = False  # lồng cả video: bỏ qua start / end, không giới hạn 62–90 s
     rights: str = "unknown"  # unknown | owned | licensed | cc; chỉ tự gửi Postiz khi không phải unknown
     channel: int | None = None  # như ProduceIn
 
@@ -98,6 +99,7 @@ class SourceVolumeIn(BaseModel):
 
 class ClipDubIn(BaseModel):
     channel: int | None = None
+    whole: bool = False  # lồng cả video (xem DubIn)
 
 
 class DubPatch(BaseModel):
@@ -105,6 +107,7 @@ class DubPatch(BaseModel):
     nói: id giọng ElevenLabs}, id rỗng = để Motio tự chọn."""
     start: float | None = None
     end: float | None = None
+    whole: bool | None = None  # đổi giữa lồng cả video và lồng một đoạn
     blur: list[float] | None = None
     voices: dict[str, str] | None = None
 
@@ -579,7 +582,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = dub.from_clip(cid)
+            pid = dub.from_clip(cid, whole=bool(body and body.whole))
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -653,7 +656,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = dub.create(body.link, body.start, body.end, body.rights)
+            pid = dub.create(body.link, body.start, body.end, body.rights, whole=body.whole)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)

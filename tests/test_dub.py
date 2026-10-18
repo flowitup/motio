@@ -528,3 +528,176 @@ def test_real_dub_voice_mix_and_render(tmp_path, monkeypatch):
     tl = json.loads((out / "timeline.json").read_text(encoding="utf-8"))
     assert tl[0]["still"] and tl[0]["dur"] == 0.2 and not tl[1]["still"]
     assert Path(res["thumb"]).is_file() and (out / "captions.srt").read_text(encoding="utf-8").count("-->") >= 3
+
+
+# ---------- cả video: không cắt đoạn, không bó 62–90 s ----------
+def test_whole_video_option_ignores_the_part_and_the_length_rule():
+    assert dub.pick_excerpt({"whole": True}, 600.0, SEGS, "t") == (0.0, 600.0, "whole video")
+    assert dub.pick_excerpt({"whole": True, "start": 5.0, "end": 9.0}, 31.0, SEGS, "t")[:2] == (0.0, 31.0)
+    with pytest.raises(ValueError, match="length"):
+        dub.pick_excerpt({"whole": True}, 0.0, SEGS, "t")
+    pid = dub.create("https://www.douyin.com/video/1", start=5, end=300, whole=True)  # đoạn đặt tay bị bỏ qua
+    meta = db.get_project(pid)["meta"]
+    assert meta["dub"] == {"start": None, "end": None, "whole": True}
+    assert dub.is_whole(db.get_project(pid)) and "whole video" in db.get_project(pid)["log"]
+    other = dub.create("https://www.douyin.com/video/2")
+    assert "whole" not in db.get_project(other)["meta"]["dub"] and not dub.is_whole(db.get_project(other))
+    with pytest.raises(ValueError, match="at most 88 s"):
+        dub.create("https://www.douyin.com/video/3", start=0, end=300)
+
+
+def test_whole_flag_can_be_changed_on_the_project_page():
+    pid = dub.create("https://www.douyin.com/video/1", start=3, end=70)
+    assert dub.update(pid, {"whole": True}) == "script"
+    assert dub.is_whole(db.get_project(pid)) and db.get_project(pid)["meta"]["dub"]["start"] is None
+    assert dub.update(pid, {"whole": True}) is None  # đã là cả video
+    assert dub.update(pid, {"start": 1, "end": 500}) is None  # đoạn đặt tay không dùng khi lồng cả video
+    assert dub.update(pid, {"whole": False}) == "script" and not dub.is_whole(db.get_project(pid))
+
+
+def test_whole_video_is_translated_in_batches_and_keeps_its_own_length(fake, monkeypatch, tmp_path):
+    import re
+    segs = [{"start": 4.0 * i, "end": 4.0 * i + 3.0, "text": f"句子{i}"} for i in range(100)]  # 400 s, 100 câu
+
+    def download(url, out_dir, cookies=False):
+        f = tmp_path / "Douyin_long.mp4"
+        f.write_bytes(b"x")
+        return {"path": str(f), "url": url, "id": "d2", "title": "长视频", "platform": "Douyin", "uploader": "up",
+                "uploader_url": "", "upload_date": "", "duration": 400.0, "license": ""}
+
+    asked = []
+
+    def ask_json(prompt, system, **kw):
+        asked.append(prompt)
+        ids = [int(m) for m in re.findall(r"^(\d+) · \[", prompt, re.M)]
+        out = {"lines": [{"i": i, "speaker": "A" if i % 2 else "B", "text": f"Phrase numéro {i}."} for i in ids]}
+        if len(asked) == 1:
+            out.update(title_fr="Une longue vidéo", register="vous", description="D.", hashtags=["#Chine"],
+                       speakers={"A": {"who": "la guide", "gender": "f"}, "B": {"who": "le client", "gender": "m"}})
+        else:
+            out["speakers"] = {"C": {"who": "un passant", "gender": "m"}}
+        return out
+
+    monkeypatch.setattr(search, "download", download)
+    monkeypatch.setattr(asr, "transcribe", lambda path: {"language": "zh", "segments": segs})
+    monkeypatch.setattr(llm, "ask_json", ask_json)
+    pid = dub.create("https://www.douyin.com/video/long", rights="owned", whole=True)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done", p["log"]
+    assert len(asked) == 3
+    assert "« intro »" not in asked[0] and "plusieurs parties" in asked[0] and "Personnes déjà identifiées" in asked[1]
+    assert "Phrase numéro 39." in asked[1]  # les dernières répliques écrites passent à l'appel suivant
+    plan = json.loads((config.PROJECTS / str(pid) / "script.json").read_bytes())
+    assert [ln["kind"] for ln in plan["lines"]] == ["dub"] * 100
+    assert plan["lines"][99]["text"] == "Phrase numéro 99."
+    assert plan["dub"]["start"] == 0.0 and plan["dub"]["end"] == 400.0 and plan["dub"]["pad_in"] == 0.0
+    assert set(plan["dub"]["speakers"]) == {"A", "B", "C"}
+    r = fake["render"][-1]
+    assert r["total"] == pytest.approx(400.0) and not any(pc.still for pc in r["pieces"])
+    assert sum(pc.dur for pc in r["pieces"]) == pytest.approx(400.0)
+    assert dub.too_long_to_send(p) and p["meta"]["dub"]["total"] == pytest.approx(400.0)
+
+
+def test_whole_dub_longer_than_reels_waits_at_the_video_gate(fake, fake_postiz, monkeypatch):
+    ch = _profile(postiz=["tt1"])
+    pid = dub.create("https://www.douyin.com/video/1", rights="owned", whole=True)
+    channels.attach(pid, ch)
+    db.update_project(pid, status="running", meta={"dub": {"whole": True, "total": 200.0}})
+    pipeline._deliver(pid, ch)
+    p = db.get_project(pid)
+    assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
+    assert "longer than 90 s" in pipeline._why_held(p)
+    short = dub.create("https://www.douyin.com/video/2", rights="owned", whole=True)
+    channels.attach(short, ch)
+    db.update_project(short, status="running", meta={"dub": {"whole": True, "total": 80.0}})
+    assert not dub.too_long_to_send(db.get_project(short))
+
+
+def test_batches_of_lines_stay_within_the_request_limit():
+    lines = ["a" * 3000, "b" * 1500, "c" * 1500, "d" * 20, "e" * 6000]
+    out = tts.batches(lines, 4800)
+    assert out == [[lines[0], lines[1]], [lines[2], lines[3]], [lines[4]]]  # dòng quá dài đứng riêng
+    assert tts.batches(["x", "y"]) == [["x", "y"]] and tts.batches([]) == []
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+def test_a_long_script_is_read_in_batches_and_joined(tmp_path, monkeypatch):
+    ff = config.ffmpeg()
+    lines = ["Bonjour tout le monde.", "Voici la suite.", "Encore une phrase.", "Et la fin."]
+    seen = []
+
+    def once(part, out_dir, voice=None):
+        seen.append(list(part))
+        audio = out_dir / "narration.mp3"
+        dur = 1.0 * len(part)
+        subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", f"sine=f=440:d={dur}", "-ar", "44100",
+                        "-b:a", "128k", str(audio)], check=True)
+        text = " ".join(x.strip() for x in part)
+        step = dur / len(text)
+        al = {"characters": list(text), "character_start_times_seconds": [round(i * step, 3) for i in range(len(text))],
+              "character_end_times_seconds": [round((i + 1) * step, 3) for i in range(len(text))]}
+        return {"audio": str(audio), "duration": tts.probe_duration(audio), "provider": "elevenlabs", "voice": "v",
+                "model": "m", "alignment": al,
+                "lines": [{"start": float(i), "end": float(i) + 1.0} for i in range(len(part))]}
+
+    monkeypatch.setattr(tts, "_elevenlabs_once", once)
+    monkeypatch.setattr(tts, "EL_MAX_CHARS", 40)  # hai câu một đợt
+    r = tts._elevenlabs(lines, tmp_path, None)
+    assert seen == [lines[:2], lines[2:]]
+    assert [s["start"] for s in r["lines"]] == pytest.approx([0.0, 1.0, 2.0, 3.0], abs=0.15)
+    assert r["duration"] == pytest.approx(4.0, abs=0.2) and Path(r["audio"]).is_file()
+    al = r["alignment"]
+    assert len(al["characters"]) == len(" ".join(lines)) == len(al["character_start_times_seconds"])
+    assert "".join(al["characters"]) == " ".join(lines)
+    assert al["character_start_times_seconds"] == sorted(al["character_start_times_seconds"])
+
+
+def test_separation_windows_cover_the_whole_part_without_a_tiny_tail():
+    assert separate.windows(100.0, 240.0) == [(0.0, 100.0)]
+    w = separate.windows(700.0, 240.0)
+    assert w[0] == (0.0, 240.0) and w[-1][0] + w[-1][1] == pytest.approx(700.0)
+    assert all(b >= 120.0 for _, b in w) and sum(b for _, b in w) == pytest.approx(700.0)
+    assert separate.windows(500.0, 240.0)[-1][1] >= 120.0
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+def test_long_part_is_separated_window_by_window(tmp_path, monkeypatch):
+    src = tmp_path / "long.wav"
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=330:d=12", str(src)], check=True)
+    monkeypatch.setattr(separate, "WINDOW", 3.0)
+    monkeypatch.setattr(separate, "CONTEXT", 0.5)
+    seen = []
+    out = separate.instrumental(src, tmp_path / "bg.wav", 0.0, 12.0, progress=lambda a, b: seen.append((a, b)),
+                                sess=Identity())
+    assert len(seen) == len(separate.windows(12.0, 3.0)) and seen[-1][0] == seen[-1][1]
+    with wave.open(str(out)) as w:
+        assert abs(w.getnframes() / w.getframerate() - 12.0) < 0.01
+        pcm = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, 2)[:, 0]
+    assert np.abs(pcm).mean() > 1000
+    assert np.abs(pcm[:44100]).mean() > 1000 and np.abs(pcm[-44100:]).mean() > 1000
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs ffmpeg")
+@pytest.mark.parametrize("long_graph", [False, True])
+def test_many_lines_are_mixed_in_groups_at_their_exact_places(tmp_path, monkeypatch, long_graph):
+    ff = config.ffmpeg()
+    voice = tmp_path / "v.wav"
+    subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=500:d=4", str(voice)], check=True)
+    n = 60
+    placed = [{"at": 1.0 + 1.5 * k, "end": 1.0 + 1.5 * k + 0.6, "rate": 1.0, "src_start": 0.0, "src_end": 0.6, "v": 0}
+              for k in range(n)]
+    total = placed[-1]["end"] + 1.0
+    if long_graph:
+        monkeypatch.setattr(dub, "LONG_FILTER", 100)  # ép đưa đồ thị cho ffmpeg bằng file
+    dst = dub.mix(str(voice), placed, None, "none", "", 0.0, total, 0.0, total, tmp_path / "mix.wav")
+    assert not list(tmp_path.glob("*.filter.txt"))
+    with wave.open(str(dst)) as w:
+        assert abs(w.getnframes() / w.getframerate() - total) < 0.05
+        pcm = np.frombuffer(w.readframes(w.getnframes()), np.int16).reshape(-1, w.getnchannels())[:, 0]
+    rate = 44100
+    loud = lambda t0, t1: np.abs(pcm[int(t0 * rate):int(t1 * rate)]).mean()  # noqa: E731
+    for k in (0, 23, 24, 25, 47, 48, 59):  # đầu, cuối và chỗ nối các nhóm 24 câu
+        at = placed[k]["at"]
+        assert loud(at + 0.1, at + 0.5) > 1000, k
+        assert loud(at + 0.75, at + 1.35) < 50, k

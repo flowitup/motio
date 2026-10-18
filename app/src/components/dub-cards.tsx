@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Clapperboard, Eraser, Loader2, Mic, Pause, Play, RotateCcw } from "lucide-react";
+import { Clapperboard, Eraser, Languages, Loader2, Mic, Pause, Play, RotateCcw } from "lucide-react";
 import { type PointerEvent, type RefObject, useRef, useState } from "react";
 import { Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,14 @@ export function DubCompareCard({
     },
     onSuccess: onQueued,
   });
+  const mode = useMutation({
+    mutationFn: async (whole: boolean) => {
+      const r = await api.updateDub(p.id, { whole });
+      if (r.rerun) await api.retry(p.id, "script");
+      return r;
+    },
+    onSuccess: onQueued,
+  });
   if (!d.source || !d.excerpt) return null;
   const changed = (start ?? null) !== (d.start ?? null) || (end ?? null) !== (d.end ?? null);
 
@@ -104,25 +112,44 @@ export function DubCompareCard({
             {padIn + (d.pad?.[1] ?? 0) > 0.5 && ` · ${t.dub.pads(padIn + (d.pad?.[1] ?? 0))}`}
           </span>
         </div>
-        <div className="grid items-end gap-3 border-t pt-3 sm:grid-cols-[1fr_1fr_auto]">
-          <Field label={t.dub.from}>
-            <Input value={from} onChange={(e) => setFrom(e.target.value)} placeholder={clock(a)} disabled={active} />
-          </Field>
-          <Field label={t.dub.to}>
-            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder={clock(b)} disabled={active} />
-          </Field>
-          <Button
-            variant="outline"
-            onClick={() => redo.mutate()}
-            disabled={active || redo.isPending || badTime || !changed}
-          >
-            {redo.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-            {t.dub.usePart}
-          </Button>
-        </div>
-        {changed && <p className="text-xs text-amber">{t.dub.partRedo}</p>}
-        {badTime && <p className="text-xs text-destructive">{t.dub.badTime}</p>}
-        {redo.error && <p className="text-destructive">{redo.error.message}</p>}
+        {d.whole ? (
+          <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+            <span className="text-xs text-muted-foreground">{t.dub.wholeNow}</span>
+            <Button variant="outline" size="sm" onClick={() => mode.mutate(false)} disabled={active || mode.isPending}>
+              {mode.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+              {t.dub.useRange}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="grid items-end gap-3 border-t pt-3 sm:grid-cols-[1fr_1fr_auto]">
+              <Field label={t.dub.from}>
+                <Input value={from} onChange={(e) => setFrom(e.target.value)} placeholder={clock(a)} disabled={active} />
+              </Field>
+              <Field label={t.dub.to}>
+                <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder={clock(b)} disabled={active} />
+              </Field>
+              <Button
+                variant="outline"
+                onClick={() => redo.mutate()}
+                disabled={active || redo.isPending || badTime || !changed}
+              >
+                {redo.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+                {t.dub.usePart}
+              </Button>
+            </div>
+            {changed && <p className="text-xs text-amber">{t.dub.partRedo}</p>}
+            {badTime && <p className="text-xs text-destructive">{t.dub.badTime}</p>}
+            <div>
+              <Button variant="ghost" size="sm" onClick={() => mode.mutate(true)} disabled={active || mode.isPending}>
+                {mode.isPending ? <Loader2 className="animate-spin" /> : <Languages />}
+                {t.dub.useWhole}
+              </Button>
+              <p className="mt-1 text-xs text-muted-foreground">{t.dub.wholeRedo}</p>
+            </div>
+          </>
+        )}
+        {(redo.error ?? mode.error) && <p className="text-destructive">{(redo.error ?? mode.error)?.message}</p>}
     </Panel>
   );
 }

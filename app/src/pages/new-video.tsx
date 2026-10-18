@@ -216,16 +216,18 @@ function DubConsole({ api }: { api: Api }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [rights, setRights] = useState<Rights>("unknown");
+  const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
   const choice = useChannelChoice(api);
   const start = parseClock(from);
   const end = parseClock(to);
-  const badTime = Number.isNaN(start) || Number.isNaN(end);
+  const badTime = !whole && (Number.isNaN(start) || Number.isNaN(end));
   const create = useMutation({
     mutationFn: () =>
       api.createDub({
         link: link.trim(),
-        ...(start != null ? { start } : {}),
-        ...(end != null ? { end } : {}),
+        ...(!whole && start != null ? { start } : {}),
+        ...(!whole && end != null ? { end } : {}),
+        ...(whole ? { whole } : {}),
         rights,
         channel: choice.channel,
       }),
@@ -234,10 +236,11 @@ function DubConsole({ api }: { api: Api }) {
       navigate(`/projects/${project_id}`);
     },
   });
-  const part = start != null && end != null && !badTime && end > start ? end - start : null;
+  const part = !whole && start != null && end != null && !badTime && end > start ? end - start : null;
   const line = useEstimateLine(api);
   const summary = [
     link.trim().replace(/^https?:\/\/(www\.)?/, ""),
+    whole ? t.dub.lengthWhole : "",
     part != null ? `${clock(start)} → ${clock(end)}` : "",
     part != null ? minSec(part) : "",
     t.studio.rightsLine(t.projects.rightsOptions[rights]),
@@ -249,7 +252,7 @@ function DubConsole({ api }: { api: Api }) {
     <Console
       title={t.dub.kinds.dub}
       summary={summary || t.dub.make}
-      estimate={line({ seconds: part ?? (MIN_S + MAX_S) / 2, videos: 1 })}
+      estimate={whole ? undefined : line({ seconds: part ?? (MIN_S + MAX_S) / 2, videos: 1 })}
       error={create.error?.message}
       action={
         <Button size="lg" onClick={() => create.mutate()} disabled={!link.trim() || badTime || create.isPending}>
@@ -261,7 +264,7 @@ function DubConsole({ api }: { api: Api }) {
         <>
           <Pipeline steps={t.studio.dubSteps} aside={part != null ? `${clock(start)} → ${clock(end)}` : undefined} />
           <SidePanel title={t.studio.rules}>
-            <LengthRule />
+            {whole ? <p className="p-4 text-[13px] leading-5 text-muted-foreground">{t.dub.wholeRule}</p> : <LengthRule />}
           </SidePanel>
           <RightsGate rights={rights} />
         </>
@@ -280,6 +283,18 @@ function DubConsole({ api }: { api: Api }) {
           <AddVideoFile api={api} onAdded={setLink} size="lg" />
         </div>
       </Section>
+      <Section icon={Clock} label={t.dub.length} hint={t.dub.lengthHint}>
+        <Pick
+          label={t.dub.length}
+          value={whole ? "whole" : "part"}
+          onChange={(v) => setWhole(v === "whole")}
+          options={[
+            ["part", t.dub.lengthPart],
+            ["whole", t.dub.lengthWhole],
+          ]}
+        />
+      </Section>
+      {!whole && (
       <Section
         icon={Clock}
         label={t.dub.part}
@@ -314,6 +329,7 @@ function DubConsole({ api }: { api: Api }) {
           )}
         </div>
       </Section>
+      )}
       <Section icon={ShieldCheck} label={t.projects.rights} hint={t.projects.rightsHint}>
         <Pick label={t.projects.rights} value={rights} onChange={setRights} options={RIGHTS.map((r): [Rights, string] => [r, t.projects.rightsOptions[r]])} />
       </Section>
