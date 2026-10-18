@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import captions, config, localfile, scenes
+from . import captions, config, scenes
 from .asr import has_audio
 from .i18n import tr
 
@@ -23,7 +23,7 @@ VIDEO_BOTTOM = (H + W * 9 // 16) // 2  # mép dưới của clip 16:9 đặt gi�
 NARRATION_DELAY = 0.15  # giọng đọc vào trễ 150 ms (adelay ở bước trộn): phụ đề dời theo
 TAIL = 0.6  # giây hình sau câu cuối
 SRC_VOLUME = 0.10  # âm lượng tiếng của nguồn dưới giọng đọc (0 = im: video không còn giọng gốc)
-CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới nhãn nguồn
+CAP_TOP = VIDEO_BOTTOM + 100  # dải phụ đề, ngay dưới clip
 CAP_SIZE, CAP_LINE = 60, 78
 CAP_H = captions.MAX_LINES * CAP_LINE + 40
 CAP_MAX_W = W - 120
@@ -40,12 +40,11 @@ class Layout:
     h: int
     prefix: str  # tiền tố tên file tạm và file kết quả ("" cho 9:16)
     scale: float
-    title_x: int  # mép trái băng tiêu đề (và nhãn nguồn)
+    title_x: int  # mép trái băng tiêu đề
     title_y: int
     title_lines: int  # số dòng tiêu đề tối đa
     title_wrap: int  # bề ngang tối đa một dòng tiêu đề
     fit_box: bool  # băng tiêu đề ôm vừa chữ (16:9) thay vì trải hết bề ngang (9:16)
-    credit_y: int
     cap_top: int
     cap_size: int
     cap_line: int
@@ -59,12 +58,11 @@ class Layout:
         return captions.MAX_LINES * self.cap_line + 40
 
 
-VERTICAL = Layout(W, H, "", 1.0, 40, 150, 3, W - 140, False, VIDEO_BOTTOM + 18, CAP_TOP, CAP_SIZE, CAP_LINE)
+VERTICAL = Layout(W, H, "", 1.0, 40, 150, 3, W - 140, False, CAP_TOP, CAP_SIZE, CAP_LINE)
 WIDE_W, WIDE_H = 1920, 1080
 _WIDE_CAP_LINE = 68
 _WIDE_CAP_TOP = WIDE_H - (captions.MAX_LINES * _WIDE_CAP_LINE + 40) - 24  # dải phụ đề sát đáy khung
-WIDE = Layout(WIDE_W, WIDE_H, "wide_", 0.8, 48, 40, 2, 1150, True, _WIDE_CAP_TOP - 50, _WIDE_CAP_TOP, 52,
-              _WIDE_CAP_LINE)
+WIDE = Layout(WIDE_W, WIDE_H, "wide_", 0.8, 48, 40, 2, 1150, True, _WIDE_CAP_TOP, 52, _WIDE_CAP_LINE)
 
 
 def _font(cands: list[str], size: int) -> ImageFont.FreeTypeFont:
@@ -88,9 +86,8 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
     return lines
 
 
-def overlay_png(path: Path, *, title: str, credit: str, badge: str = "", layout: Layout = VERTICAL) -> Path:
-    """Lớp tĩnh cỡ khung: băng tiêu đề (nhãn đỏ phía trên nếu có `badge`) và nhãn nguồn (tuỳ chọn).
-    Công bố giọng AI nằm trong bài đăng."""
+def overlay_png(path: Path, *, title: str, badge: str = "", layout: Layout = VERTICAL) -> Path:
+    """Lớp tĩnh cỡ khung: băng tiêu đề (nhãn đỏ phía trên nếu có `badge`). Công bố giọng AI nằm trong bài đăng."""
     L, k = layout, layout.k
     img = Image.new("RGBA", (L.w, L.h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -112,13 +109,6 @@ def overlay_png(path: Path, *, title: str, credit: str, badge: str = "", layout:
         d.text((bx + k(18), y0 + k(30)), badge, font=f_badge, fill="white")
     for i, ln in enumerate(tl):
         d.text((x0 + pad, y0 + top + i * line), ln, font=f_title, fill="white")
-    # Nhãn nguồn (tuỳ chọn): 9:16 ngay dưới clip, 16:9 ngay trên phụ đề. Chủ dự án bỏ nhãn "Voix de synthèse (IA)"
-    # trên video (26/09/2026).
-    if credit:
-        f_cr = _font(FONT_CJK, k(30))
-        cy, tw = L.credit_y, d.textlength(credit, font=f_cr)
-        d.rounded_rectangle((x0, cy, x0 + tw + k(24), cy + k(46)), radius=k(10), fill=(0, 0, 0, 150))
-        d.text((x0 + k(12), cy + k(6)), credit, font=f_cr, fill=(235, 235, 235))
     img.save(path)
     return path
 
@@ -387,18 +377,11 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     """Dựng một khổ từ các mảnh đã chọn: mảnh clip + lớp chữ, nối lại, trộn giọng đọc và phụ đề."""
     pre = layout.prefix
     cap_list = write_caption_track(cues, work, layout)
-    overlays: dict[str, Path] = {}
+    overlay = overlay_png(work / f"{pre}ov_000.png", title=title, badge=badge, layout=layout)
     files = []
     for j, p in enumerate(pieces):
-        src = sources[p.src]
-        credit = (f"Source : {src['platform']} / {src['uploader']}".strip(" /")
-                  if config.flag("CREDIT_ON_VIDEO") and not p.motion and src.get("platform") != localfile.PLATFORM
-                  else "")  # ảnh AI và file thêm tay không có nguồn để ghi
-        if credit not in overlays:
-            overlays[credit] = overlay_png(work / f"{pre}ov_{len(overlays):03d}.png", title=title, credit=credit,
-                                          badge=badge, layout=layout)
         f = work / f"{pre}p_{j:03d}.mp4"
-        render_piece(p, src, overlays[credit], f, layout, volume)
+        render_piece(p, sources[p.src], overlay, f, layout, volume)
         files.append(f)
         tick()
     lst = work / f"{pre}list.txt"

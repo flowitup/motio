@@ -69,14 +69,6 @@ def test_first_matching_channel_gets_the_trend_default_first():
     assert _picked() == [("t95", "Default"), ("t85", "Default")]
 
 
-def test_global_daily_limit_wins(monkeypatch):
-    monkeypatch.setenv("MAX_VIDEOS_PER_DAY", "1")
-    _ch("Chine Express", 80, daily=5)
-    _trend("a", 90)
-    _trend("b", 91)
-    assert _picked() == [("b", "Chine Express")]
-
-
 def test_auto_score_zero_is_off():
     _ch("Off", 0)
     _trend("a", 100)

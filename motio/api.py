@@ -405,7 +405,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             "ffprobe": config.find("ffprobe"),
             "js_runtime": next(iter(config.js_runtimes().values()), {}).get("path"),
             "postiz": postiz.configured(),
-            "quota_left": pipeline.quota_left(),
             "data_dir": str(config.DATA),
             "disk": config.disk(),
         }
@@ -488,9 +487,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(400, tr("“Use only these links” needs at least one link"))
         ch = _channel_for(body.channel if body else None)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
         channels.attach(pid, ch, news=True)
         if links:
@@ -586,9 +582,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         body = body or ClipProduceIn()
         ch = _channel_for(body.channel)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         try:
             pid = watch.produce(cid, body.duration, body.links_only, body.mute_voice, body.topic)
         except ValueError as e:
@@ -603,9 +596,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         _clip(cid)
         ch = _channel_for(body.channel if body else None)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         try:
             pid = dub.from_clip(cid, whole=bool(body and body.whole), start=body and body.start, end=body and body.end)
         except ValueError as e:
@@ -642,9 +632,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Video giải thích từ một chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…)."""
         ch = _channel_for(body.channel)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         try:
             pid = topic.create(body.topic, body.links, body.links_only, body.duration)
         except ValueError as e:
@@ -659,9 +646,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         (Cài đặt) làm ảnh, rồi đọc và dựng với chuyển động chậm."""
         ch = _channel_for(body.channel)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         try:
             if body.clips is None and aiclips.limit({"meta": {}}, ch):
                 aiclips.check_ready()  # the channel's clips need the key too: say so before the project exists
@@ -677,9 +661,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         """Lồng tiếng Pháp cho một video: dịch từng câu, giữ nhạc nền gốc, làm mờ phụ đề cũ."""
         ch = _channel_for(body.channel)
         _preflight()
-        if pipeline.quota_left() == 0:
-            raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
-                                        n=config.max_videos_per_day()))
         try:
             pid = dub.create(body.link, body.start, body.end, whole=body.whole)
         except ValueError as e:

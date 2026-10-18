@@ -14,6 +14,7 @@ SOURCE_NAMES = {
     "douyin": "Douyin", "weibo": "Weibo", "baidu": "Baidu", "bilibili-hot-search": "Bilibili",
     "toutiao": "Toutiao", "thepaper": "The Paper", "zhihu": "Zhihu", "kuaishou": "Kuaishou",
 }
+SOURCES = ("douyin", "weibo", "baidu", "bilibili-hot-search", "toutiao", "thepaper")  # bảng hot mà refresh() lấy
 
 
 def safe_id(source: str, ext: str) -> str:
@@ -58,7 +59,7 @@ Sujets :
 
 def refresh(sources: list[str] | None = None, per_source: int = 15) -> dict:
     """Lấy bảng hot, chỉ gửi LLM những tin chưa có trong DB. Trả về số liệu."""
-    sources = sources or config.news_sources()
+    sources = sources or list(SOURCES)
     known = db.known_trend_ids()
     fresh, errors = [], {}
     for s in sources:

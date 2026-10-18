@@ -261,17 +261,13 @@ def test_a_conversion_cut_short_never_leaves_a_half_written_source(monkeypatch):
     assert not list(folder.glob(".upload-*"))
 
 
-def test_a_file_source_is_not_credited_in_the_post_or_on_the_video(tmp_path, monkeypatch):
-    monkeypatch.setenv("CREDIT_IN_POST", "true")
+def test_sources_are_kept_in_the_internal_list_only(tmp_path):
     uid = "a" * 32
     sources = [{"platform": "File", "uploader": "", "url": f"file:{uid}/Douyin clip.mp4"},
                {"platform": "YouTube", "uploader": "Chaîne", "url": "https://youtu.be/x"}]
     plan = {"title_fr": "Titre", "description": "Desc.", "hashtags": ["#a"]}
     desc = pipeline.write_post(plan, sources, tmp_path)
-    assert "Douyin clip" not in desc and "• YouTube · Chaîne — https://youtu.be/x" in desc
+    assert "Douyin clip" not in desc and "youtu.be" not in desc and "Sources" not in desc
     internal = (tmp_path / "sources.txt").read_text(encoding="utf-8")
     assert "file:" + uid in internal and "https://youtu.be/x" in internal  # the internal list keeps both
-    monkeypatch.setenv("CREDIT_IN_POST", "")
-    only = tmp_path / "only"
-    only.mkdir()
-    assert "Sources" not in pipeline.write_post(plan, sources[:1], only)
+

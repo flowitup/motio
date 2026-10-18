@@ -164,9 +164,8 @@ def font_candidates(kind: str) -> list[str]:
     return [p for p in out if p]
 
 
-# ---------- nguồn tin, giới hạn ----------
+# ---------- nguồn tin ----------
 DEFAULT_NEWSNOW = "https://newsnow.busiyi.world"  # bản công khai; server dùng bản tự host http://newsnow:4444
-DEFAULT_SOURCES = "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper"
 
 
 def newsnow_url() -> str:
@@ -190,17 +189,7 @@ def news_topics() -> bool:
     return flag("NEWS_TOPICS")
 
 
-def news_sources() -> list[str]:
-    return [s.strip() for s in env("NEWS_SOURCES", DEFAULT_SOURCES).split(",") if s.strip()]
-
-
-def max_videos_per_day() -> int:
-    """0 = không giới hạn."""
-    return _int("MAX_VIDEOS_PER_DAY")
-
-
-# Ghi nguồn: mặc định tắt trên video và trong mô tả bài đăng (CREDIT_ON_VIDEO, CREDIT_IN_POST).
-# Danh sách nguồn vẫn luôn được lưu nội bộ (data/projects/<id>/sources.txt).
+# Danh sách nguồn của mỗi video chỉ được lưu nội bộ (data/projects/<id>/sources.txt), không ghi lên video hay bài đăng.
 
 # Khung video đầu ra
 W, H, FPS = 1080, 1920, 30
