@@ -114,6 +114,8 @@ const en = {
     tag: "Or follow a tag",
     tagPlaceholder: "A Chinese search word, e.g. 人工智能",
     tagHint: "Motio follows the most played videos of the last 7 days that match it.",
+    sources: "Fetch videos from",
+    sourcesHint: "Click a source to pause or resume it: a paused source keeps its list but is not checked or shown.",
     kuaishouHint: "Kuaishou's featured list is not a ranking: each check shows a fresh selection of its home page.",
     starterTitle: "Pick what to follow",
     starterBody:
@@ -1183,6 +1185,8 @@ const vi: Messages = {
     tag: "Hoặc theo dõi một thẻ",
     tagPlaceholder: "Từ khoá tiếng Trung, ví dụ 人工智能",
     tagHint: "Motio theo dõi các video được xem nhiều nhất trong 7 ngày qua khớp với từ khoá.",
+    sources: "Lấy video từ",
+    sourcesHint: "Bấm một nguồn để tạm dừng hoặc bật lại: nguồn tạm dừng giữ nguyên danh sách nhưng không được kiểm tra và không hiện.",
     kuaishouHint: "Danh sách Nổi bật của Kuaishou không phải bảng xếp hạng: mỗi lần kiểm tra là một lượt chọn mới từ trang chủ của họ.",
     starterTitle: "Chọn nội dung để theo dõi",
     starterBody:
