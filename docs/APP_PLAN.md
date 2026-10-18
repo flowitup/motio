@@ -43,15 +43,13 @@ APIs directly.
 3. **Jobs**: keep the single worker queue; on startup mark stale `running` projects `failed` with a log line.
 4. **Settings** `motio/settings.py`: `data/settings.json` layered over `.env`; read at call time so changes
    apply without restart. Keys: `LLM_MODEL`, `LLM_MODEL_FAST`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
-   `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL`, `WHISPER_MODEL`, `NEWS_SOURCES`, `CREDIT_ON_VIDEO`,
-   `CREDIT_IN_POST`, `MAX_VIDEOS_PER_DAY`. Secrets are returned masked (`••••1234`); PUT accepts new values.
+   `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL`, `WHISPER_MODEL`. Secrets are returned masked (`••••1234`); PUT accepts new values.
 5. **Cross-platform fixes**
    - Fonts: lookup helper with macOS, Windows (`C:\Windows\Fonts\arialbd.ttf`, `msyhbd.ttc`), Linux paths.
    - `config.which()`: Windows `.exe`/`.cmd` (`claude.cmd`), `%LOCALAPPDATA%`, env overrides
      `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, and a bundled `bin/` next to the engine.
    - TTS: no ElevenLabs key and not macOS → clear error that the UI can show.
    - ASR: faster-whisper picks `cuda` if available, else `cpu` with `int8`.
-   - Enforce `MAX_VIDEOS_PER_DAY` in `produce`.
 6. **Tests** (pytest): `caption_chunks`, `build_timeline`, `split_by_captions`, `llm.parse_json`,
    `newsnow.safe_id`, settings masking, API routes with `TestClient` and a mocked pipeline. Add `ruff`.
 
@@ -259,8 +257,7 @@ The owner asked to build the rest of the blueprint in phase order; for GĐ1 they
 - **Auto-make** (PR 2, `motio/automake.py`): a profile with `auto_score` > 0 gets videos made for it after each
   *scheduled* refresh (not the Refresh button): trends still on the board in the last 6 h, first seen in the last 24 h,
   status new, score ≥ `auto_score`, best score first. Each trend goes to the first profile it qualifies for (default
-  profile first, then by id) that still has room under its `auto_daily` cap (1–20, counted from local midnight), all
-  within `MAX_VIDEOS_PER_DAY`. The project gets `meta.auto`, runs like a click on "Make video" for that channel and
+  profile first, then by id) that still has room under its `auto_daily` cap (1–20, counted from local midnight). The project gets `meta.auto`, runs like a click on "Make video" for that channel and
   still stops at its gates. `uv run python -m motio automake` runs the same pick by hand. Profiles saved before PR 2
   read the new fields as their defaults (no 16:9, auto-make off).
 - Slack notifications: see "Slack alerts" below (an Incoming Webhook; the interactive Slack app with buttons is still M4).

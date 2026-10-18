@@ -21,9 +21,9 @@ def test_secrets_are_masked_and_env_is_layered(monkeypatch):
 
 def test_update_overrides_env_at_call_time(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "opus")
-    settings.update({"LLM_MODEL": "haiku", "CREDIT_ON_VIDEO": True})
+    settings.update({"LLM_MODEL": "haiku", "NEWS_TOPICS": True})
     assert config.env("LLM_MODEL") == "haiku"
-    assert config.flag("CREDIT_ON_VIDEO") is True
+    assert config.flag("NEWS_TOPICS") is True
     settings.update({"LLM_MODEL": None})  # xoá ghi đè → quay về .env
     assert config.env("LLM_MODEL") == "opus"
 
@@ -44,9 +44,9 @@ def test_update_rejects_unknown_and_bad_values():
     with pytest.raises(KeyError):
         settings.update({"NOPE": "1"})
     with pytest.raises(ValueError):
-        settings.update({"MAX_VIDEOS_PER_DAY": "abc"})
-    settings.update({"MAX_VIDEOS_PER_DAY": 3})
-    assert config.max_videos_per_day() == 3
+        settings.update({"REFRESH_EVERY_MIN": "abc"})
+    settings.update({"REFRESH_EVERY_MIN": 3})
+    assert config.refresh_every_min() == 3
 
 
 def test_refresh_interval_and_newsnow_url(monkeypatch):

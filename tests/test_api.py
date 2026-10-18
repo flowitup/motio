@@ -94,13 +94,6 @@ def test_produce_unknown_trend(client):
     assert client.post("/api/trends/nope:1/produce", headers=H).status_code == 404
 
 
-def test_daily_quota(client):
-    settings.update({"MAX_VIDEOS_PER_DAY": 1})
-    assert client.post("/api/trends/douyin:1/produce", headers=H).status_code == 202
-    r = client.post("/api/trends/weibo:2/produce", headers=H)
-    assert r.status_code == 429
-
-
 def test_rerender(client):
     pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
     _wait_done(client, pid)

@@ -99,7 +99,7 @@ as authoritative for scope and milestones.
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
   - `automake.py` after each scheduled refresh, make videos for new trends at or above a profile's `auto_score`
-    (per-profile `auto_daily` cap + `MAX_VIDEOS_PER_DAY`); such projects carry `meta.auto`
+    (per-profile `auto_daily` cap); such projects carry `meta.auto`
   - `i18n.py` engine messages in the UI language (`tr`, `tr_n`, Vietnamese in `VI`, `UI_LANG`)
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
@@ -173,8 +173,8 @@ on every PR; keep them green.
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
 - All LLM calls go through `motio/llm.py` and the Anthropic API (owner, 2026-10-08: $200/month API budget, `claude -p`
   is gone). Light work (scoring, picking) passes `light=True` for the fast model; every call is recorded in `usage`.
-- Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
-  `sources.txt` in the project folder.
+- Sources are never credited on the video or in the post (owner, 2026-10-18: the credit switches, the daily video cap
+  and `NEWS_SOURCES` were removed); always write `sources.txt` in the project folder.
 - Source rights are not declared (owner, 2026-10-18: "remove this for all actions that need to put it as mine, we
   don't mind if the video came from nowhere"): no rights field in the app or the API, and no rights gate — a dub or
   an explainer is auto-sent like any video through a channel profile that lists Postiz channels with its video gate

@@ -159,8 +159,7 @@ live in `data/tools/delogo/<hex>/`.
   `docs/DEPLOY.md` is still Vietnamese); short comments may be Vietnamese.
 - **Content rules.** Keep "Voix off générée par IA." in the post and the platforms' AI flags (AI Act art. 50).
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
-  Always write `sources.txt`; on-video / in-post credits stay optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`,
-  default off). News videos carry an original French script; source clips only illustrate, in short segments.
+  Always write `sources.txt`; sources are never shown on the video or in the post (owner, 2026-10-18). News videos carry an original French script; source clips only illustrate, in short segments.
 - **Logo removal stays manual.** The only watermark / logo removal is the "Remove logo" tool (`motio/delogo.py`,
   owner's ask 2026-09-27): the user picks one video (a project source or an upload) and starts it; the owner removed
   the rights confirmation (PR #19) and the per-source rights field (PR #21). A rights value sent through the API is
@@ -359,7 +358,7 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
   usually works. Expect fewer sources on the server.
 - `uv` is not on PATH when the app is launched from Finder / Explorer; `engine.rs` searches common
   locations. Keep that list in sync if you change how uv is found.
-- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`. "Remove logo"
+- The engine does one video at a time (single worker queue). "Remove logo"
   jobs have their own one-at-a-time queue (`tools` in `api.py`) so a long LaMa run doesn't hold up production.
 - Stale `running` projects are marked `failed` on engine start; don't rely on resuming them.
 - Release asset names feed `tools/updater_manifest.py`: renaming bundles or changing `bundles:` in

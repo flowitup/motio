@@ -199,7 +199,6 @@ function HealthCard({ api }: { api: Api }) {
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
     [t.settings.jsRuntime, h.js_runtime ?? <span className="text-destructive">{t.settings.jsRuntimeMissing}</span>],
     ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
-    [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
     [t.settings.disk, h.disk ? t.settings.diskFree(bytes(h.disk.free), bytes(h.disk.total)) : "—"],
   ];
