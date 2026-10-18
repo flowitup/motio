@@ -287,16 +287,6 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
           {switchRow("NEWS_TOPICS", t.settings.newsTopics)}
           <p className="text-xs text-muted-foreground">{t.settings.newsTopicsHint}</p>
         </div>
-        <div className="sm:col-span-2">
-          <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
-            {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}
-          </Field>
-        </div>
-        <Field label={t.settings.maxPerDay}>{num("MAX_VIDEOS_PER_DAY", "0", "1")}</Field>
-        <div className="grid content-start gap-3">
-          {switchRow("CREDIT_ON_VIDEO", t.settings.creditOnVideo)}
-          {switchRow("CREDIT_IN_POST", t.settings.creditInPost)}
-        </div>
       </Section>
 
       <Section id="llm" title={t.settings.llm} bodyClassName={grid}>
