@@ -25,8 +25,8 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [duration, setDuration] = useState("80");
-  // a trending video is made on its own; a followed channel's, when its rights are known
-  const [only, setOnly] = useState(clip.watch_kind === "trending" || (clip.rights ?? "unknown") !== "unknown");
+  // a trending video is made on its own; any other source's, only when the toggle is on
+  const [only, setOnly] = useState(clip.watch_kind === "trending");
   const [mute, setMute] = useState(true); // the source's own voice (Chinese) off under the French one
   const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
   const choice = useChannelChoice(api);
@@ -166,10 +166,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
               <Switch checked={only} onCheckedChange={setOnly} />
               {t.clips.only}
             </label>
-            <p className="text-xs text-muted-foreground">
-              {t.projects.rightsOptions[clip.rights ?? "unknown"]}
-              {!only && ` · ${t.clips.onlyHint}`}
-            </p>
+            {!only && <p className="text-xs text-muted-foreground">{t.clips.onlyHint}</p>}
           </div>
           <label className="flex items-center gap-2 pb-1 text-sm">
             <Switch checked={mute} onCheckedChange={setMute} />

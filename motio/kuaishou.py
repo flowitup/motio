@@ -8,7 +8,7 @@ requests: `window.__APOLLO_STATE__` → `VisionVideoDetailPhoto`) and works on s
 videodl is under the PolyForm Noncommercial licence, so Motio never bundles or imports it: the person installs it
 (`pipx install videofetch`, or `MOTIO_VIDEODL` = the path of the `videodl` command) and Motio calls the command,
 with only the Kuaishou client (`-a KuaishouVideoClient`). videodl's "generic" parsers, which send the link to
-third-party watermark-removal sites, are never used. Rights stay "unknown" like for every pasted link.
+third-party watermark-removal sites, are never used. Motio downloads it like any pasted link.
 """
 import json
 import re

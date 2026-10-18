@@ -1,5 +1,5 @@
-"""Effects the user turns on per source: mirror, colour filter. Only for footage owned / licensed / CC, or an
-AI video. Checked, saved per link, handed to the render, and made for real with FFmpeg."""
+"""Effects the user turns on per source: mirror, colour filter. Checked, saved per link, handed to the render, and
+made for real with FFmpeg."""
 import subprocess
 
 import pytest
@@ -8,9 +8,9 @@ from PIL import Image
 from motio import config, db, effects, render
 
 
-def _project(sources: list[dict], mode: str = "news", rights: str | None = "owned") -> int:
+def _project(sources: list[dict], mode: str = "news") -> int:
     pid = db.create_project(None, "x", mode=mode)
-    db.update_project(pid, status="done", meta={"sources": sources, **({"rights": rights} if rights else {})})
+    db.update_project(pid, status="done", meta={"sources": sources})
     return pid
 
 
@@ -23,12 +23,6 @@ def test_clean():
         with pytest.raises(ValueError):
             effects.clean(bad)
     assert set(effects.COLORS) == {"warm", "cool", "mono", "sepia", "vivid", "faded"}
-
-
-def test_allowed_only_for_owned_footage_or_ai():
-    for rights, ok in (("owned", True), ("licensed", True), ("cc", True), ("unknown", False), (None, False)):
-        assert effects.allowed({"mode": "topic", "meta": {"rights": rights}}) is ok
-    assert effects.allowed({"mode": "ai", "meta": {}}) is True
 
 
 def test_update_attach_and_view():
@@ -44,7 +38,7 @@ def test_update_attach_and_view():
     assert "Effects changed: Source 1: mirrored, colour filter sepia" in p["log"]
     assert effects.update(pid, [a, None]) is False  # nothing changed
     view = effects.view(p)
-    assert view["allowed"] is True and view["whole_video"] is False and "warm" in view["colors"]
+    assert view["whole_video"] is False and "warm" in view["colors"]
     assert view["sources"] == [{"media": "cache/sources/fx_a.mp4", **a}, {"media": None, **effects.NONE}]
     got = effects.attach(p, [{"url": "https://a", "path": "x"}, {"url": "https://b", "path": "y"}])
     assert got[0]["effects"] == a and got[1]["effects"] is None
@@ -55,25 +49,18 @@ def test_update_attach_and_view():
     assert effects.update(pid, [{}, {}]) is True and db.get_project(pid)["meta"]["effects"] == {}
 
 
-def test_locked_while_rights_are_unknown():
-    pid = _project([{"url": "https://a", "path": "/x.mp4"}], rights="unknown")
-    with pytest.raises(ValueError, match="rights"):
-        effects.update(pid, [{"mirror": True}])
-    assert effects.update(pid, [{}]) is False  # turning everything off is always allowed
-    assert effects.view(db.get_project(pid))["allowed"] is False
-    # saved while owned, then the rights went back to unknown: the render leaves them out
-    db.update_project(pid, meta={"rights": "owned"})
-    effects.update(pid, [{"color": "mono"}])
-    db.update_project(pid, meta={"rights": "unknown"})
-    p = db.get_project(pid)
-    assert effects.skipped(p) is True
-    assert effects.attach(p, [{"url": "https://a", "path": "x"}])[0]["effects"] is None
+def test_any_source_may_use_effects():
+    pid = _project([{"url": "https://a", "path": "/x.mp4"}])
+    assert effects.update(pid, [{"mirror": True}]) is True
+    assert effects.view(db.get_project(pid))["sources"][0]["mirror"] is True
+    got = effects.attach(db.get_project(pid), [{"url": "https://a", "path": "x"}])
+    assert got[0]["effects"] == {"mirror": True, "color": None}
 
 
 def test_ai_video_has_one_setting_for_every_scene():
-    pid = _project([], mode="ai", rights=None)
+    pid = _project([], mode="ai")
     p = db.get_project(pid)
-    assert effects.view(p) == {"allowed": True, "whole_video": True, "colors": list(effects.COLORS),
+    assert effects.view(p) == {"whole_video": True, "colors": list(effects.COLORS),
                                "sources": [{"media": None, **effects.NONE}]}
     assert effects.update(pid, [{"mirror": True, "color": "vivid"}]) is True
     p = db.get_project(pid)

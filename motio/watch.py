@@ -86,16 +86,14 @@ def classify(text: str, site: str = "youtube") -> dict:
     raise ValueError(tr(UNSUPPORTED))
 
 
-def add(text: str, site: str = "youtube", rights: str = "unknown") -> int:
+def add(text: str, site: str = "youtube") -> int:
     """Thêm nguồn (chưa kiểm tra). ValueError nếu sai / trùng / quá nhiều."""
-    if rights not in topic.RIGHTS:
-        raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     w = classify(text, site)
     if db.find_watch(w["site"], w["target"]):
         raise ValueError(tr("This source is already in the list"))
     if len(db.list_watches()) >= MAX_WATCHES:
         raise ValueError(tr("At most {n} sources", n=MAX_WATCHES))
-    return db.add_watch(w["kind"], w["site"], w["target"], w["name"], rights)
+    return db.add_watch(w["kind"], w["site"], w["target"], w["name"])
 
 
 # ---------- đọc danh sách ----------
@@ -364,18 +362,16 @@ def check_all(ids: list[int] | None = None) -> dict:
 def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True) -> int:
     """Dự án chủ đề từ một video mới: link của video + tiêu đề làm chủ đề. LookupError / ValueError.
 
-    Mặc định chỉ dùng video này khi nguồn có quyền rõ ràng (owned / licensed / cc) và giữ quyền đó; thêm video
-    tìm được thì quyền của dự án là "unknown", vì các video đó là của người khác.
+    links_only: None (mặc định) hoặc False = tìm thêm video cho chủ đề; True = chỉ dùng video này. Không còn khai báo
+    quyền nguồn (chủ, 2026-10-18: video từ đâu cũng được).
     mute_voice (mặc định): tiếng gốc của nguồn (giọng tiếng Trung) im hẳn dưới giọng đọc Pháp, `meta.mute_source`.
     """
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
-    rights = c.get("rights") or "unknown"
-    only = rights != "unknown" if links_only is None else bool(links_only)
     title_fr, title = c.get("title_fr") or "", c.get("title") or ""
     subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
-    pid = topic.create(subject, [c["url"]], only, duration, rights if only else "unknown")
+    pid = topic.create(subject, [c["url"]], bool(links_only), duration)
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]),

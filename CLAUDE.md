@@ -23,7 +23,7 @@ as authoritative for scope and milestones.
     sound", `PUT /api/projects/{id}/source-volume` renders again with the saved voice), else 0 for a trending clip
     (`meta.mute_source`), else `render.SRC_VOLUME`; a dub and an AI video have none (`pipeline.source_sound`)
   - `captions.py` French karaoke cues + SRT/ASS · `scenes.py` scene cuts (FFmpeg scene filter)
-  - `topic.py` topic mode: explainer from any topic or video links (prompts, rights flag, `create`)
+  - `topic.py` topic mode: explainer from any topic or video links (prompts, `create`)
   - `creator.py` AI video mode (`mode = "ai"`): Claude writes scenes (spoken line + English picture prompt + camera move),
     one picture per scene, one moving piece per scene (Ken Burns, `render.Piece.motion`); no source footage; pictures
     from a provider that isn't cleared for monetized channels force the video gate (`creator.needs_review`)
@@ -52,7 +52,7 @@ as authoritative for scope and milestones.
   - `trending.py` Bilibili's own ranking (16 categories or all), popular and weekly lists as followed sources in `watch.py`
     (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only; plus the Trending screen's
     categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
-    Bilibili search with the public wbi signature, most played of the last 7 days, rights read from `wbi/view`);
+    Bilibili search with the public wbi signature, most played of the last 7 days, paid / film flags read from `wbi/view`);
     Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
   - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
@@ -70,8 +70,7 @@ as authoritative for scope and milestones.
     in windows) → line-by-line translation that fits each original line's
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
-    (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions; rights gate
-    (`needs_review`)
+    (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos"); an account's page (`/clips/:id`,
@@ -98,9 +97,9 @@ as authoritative for scope and milestones.
   - `masks.py` what the user draws on each project source to hide burned-in text or a fixed watermark: blurred boxes
     (optionally covered with a logo) and a keep area (zoom); `meta.masks` keyed by source link, applied at render on
     the source picture only (`render.render_piece`: `blur`, `cover`, `keep`)
-  - `effects.py` mirror / colour filter the user turns on per project source (one setting for a whole AI
-    video); `meta.effects` keyed by source link (`"ai"` for an AI video), only for rights owned / licensed / cc or an AI
-    video, applied at render on the source picture (`render.render_piece`: `effects`)
+  - `effects.py` mirror / colour filter the user turns on per project source (one setting for a whole AI video);
+    `meta.effects` keyed by source link (`"ai"` for an AI video), applied at render on the source picture
+    (`render.render_piece`: `effects`)
   - `logos.py` the owner's logo library (Settings → Logos), RGBA PNGs in `data/logos/`, served under `/media/logos/`
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
@@ -160,6 +159,10 @@ on every PR; keep them green.
   is gone). Light work (scoring, picking) passes `light=True` for the fast model; every call is recorded in `usage`.
 - Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
   `sources.txt` in the project folder.
+- Source rights are not declared (owner, 2026-10-18: "remove this for all actions that need to put it as mine, we
+  don't mind if the video came from nowhere"): no rights field in the app or the API, and no rights gate — a dub or
+  an explainer is auto-sent like any video through a channel profile that lists Postiz channels with its video gate
+  off. Don't add a rights step back unless the owner asks.
 - AI disclosure (AI Act art. 50): every post keeps "Voix off générée par IA." and the platforms' AI flags (TikTok
   `video_made_with_ai`). The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it
   unless they ask.
@@ -174,8 +177,9 @@ on every PR; keep them green.
   (Bilibili; Douyin has no public category feed, so Douyin stays paste-a-link). NewsNow hot news is off by default
   (`NEWS_TOPICS`, `config.news_topics()`; the "News topics" page and the refresh only exist when it is on). A video made
   from a clip removes the source's own voice: an explainer mutes the source (`meta.mute_source`, `ClipProduceIn.mute_voice`,
-  on by default), a dub separates the voice and keeps the music (`dub.py`). Nothing from here is auto-sent: rights stay
-  unknown, so a person approves first.
+  on by default), a dub separates the voice and keeps the music (`dub.py`). Nothing from here is sent on its own unless
+  the channel profile lists Postiz channels and its video gate is off; source rights are no longer declared (owner,
+  2026-10-18).
 - Every video lasts 62–90 s (owner's minimum of 1 min 2 s; Facebook Reels API maximum): `pipeline.MIN_SECONDS` /
   `MAX_SECONDS`, enforced after the voice, not only in the prompt. The one exception is a dub made with the "Whole
   video" option (owner, 2026-10-18: "giữ trọn video gốc"): it lasts as long as the source, and one longer than
@@ -205,15 +209,13 @@ on every PR; keep them green.
   project's source (burned-in text, a watermark that stays in place) are blurred, optionally covered with one of the
   owner's logos (`motio/logos.py`), and a drawn keep area zooms the rest out of the frame, all at render; nothing finds
   or places a box by itself, and there is no channel-wide or batch box.
-- Mirror / colour filter (`motio/effects.py`, owner, 2026-10-18) are editing effects for footage the owner may
-  change: they unlock only when `meta.rights` is owned / licensed / cc, or for an AI video (`effects.allowed`; `unknown`
-  counts as not owned, and a render leaves saved effects out if the rights go back to unknown). A person turns them on
-  per source on the project page; never apply them automatically, per channel or in batch, and never unlock them for
-  someone else's footage: flip + filter (+ reverse) is the usual way to dodge duplicate / Content ID detection.
-- A dub (`motio/dub.py`) keeps someone else's pictures and words: it is auto-sent to Postiz only when `meta.rights` is
-  owned / licensed / cc, otherwise it stops at the video gate (`dub.needs_review`; `unknown` counts as not owned). The
-  subtitle blur covers only the subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is
-  built to dodge duplicate / Content ID detection.
+- Mirror / colour filter (`motio/effects.py`, owner, 2026-10-18) are editing effects: a person turns them on per source
+  on the project page (one setting for a whole AI video) and they are applied at render; never apply them automatically,
+  per channel or in batch, and they are not a way to slip someone else's video past duplicate / Content ID detection.
+- A dub (`motio/dub.py`) keeps someone else's pictures and words: like any project it is auto-sent to Postiz only
+  through a channel profile that lists Postiz channels with its video gate off. The subtitle blur covers only the
+  subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is built to dodge duplicate /
+  Content ID detection.
 - Browsers (owner, 2026-10-17): when a task needs a browser (Claude in Chrome, browser-use, a Playwright or DevTools
   window), use the owner's own Chrome with their profile (already signed in), not a fresh throwaway profile. Chrome will
   not let a program drive the profile in daily use, so attach to their running Chrome through the Claude in Chrome

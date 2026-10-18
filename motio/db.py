@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS watch (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT, site TEXT,           -- channel | playlist | space | search · youtube | bilibili
   target TEXT,                    -- URL (kênh, playlist, không gian) hoặc từ khoá tìm
-  name TEXT, rights TEXT DEFAULT 'unknown', enabled INTEGER DEFAULT 1,
+  name TEXT, rights TEXT DEFAULT 'unknown', enabled INTEGER DEFAULT 1,  -- rights: cột cũ, không dùng từ 2026-10-18
   created_at REAL, last_checked REAL, last_error TEXT,
   UNIQUE (site, target)
 );
@@ -254,13 +254,13 @@ def fail_stale() -> list[int]:
 
 
 # ---------- nguồn theo dõi (watch) và video mới (clip) ----------
-WATCH_FIELDS = ("name", "rights", "enabled", "last_checked", "last_error")
+WATCH_FIELDS = ("name", "enabled", "last_checked", "last_error")
 
 
-def add_watch(kind: str, site: str, target: str, name: str, rights: str = "unknown") -> int:
+def add_watch(kind: str, site: str, target: str, name: str) -> int:
     with _lock, conn() as c:
-        return c.execute("INSERT INTO watch (kind, site, target, name, rights, created_at) VALUES (?,?,?,?,?,?)",
-                         (kind, site, target, name, rights, time.time())).lastrowid
+        return c.execute("INSERT INTO watch (kind, site, target, name, created_at) VALUES (?,?,?,?,?)",
+                         (kind, site, target, name, time.time())).lastrowid
 
 
 def find_watch(site: str, target: str) -> dict | None:
@@ -269,7 +269,11 @@ def find_watch(site: str, target: str) -> dict | None:
 
 
 def _watch(r) -> dict | None:
-    return {**dict(r), "enabled": bool(r["enabled"])} if r else None
+    if not r:
+        return None
+    w = dict(r)
+    w.pop("rights", None)  # DB cũ còn cột rights: không trả ra (hết khai báo quyền nguồn, 2026-10-18)
+    return {**w, "enabled": bool(r["enabled"])}
 
 
 def get_watch(wid: int) -> dict | None:
@@ -324,8 +328,7 @@ def score_clip(cid: str, title_fr: str | None, score: int | None, reason: str | 
 
 
 def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 200) -> list[dict]:
-    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target, "
-           "watch.rights AS rights "
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target "
            "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.status = ?")
     args: list = [status]
     if watch_id:
@@ -338,8 +341,8 @@ def list_clips(status: str = "new", watch_id: int | None = None, limit: int = 20
 
 def list_watch_clips(wid: int, limit: int = 300) -> list[dict]:
     """Every video seen from one source, whatever its status, newest upload first (no upload time: last)."""
-    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target, "
-           "watch.rights AS rights FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.watch_id = ? "
+    sql = ("SELECT clip.*, watch.name AS watch_name, watch.kind AS watch_kind, watch.target AS watch_target "
+           "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.watch_id = ? "
            "ORDER BY clip.pubdate IS NULL, clip.pubdate DESC, clip.first_seen DESC LIMIT ?")
     with conn() as c:
         return [dict(r) for r in c.execute(sql, (wid, limit)).fetchall()]
@@ -355,7 +358,7 @@ def fill_pubdates(dates: dict[str, float]) -> None:
 
 def get_clip(cid: str) -> dict | None:
     with conn() as c:
-        r = c.execute("SELECT clip.*, watch.name AS watch_name, watch.rights AS rights "
+        r = c.execute("SELECT clip.*, watch.name AS watch_name "
                       "FROM clip LEFT JOIN watch ON watch.id = clip.watch_id WHERE clip.id=?", (cid,)).fetchone()
     return dict(r) if r else None
 

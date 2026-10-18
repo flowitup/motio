@@ -67,8 +67,6 @@ export type DelogoTarget = {
 };
 export type DelogoUpload = { target: string; name: string; created_at: number | null; status: DelogoStatus };
 
-export type Rights = "unknown" | "owned" | "licensed" | "cc";
-
 /** Trang Stats: chi phí ElevenLabs ước lượng (USD) và số video. Claude chạy trên gói Claude nên không tính. */
 export type StatsChannel = {
   channel: number | null; // null = không kênh (và các công cụ lẻ)
@@ -120,7 +118,6 @@ export type ProjectMeta = {
   topic?: string; // dự án chủ đề: chủ đề tự do ("" = chỉ link)
   subject?: { title_fr: string; angle: string };
   duration?: number;
-  rights?: Rights;
   links?: string[];
   sources?: SourceInfo[];
   video?: string;
@@ -226,7 +223,6 @@ export type SourceMask = SourceMasks & { media: string | null; duration: number 
 // lật gương / bộ lọc màu bật tay (motio/effects.py); color = tên trong ProjectEffects.colors
 export type SourceEffects = { mirror: boolean; color: string | null };
 export type ProjectEffects = {
-  allowed: boolean; // chỉ nguồn owned / licensed / cc, hoặc video AI
   whole_video: boolean; // video AI: một thiết lập cho mọi cảnh
   colors: string[];
   sources: (SourceEffects & { media: string | null })[];
@@ -251,7 +247,6 @@ export type DubView = {
   blur: BlurBox | null;
   blur_auto: boolean; // khung do Motio tự tìm
   source: string | null; // đường dẫn /media của video gốc đã tải
-  needs_review: boolean; // quyền nguồn chưa rõ: không tự gửi Postiz
   speakers: DubSpeaker[]; // người nói có lời, theo thứ tự xuất hiện
 };
 
@@ -411,7 +406,6 @@ export type Watch = {
   site: Site;
   target: string; // URL, từ khoá khi kind = search, hoặc "bilibili:ranking:181" / "bilibili:popular" / "bilibili:weekly" khi kind = trending
   name: string | null;
-  rights: Rights;
   enabled: boolean;
   created_at: number;
   last_checked: number | null;
@@ -447,7 +441,6 @@ export type Clip = {
   score: number | null;
   first_seen: number;
   status: ClipStatus | "old"; // old = có sẵn lúc thêm nguồn (chỉ hiện trong trang tài khoản)
-  rights: Rights | null;
   project_id: number | null;
 };
 
@@ -558,12 +551,11 @@ export function makeApi(url: string, token: string) {
       links: string[];
       links_only: boolean;
       duration: number;
-      rights: Rights;
       channel?: number;
     }) =>
       call<{ project_id: number }>("POST", "/api/projects", body),
     /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn; whole = cả video, mọi độ dài. */
-    createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; rights: Rights; channel?: number }) =>
+    createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
     createAi: (body: {
@@ -589,7 +581,7 @@ export function makeApi(url: string, token: string) {
       call<ShotsView>("POST", `/api/projects/${id}/shots/approve-all`, { approved }),
     redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
     continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
-    /** Lồng tiếng một video mới (quyền theo nguồn theo dõi). */
+    /** Lồng tiếng một video mới. */
     dubClip: (id: string, channel?: number, whole?: boolean) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel, whole }),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
@@ -612,14 +604,13 @@ export function makeApi(url: string, token: string) {
       },
     ) =>
       call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/dub`, body),
-    setRights: (id: number, rights: Rights) => call<ProjectDetail>("PATCH", `/api/projects/${id}`, { rights }),
     /** Thêm link nguồn (Douyin, X, …) rồi chạy lại từ bước tải video. */
     addLinks: (id: number, links: string[]) =>
       call<{ project_id: number; start: RetryStep }>("POST", `/api/projects/${id}/links`, { links }),
     categories: () => call<Category[]>("GET", "/api/categories"),
     watches: () => call<Watch[]>("GET", "/api/watches"),
-    addWatch: (body: { target: string; site: Site; rights?: Rights }) => call<Watch>("POST", "/api/watches", body),
-    patchWatch: (id: number, body: { name?: string; rights?: Rights; enabled?: boolean }) =>
+    addWatch: (body: { target: string; site: Site }) => call<Watch>("POST", "/api/watches", body),
+    patchWatch: (id: number, body: { name?: string; enabled?: boolean }) =>
       call<Watch>("PATCH", `/api/watches/${id}`, body),
     deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),
     checkWatches: () => call<{ started: boolean }>("POST", "/api/watches/check"),
@@ -630,7 +621,7 @@ export function makeApi(url: string, token: string) {
       call<Clip[]>("GET", `/api/clips?status=${status}${watchId ? `&watch_id=${watchId}` : ""}`),
     setClipStatus: (id: string, status: "new" | "hidden") =>
       call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
-    /** Video giải thích từ một video mới; links_only bỏ trống = chỉ dùng video này khi nguồn có quyền rõ ràng. */
+    /** Video giải thích từ một video mới; links_only = chỉ dùng video này, không tìm thêm YouTube / Bilibili. */
     produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean }) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),

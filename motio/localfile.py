@@ -4,7 +4,8 @@ like a pasted link.
 It is stored with the downloaded sources, `cache/sources/File_<id>.mp4`, so every lookup that finds a source by its id
 (resume, Remove logo, re-render) finds it too, and it travels as the link `file:<id>/<original name>` wherever a link is
 accepted (topic videos, dub, "Source links" of a project, a trend's pasted links). The name after the slash is only for
-people to read. Rights stay "unknown" until the user sets them: a file says nothing about who may reuse it.
+people to read. Like any pasted link it says nothing about where the video came from; source rights are no longer
+declared (owner, 2026-10-18).
 """
 import hashlib
 import json

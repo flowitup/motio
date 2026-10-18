@@ -26,8 +26,8 @@ APIs directly.
    - `POST /api/trends/{id}/produce` → `{project_id}`
    - `GET  /api/projects` · `GET /api/projects/{id}` · `POST /api/projects/{id}/rerender`
    - `POST /api/projects/{id}/retry` `{start?}` — continue from the failed step, or redo from a given step (added 26/09)
-   - `POST /api/projects` `{topic?, links?, links_only, duration, rights}` — explainer on any topic or from video
-     links, no trend needed · `PATCH /api/projects/{id}` `{rights}` (added 26/09, see "Beyond hot news")
+   - `POST /api/projects` `{topic?, links?, links_only, duration}` — explainer on any topic or from video
+     links, no trend needed (the `rights` field and `PATCH /api/projects/{id}` were removed 2026-10-18)
    - `DELETE /api/projects/{id}` · `GET/PUT /api/projects/{id}/script` — delete a project, edit its script (added
      26/09, see "Edit and delete projects")
    - `GET  /api/projects/{id}/events` — SSE stream of `{status, step, pct, log_tail}`
@@ -142,22 +142,22 @@ only hot news. Agreed order (brainstorm 26/09): **A** topic mode → **B** chann
   A free topic in any language and/or 1–10 video links. Claude turns the topic into a French title, an angle and
   ZH/EN/FR keywords (`motio/topic.py`), YouTube + Bilibili search fills the slots the links leave, and the script is
   an original French explainer (subject-neutral prompts; news projects keep theirs). With links only, search is
-  skipped. Length 70 / 80 / 90 s (`meta.duration`). Every project carries a rights flag
-  (`unknown` default / `owned` / `licensed` / `cc`), editable on the project page. Tin hot scoring and the news script no longer favour hard
+  skipped. Length 70 / 80 / 90 s (`meta.duration`). The source-rights flag was removed on 2026-10-18 (the app no longer
+  asks for rights). Tin hot scoring and the news script no longer favour hard
   news: light themes (food, animals, tech, travel, culture, oddities) score as high when they're visual.
 - **B · Watchlist** (built, `motio/watch.py`): a "Video mới" page follows YouTube channels (videos + Shorts tabs) and
   playlists, Bilibili user spaces / series / favourites, and saved searches (YouTube: videos uploaded this month; Bilibili). yt-dlp
   lists them flat (no upload date, so "new" = not seen before); a new source shows its latest 10 videos per list,
   later checks only unseen ones. Checks run on the `REFRESH_EVERY_MIN` scheduler, when a source is added, or with
   "Kiểm tra ngay"; one low-effort Claude call per 20 new videos gives a French title and a score. "Làm video" makes a
-  topic project from the video's link (title as the topic). A source's rights flag carries over when only that video
-  is used (the default for owned / licensed / cc sources); adding search footage makes the project `unknown`.
+  topic project from the video's link (title as the topic). *Only this video* (`links_only`) is still the caller's
+  choice; the rights it used to carry over were removed on 2026-10-18.
   Bilibili lists give links only, so Motio reads each new video's page for its title; the space API often needs
   `YTDLP_COOKIES_FROM_BROWSER`. yt-dlp can only download single Douyin/Facebook videos, so those stay links.
   The same PR fixes YouTube downloads: yt-dlp needs a JavaScript runtime (Deno, bundled) and `yt-dlp-ejs`.
 - **C · French dub** (built in GĐ2, see "GĐ2: French dub"): the source's pictures with French speech (tu/vous, burned captions,
-  original music kept). Postiz only for `owned` / `licensed` / `cc` sources: a dub of someone else's video is reused
-  content on every platform.
+  original music kept). There is no rights gate any more (removed 2026-10-18): a dub is auto-sent like any project, only
+  through a channel profile that lists Postiz channels with its video gate off.
 
 ## Video length: 62–90 s (added 26/09/2026)
 
@@ -272,7 +272,7 @@ others). Two PRs: (1) one French voice with tu/vous, glossary, background separa
 side-by-side compare; (2) one voice per speaker, voices chosen in the channel profile ("Part 2" below).
 
 - **Mode `dub`** (`motio/dub.py`): a new project kind next to news and topic. `POST /api/dubs` `{link, start?, end?,
-  rights}` (New video → *French dub*), `POST /api/clips/{id}/dub` (New videos → *Dub in French*), CLI `dub <link>
+  whole?}` (New video → *French dub*), `POST /api/clips/{id}/dub` (New videos → *Dub in French*), CLI `dub <link>
   [start end]`. It reuses the pipeline steps and the channel profile (badge, style, voice, hashtags, gates, Postiz).
   Only the first link is dubbed. Step labels: download and Whisper as usual, the script step writes the dub script, the
   voice step separates and mixes, the render step composes.
@@ -303,9 +303,9 @@ side-by-side compare; (2) one voice per speaker, voices chosen in the channel pr
   silence instead of staying until the next line.
 - **Compare** (project page): the original part in its own player, *Play both* starts it with the dub, from–to fields
   change the part.
-- **Rights gate**: a dub whose `meta.rights` is not owned / licensed / cc (unknown counts as not owned) never auto-sends:
-  when its channel would send to Postiz, `_deliver` stops it at the video gate (`meta.review = video`) even if the
-  channel has no such gate, with a log line saying why; approving then sends it (sending stays a person's decision). Owned / licensed / cc dubs follow the channel's gates as any project.
+- **Rights gate (removed 2026-10-18)**: the owner asked to stop declaring source rights ("we don't mind if the video
+  came from nowhere"), so there is no rights field in the UI or the API and no rights hold: a dub is auto-sent like any
+  project, only through a channel profile that lists Postiz channels with its video gate off.
 - Posts keep "Voix off générée par IA." and the platforms' AI flags. Nothing here removes logos or dodges duplicate /
   Content ID detection.
 - Not verified in the build environment: real ElevenLabs / Claude / yt-dlp runs (faked in tests), Mac and Windows.
@@ -522,12 +522,12 @@ project files. Built in this batch:
 - **Bilibili trending lists as followed sources** (`motio/trending.py`): `bilibili:ranking:<rid>` (16 categories or all),
   `bilibili:popular`, `bilibili:weekly`. Plain JSON, no login and no signature (the weekly list wants anonymous buvid
   cookies; a short User-Agent gets code -352). Only original uploads (`copyright` 1), nothing paid, nothing
-  under 15 s; rights stay *unknown*. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
+  under 15 s. A *Bilibili trending* picker with a *Follow list* button on the New videos page; source kind `trending` in `watch.py`; a first check marks the top 20 as new.
 - **Trending by category or tag** (2026-10-16, owner: "target the video on video platforms in China like technology, AI
   series / films, savoir-vivre, by tag or category, with the Chinese voice removed"): the Trending screen lists videos
   from the categories and tags you follow (`motio/trending.py` `CATEGORIES`, `bilibili:category:<key>`, `bilibili:tag:<word>`;
   tags use Bilibili's search with the public wbi signature, most played of the last 7 days, each hit read again for its
-  rights). They are ordinary followed sources, so the New videos page, scoring, *Dub in French* and *Create* work on them.
+  paid / film flags). They are ordinary followed sources, so the New videos page, scoring, *Dub in French* and *Create* work on them.
   NewsNow hot news is off by default (`NEWS_TOPICS`; the old page is *News topics*). Bilibili's "no reprint" tick (on ~99 % of
   videos) is ignored: the owner does not want it shown or used (2026-10-16). *Create* removes
   the source's own voice (`meta.mute_source`); *Dub in French* already separates it from the music. Douyin has no public
@@ -636,8 +636,8 @@ picked A with a plain blur; C was left out because it would apply a box with no 
 - Project page: **Hide text or watermark** card: pick the source, slide to a frame, drag to add boxes, remove one,
   clear the source, **Save and re-render**. The drawing layer has the video's own size, so a box matches the picture
   when it is letterboxed.
-- Nothing finds or places a box on its own; a moving logo still needs Remove logo. Posts, `sources.txt` and the rights
-  flag are unchanged.
+- Nothing finds or places a box on its own; a moving logo still needs Remove logo. Posts and `sources.txt` are
+  unchanged.
 - Added the same day on the owner's ask ("phủ ảnh (logo) … hoặc zoom"), options agreed: a logo library in Settings and
   a drawn keep area.
   - **Logos** (`motio/logos.py`, Settings → Logos, `GET / POST /api/logos`, `DELETE /api/logos/{id}`): up to 20
@@ -654,25 +654,21 @@ picked A with a plain blur; C was left out because it would apply a box with no 
 
 ## Mirror and colour filter (added 18/10/2026)
 
-Asked by the owner on 18/10 ("lật gương, đảo ngược, phủ bộ lọc màu video"). Flip + reverse + a colour filter on someone
-else's footage is the usual way to dodge duplicate / Content ID detection, which the content rules forbid, so the
-agreed scope is: only for footage the owner may change (rights owned / licensed / cc) and for AI videos, turned on by
-hand per source on the project page, applied at render. Reverse (play backwards) was built, then dropped on the
-owner's ask before merge.
+Asked by the owner on 18/10 ("lật gương, đảo ngược, phủ bộ lọc màu video"), turned on by hand per source on the
+project page and applied at render. The first build gated them on the source rights (owned / licensed / cc, or an AI
+video); when the owner removed the source-rights declaration the same day, the gate went with it and every source can
+use them. Reverse (play backwards) was built, then dropped on the owner's ask before merge.
 
 - `motio/effects.py`: `meta.effects` keyed by source link (`{mirror, color}`), or `"ai"` for an AI video where one
-  setting covers every scene. `effects.allowed(proj)` = AI video or `meta.rights` in `topic.OK_RIGHTS`;
-  `effects.update` refuses to turn anything on otherwise (turning off always works), and `effects.attach` hands nothing
-  to the render when the rights went back to `unknown` (the render log says the effects were left out).
+  setting covers every scene. `effects.update` saves them, and `effects.attach` hands them to the render.
 - Render (`render.render_piece`, 9:16 and 16:9, news / topic / dub / AI): after the blur boxes, logo cover and keep area,
   `hflip` then the colour filter (`render.COLOR_FILTERS`: warm, cool, mono, sepia, vivid, faded) on the source picture
   only (title, badge and French captions untouched).
 - `PUT /api/projects/{id}/effects {sources: [{mirror, color}, …]}` (one entry per source, one for an AI video) saves
   and, when the voice is already made and something changed, renders again with that voice (`queued`); the project
-  view has `effects` (`allowed`, `whole_video`, `colors`, each source's /media path and effects).
+  view has `effects` (`whole_video`, `colors`, each source's /media path and effects).
 - Project page: **Mirror and colour** card: source picker, a mirror switch, a colour filter choice, a preview (CSS,
-  close to the render), "Same for every source", **Save and re-render**. Locked, with the reason, while the rights are
-  unknown.
+  close to the render), "Same for every source", **Save and re-render**.
 - Not verified: a render of a real project with effects on (smoke was a full `render.render` on a synthetic source),
   the card in a real Tauri window, Windows.
 

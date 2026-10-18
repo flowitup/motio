@@ -3,7 +3,7 @@
 Checked on 2026-10-16: `https://haokan.baidu.com/v?vid=<id>` with a phone User-Agent answers a page whose
 `window.__PRELOADED_STATE__` holds `curVideoMeta` (title, duration, author, `playurl` and `clarityUrl`: one mp4 per
 quality). The desktop User-Agent gets an empty "error" page instead. The mp4 address needs no cookie and no Referer.
-Haokan also carries many videos first posted elsewhere: rights stay "unknown", as for every pasted link.
+Haokan also carries many videos first posted elsewhere: Motio downloads it like any pasted link.
 """
 import json
 import os

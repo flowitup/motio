@@ -293,13 +293,13 @@ def prompts(fake, monkeypatch):
 
 def test_topic_searches_and_writes_an_explainer(fake, prompts):
     calls, _ = fake
-    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90, rights="cc")
+    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90)
     pipeline.produce(pid)
     p = db.get_project(pid)
     assert p["status"] == "done" and p["mode"] == "topic" and p["trend_id"] is None
     assert calls == ["subject", "search", "download+cookies", "download", "download", "transcribe", "transcribe",
                      "transcribe", "script", "voice", "render"]
-    assert p["meta"]["subject"]["title_fr"] == "Le panda" and p["meta"]["rights"] == "cc"
+    assert p["meta"]["subject"]["title_fr"] == "Le panda" and "rights" not in p["meta"]
     systems = [sys for _, sys in prompts]
     assert systems == [topic.SUBJECT_SYSTEM, topic.PICK_SYSTEM, topic.SCRIPT_SYSTEM]
     script = prompts[-1][0]
@@ -330,8 +330,7 @@ def test_topic_retry_keeps_the_subject(fake):
     assert calls[0] == "search"
 
 
-@pytest.mark.parametrize("kw", [{}, {"topic": " "}, {"topic": "x", "duration": 60}, {"topic": "x", "rights": "mine"},
-                                {"links": ["douyin.com/1"]}])
+@pytest.mark.parametrize("kw", [{}, {"topic": " "}, {"topic": "x", "duration": 60}, {"links": ["douyin.com/1"]}])
 def test_topic_create_rejects_bad_input(kw):
     with pytest.raises(ValueError):
         topic.create(**kw)
@@ -543,21 +542,9 @@ def test_auto_send_once_then_rerender_does_not_resend(fake, fake_postiz):
     assert len(fake_postiz) == sent and db.get_project(pid)["status"] == "done"
 
 
-def test_explainer_on_unknown_rights_waits_for_approval_even_without_a_video_gate(fake, fake_postiz):
-    ch = _profile(postiz=["tt1"])  # no video gate: only the rights stop it
+def test_explainer_is_sent_by_itself_when_the_channel_has_postiz_and_no_video_gate(fake, fake_postiz):
+    ch = _profile(postiz=["tt1"])  # no video gate: an explainer goes out like any other video
     pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90)
-    _with(ch, pid)
-    pipeline.produce(pid)
-    p = db.get_project(pid)
-    assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
-    assert "explainer built on someone else's videos" in p["log"]
-    pipeline.approve_video(pid)
-    assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)
-
-
-def test_explainer_with_own_rights_is_sent_by_itself(fake, fake_postiz):
-    ch = _profile(postiz=["tt1"])
-    pid = topic.create("gấu trúc", ["https://www.facebook.com/reel/fb9"], duration=90, rights="owned")
     _with(ch, pid)
     pipeline.produce(pid)
     assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)

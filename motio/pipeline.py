@@ -686,10 +686,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
     if not is_ai:  # khung làm mờ người dùng vẽ trên từng nguồn (chữ in sẵn, watermark đứng yên)
         sources = masks.attach(db.get_project(pid), sources, out / "pieces")
-    now = db.get_project(pid)  # lật gương / bộ lọc màu người dùng bật, chỉ khi được phép (effects.allowed)
+    now = db.get_project(pid)  # lật gương / bộ lọc màu người dùng bật
     sources = effects.attach(now, sources)
-    if effects.skipped(now):
-        step("Render", 70, tr("Effects left out: the source rights are not owned, licensed or CC"))
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)
@@ -752,12 +750,7 @@ def _why_held(proj: dict) -> str:
     if dub.too_long_to_send(proj):
         return tr(" (a dub of the whole video is longer than {max} s, the Facebook Reels limit: approve it and send "
                   "it yourself)", max=MAX_SECONDS)
-    if dub.needs_review(proj):
-        return tr(" (a dub of someone else's video: set the source rights to owned, licensed or CC to send it "
-                  "without approval)")
-    if topic.needs_review(proj):
-        return tr(" (an explainer built on someone else's videos: set the source rights to owned, licensed or CC to "
-                  "send it without approval)")
+
     if creator.clips_need_review(proj):
         return tr(" (clips from a provider whose terms for monetized channels are not checked yet: approve the "
                   "video yourself before it goes out)")
@@ -768,13 +761,11 @@ def _why_held(proj: dict) -> str:
 def _deliver(pid: int, ch: dict | None) -> None:
     """Video vừa dựng xong. Kênh có cổng duyệt video: dừng chờ duyệt. Không có cổng mà có kênh Postiz: tự gửi. Dự án
     đã gửi Postiz rồi thì lần dựng lại sau chỉ xong (không dừng duyệt, không gửi lại); gửi lại bằng tay từ app.
-    Bản lồng tiếng hay video giải thích mà quyền nguồn chưa rõ, hay video AI dùng ảnh của nhà cung cấp
-    chưa được phép cho kênh kiếm tiền
-    (Modal, ảnh giữ chỗ), không bao giờ tự gửi: luôn dừng chờ duyệt video."""
+    Video AI dùng ảnh của nhà cung cấp chưa được phép cho kênh kiếm tiền (Modal, ảnh giữ chỗ), hay một bản lồng cả
+    video dài quá giới hạn Reels, không bao giờ tự gửi: luôn dừng chờ duyệt video."""
     proj = db.get_project(pid)
     sent = bool(proj["meta"].get("postiz"))
-    held = bool(ch and ch["postiz"] and (dub.needs_review(proj) or dub.too_long_to_send(proj)
-                                         or topic.needs_review(proj) or creator.needs_review(proj)
+    held = bool(ch and ch["postiz"] and (dub.too_long_to_send(proj) or creator.needs_review(proj)
                                          or qa.failed(proj)))
     if ch and not sent and (ch["gate_video"] or held):
         why = _why_held(proj) if held and not ch["gate_video"] else ""
