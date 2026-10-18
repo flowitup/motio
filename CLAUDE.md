@@ -98,6 +98,9 @@ as authoritative for scope and milestones.
   - `masks.py` what the user draws on each project source to hide burned-in text or a fixed watermark: blurred boxes
     (optionally covered with a logo) and a keep area (zoom); `meta.masks` keyed by source link, applied at render on
     the source picture only (`render.render_piece`: `blur`, `cover`, `keep`)
+  - `effects.py` mirror / reverse / colour filter the user turns on per project source (one setting for a whole AI
+    video); `meta.effects` keyed by source link (`"ai"` for an AI video), only for rights owned / licensed / cc or an AI
+    video, applied at render on the source picture (`render.render_piece`: `effects`, `render.reversed_segment`)
   - `logos.py` the owner's logo library (Settings → Logos), RGBA PNGs in `data/logos/`, served under `/media/logos/`
   - `inpaint.py` LaMa AI fill for the logo tool (onnxruntime, model downloaded once to `data/models/`, frame by frame)
   - `web.py` + `templates/` legacy Jinja dashboard (to be replaced by the JSON API in M1)
@@ -202,6 +205,11 @@ on every PR; keep them green.
   project's source (burned-in text, a watermark that stays in place) are blurred, optionally covered with one of the
   owner's logos (`motio/logos.py`), and a drawn keep area zooms the rest out of the frame, all at render; nothing finds
   or places a box by itself, and there is no channel-wide or batch box.
+- Mirror / reverse / colour filter (`motio/effects.py`, owner, 2026-10-18) are editing effects for footage the owner may
+  change: they unlock only when `meta.rights` is owned / licensed / cc, or for an AI video (`effects.allowed`; `unknown`
+  counts as not owned, and a render leaves saved effects out if the rights go back to unknown). A person turns them on
+  per source on the project page; never apply them automatically, per channel or in batch, and never unlock them for
+  someone else's footage: together they are the usual way to dodge duplicate / Content ID detection.
 - A dub (`motio/dub.py`) keeps someone else's pictures and words: it is auto-sent to Postiz only when `meta.rights` is
   owned / licensed / cc, otherwise it stops at the video gate (`dub.needs_review`; `unknown` counts as not owned). The
   subtitle blur covers only the subtitle band, never a logo (logo removal stays the manual tool), and nothing in a dub is
