@@ -169,6 +169,37 @@ def test_masks(client, monkeypatch):
     assert client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": [{}]}).status_code == 409
 
 
+def test_effects(client, monkeypatch):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    assert client.get(f"/api/projects/{pid}", headers=H).json()["effects"] is None  # no source yet
+    db.update_project(pid, meta={"sources": [{"url": "https://a", "path": "/gone.mp4"}], "rights": "unknown"})
+    on = {"mirror": True, "reverse": False, "color": "warm"}
+    r = client.put(f"/api/projects/{pid}/effects", headers=H, json={"sources": [on]})
+    assert r.status_code == 400 and "rights" in r.json()["detail"]  # locked: someone else's footage
+    db.update_project(pid, meta={"rights": "licensed"})
+    asked = []
+    monkeypatch.setattr(pipeline, "available_steps", lambda i: ["render"])
+
+    def resume(i, start=None):
+        asked.append((i, start))
+        db.update_project(i, status="done")
+
+    monkeypatch.setattr(pipeline, "resume", resume)
+    r = client.put(f"/api/projects/{pid}/effects", headers=H, json={"sources": [on]})
+    assert r.status_code == 200 and r.json()["queued"] is True
+    assert r.json()["project"]["effects"]["sources"] == [{"media": None, **on}]
+    _wait_done(client, pid)
+    assert asked == [(pid, "render")]
+    r = client.put(f"/api/projects/{pid}/effects", headers=H, json={"sources": [on]})
+    assert r.json()["queued"] is False and len(asked) == 1  # same effects: nothing to render again
+    assert client.put(f"/api/projects/{pid}/effects", headers=H,
+                      json={"sources": [{"color": "neon"}]}).status_code == 400
+    assert client.put("/api/projects/999/effects", headers=H, json={"sources": []}).status_code == 404
+    db.update_project(pid, status="running")
+    assert client.put(f"/api/projects/{pid}/effects", headers=H, json={"sources": [{}]}).status_code == 409
+
+
 def test_logos(client):
     import io
 
