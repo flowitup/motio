@@ -201,31 +201,34 @@ export function DubBlurCard({
   return (
     <Panel title={t.dub.blur} bodyClassName="grid gap-3 text-[13px]">
       <p className="text-xs leading-[18px] text-muted-foreground">{t.dub.blurHint}</p>
-        <div className="relative overflow-hidden rounded-lg bg-black">
-          <video
-            ref={vid}
-            src={`${api.mediaUrl(d.source)}#t=${a + (b - a) * 0.3}`}
-            preload="auto"
-            muted
-            playsInline
-            className="pointer-events-none block max-h-96 w-full"
-          />
-          <div
-            className="absolute inset-0 cursor-crosshair touch-none"
-            onPointerDown={(e) => {
-              if (active) return;
-              e.currentTarget.setPointerCapture(e.pointerId);
-              drag.current = point(e);
-            }}
-            onPointerMove={(e) => drag.current && setBox(rect(drag.current, point(e)))}
-            onPointerUp={() => (drag.current = null)}
-          >
-            {box && (
-              <div
-                className="pointer-events-none absolute border-2 border-dashed border-amber bg-amber/25"
-                style={{ left: `${box[0] * 100}%`, top: `${box[1] * 100}%`, width: `${box[2] * 100}%`, height: `${box[3] * 100}%` }}
-              />
-            )}
+        <div className="overflow-hidden rounded-lg bg-black">
+          {/* the drawing layer has the video's own size, so the box matches the picture even when it is letterboxed */}
+          <div className="relative mx-auto w-fit overflow-hidden">
+            <video
+              ref={vid}
+              src={`${api.mediaUrl(d.source)}#t=${a + (b - a) * 0.3}`}
+              preload="auto"
+              muted
+              playsInline
+              className="pointer-events-none block max-h-96 max-w-full"
+            />
+            <div
+              className="absolute inset-0 cursor-crosshair touch-none"
+              onPointerDown={(e) => {
+                if (active) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                drag.current = point(e);
+              }}
+              onPointerMove={(e) => drag.current && setBox(rect(drag.current, point(e)))}
+              onPointerUp={() => (drag.current = null)}
+            >
+              {box && (
+                <div
+                  className="pointer-events-none absolute border-2 border-dashed border-amber bg-amber/25"
+                  style={{ left: `${box[0] * 100}%`, top: `${box[1] * 100}%`, width: `${box[2] * 100}%`, height: `${box[3] * 100}%` }}
+                />
+              )}
+            </div>
           </div>
         </div>
         <Field label={t.dub.moment}>
