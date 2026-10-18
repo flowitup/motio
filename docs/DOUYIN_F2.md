@@ -115,7 +115,7 @@ local machine worked), long-term stability, keyword search, an author's video li
   review the reachable files on every bump. Motio does not install `browser-cookie3` (LGPL, reads browser cookie stores) or
   `pyexecjs` (JavaScript for livestreams): `motio/douyin.py` hands f2 empty stand-in modules.
 - **Terms.** Douyin's terms do not allow automated access, and f2 exists to get past its request signing. This is a personal
-  tool like yt-dlp; the rights rules in CLAUDE.md (rights gate for dubs, no Content ID evasion) are unchanged.
+  tool like yt-dlp; the rules in CLAUDE.md (no source-rights declaration, no Content ID evasion) are unchanged.
 
 ## Updating f2
 

@@ -11,12 +11,12 @@ A category (`bilibili:category:<key>`, `CATEGORIES`) is a ranking and / or a few
 (`bilibili:tag:<word>`) is one keyword. Tags go through Bilibili's search (`x/web-interface/wbi/search/type`, most
 played in the last `WINDOW_DAYS`), which wants the public "wbi" signature (a md5 of the sorted query plus a key made
 from two file names that `x/web-interface/nav` hands out) and the anonymous buvid cookies. A search hit has no
-copyright or rights flags, so each hit is read once more (`x/web-interface/wbi/view`) and kept or dropped by the
+copyright or paid flags, so each hit is read once more (`x/web-interface/wbi/view`) and kept or dropped by the
 same rules as a ranking item.
 
 What is kept: original uploads only (`copyright` 1, a repost is somebody else's), nothing paid, and nothing under
 15 s. A creator's "no reprint" tick is Bilibili's default (about 99 % of a ranking) and says nothing, so it is ignored
-(owner, 2026-10-16). Rights stay "unknown": a ranking says what is hot, not who may reuse it.
+(owner, 2026-10-16).
 """
 import hashlib
 import re
@@ -53,7 +53,7 @@ CATEGORIES = {
 WINDOW_DAYS = 7  # a tag looks at what was posted in the last week
 RANKING_MAX_AGE_DAYS = 30  # a category's ranking part skips older videos (a ranking also lists year-old ones)
 TAG_TAKE = 20  # usable videos kept per tag
-TAG_POOL = 30  # search hits read (rights checked) per tag at most
+TAG_POOL = 30  # search hits read (paid / film flags checked) per tag at most
 TAG_MAX = 40  # longest tag, in characters
 MIN_SECONDS = 15
 TAKE = 100  # rows read from a list (a ranking has up to 100)
@@ -192,7 +192,8 @@ def _search(client: httpx.Client, word: str) -> list[dict]:
 
 
 def _detail(client: httpx.Client, hit: dict) -> dict | None:
-    """A search hit read again for its rights (a hit carries none). None when Bilibili does not answer for this one."""
+    """A search hit read again for its copyright / paid flags (a hit carries none). None when Bilibili does not
+    answer for this one."""
     try:
         v = _get(client, "/x/web-interface/wbi/view", _signed(client, {"bvid": hit["bvid"]}))
     except TrendingError:

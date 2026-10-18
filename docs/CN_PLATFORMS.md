@@ -3,8 +3,8 @@
 Owner's ask of 2026-10-17: more source videos from Xiaohongshu, Weibo, Xigua, Kuaishou and Haokan (Baidu). AcFun and Pear Video
 were added in a first version by mistake and removed again the same day; Zhihu stays because the owner asked to test it. Research and options:
 `motio/plans/research-261017-cn-video-platforms.md` in the project files. What is built is below. Everything here
-treats rights as `unknown` (a person approves a video before it is posted), removes the source's own voice like every
-other clip, and does nothing to hide where a video came from.
+removes the source's own voice like every other clip, and does nothing to hide where a video came from. Source rights
+are no longer declared anywhere (owner, 2026-10-18).
 
 ## What works, per site
 

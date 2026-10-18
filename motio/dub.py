@@ -9,8 +9,8 @@ Dùng lại các bước của pipeline:
 - dựng: hình của đoạn đó, vùng phụ đề cũ làm mờ, phụ đề karaoke tiếng Pháp.
 
 Nguồn ngắn hơn 62 s: thêm câu mở / kết tiếng Pháp trên khung hình đứng yên ở đầu / cuối đoạn (tối đa 24 s).
-Bản lồng tiếng giữ hình và lời của người khác: chỉ tự gửi Postiz khi quyền nguồn là owned / licensed / cc
-(needs_review), không thì dừng chờ duyệt video.
+Bản lồng tiếng giữ hình và lời của người khác: như mọi video, nó chỉ tự gửi Postiz qua hồ sơ kênh có kênh Postiz
+và đã tắt cổng duyệt video.
 """
 import json
 import re
@@ -20,12 +20,11 @@ from urllib.parse import urlparse
 
 import numpy as np
 
-from . import channels, config, db, llm, localfile, masks, render, search, separate, topic, tts
+from . import channels, config, db, llm, localfile, masks, render, search, separate, tts
 from .asr import has_audio
 from .i18n import tr, tr_n
 
 MODE = "dub"
-OK_RIGHTS = ("owned", "licensed", "cc")  # quyền nguồn cho phép tự gửi Postiz
 MAX_EXCERPT = 88.0  # giây hình gốc tối đa: video ≤ 90 s kể cả câu cuối đọc lố một chút
 AIM = (62, 85)  # Claude chọn đoạn dài trong khoảng này
 MAX_PAD = 24.0  # giây mở + kết tối đa khi nguồn ngắn
@@ -135,14 +134,12 @@ def clean_excerpt(start, end) -> tuple[float | None, float | None]:
     return a, b
 
 
-def create(link: str, start=None, end=None, rights: str = "unknown", title: str = "", whole: bool = False) -> int:
+def create(link: str, start=None, end=None, title: str = "", whole: bool = False) -> int:
     """Tạo dự án lồng tiếng (chưa chạy). ValueError nếu thiếu / sai dữ liệu. whole = lồng cả video, không cắt đoạn và
     không giới hạn 62–90 s (đoạn start / end bị bỏ qua)."""
     links = search.clean_links([link])
     if len(links) != 1:
         raise ValueError(tr("Enter the link of the video to dub"))
-    if rights not in topic.RIGHTS:
-        raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     a, b = (None, None) if whole else clean_excerpt(start, end)
     site = localfile.title(links[0]) if localfile.parse(links[0]) else urlparse(links[0]).hostname or "video"
     title = _one(title)[:200] or tr("Dub: {site}", site=site)
@@ -151,27 +148,21 @@ def create(link: str, start=None, end=None, rights: str = "unknown", title: str 
             tr(" · part {a}–{b}", a=clock(a or 0), b=clock(b) if b is not None else tr("end"))
             if a is not None or b is not None else "")
     db.update_project(pid, log=tr("Dub in French: {url}{part}", url=links[0], part=part),
-                      meta={"links": links, "links_only": True, "rights": rights,
+                      meta={"links": links, "links_only": True,
                             "dub": {"start": a, "end": b, **({"whole": True} if whole else {})}})
     return pid
 
 
 def from_clip(cid: str, whole: bool = False) -> int:
-    """Dự án lồng tiếng từ một video mới (Followed), giữ quyền của nguồn theo dõi. LookupError nếu không có."""
+    """Dự án lồng tiếng từ một video mới (Followed). LookupError nếu không có."""
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
-    pid = create(c["url"], rights=c.get("rights") or "unknown", title=c.get("title_fr") or c.get("title") or "",
-                 whole=whole)
+    pid = create(c["url"], title=c.get("title_fr") or c.get("title") or "", whole=whole)
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],
                                   url=c["url"]), meta={"clip": cid})
     return pid
-
-
-def needs_review(proj: dict) -> bool:
-    """Bản lồng tiếng mà quyền nguồn chưa rõ: không tự gửi Postiz, dừng chờ duyệt video."""
-    return proj.get("mode") == MODE and (proj.get("meta") or {}).get("rights") not in OK_RIGHTS
 
 
 def is_whole(proj: dict) -> bool:
@@ -866,7 +857,7 @@ def view(proj: dict) -> dict | None:
     return {"start": opts.get("start"), "end": opts.get("end"), "whole": bool(opts.get("whole")),
             "excerpt": opts.get("excerpt"),
             "pad": opts.get("pad"), "blur": opts.get("blur"), "blur_auto": bool(opts.get("blur_auto")),
-            "source": media, "needs_review": needs_review(proj), "speakers": speakers}
+            "source": media, "speakers": speakers}
 
 
 def update(pid: int, data: dict) -> str | None:

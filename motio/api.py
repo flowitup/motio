@@ -73,7 +73,6 @@ class TopicIn(BaseModel):
     links: list[str] = []
     links_only: bool = False
     duration: int = 80  # 70 | 80 | 90 giây
-    rights: str = "unknown"  # unknown | owned | licensed | cc
     channel: int | None = None  # như ProduceIn
 
 
@@ -92,7 +91,6 @@ class DubIn(BaseModel):
     start: float | None = None  # đoạn lồng tiếng (giây); bỏ trống = tự chọn (cả video nếu ≤ 88 s)
     end: float | None = None
     whole: bool = False  # lồng cả video: bỏ qua start / end, không giới hạn 62–90 s
-    rights: str = "unknown"  # unknown | owned | licensed | cc; chỉ tự gửi Postiz khi không phải unknown
     channel: int | None = None  # như ProduceIn
 
 
@@ -126,10 +124,6 @@ class DubPatch(BaseModel):
     voices: dict[str, str] | None = None
 
 
-class ProjectPatch(BaseModel):
-    rights: str | None = None
-
-
 class TrendPatch(BaseModel):
     hidden: bool  # ẩn khỏi Trending (chỉ tin chưa làm); False = hiện lại
 
@@ -137,12 +131,10 @@ class TrendPatch(BaseModel):
 class WatchIn(BaseModel):
     target: str  # link kênh / playlist YouTube, không gian Bilibili, hoặc từ khoá tìm
     site: str = "youtube"  # nơi tìm khi `target` là từ khoá: youtube | bilibili
-    rights: str = "unknown"
 
 
 class WatchPatch(BaseModel):
     name: str | None = None
-    rights: str | None = None
     enabled: bool | None = None
 
 
@@ -152,7 +144,7 @@ class ClipPatch(BaseModel):
 
 class ClipProduceIn(BaseModel):
     duration: int = 80
-    links_only: bool | None = None  # None = chỉ dùng video này khi nguồn có quyền rõ ràng
+    links_only: bool | None = None  # None = tìm thêm video ngoài video này (mặc định)
     channel: int | None = None  # như ProduceIn
     mute_voice: bool = True  # tắt hẳn tiếng gốc của nguồn (giọng tiếng Trung) dưới giọng đọc Pháp
 
@@ -507,7 +499,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def add_watch(body: WatchIn):
         """Thêm nguồn rồi kiểm tra ngay trong nền: lần đầu hiện 10 video mới nhất (danh sách trending Bilibili: 20)."""
         try:
-            wid = watch.add(body.target, body.site, body.rights)
+            wid = watch.add(body.target, body.site)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         threading.Thread(target=_check_watches, args=([wid],), daemon=True).start()
@@ -516,11 +508,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.patch("/api/watches/{wid}", dependencies=[Depends(auth)])
     def patch_watch(wid: int, body: WatchPatch):
         _watch(wid)
-        if body.rights is not None and body.rights not in topic.RIGHTS:
-            raise HTTPException(400, tr("Invalid source rights: {rights}", rights=body.rights))
         name = " ".join((body.name or "").split())[:200]
-        db.update_watch(wid, **{k: v for k, v in (("name", name), ("rights", body.rights),
-                                                  ("enabled", body.enabled)) if v not in (None, "")})
+        db.update_watch(wid, **{k: v for k, v in (("name", name), ("enabled", body.enabled))
+                                if v not in (None, "")})
         return _watch(wid)
 
     @app.delete("/api/watches/{wid}", dependencies=[Depends(auth)])
@@ -590,7 +580,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/clips/{cid}/dub", status_code=202, dependencies=[Depends(auth)])
     def dub_clip(cid: str, body: ClipDubIn | None = None):
-        """Bản lồng tiếng Pháp của một video mới (quyền nguồn theo nguồn theo dõi)."""
+        """Bản lồng tiếng Pháp của một video mới."""
         _clip(cid)
         ch = _channel_for(body.channel if body else None)
         _preflight()
@@ -637,7 +627,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = topic.create(body.topic, body.links, body.links_only, body.duration, body.rights)
+            pid = topic.create(body.topic, body.links, body.links_only, body.duration)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -672,7 +662,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(429, tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)",
                                         n=config.max_videos_per_day()))
         try:
-            pid = dub.create(body.link, body.start, body.end, body.rights, whole=body.whole)
+            pid = dub.create(body.link, body.start, body.end, whole=body.whole)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         channels.attach(pid, ch)
@@ -724,8 +714,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.put("/api/projects/{pid}/effects", dependencies=[Depends(auth)])
     def put_effects(pid: int, body: EffectsIn):
-        """Set the mirror / colour filter of each source (footage the owner may change, or an AI video). When
-        the voice is already made and an effect changed, the video is rendered again with it (no new voice)."""
+        """Set the mirror / colour filter of each source. When the voice is already made and an effect changed,
+        the video is rendered again with it (no new voice)."""
         p = _get(pid)
         if p["status"] in ("queued", "running"):
             raise HTTPException(409, tr("Project is running"))
@@ -744,15 +734,6 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                           pct=0, log=tr("Queued to rerun from step {step}", step=tr("Render")))
         jobs.submit(_run_job, lambda i: pipeline.resume(i, "render"), pid)
         return True
-
-    @app.patch("/api/projects/{pid}", dependencies=[Depends(auth)])
-    def patch_project(pid: int, body: ProjectPatch):
-        _get(pid)
-        if body.rights is not None:
-            if body.rights not in topic.RIGHTS:
-                raise HTTPException(400, tr("Invalid source rights: {rights}", rights=body.rights))
-            db.update_project(pid, log=tr("Source rights: {rights}", rights=body.rights), meta={"rights": body.rights})
-        return _project_out(_get(pid), full=True)
 
     @app.delete("/api/projects/{pid}", dependencies=[Depends(auth)])
     def delete_project(pid: int):

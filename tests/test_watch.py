@@ -73,13 +73,13 @@ def test_classify_rejects(text):
         watch.classify(text)
 
 
-def test_add_rejects_duplicates_and_bad_rights():
+def test_add_rejects_duplicates():
     watch.add("https://www.youtube.com/@Vox")
     with pytest.raises(ValueError, match="already"):
         watch.add("https://www.youtube.com/@Vox/shorts")
-    with pytest.raises(ValueError):
-        watch.add("panda", rights="mine")
     watch.add("panda", site="bilibili")  # cùng từ khoá, nơi khác: được
+    w = db.list_watches()[0]
+    assert "rights" not in w  # hết khai báo quyền nguồn (chủ, 2026-10-18)
 
 
 def test_first_check_then_only_unseen_videos():
@@ -256,14 +256,9 @@ def test_check_all_scores_new_videos(monkeypatch):
     assert r["new"] == 1 and "none" in r["score_error"]
 
 
-@pytest.mark.parametrize("rights,links_only,want_only,want_rights", [
-    ("unknown", None, False, "unknown"),
-    ("owned", None, True, "owned"),
-    ("owned", False, False, "unknown"),  # thêm video tìm được của người khác → quyền không rõ
-    ("unknown", True, True, "unknown"),
-])
-def test_produce_from_clip(rights, links_only, want_only, want_rights):
-    wid = watch.add(VOX, rights=rights)
+@pytest.mark.parametrize("links_only,want_only", [(None, False), (False, False), (True, True)])
+def test_produce_from_clip(links_only, want_only):
+    wid = watch.add(VOX)
     db.insert_clips([{"id": "youtube:v1", "watch_id": wid, "site": "youtube", "url": "https://www.youtube.com/watch?v=v1",
                       "title": "Why pandas eat bamboo", "status": "new"}])
     db.score_clip("youtube:v1", "Pourquoi le panda mange du bambou", 90, "r")
@@ -272,7 +267,8 @@ def test_produce_from_clip(rights, links_only, want_only, want_rights):
     assert p["mode"] == "topic" and p["title"] == "Pourquoi le panda mange du bambou (Why pandas eat bamboo)"
     m = p["meta"]
     assert m["links"] == ["https://www.youtube.com/watch?v=v1"] and m["duration"] == 70 and m["clip"] == "youtube:v1"
-    assert (m["links_only"], m["rights"]) == (want_only, want_rights)
+    # None (mặc định) = tìm thêm video; không còn quyền nguồn để dựa vào
+    assert m["links_only"] is want_only and "rights" not in m
     c = db.get_clip("youtube:v1")
     assert (c["status"], c["project_id"]) == ("used", pid)
 
@@ -311,10 +307,10 @@ def _until(fn, timeout=3):
 def test_watch_routes(client, monkeypatch):
     checked = []
     monkeypatch.setattr(watch, "check_all", lambda ids=None: checked.append(ids) or {"checked": 1, "new": 0})
-    r = client.post("/api/watches", headers=H, json={"target": "https://www.youtube.com/@Vox", "rights": "licensed"})
+    r = client.post("/api/watches", headers=H, json={"target": "https://www.youtube.com/@Vox"})
     assert r.status_code == 201
     w = r.json()
-    assert (w["kind"], w["target"], w["rights"], w["enabled"]) == ("channel", VOX, "licensed", True)
+    assert (w["kind"], w["target"], w["enabled"]) == ("channel", VOX, True) and "rights" not in w
     assert _until(lambda: checked == [[w["id"]]])  # nguồn mới được kiểm tra ngay
     assert client.post("/api/watches", headers=H, json={"target": VOX}).status_code == 400
     assert client.post("/api/watches", headers=H, json={"target": "https://youtu.be/x"}).status_code == 400
@@ -322,8 +318,8 @@ def test_watch_routes(client, monkeypatch):
 
     r = client.patch(f"/api/watches/{w['id']}", headers=H, json={"enabled": False, "name": " Vox FR "})
     assert r.json()["enabled"] is False and r.json()["name"] == "Vox FR"
-    assert client.patch(f"/api/watches/{w['id']}", headers=H, json={"rights": "x"}).status_code == 400
     assert [x["id"] for x in client.get("/api/watches", headers=H).json()] == [w["id"]]
+    assert "rights" not in client.get("/api/watches", headers=H).json()[0]  # hết khai báo quyền nguồn
 
     assert client.post("/api/watches/check", headers=H).json() == {"started": True}
     assert _until(lambda: checked[-1] is None and not client.get("/api/state", headers=H).json()["watching"])
@@ -343,7 +339,7 @@ def test_watch_routes(client, monkeypatch):
     r = client.post("/api/clips/youtube:v1/produce", headers=H, json={"duration": 90})
     assert r.status_code == 202
     p = db.get_project(r.json()["project_id"])
-    assert p["meta"]["links_only"] is True and p["meta"]["rights"] == "licensed" and p["meta"]["duration"] == 90
+    assert p["meta"]["links_only"] is False and "rights" not in p["meta"] and p["meta"]["duration"] == 90
     assert p["meta"]["mute_source"] is True  # the source's own (Chinese) voice is off unless asked otherwise
     assert client.post("/api/clips/youtube:v1/produce", headers=H, json={"duration": 5}).status_code == 400
     assert client.post("/api/clips/nope/produce", headers=H).status_code == 404

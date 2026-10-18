@@ -25,7 +25,6 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
-import { Choice } from "@/components/form";
 import { Monitor } from "@/components/monitor";
 import { PublishCard } from "@/components/publish-card";
 import { ScriptCard, type ScriptGate } from "@/components/script-card";
@@ -40,7 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectEvents } from "@/hooks/use-project-events";
-import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type Rights, type VideoVersion } from "@/lib/api";
+import { useApi, type Api, type Channel, type ProjectDetail, type RetryStep, type VideoVersion } from "@/lib/api";
 import { fileSlug, saveFile } from "@/lib/download";
 import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { imageProviderLabel } from "@/lib/image-models";
@@ -63,7 +62,6 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
       onQueued();
     },
   });
-  const rights = useMutation({ mutationFn: (r: Rights) => api.setRights(p.id, r), onSuccess: onQueued });
   const pinned = new Set(p.meta.links ?? []);
   const sources = p.meta.sources ?? [];
   return (
@@ -102,39 +100,26 @@ function SourcesCard({ api, p, active, onQueued }: { api: Api; p: ProjectDetail;
           ))}
         </ul>
       )}
-      <div className="grid gap-4 p-4">
-        {p.mode !== "dub" && (
-          <div className="grid gap-3">
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
-              className="h-20 min-h-20 resize-none font-mono text-xs leading-5"
-              aria-label={t.projects.addLinks}
-            />
-            <AddVideoFile api={api} disabled={active} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
-            <p className="text-xs leading-[18px] text-muted-foreground">{t.projects.addLinksHint}</p>
-            <div>
-              <Button variant="secondary" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
-                {add.isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
-                {t.projects.addAndRerun}
-              </Button>
-            </div>
-            {add.error && <p className="text-[13px] text-coral">{add.error.message}</p>}
-          </div>
-        )}
-        <div className="grid gap-2">
-          <div className="text-[13px] font-medium">{t.projects.rights}</div>
-          <Choice
-            value={p.meta.rights ?? "unknown"}
-            onChange={(v) => rights.mutate(v as Rights)}
-            options={(["unknown", "owned", "licensed", "cc"] as const).map((r) => [r, t.projects.rightsOptions[r]])}
-            className="w-full"
+      {p.mode !== "dub" && (
+        <div className="grid gap-3 p-4">
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={"https://www.douyin.com/video/…\nhttps://x.com/…/status/…"}
+            className="h-20 min-h-20 resize-none font-mono text-xs leading-5"
+            aria-label={t.projects.addLinks}
           />
-          <p className="text-xs leading-[18px] text-muted-foreground">{t.projects.rightsHint}</p>
-          {rights.error && <p className="text-[13px] text-coral">{rights.error.message}</p>}
+          <AddVideoFile api={api} disabled={active} onAdded={(l) => setText((x) => (x.trim() ? `${x.trimEnd()}\n` : "") + l)} />
+          <p className="text-xs leading-[18px] text-muted-foreground">{t.projects.addLinksHint}</p>
+          <div>
+            <Button variant="secondary" onClick={() => add.mutate()} disabled={active || !links.length || add.isPending}>
+              {add.isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
+              {t.projects.addAndRerun}
+            </Button>
+          </div>
+          {add.error && <p className="text-[13px] text-coral">{add.error.message}</p>}
         </div>
-      </div>
+      )}
     </Panel>
   );
 }
@@ -218,7 +203,6 @@ function ReviewBar({
             <p className="text-xs leading-[18px] text-muted-foreground">
               {video ? t.review.videoHint : t.review.scriptHint}
               {video && targets > 0 && ` ${t.review.sendPlan(targets, mode)}`}
-              {video && targets > 0 && p.dub?.needs_review && ` ${t.dub.reviewNote}`}
               {video && targets > 0 && p.ai?.needs_review && ` ${p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}`}
             </p>
             {blocked && <p className="text-xs leading-[18px] text-amber">{t.review.fixScript}</p>}

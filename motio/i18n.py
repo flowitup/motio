@@ -112,7 +112,6 @@ VI = {
     "Video approved, not sent to Postiz": "Đã duyệt video, không gửi Postiz",
     "Script approved": "Đã duyệt kịch bản",
     "Pasted source links: {n}": "{n} link nguồn dán tay",
-    "Source rights: {rights}": "Quyền nguồn: {rights}",
     "Channel: {name}": "Kênh: {name}",
     "Topic: {topic} · links: {links} · {duration} s": "Chủ đề: {topic} · {links} link · {duration} s",
     "(links only)": "(chỉ link)",
@@ -147,7 +146,6 @@ VI = {
     "Trend not found": "Không có tin này",
     "“Use only these links” needs at least one link": "Chọn “chỉ dùng link” thì cần ít nhất một link",
     "Source not found": "Không có nguồn này",
-    "Invalid source rights: {rights}": "Quyền nguồn không hợp lệ: {rights}",
     "Video not found": "Không có video này",
     "Only videos not made yet can be hidden or shown again": "Chỉ ẩn hoặc hiện lại được video chưa làm",
     "Project not found": "Không có dự án này",
@@ -375,14 +373,10 @@ VI = {
     "Unknown colour filter: {color}": "Không có bộ lọc màu: {color}",
     "This video has no source footage yet": "Video này chưa có video nguồn",
     "Send one set of effects per source video": "Gửi một bộ hiệu ứng cho mỗi video nguồn",
-    "Effects are only for footage you own, licensed or under CC: set the source rights first":
-        "Hiệu ứng chỉ dùng cho video nguồn bạn sở hữu, có giấy phép hoặc CC: hãy đặt quyền nguồn trước",
     "Effects changed": "Đã đổi hiệu ứng",
     "mirrored": "lật gương",
     "colour filter {name}": "bộ lọc màu {name}",
     "no effect": "không hiệu ứng",
-    "Effects left out: the source rights are not owned, licensed or CC":
-        "Bỏ qua hiệu ứng: quyền nguồn không phải sở hữu, có giấy phép hay CC",
     "Blur boxes changed": "Đã đổi khung làm mờ",
     "blur box": "khung làm mờ",
     "Source {n}: {what}": "Nguồn {n}: {what}",
@@ -426,13 +420,6 @@ VI = {
     "No video link to dub": "Chưa có link video để lồng tiếng",
     "Video to dub: {url}": "Video lồng tiếng: {url}",
     "Whisper: {name}": "Whisper: {name}",
-    " (a dub of someone else's video: set the source rights to owned, licensed or CC to send it without approval)":
-        " (bản lồng tiếng video của người khác: đặt quyền nguồn là của bạn, có giấy phép hoặc CC để gửi mà không "
-        "cần duyệt)",
-    " (an explainer built on someone else's videos: set the source rights to owned, licensed or CC to send it "
-    "without approval)":
-        " (video giải thích dựng từ video của người khác: đặt quyền nguồn là của bạn, có giấy phép hoặc CC để gửi "
-        "mà không cần duyệt)",
     "ffmpeg did not finish in {minutes} min": "ffmpeg không xong sau {minutes} phút",
     "ffmpeg could not read the audio: {error}": "ffmpeg không đọc được âm thanh: {error}",
     "The source has no audio in this part": "Đoạn nguồn này không có âm thanh",

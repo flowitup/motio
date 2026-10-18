@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Clapperboard, Copy, Eraser, Loader2, Lock } from "lucide-react";
+import { Clapperboard, Copy, Eraser, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Choice, Field } from "@/components/form";
 import { Panel } from "@/components/studio";
@@ -20,8 +20,7 @@ const PREVIEW: Record<string, string> = {
   faded: "saturate(0.7) contrast(0.9) brightness(1.03)",
 };
 
-/** Lật gương, bộ lọc màu người dùng bật tay trên từng nguồn (video AI: một thiết lập cho mọi cảnh). Chỉ dùng
- * được cho nguồn owned / licensed / cc hoặc video AI (effects.allowed): nguồn chưa rõ quyền thì khoá. */
+/** Lật gương, bộ lọc màu người dùng bật tay trên từng nguồn (video AI: một thiết lập cho mọi cảnh). */
 export function SourceEffectsCard({
   api,
   p,
@@ -43,20 +42,13 @@ export function SourceEffectsCard({
   const src = fx.sources[Math.min(sel, fx.sources.length - 1)];
   const mine = edits[sel] ?? NONE;
   const dirty = JSON.stringify(edits) !== JSON.stringify(saved);
-  const locked = !fx.allowed;
-  const off = active || locked;
+  const off = active;
   const isOn = (e: SourceEffects) => e.mirror || !!e.color;
   const setMine = (next: Partial<SourceEffects>) => setEdits((all) => all.map((e, i) => (i === sel ? { ...e, ...next } : e)));
 
   return (
     <Panel title={t.effects.title} bodyClassName="grid gap-3 text-[13px]">
       <p className="text-xs leading-[18px] text-muted-foreground">{fx.whole_video ? t.effects.hintAi : t.effects.hint}</p>
-      {locked && (
-        <p className="flex items-start gap-2 text-xs leading-[18px] text-coral">
-          <Lock className="mt-0.5 size-3.5 shrink-0" />
-          {t.effects.locked}
-        </p>
-      )}
       {fx.sources.length > 1 && (
         <Choice
           value={String(sel)}

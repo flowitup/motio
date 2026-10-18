@@ -50,7 +50,7 @@ not supported. How it works, what was tested and how to update f2: [docs/DOUYIN_
 **Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
 sends a video you already have, from Douyin or anywhere else, to the engine and uses it like a link: dubbed, or used as
 a source for a topic explainer. It is kept with the downloaded sources, so Remove logo and re-renders find it. MP4, MOV,
-M4V, MKV, WebM, AVI, TS or FLV, up to 2 GB; anything but MP4 is converted. Rights stay *unknown* until you set them.
+M4V, MKV, WebM, AVI, TS or FLV, up to 2 GB; anything but MP4 is converted.
 
 **Channels** holds one profile per channel you post to: the red badge on the video ("ACTU CHINE", "INSOLITE",
 or none), style notes Claude follows when it writes the script, the ElevenLabs voice, the default length for hot-news
@@ -84,9 +84,9 @@ still frame. The old subtitles burned into the picture are blurred: Motio finds 
 the box yourself on a frame of the project page. Only that band is blurred, never a logo (**Remove logo** stays a
 separate, manual tool). French karaoke captions go on top as in every video, and the project page plays the original
 part next to the dub (**Play both**), lets you change the part and edit each French line. The post keeps "Voix off
-générée par IA." and the AI flags. A dub reuses someone else's pictures and words, so it is sent to Postiz by itself
-only when the source rights are *owned*, *licensed* or *cc*; otherwise, even if the channel has no video gate, it stops
-at **Awaiting video approval** before anything is sent.
+générée par IA." and the AI flags. A dub reuses someone else's pictures and words; like every video, it is sent to
+Postiz by itself only through a channel profile that lists Postiz channels with its video gate off (the source-rights
+question was removed on the owner's ask, 2026-10-18).
 
 **AI video** (Projects → New video → *AI video*) makes a French explainer from a topic with no source footage at all:
 Claude writes the voice-over as scenes (the spoken line, an English picture prompt and a slow camera move: zoom in,
@@ -293,7 +293,7 @@ motio/render.py    9:16 render (+ 16:9 copy): Pillow draws the text, FFmpeg comp
 motio/captions.py  French karaoke captions (≤ 42 characters per line), exports captions.srt / captions.ass
 motio/scenes.py    scene cuts with FFmpeg's scene filter
 motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
-motio/topic.py     topic mode: explainer from any topic or video links, source rights flag
+motio/topic.py     topic mode: explainer from any topic or video links
 motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
 motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
 motio/aiclips.py   AI clips: fal H3 Max or HeyGen Video 1 image-to-video for some scenes of an AI video, cached per scene, cost estimate
@@ -301,7 +301,7 @@ motio/series.py    AI video series: a channel's cast (fixed looks put in front o
 motio/qa.py        quality check after each render (length, picture, loudness, silence, black start) + repeat warnings
 motio/trending.py  Bilibili ranking / popular / weekly lists, categories and tags as followed sources
 motio/localfile.py a video file added by hand, used as a source like a link
-motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix (rights gate)
+motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix
 motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
 motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
 motio/settings.py  data/settings.json over .env

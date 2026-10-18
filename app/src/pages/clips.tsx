@@ -13,35 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useApi, type Api, type Clip, type ClipStatus, type Rights, type Site, type Watch } from "@/lib/api";
+import { useApi, type Api, type Clip, type ClipStatus, type Site, type Watch } from "@/lib/api";
 import { listName } from "@/lib/watch-name";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const ALL = "__all__";
 const TABS: ClipStatus[] = ["new", "used", "hidden"];
-const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
 const BELOW = [40, 50, 60, 70, 80]; // "Hide below score" choices
 
 const watchName = (w: Watch) => (w.kind === "trending" ? listName(w.target) : undefined) ?? (w.name || w.target);
-
-/** The rights to the videos of a followed source (a dub of an "owned" source can go to Postiz without a stop). */
-function RightsSelect({ value, onChange, label, className }: { value: Rights; onChange: (r: Rights) => void; label: string; className?: string }) {
-  return (
-    <Select value={value} onValueChange={(v) => v != null && onChange(v as Rights)}>
-      <SelectTrigger className={className} aria-label={label} title={label}>
-        <SelectValue>{(v: string) => t.projects.rightsOptions[v] ?? v}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {RIGHTS.map((r) => (
-          <SelectItem key={r} value={r}>
-            {t.projects.rightsOptions[r]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 /** Danh sách nguồn theo dõi + ô thêm nguồn. */
 function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
@@ -49,7 +30,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   const [target, setTarget] = useState("");
   const [site, setSite] = useState<Site>("youtube");
   const [list, setList] = useState("bilibili:ranking:181");
-  const [rights, setRights] = useState<Rights>("unknown");
   const [removing, setRemoving] = useState<Watch | null>(null);
   const isLink = /^https?:\/\//i.test(target.trim());
   const changed = () => {
@@ -58,7 +38,7 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
     qc.invalidateQueries({ queryKey: ["clips"] });
   };
   const add = useMutation({
-    mutationFn: () => api.addWatch({ target: target.trim(), site, rights }),
+    mutationFn: () => api.addWatch({ target: target.trim(), site }),
     onSuccess: () => {
       setTarget("");
       changed();
@@ -66,7 +46,7 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   });
   const addList = useMutation({ mutationFn: () => api.addWatch({ target: list, site: "bilibili" }), onSuccess: changed });
   const patch = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; enabled?: boolean; rights?: Rights }) => api.patchWatch(id, body),
+    mutationFn: ({ id, ...body }: { id: number; enabled?: boolean }) => api.patchWatch(id, body),
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
@@ -97,15 +77,11 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
               />
             </Field>
           )}
-          <Field label={t.watches.rights}>
-            <RightsSelect value={rights} onChange={setRights} label={t.watches.rights} className="w-44" />
-          </Field>
           <Button type="submit" className="ml-auto" disabled={!target.trim() || add.isPending}>
             {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
             {t.watches.add}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">{t.watches.rightsHint}</p>
       </form>
       <div className="flex flex-wrap items-end gap-3 border-t pt-3">
         <Field label={t.watches.trending} hint={t.watches.trendingHint}>
@@ -137,12 +113,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
                   {w.last_error && <span className="text-destructive"> · {w.last_error}</span>}
                 </div>
               </div>
-              <RightsSelect
-                value={w.rights}
-                onChange={(r) => patch.mutate({ id: w.id, rights: r })}
-                label={`${t.watches.rights}: ${watchName(w)}`}
-                className="w-40"
-              />
               <label className="flex items-center gap-2 text-sm" title={t.watches.enabled}>
                 <Switch
                   checked={w.enabled}

@@ -94,7 +94,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | French karaoke captions, SRT / ASS | `motio/captions.py` (`word_times`, `french_words`, `build_cues`, `to_srt`, `to_ass`) |
 | Scene cuts | `motio/scenes.py` (FFmpeg `select='gt(scene,0.3)'`, cached next to each source) |
 | Pipeline steps, retry, links, quota, video length | `motio/pipeline.py` (`STEPS`, `produce`, `resume`, `add_links`, `rerender`, `_subject`, `MIN_SECONDS` / `MAX_SECONDS`, `target_seconds`, `_fit`) |
-| Topic mode (explainer from any topic or links) | `motio/topic.py` (prompts, `RIGHTS`, `DURATIONS`, `create`); project `mode` column in `motio/db.py` |
+| Topic mode (explainer from any topic or links) | `motio/topic.py` (prompts, `DURATIONS`, `create`); project `mode` column in `motio/db.py` |
 | Settings layer | `motio/settings.py` (`KEYS`, `SECRETS`; `data/settings.json` over `.env`, read at call time) |
 | Paths, binaries, OS checks | `motio/config.py` (`which()`, `env()`, `flag()`, `IS_MAC`/`IS_WIN`) |
 | JSON API, refresh scheduler | `motio/api.py` (`create_app(token, headless)`; `REFRESH_EVERY_MIN`) |
@@ -104,9 +104,9 @@ cd app && pnpm install && cd ..              # only if touching the app
 | 16:9 copy of a video | `motio/render.py` (`Layout`, `VERTICAL` / `WIDE`, `_compose`, `render(..., wide=True)` → `final_wide.mp4`), `pipeline._voice_render_post` / `send_to_postiz`, profile `wide_postiz`; tests `tests/test_render.py` (needs FFmpeg), `tests/test_pipeline.py` |
 | Auto-make above a channel's score | `motio/automake.py` (`profiles`, `picks`, `start`), `api._refresh(auto=True)` / `_automake` (scheduled refresh only), `db.count_auto_since`, profile `auto_score` / `auto_daily`, CLI `automake`; tests `tests/test_automake.py` |
 | "Channels" profiles: badge, script style, voice, hashtags, gates, auto-send | `motio/channels.py` (`clean`, `pick`, `attach`, `for_project`, `badge_for`, `next_slot`), `channel` table in `motio/db.py`, `pipeline._await_review` / `_deliver` / `send_to_postiz` / `approve_video`, `/api/channels`, `POST /api/projects/{id}/approve`, `app/src/pages/channels.tsx`, `app/src/components/channel-choice.tsx`; tests `tests/test_channels.py` |
-| French dub mode (excerpt, translation to fit, voice placement, subtitle blur, compare) | `motio/dub.py` (`create`, `from_clip`, `pick_excerpt`, `script`, `voice`, `assign_voices`, `speaker_list`, `detect_band`, `render_args`, `needs_review`, `view`, `update`), `motio/separate.py` (MDX-Net `ensure_model`, `demix`, `instrumental`), `render.Piece(still=…)` / `blur_filter`, `captions.build_cues(hold=…)`, profile `glossary` / `dub_voices`, `POST /api/dubs` (`whole`), `POST /api/clips/{id}/dub` (`whole`), `PUT /api/projects/{id}/dub`, CLI `dub <link> [start end | whole]`, `app/src/components/dub-cards.tsx`; tests `tests/test_dub.py`, `tests/test_separate.py` |
+| French dub mode (excerpt, translation to fit, voice placement, subtitle blur, compare) | `motio/dub.py` (`create`, `from_clip`, `pick_excerpt`, `script`, `voice`, `assign_voices`, `speaker_list`, `detect_band`, `render_args`, `view`, `update`), `motio/separate.py` (MDX-Net `ensure_model`, `demix`, `instrumental`), `render.Piece(still=…)` / `blur_filter`, `captions.build_cues(hold=…)`, profile `glossary` / `dub_voices`, `POST /api/dubs` (`whole`), `POST /api/clips/{id}/dub` (`whole`), `PUT /api/projects/{id}/dub`, CLI `dub <link> [start end | whole]`, `app/src/components/dub-cards.tsx`; tests `tests/test_dub.py`, `tests/test_separate.py` |
 | Hide burned-in text / a fixed watermark on each project source: blurred boxes, logo cover, keep area (zoom) | `motio/masks.py` (`clean_box`, `clean`, `cover_png`, `attach`, `update`, `view`, `MAX_BOXES`, `MIN_KEEP`; `meta.masks[url] = {boxes: [{box, logo}], keep}`), `motio/logos.py` (`list_all`, `add`, `remove`, `path`; `data/logos/`), `render.blur_filter` (one box or a list) + `render_piece` (`blur`, `cover`, `keep`), `masks.attach` in `pipeline._voice_render_post`, `dub.render_args` (subtitle band + boxes), `PUT /api/projects/{id}/masks`, `/api/logos`, `app/src/components/{source-masks-card,logos-card}.tsx`; tests `tests/test_masks.py` (real FFmpeg blur / logo / zoom checks), `tests/test_api.py::test_masks` / `test_logos` |
-| Mirror / colour filter per project source (rights owned / licensed / cc, or an AI video: one setting for every scene) | `motio/effects.py` (`allowed`, `clean`, `attach`, `skipped`, `update`, `view`, `COLORS`, `AI_KEY`; `meta.effects[url \| "ai"] = {mirror, color}`), `render.COLOR_FILTERS` / `effect_filter` + `render_piece` (`effects`), `effects.attach` in `pipeline._voice_render_post`, `PUT /api/projects/{id}/effects`, `app/src/components/source-effects-card.tsx`; tests `tests/test_effects.py` (real FFmpeg mirror / mono checks), `tests/test_api.py::test_effects` |
+| Mirror / colour filter per project source (one setting for every scene of an AI video) | `motio/effects.py` (`clean`, `attach`, `update`, `view`, `COLORS`, `AI_KEY`; `meta.effects[url \| "ai"] = {mirror, color}`), `render.COLOR_FILTERS` / `effect_filter` + `render_piece` (`effects`), `effects.attach` in `pipeline._voice_render_post`, `PUT /api/projects/{id}/effects`, `app/src/components/source-effects-card.tsx`; tests `tests/test_effects.py` (real FFmpeg mirror / mono checks), `tests/test_api.py::test_effects` |
 | "Remove logo" tool (remove a static logo from a video the user picks) | `motio/delogo.py` (`find_static`, `start` / `run` / `cancel`, targets `p<id>-<i>` / `u<hex>`, scopes via `scope_ranges`: a project source only `used`, an upload `all` / `range`, used parts from the render's `timeline.json` via `pieces` / `merge`, `uncovered` warning after a render), `motio/inpaint.py` (LaMa fill: `ensure_model`, `Patch`, `video(ranges=…)`), `/api/delogo/*`, `app/src/pages/delogo.tsx`; tests `tests/test_delogo.py` |
 | Tools page (download, transcribe, translate subtitles, read aloud, burn subtitles; jobs chain) | `motio/toolbox.py` (`start`, `run`, `recover`, `parse_subs`, `segment_entries`, `translate`, `burn_cues`, `burn_layout`, `RUNNERS`), `/api/tools/*`, `render.write_caption_track(plain=True)`, `app/src/pages/tools.tsx`; tests `tests/test_toolbox.py` |
 | Stats page (ElevenLabs characters and estimated cost per project / channel / tool, monthly budget) | `motio/usage.py` (`context`, `record_tts`, `cost`, `for_project`, `summary`, `over_budget`), `tts.synthesize` records, `db.usage` table, `GET /api/stats`, `app/src/pages/stats.tsx`; tests `tests/test_usage.py` |
@@ -169,9 +169,9 @@ live in `data/tools/delogo/<hex>/`.
   duplicate / Content ID detection. The second manual path (owner, 2026-10-18) is `motio/masks.py`: only boxes (blur,
   or blur + the owner's logo) and a keep area (zoom) a person drew on a project's source are applied at render; no
   auto-detected, channel-wide or batch box.
-- **Mirror / colour filter** (`motio/effects.py`, owner, 2026-10-18) unlock only for `meta.rights` owned /
-  licensed / cc or an AI video (`effects.allowed`); `unknown` stays locked and a render drops effects saved earlier.
-  Per source, by hand, at render; never automatic, per channel or in batch, never for someone else's footage.
+- **Mirror / colour filter** (`motio/effects.py`, owner, 2026-10-18) are turned on per source by hand and applied at
+  render; never automatic, per channel or in batch. They are not a way to slip someone else's video past duplicate /
+  Content ID detection.
 - **AI videos never reuse footage, and only some providers are cleared.** `creator.needs_review(proj)` (provider in
   `images.REVIEW_PROVIDERS`: Modal's Qwen 2.1 research licence, the placeholder; or a fal model outside `images.CLEARED_FAL_MODELS`, which is empty) forces the video gate even when the channel has none
   (when it would send to Postiz). Pictures are made right before the voice (`_voice_render_post`), after the script gate, so nothing is paid
@@ -181,15 +181,14 @@ live in `data/tools/delogo/<hex>/`.
   `MONTHLY_BUDGET_USD`, never fail a video (the scene keeps its picture and camera move), and change the post label to
   "Images et vidéos générées par IA." (`pipeline.write_post(ai_clips=)`, also on script edit). The module is `aiclips`, not
   `clips`: `clips` already means source footage (`ln["clips"]`) and the New videos list.
-- **French dubs keep other people's pictures and words.** `dub.needs_review(proj)` (mode dub and `meta.rights` not
-  owned / licensed / cc; `unknown` counts as not owned) makes `pipeline._deliver` stop at the video gate even when the
-  channel has none (when it would send to Postiz), so a dub is never auto-sent without a person. The subtitle blur (`dub.detect_band`, the user's box)
+- **French dubs keep other people's pictures and words.** Like any project a dub is auto-sent to Postiz only through a
+  channel profile that lists Postiz channels with its video gate off. The subtitle blur (`dub.detect_band`, the user's box)
   covers the subtitle band only, never a logo; nothing in the dub is built to evade duplicate / Content ID detection.
   The 67 MB separation model is fetched once and sha256-checked (`separate.ensure_model`); dubs must still land in 62–90 s, except the "Whole video" option (`meta.dub.whole`, owner 2026-10-18): it keeps the source's own length, `dub.too_long_to_send` holds one longer than 90 s at the video gate (Reels limit), `tts` reads long scripts in batches (`EL_MAX_CHARS`), `separate.instrumental` works in windows, `dub.mix` mixes in groups, `dub.translate` asks Claude 40 lines at a time.
-- **Rights flag.** Every project carries `meta.rights` = `unknown` | `owned` | `licensed` | `cc`
-  (`topic.RIGHTS`; set on `POST /api/projects`, changed with `PATCH /api/projects/{id}`). New features that
-  treat footage differently by rights (watermark handling, longer clips, remakes) must read this flag and
-  treat `unknown` as not owned.
+- **No source rights.** The app does not ask for the source video's rights (owner, 2026-10-18: "remove this for all
+  actions that need to put it as mine, we don't mind if the video came from nowhere"): no rights field in the UI or the
+  API, and no rights gate — a dub or an explainer is auto-sent like any video through a channel profile that lists
+  Postiz channels with its video gate off. Don't add a rights step back unless the owner asks.
 - **Video length 62–90 s** (owner rule, 2026-09-26; the dub "Whole video" option is the owner's one exception, 2026-10-18). Every video, news or topic, lasts at least 62 s
   (1 min 2 s) and at most 90 s (Facebook Reels API cap): `pipeline.MIN_SECONDS` / `MAX_SECONDS`,
   `target_seconds()` clamps requests (default 80), `_fit()` has Claude lengthen or shorten the script once,
@@ -233,7 +232,7 @@ update `available_steps` / `resume_point` / `_invalidate` and cover it in `tests
 Any script or voice change must keep the result inside 62–90 s (§4).
 
 **Topic mode change.** Prompts and `create()` live in `motio/topic.py`; the route is `POST /api/projects`
-(`TopicIn`: `topic`, `links`, `links_only`, `duration` in `topic.DURATIONS`, `rights`), the CLI is
+(`TopicIn`: `topic`, `links`, `links_only`, `duration` in `topic.DURATIONS`), the CLI is
 `topic "<topic>" [link ...]` (`""` = links only). Cover it in `tests/test_api.py` / `tests/test_pipeline.py`
 with the LLM mocked.
 

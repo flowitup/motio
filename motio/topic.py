@@ -5,16 +5,7 @@ from . import db, llm, localfile, search
 from .i18n import tr
 
 MODE = "topic"
-RIGHTS = ("unknown", "owned", "licensed", "cc")  # quyền dùng video nguồn; chưa rõ = unknown
 DURATIONS = (70, 80, 90)  # mọi video > 1 phút 2 giây (pipeline.MIN_SECONDS), tối đa 90 s
-
-OK_RIGHTS = ("owned", "licensed", "cc")  # source rights that let a video go to Postiz without a person looking first
-
-
-def needs_review(proj: dict) -> bool:
-    """An explainer built on someone else's videos (rights not owned / licensed / CC; `unknown` counts as not owned) is
-    never sent to Postiz by itself: it stops at the video gate, like a dub."""
-    return proj.get("mode") == MODE and (proj.get("meta") or {}).get("rights") not in OK_RIGHTS
 
 
 SUBJECT_SYSTEM = "Tu prépares une courte vidéo explicative en français. Réponds uniquement en JSON."
@@ -86,8 +77,7 @@ def lines_for(duration_sec: int) -> tuple[int, int]:
     return max(4, round(duration_sec / 8.5)), max(5, round(duration_sec / 5.5))
 
 
-def create(topic: str = "", links: list[str] | None = None, links_only: bool = False, duration: int = 80,
-           rights: str = "unknown") -> int:
+def create(topic: str = "", links: list[str] | None = None, links_only: bool = False, duration: int = 80) -> int:
     """Tạo dự án chủ đề (chưa chạy). Không có chủ đề thì chỉ dùng link. ValueError nếu thiếu / sai dữ liệu."""
     topic = " ".join(topic.split())[:300]
     links = search.clean_links(links or [])
@@ -95,8 +85,6 @@ def create(topic: str = "", links: list[str] | None = None, links_only: bool = F
         raise ValueError(tr("Enter a topic or at least one video link"))
     if duration not in DURATIONS:
         raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, DURATIONS))))
-    if rights not in RIGHTS:
-        raise ValueError(tr("Invalid source rights: {rights}", rights=rights))
     title = topic
     if not title:
         more = f" (+{len(links) - 1})" if len(links) > 1 else ""
@@ -106,5 +94,5 @@ def create(topic: str = "", links: list[str] | None = None, links_only: bool = F
     db.update_project(pid, log=tr("Topic: {topic} · links: {links} · {duration} s", topic=topic or tr("(links only)"),
                                   links=len(links), duration=duration),
                       meta={"topic": topic, "links": links, "links_only": bool(links_only or not topic),
-                            "duration": duration, "rights": rights})
+                            "duration": duration})
     return pid

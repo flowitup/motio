@@ -1,4 +1,4 @@
-"""Chế độ lồng tiếng (dub.py): chọn đoạn, dịch, đặt câu, trộn, dựng, cổng duyệt khi quyền nguồn chưa rõ."""
+"""Chế độ lồng tiếng (dub.py): chọn đoạn, dịch, đặt câu, trộn, dựng; cổng duyệt video theo hồ sơ kênh."""
 import json
 import subprocess
 import time
@@ -302,21 +302,9 @@ def test_video_over_90_seconds_is_refused(fake, monkeypatch):
     assert db.get_project(pid)["status"] == "failed"
 
 
-def test_dub_of_someone_elses_video_waits_for_approval_before_postiz(fake, fake_postiz):
-    ch = _profile(postiz=["tt1"])
+def test_dub_is_sent_by_itself_when_the_channel_has_postiz_and_no_video_gate(fake, fake_postiz):
+    ch = _profile(postiz=["tt1"])  # no video gate: the dub goes out like any other video
     pid = dub.create("https://www.douyin.com/video/3")
-    channels.attach(pid, ch)
-    pipeline.produce(pid)
-    p = db.get_project(pid)
-    assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
-    assert "owned, licensed or CC" in p["log"]
-    pipeline.approve_video(pid)  # duyệt bằng tay: gửi
-    assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)
-
-
-def test_dub_with_owned_rights_is_sent_by_itself(fake, fake_postiz):
-    ch = _profile(postiz=["tt1"])
-    pid = dub.create("https://www.douyin.com/video/4", rights="owned")
     channels.attach(pid, ch)
     pipeline.produce(pid)
     assert db.get_project(pid)["status"] == "done" and any(r.url.path.endswith("/posts") for r in fake_postiz)
@@ -427,30 +415,30 @@ def _wait_done(client, pid) -> dict:
 
 
 def test_dub_routes(client):
-    r = client.post("/api/dubs", headers=H, json={"link": "https://www.douyin.com/video/9", "rights": "cc"})
+    r = client.post("/api/dubs", headers=H, json={"link": "https://www.douyin.com/video/9"})
     assert r.status_code == 202
     pid = r.json()["project_id"]
     p = _wait_done(client, pid)
-    assert p["mode"] == "dub" and p["dub"]["needs_review"] is False and p["dub"]["blur"] is None
+    assert p["mode"] == "dub" and p["dub"]["blur"] is None and "needs_review" not in p["dub"]
     r = client.put(f"/api/projects/{pid}/dub", headers=H, json={"blur": [0.05, 0.75, 0.9, 0.12]})
     assert r.status_code == 200 and r.json()["project"]["dub"]["blur"] == [0.05, 0.75, 0.9, 0.12]
     assert r.json()["rerun"] == "search"  # chưa có dữ liệu để chỉ dựng lại: chạy lại từ đầu
     assert client.put(f"/api/projects/{pid}/dub", headers=H, json={"start": 0, "end": 5}).status_code == 400
     assert client.post("/api/dubs", headers=H, json={"link": "nope"}).status_code == 400
-    assert client.post("/api/dubs", headers=H, json={"link": "https://x.com/a", "rights": "mine"}).status_code == 400
+    assert "rights" not in p["meta"]  # hết khai báo quyền nguồn (chủ, 2026-10-18)
     topic_pid = client.post("/api/projects", headers=H, json={"topic": "panda"}).json()["project_id"]
     _wait_done(client, topic_pid)  # đang chạy thì trả 409 trước khi kiểm tra loại dự án
     assert client.put(f"/api/projects/{topic_pid}/dub", headers=H, json={"blur": None}).status_code == 404
 
 
 def test_dub_from_a_new_video(client):
-    wid = db.add_watch("channel", "youtube", "https://youtube.com/@dubx", "X", "licensed")
+    wid = db.add_watch("channel", "youtube", "https://youtube.com/@dubx", "X")
     db.insert_clips([{"id": "youtube:z1", "watch_id": wid, "site": "youtube", "url": "https://youtube.com/watch?v=z1",
                       "title": "熊猫", "duration": 70, "status": "new"}])
     r = client.post("/api/clips/youtube:z1/dub", headers=H)
     assert r.status_code == 202
     p = db.get_project(r.json()["project_id"])
-    assert p["mode"] == "dub" and p["meta"]["rights"] == "licensed" and p["title"] == "熊猫"
+    assert p["mode"] == "dub" and "rights" not in p["meta"] and p["title"] == "熊猫"
     assert db.get_clip("youtube:z1")["status"] == "used"
     assert client.post("/api/clips/nope/dub", headers=H).status_code == 404
 
@@ -581,7 +569,7 @@ def test_whole_video_is_translated_in_batches_and_keeps_its_own_length(fake, mon
     monkeypatch.setattr(search, "download", download)
     monkeypatch.setattr(asr, "transcribe", lambda path: {"language": "zh", "segments": segs})
     monkeypatch.setattr(llm, "ask_json", ask_json)
-    pid = dub.create("https://www.douyin.com/video/long", rights="owned", whole=True)
+    pid = dub.create("https://www.douyin.com/video/long", whole=True)
     pipeline.produce(pid)
     p = db.get_project(pid)
     assert p["status"] == "done", p["log"]
@@ -601,14 +589,14 @@ def test_whole_video_is_translated_in_batches_and_keeps_its_own_length(fake, mon
 
 def test_whole_dub_longer_than_reels_waits_at_the_video_gate(fake, fake_postiz, monkeypatch):
     ch = _profile(postiz=["tt1"])
-    pid = dub.create("https://www.douyin.com/video/1", rights="owned", whole=True)
+    pid = dub.create("https://www.douyin.com/video/1", whole=True)
     channels.attach(pid, ch)
     db.update_project(pid, status="running", meta={"dub": {"whole": True, "total": 200.0}})
     pipeline._deliver(pid, ch)
     p = db.get_project(pid)
     assert p["status"] == "review" and p["meta"]["review"] == "video" and not fake_postiz
     assert "longer than 90 s" in pipeline._why_held(p)
-    short = dub.create("https://www.douyin.com/video/2", rights="owned", whole=True)
+    short = dub.create("https://www.douyin.com/video/2", whole=True)
     channels.attach(short, ch)
     db.update_project(short, status="running", meta={"dub": {"whole": True, "total": 80.0}})
     assert not dub.too_long_to_send(db.get_project(short))

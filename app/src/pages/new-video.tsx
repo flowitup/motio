@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, ShieldCheck, Sparkles, TriangleAlert, Tv, UsersRound, Video } from "lucide-react";
+import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useApi, type Api, type Rights } from "@/lib/api";
+import { useApi, type Api } from "@/lib/api";
 import { estimate } from "@/lib/estimate";
 import { imageProviderLabel, providerName, videoPicturesUsd } from "@/lib/image-models";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,6 @@ const KINDS: { value: Kind; icon: typeof Search }[] = [
   { value: "ai", icon: Sparkles },
   { value: "dub", icon: Languages },
 ];
-const RIGHTS: Rights[] = ["unknown", "owned", "licensed", "cc"];
 const MIN_S = 62; // every video lasts 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
 const MAX_S = 90;
 
@@ -44,7 +43,7 @@ function Section({ icon: Icon, label, hint, htmlFor, children }: { icon: typeof 
   );
 }
 
-/** Segmented control for 70 / 80 / 90 s and for the four rights. */
+/** Segmented control for the console's choices (length, kind of video…). */
 function Pick<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: [T, string][]; label: string }) {
   return <Segmented label={label} value={value} onChange={onChange} options={options.map(([v, l]) => ({ value: v, label: l }))} className="w-full max-w-[672px]" />;
 }
@@ -159,32 +158,6 @@ function LengthRule() {
   );
 }
 
-/** Which rights send a video to Postiz on its own and which stop it at the video gate. */
-function RightsGate({ rights }: { rights: Rights }) {
-  const open = rights !== "unknown";
-  const rows: { on: boolean; ok: boolean; title: string; note: string }[] = [
-    { on: open, ok: true, title: RIGHTS.slice(1).map((r) => t.projects.rightsOptions[r]).join(" · "), note: t.studio.gateOpen },
-    { on: !open, ok: false, title: t.projects.rightsOptions.unknown, note: t.studio.gateStop },
-  ];
-  return (
-    <SidePanel title={t.studio.gate}>
-      <div className="grid gap-3 p-4">
-        {rows.map((r) => (
-          <div key={r.title} className={cn("flex items-center gap-3 border px-3 py-2.5", r.on ? "border-amber" : "border-hairline-strong")}>
-            {r.ok ? <CircleCheck className="size-4 shrink-0 text-mint" /> : <TriangleAlert className="size-4 shrink-0 text-amber" />}
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] leading-5 font-medium">{r.title}</div>
-              <div className="text-xs leading-[18px] text-muted-foreground">{r.note}</div>
-            </div>
-            {r.on && <span className="font-mono text-xs font-medium text-amber">{t.studio.selected}</span>}
-          </div>
-        ))}
-        <p className="text-xs leading-[18px] text-muted-foreground">{t.studio.gateNote}</p>
-      </div>
-    </SidePanel>
-  );
-}
-
 function ChannelRow({ choice }: { choice: ChannelChoiceState }) {
   return <ChannelChoice choice={choice} className="h-11 w-full max-w-[336px]" />;
 }
@@ -215,7 +188,6 @@ function DubConsole({ api }: { api: Api }) {
   const [link, setLink] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [rights, setRights] = useState<Rights>("unknown");
   const [whole, setWhole] = useState(false); // dub the whole video, whatever its length
   const choice = useChannelChoice(api);
   const start = parseClock(from);
@@ -228,7 +200,6 @@ function DubConsole({ api }: { api: Api }) {
         ...(!whole && start != null ? { start } : {}),
         ...(!whole && end != null ? { end } : {}),
         ...(whole ? { whole } : {}),
-        rights,
         channel: choice.channel,
       }),
     onSuccess: ({ project_id }) => {
@@ -243,7 +214,6 @@ function DubConsole({ api }: { api: Api }) {
     whole ? t.dub.lengthWhole : "",
     part != null ? `${clock(start)} → ${clock(end)}` : "",
     part != null ? minSec(part) : "",
-    t.studio.rightsLine(t.projects.rightsOptions[rights]),
     channelName(choice),
   ]
     .filter(Boolean)
@@ -266,7 +236,6 @@ function DubConsole({ api }: { api: Api }) {
           <SidePanel title={t.studio.rules}>
             {whole ? <p className="p-4 text-[13px] leading-5 text-muted-foreground">{t.dub.wholeRule}</p> : <LengthRule />}
           </SidePanel>
-          <RightsGate rights={rights} />
         </>
       }
     >
@@ -330,9 +299,6 @@ function DubConsole({ api }: { api: Api }) {
         </div>
       </Section>
       )}
-      <Section icon={ShieldCheck} label={t.projects.rights} hint={t.projects.rightsHint}>
-        <Pick label={t.projects.rights} value={rights} onChange={setRights} options={RIGHTS.map((r): [Rights, string] => [r, t.projects.rightsOptions[r]])} />
-      </Section>
       {choice.channels.length > 0 && (
         <Section icon={Tv} label={t.channels.pick}>
           <ChannelRow choice={choice} />
@@ -350,7 +316,6 @@ function TopicConsole({ api }: { api: Api }) {
   const [text, setText] = useState("");
   const [linksOnly, setLinksOnly] = useState(false);
   const [duration, setDuration] = useState("80");
-  const [rights, setRights] = useState<Rights>("unknown");
   const choice = useChannelChoice(api);
   const lines = (v: string) =>
     v
@@ -370,7 +335,7 @@ function TopicConsole({ api }: { api: Api }) {
       let first = 0;
       for (const tp of list) {
         try {
-          const r = await api.createTopic({ topic: tp, links, links_only: linksOnly, duration: Number(duration), rights, channel: choice.channel });
+          const r = await api.createTopic({ topic: tp, links, links_only: linksOnly, duration: Number(duration), channel: choice.channel });
           if (!done) first = r.project_id;
           done++;
         } catch (e) {
@@ -394,7 +359,6 @@ function TopicConsole({ api }: { api: Api }) {
     several ? t.projects.topicsCount(topics.length) : topic.trim(),
     links.length ? t.studio.linkCount(links.length) : "",
     t.projects.durations[duration],
-    t.studio.rightsLine(t.projects.rightsOptions[rights]),
     channelName(choice),
   ]
     .filter(Boolean)
@@ -427,7 +391,6 @@ function TopicConsole({ api }: { api: Api }) {
           <SidePanel title={t.studio.rules}>
             <LengthRule />
           </SidePanel>
-          <RightsGate rights={rights} />
         </>
       }
     >
@@ -460,9 +423,6 @@ function TopicConsole({ api }: { api: Api }) {
       </Section>
       <Section icon={Clock} label={t.projects.duration} hint={t.projects.durationHint}>
         <Pick label={t.projects.duration} value={duration} onChange={setDuration} options={["70", "80", "90"].map((d): [string, string] => [d, t.projects.durations[d]])} />
-      </Section>
-      <Section icon={ShieldCheck} label={t.projects.rights} hint={t.projects.rightsHint}>
-        <Pick label={t.projects.rights} value={rights} onChange={setRights} options={RIGHTS.map((r): [Rights, string] => [r, t.projects.rightsOptions[r]])} />
       </Section>
       {choice.channels.length > 0 && (
         <Section icon={Tv} label={t.channels.pick}>
