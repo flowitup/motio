@@ -223,6 +223,14 @@ export type MaskBox = { box: BlurBox; logo: string | null };
 export type SourceMasks = { boxes: MaskBox[]; keep: BlurBox | null };
 /** Như trên, kèm video (/media, null = file không còn) và độ dài để vẽ. */
 export type SourceMask = SourceMasks & { media: string | null; duration: number | null };
+// lật gương / bộ lọc màu bật tay (motio/effects.py); color = tên trong ProjectEffects.colors
+export type SourceEffects = { mirror: boolean; color: string | null };
+export type ProjectEffects = {
+  allowed: boolean; // chỉ nguồn owned / licensed / cc, hoặc video AI
+  whole_video: boolean; // video AI: một thiết lập cho mọi cảnh
+  colors: string[];
+  sources: (SourceEffects & { media: string | null })[];
+};
 /** Logo của người dùng (Settings → Logo): ảnh PNG phục vụ qua /media. */
 export type Logo = { id: string; name: string; media: string; width: number; height: number };
 /** Một người nói trong bản lồng tiếng: nhãn Claude gán, giới tính, giọng người dùng chọn và giọng đã dùng. */
@@ -311,6 +319,7 @@ export type ProjectDetail = Project & {
   dub: DubView | null;
   ai: AiView | null;
   masks: SourceMask[] | null; // khung làm mờ theo từng nguồn (thứ tự meta.sources); null = video không có nguồn (video AI)
+  effects: ProjectEffects | null; // hiệu ứng theo từng nguồn; null = chưa có nguồn
   source_sound: SourceSound | null; // tiếng gốc của video nguồn dưới giọng đọc; null = video này không có (lồng tiếng, video AI)
   usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number; picture_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
@@ -590,6 +599,8 @@ export function makeApi(url: string, token: string) {
     /** Đặt khung / vùng giữ lại cho mọi nguồn (một mục mỗi nguồn); nếu đã có giọng đọc thì dựng lại video ngay. */
     setMasks: (id: number, sources: SourceMasks[]) =>
       call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/masks`, { sources }),
+    setEffects: (id: number, sources: SourceEffects[]) =>
+      call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/effects`, { sources }),
     updateDub: (
       id: number,
       body: {

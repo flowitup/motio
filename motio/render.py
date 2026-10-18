@@ -290,6 +290,24 @@ def blur_filter(boxes: list | None) -> str:
     return ",".join(parts)
 
 
+# Bộ lọc màu người dùng bật tay trên một nguồn (motio/effects.py): tên → bộ lọc FFmpeg, làm trên hình nguồn
+COLOR_FILTERS = {
+    "warm": "colorbalance=rs=0.08:gs=0.02:bs=-0.08:rm=0.06:bm=-0.06",
+    "cool": "colorbalance=rs=-0.08:gs=0.01:bs=0.08:rm=-0.05:bm=0.06",
+    "mono": "hue=s=0",
+    "sepia": "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131",
+    "vivid": "eq=saturation=1.35:contrast=1.08",
+    "faded": "eq=saturation=0.7:contrast=0.9:brightness=0.03",
+}
+
+
+def effect_filter(fx: dict | None) -> str:
+    """Lật gương rồi bộ lọc màu (effects.attach), nối sau các vùng làm mờ / vùng giữ lại; rỗng = không có gì."""
+    fx = fx or {}
+    parts = (["hflip"] if fx.get("mirror") else []) + ([COLOR_FILTERS[fx["color"]]] if fx.get("color") else [])
+    return ",".join(parts)
+
+
 def kenburns(motion: str, dur: float, w: int, h: int) -> str:
     """Bộ lọc zoompan: một ảnh tĩnh (đã phóng 2× so với khung ra) trôi chậm trong `dur` giây. Ảnh lớn gấp đôi khung ra
     để bước dịch nhỏ hơn một điểm ảnh, không bị rung."""
@@ -319,9 +337,11 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
     src["blur"]: các vùng làm mờ trên hình nguồn (phụ đề cũ, watermark), xem blur_filter; src["cover"]: ảnh PNG cỡ
     nguồn có logo của người dùng đặt lên các vùng đó (masks.cover_png); src["keep"]: chỉ giữ vùng [x, y, w, h] của nguồn
     (phóng to để chữ / watermark ngoài vùng ra khỏi khung). Cả ba làm trên hình nguồn, trước nền mờ và khung.
+    src["effects"]: lật gương, bộ lọc màu người dùng bật (effects.attach), sau ba thứ trên.
     p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video."""
     fw, fh = layout.w, layout.h
     src_path = src["path"]
+    fx = src.get("effects") or {}
     sound = bool(src.get("has_audio")) and not p.still and not p.motion and volume > 0
     span = 0.5 if p.still else p.dur + 0.1
     inputs = (["-i", src_path] if p.motion else ["-ss", f"{p.src_start:.3f}", "-t", f"{span:.3f}", "-i", src_path]) \
@@ -340,6 +360,8 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
     if keep := src.get("keep"):
         x, y, w, h = (f"{float(v):.4f}" for v in keep)
         pre += f",crop=iw*{w}:ih*{h}:iw*{x}:ih*{y}"
+    if look := effect_filter(fx):
+        pre += f",{look}"
     bg_tail = f",tpad=stop_mode=clone:stop_duration={p.dur + 0.3:.3f}" if p.motion else ""  # ảnh chỉ có một khung
     if p.motion:
         ow, oh = moving_size(src_path, layout)

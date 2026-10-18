@@ -14,6 +14,7 @@ from . import (
     db,
     delogo,
     dub,
+    effects,
     llm,
     localfile,
     masks,
@@ -685,6 +686,10 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
     if not is_ai:  # khung làm mờ người dùng vẽ trên từng nguồn (chữ in sẵn, watermark đứng yên)
         sources = masks.attach(db.get_project(pid), sources, out / "pieces")
+    now = db.get_project(pid)  # lật gương / bộ lọc màu người dùng bật, chỉ khi được phép (effects.allowed)
+    sources = effects.attach(now, sources)
+    if effects.skipped(now):
+        step("Render", 70, tr("Effects left out: the source rights are not owned, licensed or CC"))
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)

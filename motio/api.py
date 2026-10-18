@@ -32,6 +32,7 @@ from . import (
     delogo,
     dub,
     edit,
+    effects,
     images,
     listing,
     llm,
@@ -102,6 +103,11 @@ class SourceVolumeIn(BaseModel):
 class MasksIn(BaseModel):
     # one entry per source, in meta.sources order: {boxes: [{box: [x, y, w, h], logo: id | null}], keep: [x, y, w, h] |
     # null}, fractions of the source frame (see masks.clean)
+    sources: list
+
+
+class EffectsIn(BaseModel):
+    # one entry per source, in meta.sources order (one for an AI video): {mirror, color: name | null}
     sources: list
 
 
@@ -255,6 +261,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["ai"] = creator.view(p)
         out["source_sound"] = pipeline.source_sound(p)
         out["masks"] = masks.view(p)
+        out["effects"] = effects.view(p)
         out["usage"] = usage.for_project(p["id"])
     return out
 
@@ -710,6 +717,20 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(409, tr("Project is running"))
         try:
             changed = masks.update(pid, body.sources)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        queued = changed and _rerender_kept_voice(pid)
+        return {"project": _project_out(_get(pid), full=True), "queued": queued}
+
+    @app.put("/api/projects/{pid}/effects", dependencies=[Depends(auth)])
+    def put_effects(pid: int, body: EffectsIn):
+        """Set the mirror / colour filter of each source (footage the owner may change, or an AI video). When
+        the voice is already made and an effect changed, the video is rendered again with it (no new voice)."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        try:
+            changed = effects.update(pid, body.sources)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         queued = changed and _rerender_kept_voice(pid)

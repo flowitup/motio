@@ -652,6 +652,30 @@ picked A with a plain blur; C was left out because it would apply a box with no 
   - `meta.masks[url]` is now `{"boxes": [{"box", "logo"}], "keep"}`; the card has a tool choice (Blur, Cover with
     logo + which logo, Area to keep), shows the logo in its box and dims what the keep area cuts.
 
+## Mirror and colour filter (added 18/10/2026)
+
+Asked by the owner on 18/10 ("lật gương, đảo ngược, phủ bộ lọc màu video"). Flip + reverse + a colour filter on someone
+else's footage is the usual way to dodge duplicate / Content ID detection, which the content rules forbid, so the
+agreed scope is: only for footage the owner may change (rights owned / licensed / cc) and for AI videos, turned on by
+hand per source on the project page, applied at render. Reverse (play backwards) was built, then dropped on the
+owner's ask before merge.
+
+- `motio/effects.py`: `meta.effects` keyed by source link (`{mirror, color}`), or `"ai"` for an AI video where one
+  setting covers every scene. `effects.allowed(proj)` = AI video or `meta.rights` in `topic.OK_RIGHTS`;
+  `effects.update` refuses to turn anything on otherwise (turning off always works), and `effects.attach` hands nothing
+  to the render when the rights went back to `unknown` (the render log says the effects were left out).
+- Render (`render.render_piece`, 9:16 and 16:9, news / topic / dub / AI): after the blur boxes, logo cover and keep area,
+  `hflip` then the colour filter (`render.COLOR_FILTERS`: warm, cool, mono, sepia, vivid, faded) on the source picture
+  only (title, badge and French captions untouched).
+- `PUT /api/projects/{id}/effects {sources: [{mirror, color}, …]}` (one entry per source, one for an AI video) saves
+  and, when the voice is already made and something changed, renders again with that voice (`queued`); the project
+  view has `effects` (`allowed`, `whole_video`, `colors`, each source's /media path and effects).
+- Project page: **Mirror and colour** card: source picker, a mirror switch, a colour filter choice, a preview (CSS,
+  close to the render), "Same for every source", **Save and re-render**. Locked, with the reason, while the rights are
+  unknown.
+- Not verified: a render of a real project with effects on (smoke was a full `render.render` on a synthetic source),
+  the card in a real Tauri window, Windows.
+
 ## Out of scope for now
 
 Motio calling TikTok / Reels / YouTube / X APIs directly (Postiz does it) · auto-sending videos that have no channel

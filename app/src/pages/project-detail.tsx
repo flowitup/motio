@@ -30,6 +30,7 @@ import { Monitor } from "@/components/monitor";
 import { PublishCard } from "@/components/publish-card";
 import { ScriptCard, type ScriptGate } from "@/components/script-card";
 import { ShotsCard } from "@/components/shots-card";
+import { SourceEffectsCard } from "@/components/source-effects-card";
 import { SourceMasksCard } from "@/components/source-masks-card";
 import { SourceSoundCard } from "@/components/source-sound-card";
 import { StatusChip } from "@/components/status-chip";
@@ -548,6 +549,15 @@ export default function ProjectDetailPage() {
           {p.masks && (
             <SourceMasksCard
               key={(p.meta.sources ?? []).map((s) => s.url).join("|")}
+              api={api}
+              p={p}
+              active={active}
+              onQueued={() => refetch()}
+            />
+          )}
+          {p.effects && (
+            <SourceEffectsCard
+              key={`${p.mode}:${(p.meta.sources ?? []).map((s) => s.url).join("|")}`}
               api={api}
               p={p}
               active={active}
