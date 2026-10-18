@@ -323,6 +323,9 @@ VI = {
     "Could not reach Bilibili: {error}": "Không kết nối được Bilibili: {error}",
     "Bilibili blocked the request ({code}): try again later": "Bilibili chặn yêu cầu ({code}): thử lại sau",
     "Bilibili returned an error: {error}": "Bilibili báo lỗi: {error}",
+    "Unknown Kuaishou list: {target}": "Không có danh sách Kuaishou này: {target}",
+    "Could not reach Kuaishou: {error}": "Không kết nối được Kuaishou: {error}",
+    "Kuaishou returned an error: {error}": "Kuaishou báo lỗi: {error}",
     # French dub (dub.py, separate.py)
     "French line": "dòng tiếng Pháp",
     "Dub: {site}": "Lồng tiếng: {site}",

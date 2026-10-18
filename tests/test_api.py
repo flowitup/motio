@@ -447,10 +447,12 @@ def test_news_topics_are_off_by_default_and_never_fetched(monkeypatch):
 def test_categories_are_listed_as_followable_targets(client, monkeypatch):
     monkeypatch.setattr(watch, "check_all", lambda ids=None: {"checked": 0, "new": 0})  # no Bilibili in tests
     rows = client.get("/api/categories", headers=H).json()
-    assert {"key": "ai", "target": "bilibili:category:ai", "name": "AI & tools"} in rows
+    assert {"key": "ai", "target": "bilibili:category:ai", "name": "AI & tools", "site": "bilibili"} in rows
+    assert {"key": "kuaishou_featured", "target": "kuaishou:featured", "name": "Kuaishou featured",
+            "site": "kuaishou"} in rows
     assert [r["key"] for r in rows][:3] == ["tech", "ai", "ai_film"]
     for r in rows:  # every one can be followed as it is
-        body = {"target": r["target"], "site": "bilibili"}
+        body = {"target": r["target"], "site": r["site"]}
         assert client.post("/api/watches", headers=H, json=body).status_code == 201
     assert client.get("/api/categories").status_code == 401
 

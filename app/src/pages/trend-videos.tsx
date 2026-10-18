@@ -9,17 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useApi, type Watch } from "@/lib/api";
+import { useApi, type Site, type Watch } from "@/lib/api";
 import { isCategory, listName } from "@/lib/watch-name";
 import { t } from "@/i18n";
 
 const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
-const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => `bilibili:category:${k}`);
+const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
+/** The sources the owner can switch on or off, and what switching one on follows when nothing of it is followed yet. */
+const SOURCES = ["bilibili", "kuaishou"] as const;
+const STARTERS: Record<"bilibili" | "kuaishou", { target: string; site: Site }[]> = {
+  bilibili: STARTER,
+  kuaishou: [{ target: "kuaishou:featured", site: "kuaishou" }],
+};
 
 /** "Tech", "Tag · 人工智能": what a chip and a message call the source. */
 const nameOf = (w: Watch) => {
-  const key = w.target.match(/^bilibili:category:(.+)$/)?.[1];
+  const key = w.target === "kuaishou:featured" ? "kuaishou_featured" : w.target.match(/^bilibili:category:(.+)$/)?.[1];
   return (key && t.trendVideos.categories[key]) || listName(w.target) || w.name || w.target;
 };
 
@@ -40,13 +46,15 @@ export default function TrendVideosPage() {
     refetchInterval: (q) => (q.state.data?.watching ? 1_500 : 30_000),
   });
   const watching = !!state.data?.watching;
-  const followed = (watches.data ?? []).filter((w) => w.kind === "trending" && isCategory(w.target));
+  const following = (watches.data ?? []).filter((w) => w.kind === "trending" && isCategory(w.target));
+  const followed = following.filter((w) => w.enabled); // a paused source keeps its list but is not checked or shown
   const current = followed.find((w) => String(w.id) === selected);
+  const activeIds = new Set(followed.map((w) => w.id));
   const clips = useQuery({
-    queryKey: ["clips", "new", "trending", current?.id ?? ALL],
+    queryKey: ["clips", "new", "trending", current?.id ?? ALL, [...activeIds].sort().join(",")],
     queryFn: async () => {
       const rows = await api.clips("new", current?.id);
-      return current ? rows : rows.filter((c) => isCategory(c.watch_target));
+      return current ? rows : rows.filter((c) => isCategory(c.watch_target) && c.watch_id != null && activeIds.has(c.watch_id));
     },
   });
 
@@ -64,7 +72,7 @@ export default function TrendVideosPage() {
     qc.invalidateQueries({ queryKey: ["clips"] });
   };
   const follow = useMutation({
-    mutationFn: (targets: string[]) => targets.reduce((p, target) => p.then(() => api.addWatch({ target, site: "bilibili" }).then(() => {})), Promise.resolve()),
+    mutationFn: (targets: { target: string; site: Site }[]) => targets.reduce((p, body) => p.then(() => api.addWatch(body).then(() => {})), Promise.resolve()),
     onSuccess: () => {
       setPick("");
       setTag("");
@@ -80,13 +88,30 @@ export default function TrendVideosPage() {
   });
   const check = useMutation({ mutationFn: () => api.checkWatches(), onSuccess: () => qc.invalidateQueries({ queryKey: ["state"] }) });
 
-  const have = new Set(followed.map((w) => w.target));
+  const have = new Set(following.map((w) => w.target));
   const left = (categories.data ?? []).filter((c) => !have.has(c.target));
   const chosen = left.some((c) => c.target === pick) ? pick : (left[0]?.target ?? "");
   const word = tag.trim().replace(/\s+/g, " ");
-  const error = follow.error ?? unfollow.error ?? check.error;
   const broken = followed.filter((w) => w.last_error);
-  const none = watches.isSuccess && followed.length === 0;
+  const none = watches.isSuccess && following.length === 0;
+  const platformOn = (site: keyof typeof STARTERS) => following.some((w) => w.site === site && w.enabled);
+  const toggleSource = useMutation({
+    mutationFn: async (site: keyof typeof STARTERS) => {
+      const mine = following.filter((w) => w.site === site);
+      if (platformOn(site)) {
+        await Promise.all(mine.map((w) => api.patchWatch(w.id, { enabled: false })));
+      } else if (mine.length > 0) {
+        await Promise.all(mine.map((w) => api.patchWatch(w.id, { enabled: true })));
+      } else {
+        for (const body of STARTERS[site]) await api.addWatch(body);
+      }
+    },
+    onSuccess: () => {
+      setSelected(ALL);
+      changed();
+    },
+  });
+  const error = follow.error ?? unfollow.error ?? check.error ?? toggleSource.error;
 
   return (
     <>
@@ -101,6 +126,16 @@ export default function TrendVideosPage() {
       </TopBar>
       <div className="mx-auto max-w-5xl space-y-5 p-6">
         <p className="text-sm text-muted-foreground">{t.trendVideos.intro}</p>
+
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t.trendVideos.sources}>
+          <span className="text-sm font-medium">{t.trendVideos.sources}</span>
+          {SOURCES.map((site) => (
+            <FilterChip key={site} on={platformOn(site)} onClick={() => toggleSource.mutate(site)} count={followed.filter((w) => w.site === site).reduce((n, w) => n + w.new_count, 0)}>
+              {t.clips.sites[site]}
+            </FilterChip>
+          ))}
+          <span className="text-xs text-muted-foreground">{t.trendVideos.sourcesHint}</span>
+        </div>
 
         {none && (
           <Card>
@@ -147,7 +182,7 @@ export default function TrendVideosPage() {
                     className="w-64"
                   />
                 </Field>
-                <Button variant="outline" onClick={() => follow.mutate([chosen])} disabled={!chosen || follow.isPending}>
+                <Button variant="outline" onClick={() => follow.mutate([{ target: chosen, site: left.find((c) => c.target === chosen)?.site ?? "bilibili" }])} disabled={!chosen || follow.isPending}>
                   {follow.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
                   {t.trendVideos.follow}
                 </Button>
@@ -157,7 +192,7 @@ export default function TrendVideosPage() {
               className="flex items-end gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (word) follow.mutate([`bilibili:tag:${word}`]);
+                if (word) follow.mutate([{ target: `bilibili:tag:${word}`, site: "bilibili" }]);
               }}
             >
               <Field label={t.trendVideos.tag}>
@@ -171,6 +206,7 @@ export default function TrendVideosPage() {
           </div>
           <p className="text-xs text-muted-foreground">{t.trendVideos.tagHint}</p>
         </div>
+        {chosen === "kuaishou:featured" && <p className="text-xs text-muted-foreground">{t.trendVideos.kuaishouHint}</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         {broken.map((w) => (
           <p key={w.id} className="text-sm text-destructive">

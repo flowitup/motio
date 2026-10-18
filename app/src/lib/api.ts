@@ -397,7 +397,7 @@ export type RefreshState = {
 };
 
 export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending";
-export type Site = "youtube" | "bilibili";
+export type Site = "youtube" | "bilibili" | "kuaishou";
 
 /** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
 export type Watch = {
@@ -414,7 +414,7 @@ export type Watch = {
 };
 
 /** A video category the engine can follow (Trending): `target` is the watch's target, `name` its English name. */
-export type Category = { key: string; target: string; name: string };
+export type Category = { key: string; target: string; name: string; site: Site };
 
 export type ClipStatus = "new" | "used" | "hidden";
 

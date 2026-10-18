@@ -54,6 +54,10 @@ as authoritative for scope and milestones.
     categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
     Bilibili search with the public wbi signature, most played of the last 7 days, paid / film flags read from `wbi/view`);
     Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
+  - `kuaishou_feed.py` Kuaishou's public "Featured" list (`kuaishou:featured`, Trending screen, no login or cookie; a fresh draw
+    of ~50 videos each check, not a ranking): `watch.py` follows it like a Bilibili list (site `kuaishou`); each row's signed mp4
+    address is kept in `data/cache/kuaishou_media.json` so `kuaishou.download` can fetch it without videodl (videodl only for
+    a pasted link); Kuaishou's search and detail queries want a browser `did` cookie, so they are not read
   - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
