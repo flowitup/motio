@@ -136,6 +136,58 @@ def test_source_volume(client, monkeypatch):
     assert client.put(f"/api/projects/{dubbed}/source-volume", headers=H, json={"volume": 0.4}).status_code == 400
 
 
+def test_masks(client, monkeypatch):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    _wait_done(client, pid)
+    assert client.get(f"/api/projects/{pid}", headers=H).json()["masks"] is None  # no source yet
+    assert client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": []}).status_code == 400
+    db.update_project(pid, meta={"sources": [{"url": "https://a", "path": "/gone.mp4", "duration": 30.0}]})
+    box = [0.82, 0.03, 0.14, 0.07]
+    one = {"boxes": [box]}
+    r = client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": [one]})  # no saved voice here
+    assert r.status_code == 200 and r.json()["queued"] is False
+    assert r.json()["project"]["masks"] == [{"media": None, "duration": 30.0, "boxes": [{"box": box, "logo": None}],
+                                             "keep": None}]
+    asked = []
+    monkeypatch.setattr(pipeline, "available_steps", lambda i: ["render"])
+
+    def resume(i, start=None):
+        asked.append((i, start))
+        db.update_project(i, status="done")
+
+    monkeypatch.setattr(pipeline, "resume", resume)
+    r = client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": [one]})
+    assert r.json()["queued"] is False and not asked  # same boxes: nothing to render again
+    r = client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": [{**one, "keep": [0.1, 0, 0.8, 0.8]}]})
+    assert r.status_code == 200 and r.json()["queued"] is True
+    _wait_done(client, pid)
+    assert asked == [(pid, "render")]
+    assert client.put(f"/api/projects/{pid}/masks", headers=H,
+                      json={"sources": [{"boxes": [[0.1, 0.1, 0.001, 0.1]]}]}).status_code == 400
+    assert client.put("/api/projects/999/masks", headers=H, json={"sources": []}).status_code == 404
+    db.update_project(pid, status="running")
+    assert client.put(f"/api/projects/{pid}/masks", headers=H, json={"sources": [{}]}).status_code == 409
+
+
+def test_logos(client):
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGBA", (40, 20), (0, 128, 255, 255)).save(buf, "PNG")
+    r = client.post("/api/logos", headers=H, files={"file": ("brand.png", buf.getvalue(), "image/png")})
+    assert r.status_code == 201 and r.json()["name"] == "brand"
+    lid = r.json()["id"]
+    assert [lg["id"] for lg in client.get("/api/logos", headers=H).json()] == [lid]
+    assert client.get(f"/media/logos/{lid}.png?token={TOKEN}").status_code == 200
+    bad = client.post("/api/logos", headers=H, files={"file": ("x.png", b"nope", "image/png")})
+    assert bad.status_code == 400
+    assert client.delete(f"/api/logos/{lid}", headers=H).json() == {"deleted": lid}
+    assert client.delete(f"/api/logos/{lid}", headers=H).status_code == 404
+    assert client.get("/api/logos", headers=H).json() == []
+
+
 def test_retry(client):
     pid = db.create_project("douyin:1", "x")
     db.update_project(pid, status="failed", log="ERROR")

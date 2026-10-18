@@ -16,6 +16,7 @@ from . import (
     dub,
     llm,
     localfile,
+    masks,
     notify,
     postiz,
     qa,
@@ -682,6 +683,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         step("Render", 70 + int(26 * done / total), None)
 
     wide = bool(ch and ch["wide_postiz"])  # bản 16:9 chỉ khi kênh gửi sang kênh Postiz 16:9
+    if not is_ai:  # khung làm mờ người dùng vẽ trên từng nguồn (chữ in sẵn, watermark đứng yên)
+        sources = masks.attach(db.get_project(pid), sources, out / "pieces")
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)
