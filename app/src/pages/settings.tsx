@@ -179,6 +179,110 @@ function bytes(n: number) {
   return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)} ${units[i]}`;
 }
 
+/** Sign in to Google, see what is on Drive, and move finished work now. Needs the client ID / secret saved first. */
+function DriveActions({ api, dirty }: { api: Api; dirty: boolean }) {
+  const qc = useQueryClient();
+  const [code, setCode] = useState<{ code: string; url: string; interval: number } | null>(null);
+  const [outcome, setOutcome] = useState<"denied" | "expired" | null>(null);
+  const { data: d } = useQuery({
+    queryKey: ["drive"],
+    queryFn: () => api.drive(),
+    refetchInterval: (q) => (q.state.data?.sync.running ? 3000 : 30_000),
+  });
+  const signIn = useMutation({
+    mutationFn: () => api.driveSignIn(),
+    onSuccess: (r) => {
+      setOutcome(null);
+      setCode(r);
+    },
+  });
+  const signOut = useMutation({
+    mutationFn: () => api.driveSignOut(),
+    onSuccess: (next) => {
+      qc.setQueryData(["drive"], next);
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+  });
+  const sync = useMutation({ mutationFn: () => api.driveSync(), onSuccess: () => qc.invalidateQueries({ queryKey: ["drive"] }) });
+
+  useEffect(() => {
+    if (!code) return;
+    const timer = setInterval(async () => {
+      try {
+        const { state } = await api.driveSignInCheck();
+        if (state === "pending") return;
+        setCode(null);
+        if (state === "ok") {
+          qc.invalidateQueries({ queryKey: ["drive"] });
+          qc.invalidateQueries({ queryKey: ["settings"] });
+        } else setOutcome(state);
+      } catch {
+        // try again on the next tick
+      }
+    }, Math.max(code.interval, 3) * 1000);
+    return () => clearInterval(timer);
+  }, [code, api, qc]);
+
+  if (!d) return null;
+  const error = signIn.error ?? signOut.error ?? sync.error;
+  return (
+    <div className="grid gap-3 rounded-lg border bg-strip p-4">
+      {!d.client ? (
+        <p className="text-sm text-muted-foreground">{t.settings.driveNeedClient}</p>
+      ) : d.signed_in ? (
+        <>
+          <p className="flex items-center gap-1 text-sm">
+            <Check className="size-4 text-mint" />
+            {d.account.email ? t.settings.driveAccount(d.account.email) : t.settings.driveSignedIn}
+          </p>
+          {d.account.used != null && d.account.limit != null && (
+            <p className="text-xs text-muted-foreground">{t.settings.driveSpace(bytes(d.account.used), bytes(d.account.limit))}</p>
+          )}
+          <p className="text-xs text-muted-foreground">{t.settings.driveOnDrive(d.files, bytes(d.bytes))}</p>
+          {!d.enabled && <p className="text-xs text-muted-foreground">{t.settings.driveOffNote}</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" onClick={() => sync.mutate()} disabled={dirty || !d.enabled || d.sync.running || sync.isPending}>
+              {(d.sync.running || sync.isPending) && <Loader2 className="animate-spin" />}
+              {d.sync.running ? t.settings.driveSyncRunning : t.settings.driveSync}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => signOut.mutate()} disabled={signOut.isPending}>
+              {t.settings.driveSignOut}
+            </Button>
+            {dirty && <span className="text-xs text-muted-foreground">{t.settings.driveSaveFirst}</span>}
+            {!d.sync.running && d.sync.finished > 0 && !d.sync.error && (
+              <span role="status" className="text-sm text-muted-foreground">{t.settings.driveSyncDone(bytes(d.sync.freed))}</span>
+            )}
+          </div>
+          {d.sync.error && <p role="alert" className="text-sm text-destructive">{d.sync.error}</p>}
+        </>
+      ) : code ? (
+        <div className="grid gap-2">
+          <p className="text-sm">{t.settings.driveCodeIntro(code.code)}</p>
+          <Button variant="link" size="sm" className="justify-self-start px-0" onClick={() => openExternal(code.url)}>
+            {code.url}
+          </Button>
+          <p className="font-mono text-2xl tracking-widest">{code.code}</p>
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" />
+            {t.settings.driveWaiting}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" onClick={() => signIn.mutate()} disabled={dirty || signIn.isPending}>
+            {signIn.isPending && <Loader2 className="animate-spin" />}
+            {t.settings.driveSignIn}
+          </Button>
+          {dirty && <span className="text-xs text-muted-foreground">{t.settings.driveSaveFirst}</span>}
+          {outcome === "denied" && <span className="text-sm text-destructive">{t.settings.driveDenied}</span>}
+          {outcome === "expired" && <span className="text-sm text-destructive">{t.settings.driveExpired}</span>}
+        </div>
+      )}
+      {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
+    </div>
+  );
+}
+
 function HealthCard({ api }: { api: Api }) {
   const { data: h, error } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), refetchInterval: 30_000 });
   if (error) return <p role="alert" className="text-sm text-destructive">{error.message}</p>;
@@ -220,7 +324,7 @@ function HealthCard({ api }: { api: Api }) {
 
 
 /** One entry of the section list on the left (and the order of the sections on the page). */
-const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "logos", "engine", "advanced"] as const;
+const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "storage", "logos", "engine", "advanced"] as const;
 type SectionId = (typeof SECTIONS)[number];
 const TOC_LABEL: Record<SectionId, () => string> = {
   general: () => t.settings.general,
@@ -229,6 +333,7 @@ const TOC_LABEL: Record<SectionId, () => string> = {
   costs: () => t.settings.costs,
   images: () => t.settings.imagesClips,
   posting: () => t.settings.posting,
+  storage: () => t.settings.storage,
   logos: () => t.settings.logos,
   engine: () => t.settings.engine,
   advanced: () => t.settings.advanced,
@@ -379,6 +484,29 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
           </div>
         </div>
       </Section>
+
+      <Section id="storage" title={t.settings.storage} bodyClassName={grid}>
+        <div className="grid content-start gap-1 sm:col-span-2">
+          {switchRow("DRIVE_ON", t.settings.driveOn)}
+          <p className="text-xs text-muted-foreground">{t.settings.driveOnHint}</p>
+        </div>
+        <Field label={`${t.settings.driveClientId} · DRIVE_CLIENT_ID`} hint={src("DRIVE_CLIENT_ID") ?? t.settings.driveClientHint}>
+          {text("DRIVE_CLIENT_ID")}
+        </Field>
+        <Field label="DRIVE_CLIENT_SECRET" hint={src("DRIVE_CLIENT_SECRET") ?? t.settings.driveSecretHint}>
+          {secret("DRIVE_CLIENT_SECRET")}
+        </Field>
+        <Field label={t.settings.driveFolder} hint={src("DRIVE_FOLDER") ?? t.settings.driveFolderHint}>
+          {text("DRIVE_FOLDER", "Motio")}
+        </Field>
+        <div className="grid content-start gap-1">
+          {switchRow("DRIVE_KEEP_LOCAL", t.settings.driveKeep)}
+          <p className="text-xs text-muted-foreground">{t.settings.driveKeepHint}</p>
+        </div>
+        <div className="sm:col-span-2">
+          <DriveActions api={api} dirty={dirty} />
+        </div>
+      </Section>
     </>
   );
 }
@@ -467,7 +595,7 @@ export default function SettingsPage() {
 
   // What really differs from the saved value: typing a value and typing it back is not a change.
   const original = (k: string): string | boolean => (typeof draft[k] === "boolean" ? ["1", "true", "yes", "on"].includes((s?.[k]?.value ?? "").toLowerCase()) : (s?.[k]?.value ?? ""));
-  const secrets = new Set(Object.keys(s ?? {}).filter((k) => /KEY|WEBHOOK/.test(k)));
+  const secrets = new Set(Object.keys(s ?? {}).filter((k) => /KEY|WEBHOOK|SECRET|TOKEN/.test(k)));
   const changed = Object.keys(draft).filter((k) => (secrets.has(k) ? draft[k] !== "" || !!s?.[k]?.value : draft[k] !== original(k)));
   const dirty = changed.length > 0;
   const guard = useUnsavedGuard(dirty);

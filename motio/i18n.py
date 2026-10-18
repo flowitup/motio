@@ -670,4 +670,19 @@ VI = {
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
+    # Google Drive storage
+    "Google Drive is not signed in: add the client ID and secret, then sign in in Settings":
+        "Chưa đăng nhập Google Drive: nhập client ID và secret rồi đăng nhập trong Cài đặt",
+    "Could not connect to Google: {error}": "Không kết nối được tới Google: {error}",
+    "Google refused the saved sign-in ({error}): sign in again in Settings":
+        "Google từ chối lần đăng nhập đã lưu ({error}): hãy đăng nhập lại trong Cài đặt",
+    "Google Drive error {status}: {error}": "Google Drive báo lỗi {status}: {error}",
+    "Fill in the Google client ID and secret first": "Hãy nhập client ID và secret của Google trước",
+    "Google refused the sign-in ({error})": "Google từ chối đăng nhập ({error})",
+    "Google gave no refresh token: remove Motio at myaccount.google.com/permissions and sign in again":
+        "Google không trả refresh token: hãy gỡ Motio ở myaccount.google.com/permissions rồi đăng nhập lại",
+    "Drive's copy of {name} does not match the file; kept it here":
+        "Bản của {name} trên Drive không khớp với file; đã giữ lại bản trên máy",
+    "Google Drive is switched off or not signed in": "Google Drive đang tắt hoặc chưa đăng nhập",
+    "Could not move files to Google Drive: {error}": "Không chuyển được file lên Google Drive: {error}",
 }

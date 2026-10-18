@@ -444,6 +444,19 @@ export type Clip = {
   project_id: number | null;
 };
 
+export type DriveStatus = {
+  enabled: boolean;
+  signed_in: boolean;
+  client: boolean;
+  folder: string;
+  keep_local: boolean;
+  files: number;
+  bytes: number;
+  account: { email?: string; used?: number | null; limit?: number | null };
+  pending: boolean;
+  sync: { running: boolean; freed: number; error: string; finished: number };
+};
+
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };
 export type Settings = Record<string, SettingValue>;
 export type Voice = { id: string; name: string; labels: Record<string, string>; preview_url: string | null };
@@ -691,6 +704,11 @@ export function makeApi(url: string, token: string) {
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
     testSlack: () => call<{ sent: boolean }>("POST", "/api/notify/test"),
+    drive: () => call<DriveStatus>("GET", "/api/drive"),
+    driveSignIn: () => call<{ code: string; url: string; interval: number; expires_in: number }>("POST", "/api/drive/sign-in"),
+    driveSignInCheck: () => call<{ state: "pending" | "ok" | "denied" | "expired" }>("POST", "/api/drive/sign-in/check"),
+    driveSignOut: () => call<DriveStatus>("POST", "/api/drive/sign-out"),
+    driveSync: () => call<{ started: boolean }>("POST", "/api/drive/sync"),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
     eventsUrl: (id: number) => `${url}/api/projects/${id}/events?${q}`,
   };

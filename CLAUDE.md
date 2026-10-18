@@ -90,6 +90,11 @@ as authoritative for scope and milestones.
     from the channel's / playlist's RSS feed (a flat list has none), Bilibili's from the video page, a video with no time
     goes last under "Date unknown"
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
+  - `drive.py` Google Drive as the main storage (owner, 2026-10-18: "storage chính", 30 TB account): the Drive REST API through
+    httpx with the owner's own OAuth client (device flow, scope `drive.file`, `DRIVE_*` settings, tokens only in `settings.json`);
+    a finished project's files ≥ 1 MiB and idle `cache/sources/` videos are uploaded (resumable, size + md5 checked) and then
+    deleted locally unless `DRIVE_KEEP_LOCAL`; `drive_file` in SQLite says where each went; `/media` streams from Drive when a file
+    is not local, `restore_project` / `ensure` bring files back before a run; runbook `docs/GOOGLE_DRIVE.md`
   - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it

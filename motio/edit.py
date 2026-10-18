@@ -6,7 +6,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import aiclips, config, creator, db, dub, images, pipeline, render, tts
+from . import aiclips, config, creator, db, drive, dub, images, pipeline, render, tts
 from .i18n import tr, tr_n
 
 BUSY = ("queued", "running")
@@ -203,7 +203,7 @@ def script_view(pid: int) -> dict:
         },
         "edited_at": edited,
         # video dựng trước lần sửa (lệch 1 s vì đồng hồ mtime của hệ thống file thô hơn time.time())
-        "stale": bool(edited and final.exists() and edited > final.stat().st_mtime + 1),
+        "stale": bool(edited and (made := drive.mtime(final)) and edited > made + 1),
         "words_per_sec": round(rate, 3),
         "min_seconds": pipeline.MIN_SECONDS,
         "max_seconds": pipeline.MAX_SECONDS,
@@ -298,3 +298,4 @@ def delete(pid: int) -> None:
                              error=e.strerror or e)) from e
     if not db.delete_project(pid):
         raise Busy(tr("The project was just restarted: wait until it finishes, then try again"))
+    drive.forget_project(pid)  # its files on Google Drive go to the bin

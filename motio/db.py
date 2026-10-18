@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 CREATE INDEX IF NOT EXISTS usage_at ON usage (at);
 CREATE INDEX IF NOT EXISTS usage_project ON usage (project_id);
+CREATE TABLE IF NOT EXISTS drive_file (  -- file đã đưa lên Google Drive (motio/drive.py); rel = đường dẫn tính từ DATA
+  rel TEXT PRIMARY KEY, file_id TEXT, size INTEGER, mtime_ns INTEGER, md5 TEXT, at REAL
+);
+CREATE TABLE IF NOT EXISTS drive_folder (  -- thư mục Drive đã tạo / tìm thấy, theo đường dẫn
+  path TEXT PRIMARY KEY, file_id TEXT
+);
 """
 
 
@@ -241,6 +247,62 @@ def count_auto_since(ts: float, channel: int) -> int:
     with conn() as c:
         return c.execute("SELECT COUNT(*) FROM project WHERE created_at >= ? AND json_extract(meta, '$.auto') = 1 "
                          "AND json_extract(meta, '$.channel') = ?", (ts, channel)).fetchone()[0]
+
+
+def projects_with_status(statuses: tuple[str, ...]) -> list[dict]:
+    """Dự án có trạng thái nằm trong `statuses`, không kèm log (Google Drive chỉ dọn file của dự án đang rảnh)."""
+    marks = ",".join("?" * len(statuses))
+    with conn() as c:
+        rows = c.execute(f"SELECT id, status, mode, meta FROM project WHERE status IN ({marks})", statuses).fetchall()
+    return [_row(r) for r in rows]
+
+
+# ---------- Google Drive (motio/drive.py) ----------
+def drive_get(rel: str) -> dict | None:
+    with conn() as c:
+        r = c.execute("SELECT * FROM drive_file WHERE rel=?", (rel,)).fetchone()
+    return dict(r) if r else None
+
+
+def drive_put(rel: str, file_id: str, size: int, mtime_ns: int, md5: str) -> None:
+    with _lock, conn() as c:
+        c.execute("INSERT OR REPLACE INTO drive_file (rel, file_id, size, mtime_ns, md5, at) VALUES (?,?,?,?,?,?)",
+                  (rel, file_id, size, mtime_ns, md5, time.time()))
+
+
+def drive_del(rel: str) -> None:
+    with _lock, conn() as c:
+        c.execute("DELETE FROM drive_file WHERE rel=?", (rel,))
+
+
+def drive_list(prefix: str = "") -> list[dict]:
+    """File đã lên Drive có đường dẫn bắt đầu bằng `prefix` (rel luôn dùng dấu /)."""
+    with conn() as c:
+        rows = c.execute("SELECT * FROM drive_file WHERE substr(rel, 1, ?) = ? ORDER BY rel",
+                         (len(prefix), prefix)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def drive_totals() -> tuple[int, int]:
+    with conn() as c:
+        n, size = c.execute("SELECT COUNT(*), COALESCE(SUM(size), 0) FROM drive_file").fetchone()
+    return int(n), int(size)
+
+
+def drive_folder_get(path: str) -> str | None:
+    with conn() as c:
+        r = c.execute("SELECT file_id FROM drive_folder WHERE path=?", (path,)).fetchone()
+    return r[0] if r else None
+
+
+def drive_folder_put(path: str, file_id: str) -> None:
+    with _lock, conn() as c:
+        c.execute("INSERT OR REPLACE INTO drive_folder (path, file_id) VALUES (?,?)", (path, file_id))
+
+
+def drive_folders_clear() -> None:
+    with _lock, conn() as c:
+        c.execute("DELETE FROM drive_folder")
 
 
 def fail_stale() -> list[int]:
