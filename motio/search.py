@@ -16,7 +16,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, douyin, haokan, kuaishou, localfile, platforms
+from . import config, douyin, haokan, kuaishou, localfile, platforms, weibo_feed
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -207,6 +207,10 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     site = platforms.identify(url)
     if haokan.find_id(url):  # no yt-dlp extractor: the page of the video carries its address
         return haokan.download(url, out_dir, max_height, hooks)
+    if site and site.key == "weibo":  # a video of the Trending list carries its own mp4 address; any other link: yt-dlp
+        info = weibo_feed.download(url, out_dir, hooks)
+        if info:
+            return info
     if site and site.key == "kuaishou":  # no yt-dlp extractor: the separate videodl tool, when it is installed
         return kuaishou.download(url, out_dir, hooks)
     if site and site.manual:  # nothing can fetch it: say so before a long generic attempt

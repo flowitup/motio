@@ -38,14 +38,23 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 
 ## Trending feeds (2026-10-18)
 
-Owner's question: why does Trending show only Bilibili? Only Bilibili and Kuaishou have a list that a plain visitor can read:
+Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou, Douyin and Weibo have a list that a plain visitor can read:
 - **Kuaishou**: the Featured page (`kuaishou.com/brilliant`) asks one GraphQL query (`brilliantTypeData`, channel `00`) that
   answers with no cookie: ~20 videos per answer with the mp4 address. It is a random draw, not a ranking, and there is no
   category. Its search (`visionSearchPhoto`) and detail (`visionVideoDetail`) answer `result: 2` (risk control) without a `did`
   cookie, so they are not used. Tested from a cloud sandbox: feed read and one video downloaded and probed.
-- Douyin (needs f2's signed `tab/feed`, only a recommendation feed; not reachable from the sandbox, untested), Weibo (hot
-  search answers 403 without a visitor cookie), Xiaohongshu (feed needs a signed header), Xigua (unreachable), Zhihu (403): no
-  public list could be read, so these stay paste-a-link.
+- **Douyin**: the home recommendation feed through f2 (`douyin_feed.py`, Trending → "Douyin · Home feed"): fresh draw, no category. The cloud sandbox cannot reach Douyin's API, so it was tried on the owner's Mac (result below).
+- **Weibo** (`weibo_feed.py`, Trending → "Weibo · Hot videos"): the hot timeline (`/ajax/feed/hottimeline?group_id=102803`)
+  answers a visitor once the browser has asked Weibo's own guest endpoint (`passport.weibo.com/visitor/genvisitor2`, one POST,
+  `SUB` / `SUBP` cookies); without that cookie it is a 403, which is why the first try failed. About half of the posts are videos,
+  each with its mp4 address (an http address on `*.weibocdn.com`; the CDN resets https), kept in `data/cache/weibo_media.json` so
+  `search.download` can fetch the file without yt-dlp (which wants a login for Weibo). Fresh draw, no category. Tested from a cloud
+  sandbox (feed read, one video downloaded and probed: 852x480 h264 + aac) and from the owner's Mac (guest session + timeline
+  in Chrome and in Python). The hot-search words (`hotSearch`) are not used: they are topics, not videos.
+- Xiaohongshu: its feed is only readable in a logged-in browser (checked in the owner's Chrome: `/explore` lists ~30 cards, ~60 %
+  video, with title and likes; every note link carries a per-session `xsec_token`), and its API needs a signed header. Motio does
+  not copy that signing, so it stays paste-a-link. Xigua (unreachable) and Zhihu (hot list readable, but only text questions)
+  also stay paste-a-link.
 
 ## Where it lives
 
@@ -66,6 +75,5 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 ## Still open
 
 - Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
-- A Xiaohongshu / Weibo / Haokan feed (category or account page): none could be read without a login.
-- A Douyin feed through f2's `tab/feed` (home recommendation, signed by f2): worth a try on the owner's Mac, not testable from the cloud.
+- A Xiaohongshu / Haokan feed (category or account page): none could be read without a login. Weibo has the hot-video feed only (no category, no account page).
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.

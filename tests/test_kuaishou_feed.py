@@ -36,7 +36,10 @@ def kuaishou_site(monkeypatch):
     with db.conn() as c:
         c.execute("DELETE FROM clip")
         c.execute("DELETE FROM watch")
-    return state
+    yield state
+    with db.conn() as c:  # the watch a test followed must not reach the next test file
+        c.execute("DELETE FROM clip")
+        c.execute("DELETE FROM watch")
 
 
 def test_parse_and_name():
