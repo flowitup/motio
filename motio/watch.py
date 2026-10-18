@@ -14,11 +14,12 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import db, kuaishou_feed, llm, search, topic, trending
+from . import db, douyin_feed, kuaishou_feed, llm, search, topic, trending
 from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search", "trending")
 SITES = ("youtube", "bilibili")
+FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed}  # the other trending lists; Bilibili's is trending.py
 FIRST_TAKE = 10  # nguồn mới thêm: hiện 10 video mới nhất mỗi danh sách, phần còn lại coi như đã thấy
 TRENDING_TAKE = 20  # bảng xếp hạng mới thêm: hiện 20 video đầu bảng
 PER_LIST = 15  # mỗi lần kiểm tra đọc tối đa 15 mục đầu của mỗi danh sách
@@ -57,6 +58,8 @@ def classify(text: str, site: str = "youtube") -> dict:
         return {"kind": "trending", "site": "bilibili", "target": text, "name": trending.name(text)}
     if text.startswith(kuaishou_feed.PREFIX):  # "kuaishou:featured"
         return {"kind": "trending", "site": "kuaishou", "target": text, "name": kuaishou_feed.name(text)}
+    if text.startswith(douyin_feed.PREFIX):  # "douyin:feed"
+        return {"kind": "trending", "site": "douyin", "target": text, "name": douyin_feed.name(text)}
     if not re.match(r"^https?://", text, re.I):
         if site not in SITES:
             raise ValueError(tr("Search works only on YouTube or Bilibili, not {site}", site=site))
@@ -234,8 +237,8 @@ def check(w: dict) -> dict:
     dates: dict[str, float] = {}
     if w["kind"] == "trending":
         try:
-            batch = (kuaishou_feed if w["site"] == "kuaishou" else trending).fetch(w["target"])
-        except (trending.TrendingError, kuaishou_feed.FeedError, ValueError) as e:
+            batch = FEEDS.get(w["site"], trending).fetch(w["target"])
+        except (trending.TrendingError, kuaishou_feed.FeedError, douyin_feed.FeedError, ValueError) as e:
             errors.append(str(e)[:300])
         else:
             ok = True

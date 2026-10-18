@@ -397,7 +397,7 @@ export type RefreshState = {
 };
 
 export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending";
-export type Site = "youtube" | "bilibili" | "kuaishou";
+export type Site = "youtube" | "bilibili" | "kuaishou" | "douyin";
 
 /** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
 export type Watch = {

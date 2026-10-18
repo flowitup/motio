@@ -17,15 +17,18 @@ const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
 const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
 /** The sources the owner can switch on or off, and what switching one on follows when nothing of it is followed yet. */
-const SOURCES = ["bilibili", "kuaishou"] as const;
-const STARTERS: Record<"bilibili" | "kuaishou", { target: string; site: Site }[]> = {
+const SOURCES = ["bilibili", "kuaishou", "douyin"] as const;
+/** Followed lists that are not a Bilibili category: target → key of the name in `t.trendVideos.categories`. */
+const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:feed": "douyin_feed" };
+const STARTERS: Record<(typeof SOURCES)[number], { target: string; site: Site }[]> = {
   bilibili: STARTER,
   kuaishou: [{ target: "kuaishou:featured", site: "kuaishou" }],
+  douyin: [{ target: "douyin:feed", site: "douyin" }],
 };
 
 /** "Tech", "Tag · 人工智能": what a chip and a message call the source. */
 const nameOf = (w: Watch) => {
-  const key = w.target === "kuaishou:featured" ? "kuaishou_featured" : w.target.match(/^bilibili:category:(.+)$/)?.[1];
+  const key = FEED_KEYS[w.target] ?? w.target.match(/^bilibili:category:(.+)$/)?.[1];
   return (key && t.trendVideos.categories[key]) || listName(w.target) || w.name || w.target;
 };
 
@@ -206,7 +209,7 @@ export default function TrendVideosPage() {
           </div>
           <p className="text-xs text-muted-foreground">{t.trendVideos.tagHint}</p>
         </div>
-        {chosen === "kuaishou:featured" && <p className="text-xs text-muted-foreground">{t.trendVideos.kuaishouHint}</p>}
+        {chosen in FEED_KEYS && <p className="text-xs text-muted-foreground">{t.trendVideos.feedHint}</p>}
         {error && <p className="text-sm text-destructive">{error.message}</p>}
         {broken.map((w) => (
           <p key={w.id} className="text-sm text-destructive">

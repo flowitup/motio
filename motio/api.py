@@ -30,6 +30,7 @@ from . import (
     creator,
     db,
     delogo,
+    douyin_feed,
     dub,
     edit,
     effects,
@@ -421,7 +422,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"], "site": "bilibili"}
                 for k, c in trending.CATEGORIES.items()
                 ] + [{"key": "kuaishou_featured", "target": kuaishou_feed.FEATURED, "name": kuaishou_feed.NAMES[
-                    kuaishou_feed.FEATURED], "site": "kuaishou"}]
+                    kuaishou_feed.FEATURED], "site": "kuaishou"},
+                     {"key": "douyin_feed", "target": douyin_feed.FEED, "name": douyin_feed.NAMES[douyin_feed.FEED],
+                      "site": "douyin"}]
 
     # ---------- tin hot ----------
     @app.get("/api/trends", dependencies=[Depends(auth)])

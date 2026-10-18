@@ -326,6 +326,10 @@ VI = {
     "Unknown Kuaishou list: {target}": "Không có danh sách Kuaishou này: {target}",
     "Could not reach Kuaishou: {error}": "Không kết nối được Kuaishou: {error}",
     "Kuaishou returned an error: {error}": "Kuaishou báo lỗi: {error}",
+    "Unknown Douyin list: {target}": "Không có danh sách Douyin này: {target}",
+    "Douyin returned an error: {error}": "Douyin báo lỗi: {error}",
+    "Douyin gave no videos (its feed may want a login from this network)":
+        "Douyin không trả video nào (có thể trang chủ của họ đòi đăng nhập từ mạng này)",
     # French dub (dub.py, separate.py)
     "French line": "dòng tiếng Pháp",
     "Dub: {site}": "Lồng tiếng: {site}",

@@ -43,7 +43,8 @@ Owner's question: why does Trending show only Bilibili? Only Bilibili and Kuaish
   answers with no cookie: ~20 videos per answer with the mp4 address. It is a random draw, not a ranking, and there is no
   category. Its search (`visionSearchPhoto`) and detail (`visionVideoDetail`) answer `result: 2` (risk control) without a `did`
   cookie, so they are not used. Tested from a cloud sandbox: feed read and one video downloaded and probed.
-- Douyin (needs f2's signed `tab/feed`, only a recommendation feed; not reachable from the sandbox, untested), Weibo (hot
+- **Douyin**: the home recommendation feed through f2 (`douyin_feed.py`, Trending → "Douyin · Home feed"): fresh draw, no category. The cloud sandbox cannot reach Douyin's API, so it was tried on the owner's Mac (result below).
+- Weibo (hot
   search answers 403 without a visitor cookie), Xiaohongshu (feed needs a signed header), Xigua (unreachable), Zhihu (403): no
   public list could be read, so these stay paste-a-link.
 
@@ -67,5 +68,4 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 
 - Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Weibo / Haokan feed (category or account page): none could be read without a login.
-- A Douyin feed through f2's `tab/feed` (home recommendation, signed by f2): worth a try on the owner's Mac, not testable from the cloud.
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.
