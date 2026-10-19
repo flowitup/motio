@@ -1,4 +1,5 @@
-"""Weibo's public "hot" timeline (`weibo:hot`, weibo.com/hot/list) as rows for the Trending screen.
+"""Weibo's public "hot" timeline (`weibo:hot`, weibo.com/hot/list) as rows for the Trending screen, and its keyword
+search (`search`) for the Scan screen.
 
 Weibo answers its hot timeline (`/ajax/feed/hottimeline?group_id=102803`) to a visitor with no account: the browser asks
 Weibo's own guest endpoint (`passport.weibo.com/visitor/genvisitor2`) for a visitor session first (checked 2026-10-18
@@ -10,6 +11,12 @@ The timeline mixes text, photo and video posts (about half are videos); only the
 the address of its mp4 (`page_info.media_info.mp4_hd_url`, an http address on `*.weibocdn.com` that expires), which is
 kept in `data/cache/weibo_media.json` so "Make video" can download the file even though yt-dlp needs a login for Weibo.
 It is a fresh draw each time, not a ranking, and it has no category.
+
+The keyword search (`/ajax/statuses/search`) answers that same guest session, and nothing is signed there either
+(checked from the owner's Mac 2026-10-19: HTTP 200, `ok: 1`, 44-49 posts an answer, the mp4 addresses in
+`page_info.media_info`). Its answers are Weibo's own time-ordered stream of posts matching the word: mostly text and
+photos, only a few videos an answer, so a search reads several answers to collect the wanted videos and keeps their
+order.
 """
 import email.utils
 import ipaddress
@@ -27,6 +34,7 @@ from .i18n import tr
 
 VISITOR = "https://passport.weibo.com/visitor/genvisitor2"
 TIMELINE = "https://weibo.com/ajax/feed/hottimeline"
+SEARCH = "https://weibo.com/ajax/statuses/search"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0.0.0 Safari/537.36")
 PREFIX = "weibo:"
@@ -34,6 +42,8 @@ HOT = "weibo:hot"
 NAMES = {HOT: "Weibo hot videos"}
 PAGES = 5  # answers read per check (10 posts each, about half are videos)
 MIN_SECONDS = 15
+SEARCH_PAGES = 10  # answers read per keyword (about 50 posts each, only a few of them videos)
+SEARCH_TAKE = 50
 TIMEOUT = 30.0
 MEDIA_TTL = 2 * 86400  # how long a saved mp4 address is tried (it expires on Weibo's side after a while)
 CDN_SUFFIXES = (".weibocdn.com", ".sinaimg.cn")
@@ -85,6 +95,21 @@ def _page(client: httpx.Client, index: int) -> list[dict]:
     return [s for s in body.get("statuses") or [] if isinstance(s, dict)]
 
 
+def _search_page(client: httpx.Client, word: str, page: int) -> list[dict]:
+    try:
+        r = client.get(SEARCH, params={"q": word, "page": page},
+                       headers={"Referer": "https://weibo.com/", "X-Requested-With": "XMLHttpRequest"})
+        body = r.json()
+    except httpx.HTTPError as e:
+        raise FeedError(tr("Could not reach Weibo: {error}", error=str(e)[:200])) from e
+    except ValueError as e:
+        raise FeedError(tr("Weibo returned an error: {error}", error=f"{r.status_code} not JSON")) from e
+    ok = body.get("ok") if isinstance(body, dict) else None
+    if r.status_code != 200 or ok != 1:
+        raise FeedError(tr("Weibo returned an error: {error}", error=f"{r.status_code} ok {ok}"))
+    return [s for s in body.get("statuses") or [] if isinstance(s, dict)]
+
+
 def _stream(media: dict) -> str | None:
     for key in ("mp4_hd_url", "mp4_720p_mp4", "mp4_sd_url", "stream_url_hd", "stream_url"):
         url = str(media.get(key) or "")
@@ -109,7 +134,7 @@ def _title(status: dict) -> str:
     return " ".join(text.split())
 
 
-def _clip(status: dict, rank: int) -> tuple[dict, str] | None:
+def _clip(status: dict, rank: int, min_seconds: float = MIN_SECONDS) -> tuple[dict, str] | None:
     """A video post as a `clip` row and the address of its mp4; None for any other post."""
     page = status.get("page_info") or {}
     media = page.get("media_info") or {}
@@ -118,7 +143,7 @@ def _clip(status: dict, rank: int) -> tuple[dict, str] | None:
     mid = str(status.get("mblogid") or "")
     seconds = float(media.get("duration") or 0)
     title = _title(status)
-    if page.get("object_type") != "video" or not stream or not title or seconds < MIN_SECONDS \
+    if page.get("object_type") != "video" or not stream or not title or seconds < min_seconds \
             or not uid.isdigit() or not re.fullmatch(r"[A-Za-z0-9]{6,16}", mid):
         return None
     cover = next((u for u in (page.get("page_pic"), ((page.get("pic_info") or {}).get("pic_big") or {}).get("url"))
@@ -149,6 +174,49 @@ def fetch(target: str, take: int = 50) -> list[dict]:
                 got = _clip(post, 0)
                 if got and got[0]["id"] not in found:
                     found[got[0]["id"]] = got
+    if not found:
+        if errors:
+            raise errors[0]
+        raise FeedError(tr("Weibo gave no videos"))
+    rows = [{**row, "rank": i + 1} for i, (row, _) in enumerate(list(found.values())[:take])]
+    _remember({r["id"].removeprefix("weibo:"): found[r["id"]][1] for r in rows})
+    return rows
+
+
+def search(keyword: str, take: int = SEARCH_TAKE) -> list[dict]:
+    """Weibo's own search for a keyword as `clip` rows (in Weibo's order), and remember the mp4 addresses.
+
+    The guest session is the one the hot timeline uses (`_visit`), nothing is signed. Weibo's search is a stream of
+    posts about the word, most of them not videos, so up to SEARCH_PAGES answers are read to collect `take` videos; a
+    word with few videos gives fewer rows, not an error. Short clips are kept (`min_seconds=0`, like the Scan screen's
+    account mode in accounts.py): the site's own results are shown as they are, with their durations, and renumbering
+    them would silently change Weibo's order; a too-short clip is the user's call, not the reader's. FeedError when
+    Weibo cannot be reached or gives no video at all.
+    """
+    word = " ".join((keyword or "").split())
+    if not word:
+        raise ValueError(tr("Enter a hashtag or keyword"))
+    found: dict[str, tuple[dict, str]] = {}
+    errors: list[FeedError] = []
+    with httpx.Client(timeout=TIMEOUT, transport=_transport, follow_redirects=True,
+                      headers={"User-Agent": UA, "Accept": "application/json, text/plain, */*"}) as client:
+        _visit(client)
+        for i in range(SEARCH_PAGES):
+            if len(found) >= take:
+                break
+            if i:
+                time.sleep(_PAUSE)
+            try:
+                posts = _search_page(client, word, i + 1)
+            except FeedError as e:
+                errors.append(e)  # one bad answer does not lose the others (a page of search sometimes answers a 500)
+                continue
+            for post in posts:
+                got = _clip(post, 0, min_seconds=0)
+                if got and got[0]["id"] not in found:
+                    found[got[0]["id"]] = got
+            if not posts:  # Weibo has no more answers for this word
+                break
     if not found:
         if errors:
             raise errors[0]

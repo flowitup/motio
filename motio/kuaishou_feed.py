@@ -75,11 +75,11 @@ def _page(client: httpx.Client) -> list[dict]:
     return [f for f in data.get("feeds") or [] if isinstance(f, dict)]
 
 
-def _clip(feed: dict, rank: int) -> dict | None:
+def _clip(feed: dict, rank: int, min_seconds: float = MIN_SECONDS) -> dict | None:
     p = feed.get("photo") or {}
     caption = " ".join(str(p.get("caption") or "").split())
     seconds = (p.get("duration") or 0) / 1000
-    if not p.get("id") or not caption or seconds < MIN_SECONDS or not str(p.get("photoUrl") or "").startswith("https://"):
+    if not p.get("id") or not caption or seconds < min_seconds or not str(p.get("photoUrl") or "").startswith("https://"):
         return None
     cover = p.get("coverUrl")
     return {"id": f"kuaishou:{p['id']}", "site": "kuaishou", "url": f"https://www.kuaishou.com/short-video/{p['id']}",

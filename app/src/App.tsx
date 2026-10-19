@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Rss, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Rss, ScanSearch, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
 import ProjectDetailPage from "@/pages/project-detail";
 import ProjectsPage from "@/pages/projects";
+import ScanPage from "@/pages/scan";
 import SettingsPage from "@/pages/settings";
 import StatsPage from "@/pages/stats";
 import NewVideoPage from "@/pages/new-video";
@@ -30,6 +31,7 @@ const NAV: NavItem[][] = [
   [
     { to: "/trends", label: "trends", icon: Flame, hue: "amber" },
     { to: "/news", label: "news", icon: Newspaper, hue: "orange" }, // only while NEWS_TOPICS is on
+    { to: "/scan", label: "scan", icon: ScanSearch, hue: "blue" },
     { to: "/clips", label: "clips", icon: Rss, hue: "cyan" },
     { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
@@ -255,6 +257,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/trends" replace />} />
           <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />
           <Route path="/news" element={<EngineGate><TrendsPage /></EngineGate>} />
+          <Route path="/scan" element={<EngineGate><ScanPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
           <Route path="/clips/:id" element={<EngineGate><AccountPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />

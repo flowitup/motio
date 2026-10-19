@@ -57,14 +57,29 @@ as authoritative for scope and milestones.
   - `kuaishou_feed.py` Kuaishou's public "Featured" list (`kuaishou:featured`, Trending screen, no login or cookie; a fresh draw
     of ~50 videos each check, not a ranking): `watch.py` follows it like a Bilibili list (site `kuaishou`); each row's signed mp4
     address is kept in `data/cache/kuaishou_media.json` so `kuaishou.download` can fetch it without videodl (videodl only for
-    a pasted link); Kuaishou's search and detail queries want a browser `did` cookie, so they are not read
-  - `douyin_feed.py` Douyin's home recommendation feed (`douyin:feed`, Trending screen): f2 signs the anonymous
-    `tab/feed` request (the same guest session as a download), ~10 videos per answer, a fresh draw, no categories; photos, ads and
-    clips under 15 s are skipped; a row is downloaded like any pasted Douyin link; a login wall or a signature out of date shows as the
-    source's error
-  - `weibo_feed.py` Weibo's hot timeline (`weibo:hot`, Trending screen): the visitor cookie comes from Weibo's own guest endpoint
-    (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are videos, a fresh draw, no categories; each row's
-    mp4 address (http on `*.weibocdn.com`, only that host and only public addresses are fetched) is kept in
+    a pasted link); Kuaishou's detail query wants a browser `did` cookie, so it is not read; its search is read for the Scan
+    screen with the owner's own cookies (`accounts.search_kuaishou`)
+  - `douyin_feed.py` Douyin's home recommendation feed (`douyin:feed`, Trending screen) and keyword search (`search`, Scan
+    screen): f2 signs the feed (the anonymous `tab/feed`) and Douyin's own search
+    (`aweme/v1/web/general/search/single/`, whose endpoint and `PostSearch` model f2 ships without a crawler method, so
+    Motio calls f2's `bogus_manager.model_2_endpoint` + `_fetch_get_json` — still no signing code copied). The feed is
+    anonymous; Douyin's own search answers an anonymous session with `status_code 2483` "please log in first" (checked
+    2026-10-19), so with the owner's own douyin.com cookies set up (`search.site_cookies`) that search is used, and without
+    them — or when it refuses — the public search site `so.douyin.com` is read in a headless Chrome instead (`chrome.py`):
+    it shows the same results to a visitor with no account (checked live 2026-10-19 from France, 20 and 50 rows for two
+    keywords). Feed photos, ads and clips under 15 s are skipped; a row is downloaded like any pasted Douyin link.
+  - `chrome.py` a headless Google Chrome for the sites that only answer a real browser (`douyin_feed.search_web`):
+    finds Chrome / Chromium / Edge on macOS, Windows and Linux (`MOTIO_CHROME` overrides), starts one with a throwaway
+    profile under the data cache, sends the installed browser's own reduced user agent (`Chrome/<major>.0.0.0`; the full
+    build number makes Douyin hold the request), waits for the page, and runs one async script in the page over the
+    DevTools protocol (`websockets`, which f2 already needs). The page's own search request is made from its context, so
+    nothing is signed and no login or captcha is solved; a browser check is reported. One Chrome per call, closed at the
+    end; tests fake `evaluate`, no test starts a browser. The engine does not bundle a browser.
+  - `weibo_feed.py` Weibo's hot timeline (`weibo:hot`, Trending screen) and keyword search (`search`, Scan screen): the visitor
+    cookie comes from Weibo's own guest endpoint (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are
+    videos, a fresh draw, no categories; the search (`/ajax/statuses/search`) answers that same guest session with no login
+    (checked live 2026-10-19), a time-ordered stream of mostly text/photos, so up to 10 answers are read for the wanted videos;
+    each row's mp4 address (http on `*.weibocdn.com`, only that host and only public addresses are fetched) is kept in
     `data/cache/weibo_media.json` so `search.download` gets the file without yt-dlp (`weibo_feed.download`)
   - `feeds.py` AcFun's daily ranking (`acfun:rank`, `acfun:channel:<id>` for 8 sections) and Pear Video's home page
     (`pearvideo:home`) as Trending sources, plus both as pasted links (yt-dlp has an extractor for each, no login; they
@@ -79,6 +94,16 @@ as authoritative for scope and milestones.
     called as a command, only its Kuaishou client, never its generic parsers that use watermark-removal sites); no feed
     for these sites except as below; details and what was tested in
     `docs/CN_PLATFORMS.md`
+  - `accounts.py` + `scan.py` the videos of one account on Kuaishou, Douyin and Weibo (owner, 2026-10-18: follow a channel, and a
+    scanner): `accounts.fetch` reads a Weibo profile (guest session, no signing), a Douyin account (f2 signs it) and a
+    Kuaishou account (its page answers only a signed-in browser, so it uses the owner's own cookies from the cookie file /
+    browser, `search.site_cookies`; a slider captcha is reported, never solved); `watch.py` follows such an account (kind
+    `account`, target `<site>:user:<id>`, `accounts.identify` reads the link); `scan.py` is the Scan screen's engine (one
+    platform + mode account / hashtag / keyword, 1–10 lines, a background job read by polling, nothing saved or made;
+    YouTube / Bilibili go through yt-dlp and `trending.py`; keyword and hashtag also exist on Kuaishou (its search page with the
+    owner's own cookies; a guest is answered with the slider captcha), Weibo (its own search, the guest session, no login) and
+    Douyin (its own search, f2-signed with a douyin.com login, or read on its public `so.douyin.com` search page in a
+    headless Chrome with no account at all))
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option
@@ -216,6 +241,17 @@ on every PR; keep them green.
   (`localfile.py`). When f2 could not connect at all (`douyin.Unreachable`), yt-dlp still gets its turn, but if it fails
   with its cookie hint the error says "Could not connect to Douyin" instead (yt-dlp asks for cookies even when offline;
   any other yt-dlp error is shown as it is); a link with no id that cannot be fetched without a connection stops there.
+  The Scan screen's Douyin keyword search (`douyin_feed.search`) has two readers. Douyin's own search API is signed by f2
+  (`_search_page`: f2 has the endpoint and the `PostSearch` model but no crawler method, so Motio calls its signing
+  helpers — still nothing copied), and that answers an anonymous session with `status_code 2483` ("please log in
+  first"), so it is used only with the owner's own douyin.com cookies. With no account, `search_web` reads Douyin's
+  public search site `so.douyin.com` in a headless Chrome (`chrome.py`): the page's own unsigned search request is made
+  from the page context, so the result cards are the same `aweme_info` rows; a plain HTTP client gets the anti-spam
+  answer and a browser that keeps the "HeadlessChrome" agent gets the captcha page, hence the real reduced user agent
+  and the page-context request. Both paths report a login or a browser check; no captcha or fake session is ever made.
+  Both paths are checked live on the owner's Mac: the signed path with the owner's own douyin.com cookies (2026-10-19:
+  20 rows for "美食", 10 for "旅行") and the browser path with no account. On macOS 27 another app cannot read Chrome's
+  cookie store even with Full Disk Access, so the cookie file exported from inside Chrome is the cookie source there.
   f2 is imported lazily and once, in a background thread that `_f2()` waits for 15 s at most (importing it asks Douyin
   for an `msToken`, and f2 itself retries for ~135 s when packets are dropped; the load goes on and is used by the next
   download if it ends well; a failed import is not started again for two minutes), its logger

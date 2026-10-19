@@ -305,10 +305,10 @@ VI = {
     "The ElevenLabs account has no voices": "Tài khoản ElevenLabs không có giọng nào",
     "This is a link to a single video: paste a channel or playlist link, or use Projects → New video":
         "Đây là link một video: dán link kênh hoặc playlist, hoặc dùng Dự án → Tạo video",
-    "Only YouTube channels and playlists, Bilibili spaces or search keywords can be followed. Douyin, Facebook: "
-    "paste each video link in Projects → New video":
-        "Chỉ theo dõi được kênh, playlist YouTube, không gian Bilibili hoặc từ khoá tìm. Douyin, Facebook: dán link "
-        "từng video vào Dự án → Tạo video",
+    "Only YouTube channels and playlists, Bilibili spaces, Kuaishou / Douyin / Weibo accounts or search keywords can "
+    "be followed. Facebook and other sites: paste each video link in Projects → New video":
+        "Chỉ theo dõi được kênh, playlist YouTube, không gian Bilibili, tài khoản Kuaishou / Douyin / Weibo hoặc từ "
+        "khoá tìm. Facebook và các trang khác: dán link từng video trong Dự án → Tạo video",
     "Bilibili blocks requests without a login: pick a browser or set a cookie file in Settings → Browser cookies":
         "Bilibili chặn khi chưa đăng nhập: chọn trình duyệt hoặc đặt file cookie ở Cài đặt → Cookie trình duyệt",
     "Cookie file not found: {path}": "Không thấy file cookie: {path}",
@@ -674,6 +674,46 @@ VI = {
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
+"Not a {site} account link or id: {text}": "Không phải link hay mã tài khoản {site}: {text}",
+    "Reading an account works on Kuaishou, Douyin and Weibo only":
+        "Đọc tài khoản chỉ dùng được cho Kuaishou, Douyin và Weibo",
+    "Reading Kuaishou needs your own login: sign in to kuaishou.com in your browser, then set the browser or the "
+    "exported cookie file in Settings → Browser cookies":
+        "Đọc dữ liệu Kuaishou cần đăng nhập của chính bạn: đăng nhập kuaishou.com trên trình duyệt, rồi chọn trình "
+        "duyệt hoặc file cookie đã xuất trong Cài đặt → Cookie trình duyệt",
+    "This link is not a {site} account": "Link này không phải tài khoản {site}",
+    "Douyin gave no videos for this account (private, empty, or it wants a login)":
+        "Douyin không trả video nào cho tài khoản này (riêng tư, trống, hoặc cần đăng nhập)",
+    "Douyin gave no videos": "Douyin không trả video nào",
+    "Douyin asks for a login before it shows search results. Sign in to douyin.com in your browser, then set the "
+    "browser or the exported cookie file in Settings → Browser cookies":
+        "Douyin đòi đăng nhập trước khi hiện kết quả tìm kiếm. Đăng nhập douyin.com trên trình duyệt, rồi chọn trình "
+        "duyệt hoặc file cookie đã xuất trong Cài đặt → Cookie trình duyệt",
+    "Douyin refused the search (the request looked like a bot). Open douyin.com in your browser while signed in, then "
+    "try again":
+        "Douyin từ chối tìm kiếm (request trông giống bot). Mở douyin.com trên trình duyệt đã đăng nhập rồi thử lại",
+    "Type a keyword to search Douyin": "Nhập từ khoá để tìm trên Douyin",
+    "Douyin gave no videos for this keyword": "Douyin không trả video nào cho từ khoá này",
+    "Douyin keyword search needs Google Chrome (or Chromium / Edge) installed. Install it, or set your own douyin.com "
+    "cookies in Settings → Browser cookies":
+        "Tìm kiếm Douyin cần cài Google Chrome (hoặc Chromium / Edge). Hãy cài, hoặc đặt cookie douyin.com của chính "
+        "bạn trong Cài đặt → Cookie trình duyệt",
+    "Could not run Google Chrome for the Douyin search: {error}":
+        "Không chạy được Google Chrome cho lần tìm kiếm Douyin: {error}",
+    "Douyin asked for a browser verification for this search (it looked like a bot). Try again in a minute":
+        "Douyin đòi xác minh trình duyệt cho lần tìm kiếm này (request trông giống bot). Hãy thử lại sau một phút",
+    "Kuaishou asks for a verification (slider captcha) before it shows this page. Open kuaishou.com in your browser "
+    "while signed in, pass the check, export the cookies again, then retry":
+        "Kuaishou đòi xác minh (captcha kéo) trước khi hiện trang này. Mở kuaishou.com trên trình duyệt đã đăng "
+        "nhập, qua bước xác minh, xuất lại cookie rồi thử lại",
+    "Scan not found": "Không có lần quét này",
+    "Unknown platform: {site}": "Không có nền tảng này: {site}",
+    "{site} cannot be scanned by {mode}": "{site} không quét được theo kiểu {mode}",
+    "Enter at least one link, id, hashtag or keyword": "Nhập ít nhất một link, mã, hashtag hoặc từ khoá",
+    "At most {n} lines per scan": "Mỗi lần quét tối đa {n} dòng",
+    "This link is not a {site} channel, playlist or account": "Link này không phải kênh, playlist hay tài khoản {site}",
+    "Enter a hashtag or keyword": "Nhập hashtag hoặc từ khoá",
+    "Reading {n} of {total}: {line}": "Đang đọc {n}/{total}: {line}",
     # Google Drive storage
     "Google Drive is not signed in: add the client ID and secret, then sign in in Settings":
         "Chưa đăng nhập Google Drive: nhập client ID và secret rồi đăng nhập trong Cài đặt",

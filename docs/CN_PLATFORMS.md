@@ -64,6 +64,41 @@ Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou,
   not copy that signing, so it stays paste-a-link. Xigua (unreachable) and Zhihu (hot list readable, but only text questions)
   also stay paste-a-link.
 
+## Accounts and the Scan screen (2026-10-18)
+
+Owner's ask: follow a channel on Kuaishou, Douyin and Weibo, and a scanner (platform, link / id / hashtag / keyword, results table).
+- **Weibo**: `weibo.com/ajax/profile/getWaterFallContent?uid=<id>&cursor=` answers the same guest session as the hot feed (the
+  profile's `mymblog` list is a 403 for a guest). Views = `media_info.online_users_number`. Tested from a cloud sandbox.
+- **Douyin**: f2's `fetch_user_post` (signed by f2, `sec_user_id`), same anonymous session as a download. Its keyword
+  search is `general/search/single/`, also signed by f2, but Douyin answers an anonymous session with `status_code: 2483`
+  "please log in first" (2026-10-19) — see below.
+- **Kuaishou**: `visionProfilePhotoList` with a guest `did` cookie answers `result: 400002` and a slider captcha (checked
+  2026-10-18), so Motio reads it only with the owner's own cookies (cookie file or browser) and reports a captcha as an error. Not
+  tried with real cookies yet. Its search (`visionSearchPhoto`) is read by the Scan screen with the same owner cookies; a
+  guest `did` gets the slider captcha too (checked live 2026-10-19).
+- Hashtag / keyword scans: YouTube (`ytsearch`, `/hashtag/`), Bilibili (tag search, up to 20), Kuaishou (its search page,
+  owner's cookies), Weibo (its own search, guest session, no login) and Douyin (its own search with a login, or its public
+  `so.douyin.com` search page in a headless Chrome with no account) — see below.
+- Xiaohongshu, Haokan, Xigua: no account page that a visitor can read (see above), so no account follow.
+
+### Keyword / hashtag search (2026-10-19, the owner's Mac)
+
+- **Weibo** (`weibo_feed.search`): `/ajax/statuses/search?q=<word>&page=<n>` answers the same guest session the hot
+  timeline uses, with no login. Live through the engine's Scan job: 20 videos for "猫" (44-49 posts an answer, a few videos
+  each), every row's mp4 address remembered so "Make video" works.
+- **Douyin** (`douyin_feed.search`): two readers. With the owner's own douyin.com cookies (Settings → Browser cookies) it
+  uses Douyin's own search API, signed by f2; that API answers an anonymous session with `status_code 2483` "please log in
+  first", so it needs the login. Checked live with the owner's account (cookies exported from Chrome): 20 rows for "美食"
+  and 10 for "旅行". On macOS 27 another app cannot read Chrome's cookie store even with Full Disk Access, so the cookie
+  source there is a `cookies.txt` file exported from inside Chrome (extension), not the browser option. With no account it
+  reads the public search site `so.douyin.com` in a headless Chrome (`motio/chrome.py`, real reduced user agent, the
+  page's own unsigned search request made from the page context): live from France, 20 rows for "美食" in 12 s and 50 for
+  "旅行" in 15 s. A browser verification Douyin asks for is reported, never solved. The engine needs Google Chrome /
+  Chromium / Edge installed for that reader (`MOTIO_CHROME` overrides); details in `docs/DOUYIN_F2.md`.
+- **Kuaishou** (`accounts.search_kuaishou`): its search page (`visionSearchPhoto`) with the owner's own cookies; a guest
+  `did` cookie gets the slider captcha (`result: 400002`, checked live) and the app reports it. The logged-in path is
+  unit-tested; the agent session could not open it because macOS blocks this process from Chrome's cookie store.
+
 ## Where it lives
 
 - `motio/platforms.py`: hosts, `identify`, `normalize` (link shapes), `expand` (short links), `hint`.
@@ -85,3 +120,10 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 - Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Haokan feed (category or account page): none could be read without a login. Weibo has the hot-video feed only (no category, no account page).
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.
+
+### Keyword and hashtag scan on Kuaishou (2026-10-19, not tried on the real site)
+
+The Scan screen's keyword / hashtag mode works on Kuaishou through its own search page (`visionSearchPhoto`, the same
+GraphQL call the page makes), read with the owner's cookies like an account (`accounts.search_kuaishou`). It was built
+from the page's public request and tested only against a mock. Douyin has no keyword scan (f2 has no search method; its
+search is signed, and Motio does not write signing code). Weibo's search wants a login and was not reachable as a guest.
