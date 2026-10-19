@@ -227,8 +227,8 @@ def _ks_read(op: str, query: str, root: str, variables: dict, referer: str, take
     cookies = search.site_cookies("kuaishou.com")
     if not cookies:
         raise AccountError(tr(
-            "Reading a Kuaishou account needs your own login: sign in to kuaishou.com in your browser, then set the "
-            "browser or the exported cookie file in Settings → Browser cookies"))
+            "Reading Kuaishou needs your own login: sign in to kuaishou.com in your browser, then set the browser or "
+            "the exported cookie file in Settings → Browser cookies"))
     rows: dict[str, tuple[dict, str]] = {}
     name, cursor, session = "", "", ""
     headers = {"User-Agent": kuaishou_feed.UA, "Referer": referer}
@@ -251,7 +251,7 @@ def _ks_read(op: str, query: str, root: str, variables: dict, referer: str, take
             data = top.get(root) or {}
             if top.get("result") == 400002 or data.get("result") == 400002:  # the slider captcha
                 raise AccountError(tr(
-                    "Kuaishou asks for a verification (slider captcha) before it shows this account. Open kuaishou.com "
+                    "Kuaishou asks for a verification (slider captcha) before it shows this page. Open kuaishou.com "
                     "in your browser while signed in, pass the check, export the cookies again, then retry"))
             if r.status_code != 200 or data.get("result") != 1:
                 raise AccountError(tr("Kuaishou returned an error: {error}",

@@ -677,9 +677,9 @@ VI = {
 "Not a {site} account link or id: {text}": "Không phải link hay mã tài khoản {site}: {text}",
     "Reading an account works on Kuaishou, Douyin and Weibo only":
         "Đọc tài khoản chỉ dùng được cho Kuaishou, Douyin và Weibo",
-    "Reading a Kuaishou account needs your own login: sign in to kuaishou.com in your browser, then set the "
-    "browser or the exported cookie file in Settings → Browser cookies":
-        "Đọc tài khoản Kuaishou cần đăng nhập của chính bạn: đăng nhập kuaishou.com trên trình duyệt, rồi chọn trình "
+    "Reading Kuaishou needs your own login: sign in to kuaishou.com in your browser, then set the browser or the "
+    "exported cookie file in Settings → Browser cookies":
+        "Đọc dữ liệu Kuaishou cần đăng nhập của chính bạn: đăng nhập kuaishou.com trên trình duyệt, rồi chọn trình "
         "duyệt hoặc file cookie đã xuất trong Cài đặt → Cookie trình duyệt",
     "This link is not a {site} account": "Link này không phải tài khoản {site}",
     "Douyin gave no videos for this account (private, empty, or it wants a login)":
@@ -694,9 +694,9 @@ VI = {
         "Douyin từ chối tìm kiếm (request trông giống bot). Mở douyin.com trên trình duyệt đã đăng nhập rồi thử lại",
     "Type a keyword to search Douyin": "Nhập từ khoá để tìm trên Douyin",
     "Douyin gave no videos for this keyword": "Douyin không trả video nào cho từ khoá này",
-    "Kuaishou asks for a verification (slider captcha) before it shows this account. Open kuaishou.com in your browser "
+    "Kuaishou asks for a verification (slider captcha) before it shows this page. Open kuaishou.com in your browser "
     "while signed in, pass the check, export the cookies again, then retry":
-        "Kuaishou đòi xác minh (captcha kéo) trước khi hiện tài khoản này. Mở kuaishou.com trên trình duyệt đã đăng "
+        "Kuaishou đòi xác minh (captcha kéo) trước khi hiện trang này. Mở kuaishou.com trên trình duyệt đã đăng "
         "nhập, qua bước xác minh, xuất lại cookie rồi thử lại",
     "Scan not found": "Không có lần quét này",
     "Unknown platform: {site}": "Không có nền tảng này: {site}",
