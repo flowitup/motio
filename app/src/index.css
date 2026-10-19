@@ -1,30 +1,33 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-/* Studio type: IBM Plex Sans (UI) and Mono (numbers, ids, timecode), bundled so the app works offline.
+/* Neon Studio type: Space Grotesk (UI) and JetBrains Mono (numbers, ids, timecode), bundled so the app works offline.
    Latin + Latin Extended cover French, Vietnamese its own file; Chinese uses the system font (PingFang SC / Microsoft YaHei). */
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-500.css";
-@import "@fontsource/ibm-plex-sans/latin-600.css";
-@import "@fontsource/ibm-plex-sans/latin-ext-400.css";
-@import "@fontsource/ibm-plex-sans/latin-ext-500.css";
-@import "@fontsource/ibm-plex-sans/latin-ext-600.css";
-@import "@fontsource/ibm-plex-sans/vietnamese-400.css";
-@import "@fontsource/ibm-plex-sans/vietnamese-500.css";
-@import "@fontsource/ibm-plex-sans/vietnamese-600.css";
-@import "@fontsource/ibm-plex-mono/latin-400.css";
-@import "@fontsource/ibm-plex-mono/latin-500.css";
-@import "@fontsource/ibm-plex-mono/latin-ext-400.css";
-@import "@fontsource/ibm-plex-mono/latin-ext-500.css";
-@import "@fontsource/ibm-plex-mono/vietnamese-400.css";
-@import "@fontsource/ibm-plex-mono/vietnamese-500.css";
+@import "@fontsource/space-grotesk/latin-400.css";
+@import "@fontsource/space-grotesk/latin-ext-400.css";
+@import "@fontsource/space-grotesk/vietnamese-400.css";
+@import "@fontsource/space-grotesk/latin-500.css";
+@import "@fontsource/space-grotesk/latin-ext-500.css";
+@import "@fontsource/space-grotesk/vietnamese-500.css";
+@import "@fontsource/space-grotesk/latin-600.css";
+@import "@fontsource/space-grotesk/latin-ext-600.css";
+@import "@fontsource/space-grotesk/vietnamese-600.css";
+@import "@fontsource/space-grotesk/latin-700.css";
+@import "@fontsource/space-grotesk/latin-ext-700.css";
+@import "@fontsource/space-grotesk/vietnamese-700.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-ext-400.css";
+@import "@fontsource/jetbrains-mono/vietnamese-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+@import "@fontsource/jetbrains-mono/latin-ext-500.css";
+@import "@fontsource/jetbrains-mono/vietnamese-500.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-sans: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-heading: var(--font-sans);
-    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     --font-zh: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -69,9 +72,14 @@
     --color-hairline-strong: var(--hairline-strong);
     --color-field: var(--field);
     --color-amber: var(--amber);
-    --color-amber-hover: var(--amber-hover);
-    --color-amber-pressed: var(--amber-pressed);
     --color-on-amber: var(--on-amber);
+    --color-pink: var(--pink);
+    --color-primary-hover: var(--primary-hover);
+    --color-primary-pressed: var(--primary-pressed);
+    --color-on-pink: var(--on-pink);
+    --color-lime: var(--lime);
+    --color-violet: var(--violet);
+    --color-orange: var(--orange);
     --color-cyan: var(--cyan);
     --color-cyan-hover: var(--cyan-hover);
     --color-mint: var(--mint);
@@ -85,59 +93,65 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Direction "Studio" (docs/design: dark editing suite). Dark only: the app sets .dark on <html>.
-   Every contrast pair below was checked at 4.5:1 (text) / 3:1 (controls); muted text never goes dimmer than --muted-foreground. */
+/* Direction "Neon Studio" (owner picked A of the 2026-10-19 colorful round: the dark editing suite, now with a hue per section).
+   Dark only: the app sets .dark on <html>. Every text pair was checked at 4.5:1 (controls 3:1). Hues: pink = primary action and
+   hot scores, amber = needs you, cyan = running / links / focus, mint = done, coral = failed; lime, violet and orange only colour panels and chips. */
 :root {
     color-scheme: dark;
-    --ground: #121418;
-    --panel: #1A1D23;
-    --strip: #1E2128;
-    --raised: #22262E;
-    --lift: #2A2F38;
-    --pressed: #323843;
-    --monitor: #0B0C0F;
-    --hairline: rgb(255 255 255 / 0.09);
-    --hairline-strong: rgb(255 255 255 / 0.16);
-    --field: #6B7280;
+    --ground: #0F0D24;
+    --panel: #17143A;
+    --strip: #1B1745;
+    --raised: #1F1B4A;
+    --lift: #2A2560;
+    --pressed: #352F72;
+    --monitor: #0A0919;
+    --hairline: rgb(255 255 255 / 0.12);
+    --hairline-strong: rgb(255 255 255 / 0.22);
+    --field: #8A85B8;
     --amber: #FFB224;
-    --amber-hover: #FFC247;
-    --amber-pressed: #E89F0B;
-    --on-amber: #17120A;
-    --cyan: #5CC8F5;
-    --cyan-hover: #9BE0FA;
-    --mint: #5FD6A0;
-    --coral: #FF8A80;
+    --on-amber: #1F1400;
+    --pink: #FF5CAA;
+    --primary-hover: #FF7DBD;
+    --primary-pressed: #E8408F;
+    --on-pink: #1A0716;
+    --cyan: #3FE0F5;
+    --cyan-hover: #9BEFFA;
+    --mint: #4DE8C2;
+    --coral: #FF7A6B;
+    --lime: #B8F34B;
+    --violet: #A99BFF;
+    --orange: #FF9A3D;
 
     --background: var(--ground);
-    --foreground: #E8EAEE;
+    --foreground: #F3F1FF;
     --card: var(--panel);
-    --card-foreground: #E8EAEE;
+    --card-foreground: #F3F1FF;
     --popover: var(--raised);
-    --popover-foreground: #E8EAEE;
-    --primary: var(--amber);
-    --primary-foreground: var(--on-amber);
+    --popover-foreground: #F3F1FF;
+    --primary: var(--pink);
+    --primary-foreground: var(--on-pink);
     --secondary: var(--raised);
-    --secondary-foreground: #E8EAEE;
+    --secondary-foreground: #F3F1FF;
     --muted: var(--strip);
-    --muted-foreground: #9CA3B0;
+    --muted-foreground: #B9B4E0;
     --accent: var(--lift);
-    --accent-foreground: #E8EAEE;
+    --accent-foreground: #F3F1FF;
     --destructive: var(--coral);
     --border: var(--hairline);
     --input: var(--field);
     --ring: var(--cyan);
     --chart-1: var(--cyan);
-    --chart-2: var(--amber);
+    --chart-2: var(--pink);
     --chart-3: var(--mint);
-    --chart-4: var(--coral);
-    --chart-5: #9CA3B0;
-    --radius: 0.25rem;
-    --sidebar: var(--ground);
-    --sidebar-foreground: #E8EAEE;
-    --sidebar-primary: var(--amber);
-    --sidebar-primary-foreground: var(--on-amber);
+    --chart-4: var(--amber);
+    --chart-5: var(--violet);
+    --radius: 0.5rem;
+    --sidebar: var(--monitor);
+    --sidebar-foreground: #F3F1FF;
+    --sidebar-primary: var(--pink);
+    --sidebar-primary-foreground: var(--on-pink);
     --sidebar-accent: var(--raised);
-    --sidebar-accent-foreground: #E8EAEE;
+    --sidebar-accent-foreground: #F3F1FF;
     --sidebar-border: var(--hairline);
     --sidebar-ring: var(--cyan);
 }
@@ -165,7 +179,7 @@
     outline-offset: 2px;
     }
   ::selection {
-    background: rgb(92 200 245 / 0.3);
+    background: rgb(63 224 245 / 0.3);
     }
   a {
     color: var(--cyan);
@@ -175,7 +189,7 @@
     }
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+    scrollbar-color: rgb(255 255 255 / 0.24) transparent;
     }
 }
 

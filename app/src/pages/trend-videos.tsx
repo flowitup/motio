@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ClipCard } from "@/components/clip-card";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
-import { FilterChip, PageTitle, TopBar } from "@/components/studio";
+import { FilterChip, hueFor, PageTitle, SITE_HUE, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,7 +136,7 @@ export default function TrendVideosPage() {
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t.trendVideos.sources}>
           <span className="text-sm font-medium">{t.trendVideos.sources}</span>
           {SOURCES.map((site) => (
-            <FilterChip key={site} on={platformOn(site)} onClick={() => toggleSource.mutate(site)} count={followed.filter((w) => w.site === site).reduce((n, w) => n + w.new_count, 0)}>
+            <FilterChip key={site} hue={SITE_HUE[site]} on={platformOn(site)} onClick={() => toggleSource.mutate(site)} count={followed.filter((w) => w.site === site).reduce((n, w) => n + w.new_count, 0)}>
               {t.clips.sites[site]}
             </FilterChip>
           ))}
@@ -164,7 +164,7 @@ export default function TrendVideosPage() {
               {t.trendVideos.all}
             </FilterChip>
             {followed.map((w) => (
-              <FilterChip key={w.id} on={selected === String(w.id)} onClick={() => setSelected(String(w.id))} count={w.new_count}>
+              <FilterChip key={w.id} hue={hueFor(nameOf(w))} on={selected === String(w.id)} onClick={() => setSelected(String(w.id))} count={w.new_count}>
                 {nameOf(w)}
               </FilterChip>
             ))}

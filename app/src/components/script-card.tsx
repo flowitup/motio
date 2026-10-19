@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Choice } from "@/components/form";
-import { Panel } from "@/components/studio";
+import { Panel, PanelHeader } from "@/components/studio";
 import { lineAt, mmss, type Mark } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -503,9 +503,8 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
 
 function PanelHead({ title, aside }: { title: string; aside?: ReactNode }) {
   return (
-    <header className="flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4">
-      <h2 className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{title}</h2>
-      {aside && <span className="font-mono text-xs text-muted-foreground tabular-nums">{aside}</span>}
-    </header>
+    <PanelHeader hue="violet" aside={aside}>
+      {title}
+    </PanelHeader>
   );
 }
