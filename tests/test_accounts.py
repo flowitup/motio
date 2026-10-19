@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from motio import accounts, db, douyin, kuaishou_feed, scan, search, watch, weibo_feed
+from motio import accounts, db, douyin, douyin_feed, kuaishou_feed, scan, search, watch, weibo_feed
 
 SEC = "MS4wLjABAAAAv7iSuuXDJGDvJkmH_vWkzzCpzTlOqeHq0uT2jXx4tT4"
 MP4 = "http://f.video.weibocdn.com/o0/a.mp4?label=mp4_hd&Expires=1792357547&ssig=x"
@@ -287,7 +287,7 @@ def _wait(job_id):
 def test_scan_checks_its_input():
     assert scan.check("weibo", "account", "3266943013\n\n3266943013", 50) == (["3266943013"], 50)
     assert scan.check("youtube", "hashtag", "roblox", 7)[1] == scan.DEFAULT_LIMIT
-    for site, mode, text in (("tiktok", "account", "x"), ("douyin", "keyword", "x"), ("weibo", "account", " \n "),
+    for site, mode, text in (("tiktok", "account", "x"), ("kuaishou", "profile", "x"), ("weibo", "account", " \n "),
                              ("weibo", "account", "\n".join(str(10000 + i) for i in range(11)))):
         with pytest.raises(ValueError):
             scan.check(site, mode, text, 50)
@@ -334,6 +334,43 @@ def test_scan_kuaishou_keyword_and_hashtag_go_to_its_search(monkeypatch):
     assert _wait(scan.start("kuaishou", "keyword", "美食", 20)["id"])["rows"][0]["views"] == 9
     assert _wait(scan.start("kuaishou", "hashtag", "#美食", 20)["id"])["status"] == "done"
     assert asked == [("美食", 20), ("美食", 20)]
+
+
+def test_scan_douyin_and_weibo_keyword_go_to_their_search(monkeypatch):
+    asked = []
+
+    def douyin_search(word, take=50):
+        asked.append(("douyin", word, take))
+        return [{"id": "douyin:7512345678901234567", "site": "douyin",
+                 "url": "https://www.douyin.com/video/7512345678901234567", "title": "t", "views": 7}]
+
+    def weibo_search(word, take=50):
+        asked.append(("weibo", word, take))
+        return [{"id": "weibo:RnhjgpzL7", "site": "weibo", "url": "https://weibo.com/3266943013/RnhjgpzL7",
+                 "title": "t", "likes": 3}]
+
+    monkeypatch.setattr(douyin_feed, "search", douyin_search)
+    monkeypatch.setattr(weibo_feed, "search", weibo_search)
+    assert _wait(scan.start("douyin", "keyword", "美食", 20)["id"])["rows"][0]["views"] == 7
+    assert _wait(scan.start("weibo", "hashtag", "#猫", 20)["id"])["rows"][0]["likes"] == 3
+    assert asked == [("douyin", "美食", 20), ("weibo", "猫", 20)]
+
+
+def test_scan_offers_accounts_and_search_on_every_platform():
+    modes = {p["site"]: p["modes"] for p in scan.options()["platforms"]}
+    assert set(modes) == set(scan.PLATFORMS)
+    for site in scan.PLATFORMS:
+        assert {"account", "keyword", "hashtag"} <= set(modes[site])
+
+
+def test_scan_reports_a_search_refusal_as_the_line_error(monkeypatch):
+    def refused(word, take=50):
+        raise douyin_feed.FeedError("Douyin asks for a login before it shows search results")
+
+    monkeypatch.setattr(douyin_feed, "search", refused)
+    v = _wait(scan.start("douyin", "keyword", "美食", 20)["id"])
+    assert v["status"] == "failed" and v["rows"] == []
+    assert len(v["errors"]) == 1 and "login" in v["errors"][0]
 
 
 def test_scan_can_be_stopped(monkeypatch):

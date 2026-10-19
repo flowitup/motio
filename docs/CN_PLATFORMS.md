@@ -69,13 +69,29 @@ Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou,
 Owner's ask: follow a channel on Kuaishou, Douyin and Weibo, and a scanner (platform, link / id / hashtag / keyword, results table).
 - **Weibo**: `weibo.com/ajax/profile/getWaterFallContent?uid=<id>&cursor=` answers the same guest session as the hot feed (the
   profile's `mymblog` list is a 403 for a guest). Views = `media_info.online_users_number`. Tested from a cloud sandbox.
-- **Douyin**: f2's `fetch_user_post` (signed by f2, `sec_user_id`), same anonymous session as a download. Not tested from the
-  cloud sandbox (Douyin's API is out of its reach) nor yet on the Mac.
+- **Douyin**: f2's `fetch_user_post` (signed by f2, `sec_user_id`), same anonymous session as a download. Its keyword
+  search is `general/search/single/`, also signed by f2, but Douyin answers an anonymous session with `status_code: 2483`
+  "please log in first" (2026-10-19) — see below.
 - **Kuaishou**: `visionProfilePhotoList` with a guest `did` cookie answers `result: 400002` and a slider captcha (checked
   2026-10-18), so Motio reads it only with the owner's own cookies (cookie file or browser) and reports a captcha as an error. Not
-  tried with real cookies yet. Kuaishou's search stays unread (it wants a `did`-bound session too).
-- Hashtag / keyword scans: YouTube (`ytsearch`, `/hashtag/`) and Bilibili (tag search, up to 20). None for the other three.
+  tried with real cookies yet. Its search (`visionSearchPhoto`) is read by the Scan screen with the same owner cookies; a
+  guest `did` gets the slider captcha too (checked live 2026-10-19).
+- Hashtag / keyword scans: YouTube (`ytsearch`, `/hashtag/`), Bilibili (tag search, up to 20), Kuaishou (its search page,
+  owner's cookies), Weibo (its own search, guest session, no login) and Douyin (f2 signs it; Douyin wants a login) — see below.
 - Xiaohongshu, Haokan, Xigua: no account page that a visitor can read (see above), so no account follow.
+
+### Keyword / hashtag search (2026-10-19, the owner's Mac)
+
+- **Weibo** (`weibo_feed.search`): `/ajax/statuses/search?q=<word>&page=<n>` answers the same guest session the hot
+  timeline uses, with no login. Live through the engine's Scan job: 20 videos for "猫" (44-49 posts an answer, a few videos
+  each), every row's mp4 address remembered so "Make video" works.
+- **Douyin** (`douyin_feed.search`): f2 signs the general search; Douyin answers an anonymous session with `status_code 2483`
+  "please log in first", and a browser with no account gets Douyin's captcha page. The reader sends the owner's douyin.com
+  cookies (Settings → Browser cookies) and reports the login wall; it never solves a captcha. The owner has no Douyin
+  account, so only mocked tests cover the logged-in answer.
+- **Kuaishou** (`accounts.search_kuaishou`): its search page (`visionSearchPhoto`) with the owner's own cookies; a guest
+  `did` cookie gets the slider captcha (`result: 400002`, checked live) and the app reports it. The logged-in path is
+  unit-tested; it could not be run from the agent session because macOS blocks this process from Chrome's cookie store.
 
 ## Where it lives
 

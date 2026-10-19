@@ -130,6 +130,30 @@ local machine worked), long-term stability, keyword search, an author's video li
    and the runtime dependencies they import, not the whole package.
 5. Rebuild the engine (`tools/build_engine.py` checks that f2's yaml files are bundled).
 
+## Keyword search through f2 (2026-10-19, the owner's Mac)
+
+The Scan screen's Douyin keyword search also goes through f2's signing, not new signing code. f2 ships the general
+search endpoint (`aweme/v1/web/general/search/single/`, `DouyinAPIEndpoints.POST_SEARCH`) and its request model
+(`PostSearch`), but it has no crawler method for it, so `douyin_feed._search_page` calls
+`crawler.bogus_manager.model_2_endpoint(UA, endpoint, params.model_dump())` (a_bogus, exactly the path `fetch_user_post`
+uses) and then `crawler._fetch_get_json(endpoint)`.
+
+What Douyin answered from this Mac (fresh `ttwid`, real `msToken`, browser-like params, ASCII quoted Referer):
+
+| Request | Answer |
+|---|---|
+| general search, web app id `6383` | HTTP 200, `status_code: 2483`, `status_msg: "请先登录，再继续搜索吧"` (log in first), no data |
+| the older `/aweme/v1/web/search/item/` | the same 2483 |
+| `aid` 1128 / 2329 / 8663 | `status_code: 0` with `search_nil_info: antispam_check / hit_shark` |
+| headless Chrome, no account | Douyin's captcha middle page (验证码中间页), even in a real browser |
+| home feed (`tab/feed`) | still anonymous and fine |
+
+So the signature is not the blocker: Douyin requires a login for search. `douyin_feed.search` sends the owner's own
+douyin.com cookies (Settings → Browser cookies, the Kuaishou pattern) when they exist, gives the "Douyin asks for a login…"
+or "Douyin refused the search…" error otherwise, and never solves a captcha or fakes a session. The logged-in answer is
+covered by mocked tests (`tests/test_douyin_search.py`); it was not run live because the owner has no Douyin account.
+The anonymous attempt still runs first, so a future Douyin that opens search to visitors needs no change here.
+
 ## Alternatives looked at
 
 - **Evil0ctal/Douyin_TikTok_Download_API (DTK) v5** (Apache-2.0, 20k stars; rewrite released 2026-09-10, v5.1.3 on

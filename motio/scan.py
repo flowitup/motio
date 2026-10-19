@@ -6,9 +6,9 @@ site, so the limits are the sites' own:
 | platform | account (link or id)                       | hashtag / keyword                         |
 | YouTube  | channel, playlist (yt-dlp)                 | ytsearch / hashtag page (yt-dlp)          |
 | Bilibili | space (yt-dlp + video pages)               | tag search, most played of 7 days (trending.py, up to 20) |
-| Douyin   | accounts.py (f2 signs the request)         | no: f2 has no search, it is signed        |
+| Douyin   | accounts.py (f2 signs the request)         | its own search (f2 signs; login needed)   |
 | Kuaishou | accounts.py (the owner's own cookies)      | its search page, the owner's own cookies  |
-| Weibo    | accounts.py (guest session)                | no: its search wants a login              |
+| Weibo    | accounts.py (guest session)                | its search, the same guest session        |
 
 A scan runs in a background thread and is read by polling (`view`); the rows are `clip`-shaped dicts with views and
 likes when the site gives them. "Download selected" and "Follow" are done by the app through the Tools downloads and
@@ -21,12 +21,13 @@ from urllib.parse import quote
 
 from yt_dlp import YoutubeDL
 
-from . import accounts, trending, watch
+from . import accounts, douyin_feed, trending, watch, weibo_feed
 from .i18n import tr
 
 PLATFORMS = ("youtube", "bilibili", "douyin", "kuaishou", "weibo")
 MODES = {"youtube": ("account", "keyword", "hashtag"), "bilibili": ("account", "keyword", "hashtag"),
-         "douyin": ("account",), "kuaishou": ("account", "keyword", "hashtag"), "weibo": ("account",)}
+         "douyin": ("account", "keyword", "hashtag"), "kuaishou": ("account", "keyword", "hashtag"),
+         "weibo": ("account", "keyword", "hashtag")}
 MAX_LINES = 10
 LIMITS = (20, 50, 100)
 DEFAULT_LIMIT = 50
@@ -104,6 +105,10 @@ def _tag(site: str, mode: str, line: str, limit: int) -> list[dict]:
         raise ValueError(tr("Enter a hashtag or keyword"))
     if site == "kuaishou":  # its search page, with the owner's own cookies
         return accounts.search_kuaishou(word, limit)
+    if site == "douyin":  # its own general search, signed by f2; Douyin wants the owner's login for it
+        return douyin_feed.search(word, limit)
+    if site == "weibo":  # its own search, the same guest session the hot feed uses
+        return weibo_feed.search(word, limit)
     if site == "bilibili":  # its search, the most played of the last 7 days
         rows = trending.fetch(f"bilibili:tag:{word}", limit)
         return [{**c, "watch_id": None} for c in rows]
@@ -115,7 +120,7 @@ def _tag(site: str, mode: str, line: str, limit: int) -> list[dict]:
 def _read(site: str, mode: str, line: str, limit: int) -> list[dict]:
     try:
         return _account(site, line, limit) if mode == "account" else _tag(site, mode, line, limit)
-    except (accounts.AccountError, trending.TrendingError) as e:
+    except (accounts.AccountError, trending.TrendingError, douyin_feed.FeedError, weibo_feed.FeedError) as e:
         raise RuntimeError(str(e)) from e
 
 

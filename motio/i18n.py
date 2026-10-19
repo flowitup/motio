@@ -685,6 +685,15 @@ VI = {
     "Douyin gave no videos for this account (private, empty, or it wants a login)":
         "Douyin không trả video nào cho tài khoản này (riêng tư, trống, hoặc cần đăng nhập)",
     "Douyin gave no videos": "Douyin không trả video nào",
+    "Douyin asks for a login before it shows search results. Sign in to douyin.com in your browser, then set the "
+    "browser or the exported cookie file in Settings → Browser cookies":
+        "Douyin đòi đăng nhập trước khi hiện kết quả tìm kiếm. Đăng nhập douyin.com trên trình duyệt, rồi chọn trình "
+        "duyệt hoặc file cookie đã xuất trong Cài đặt → Cookie trình duyệt",
+    "Douyin refused the search (the request looked like a bot). Open douyin.com in your browser while signed in, then "
+    "try again":
+        "Douyin từ chối tìm kiếm (request trông giống bot). Mở douyin.com trên trình duyệt đã đăng nhập rồi thử lại",
+    "Type a keyword to search Douyin": "Nhập từ khoá để tìm trên Douyin",
+    "Douyin gave no videos for this keyword": "Douyin không trả video nào cho từ khoá này",
     "Kuaishou asks for a verification (slider captcha) before it shows this account. Open kuaishou.com in your browser "
     "while signed in, pass the check, export the cookies again, then retry":
         "Kuaishou đòi xác minh (captcha kéo) trước khi hiện tài khoản này. Mở kuaishou.com trên trình duyệt đã đăng "
