@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
    the 56 px top bar and the segmented control. Colours come from the tokens in index.css. */
 
 /** The palette's hues: each section, panel and chip gets one so the screen is told apart by colour, not only by position. */
-export type Hue = "pink" | "amber" | "cyan" | "mint" | "coral" | "lime" | "violet" | "orange";
+export type Hue = "pink" | "amber" | "cyan" | "mint" | "coral" | "lime" | "violet" | "orange" | "blue";
 export const HUE_TEXT: Record<Hue, string> = {
   pink: "text-pink",
   amber: "text-amber",
@@ -16,6 +16,7 @@ export const HUE_TEXT: Record<Hue, string> = {
   lime: "text-lime",
   violet: "text-violet",
   orange: "text-orange",
+  blue: "text-blue",
 };
 export const HUE_DOT: Record<Hue, string> = {
   pink: "bg-pink",
@@ -26,6 +27,7 @@ export const HUE_DOT: Record<Hue, string> = {
   lime: "bg-lime",
   violet: "bg-violet",
   orange: "bg-orange",
+  blue: "bg-blue",
 };
 export const HUE_BORDER: Record<Hue, string> = {
   pink: "border-pink/55",
@@ -36,6 +38,7 @@ export const HUE_BORDER: Record<Hue, string> = {
   lime: "border-lime/55",
   violet: "border-violet/55",
   orange: "border-orange/55",
+  blue: "border-blue/55",
 };
 export const HUE_TILE: Record<Hue, string> = {
   pink: "bg-pink/16 text-pink",
@@ -46,6 +49,7 @@ export const HUE_TILE: Record<Hue, string> = {
   lime: "bg-lime/16 text-lime",
   violet: "bg-violet/16 text-violet",
   orange: "bg-orange/16 text-orange",
+  blue: "bg-blue/16 text-blue",
 };
 export const HUE_SOLID: Record<Hue, string> = {
   pink: "bg-pink text-on-pink",
@@ -56,6 +60,7 @@ export const HUE_SOLID: Record<Hue, string> = {
   lime: "bg-lime text-ground",
   violet: "bg-violet text-ground",
   orange: "bg-orange text-ground",
+  blue: "bg-blue text-ground",
 };
 const HUE_ORDER: Hue[] = ["cyan", "violet", "lime", "pink", "amber", "mint", "orange", "coral"];
 /** A panel with no hue of its own gets a steady one from its title, so the same panel is always the same colour. */

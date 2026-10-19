@@ -80,6 +80,7 @@
     --color-lime: var(--lime);
     --color-violet: var(--violet);
     --color-orange: var(--orange);
+    --color-blue: var(--blue);
     --color-cyan: var(--cyan);
     --color-cyan-hover: var(--cyan-hover);
     --color-mint: var(--mint);
@@ -95,7 +96,7 @@
 
 /* Direction "Neon Studio" (owner picked A of the 2026-10-19 colorful round: the dark editing suite, now with a hue per section).
    Dark only: the app sets .dark on <html>. Every text pair was checked at 4.5:1 (controls 3:1). Hues: pink = primary action and
-   hot scores, amber = needs you, cyan = running / links / focus, mint = done, coral = failed; lime, violet and orange only colour panels and chips. */
+   hot scores, amber = needs you, cyan = running / links / focus, mint = done, coral = failed; lime, violet, orange and blue only colour panels and chips. */
 :root {
     color-scheme: dark;
     --ground: #0F0D24;
@@ -121,6 +122,7 @@
     --lime: #B8F34B;
     --violet: #A99BFF;
     --orange: #FF9A3D;
+    --blue: #5C9DFF;
 
     --background: var(--ground);
     --foreground: #F3F1FF;
