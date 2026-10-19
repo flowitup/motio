@@ -3,11 +3,13 @@ import { ExternalLink, Eye, EyeOff, FolderOpen, Video } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import { ExternalA } from "@/components/external-link";
 import { ScoreBadge } from "@/components/status-chip";
+import { HUE_BORDER, HUE_TEXT, hueFor, SITE_HUE } from "@/components/studio";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Api, Clip } from "@/lib/api";
 import { listName } from "@/lib/watch-name";
+import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** The followed source a clip came from; a Bilibili list is named in the UI language, not with the engine's English text. */
@@ -57,11 +59,13 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
-            <Badge variant="outline">{t.clips.sites[clip.site]}</Badge>
+            <Badge variant="outline" className={cn("font-mono font-semibold uppercase", SITE_HUE[clip.site] && [HUE_BORDER[SITE_HUE[clip.site]], HUE_TEXT[SITE_HUE[clip.site]]])}>
+              {t.clips.sites[clip.site]}
+            </Badge>
             {clip.uploader && <span>{clip.uploader}</span>}
             {clip.views != null && <span>· {t.clips.views(clip.views)}</span>}
             {clip.likes != null && <span>· {t.clips.likes(clip.likes)}</span>}
-            {clip.category && <span>· {clip.category}</span>}
+            {clip.category && <span className={cn("font-medium", HUE_TEXT[hueFor(clip.category)])}>· {clip.category}</span>}
             {clip.rank != null && <span>· {t.clips.rank(clip.rank)}</span>}
             {clip.pubdate != null && <span>· {t.clips.posted} {t.age(clip.pubdate)}</span>}
             {clipSource(clip) && clipSource(clip) !== clip.uploader && (
@@ -106,7 +110,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
               >
                 {clip.status === "hidden" ? <Eye /> : <EyeOff />}
               </Button>
-              <Button onClick={() => navigate(`/projects/new?clip=${encodeURIComponent(clip.id)}`)}>
+              <Button variant={(clip.score ?? 0) >= 75 ? "default" : "outline"} onClick={() => navigate(`/projects/new?clip=${encodeURIComponent(clip.id)}`)}>
                 <Video />
                 {t.clips.produce}
               </Button>

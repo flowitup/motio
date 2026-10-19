@@ -17,11 +17,15 @@ nhà và server. Nó dùng quyền `drive.file`: chỉ thấy các file do chín
    nhưng nên chính tài khoản giữ Drive.
 2. **APIs & Services → Library** → tìm **Google Drive API** → **Enable**.
 3. **APIs & Services → OAuth consent screen** (hoặc "Google Auth platform"): chọn **External**, điền tên app (Motio) và
-   email của bạn. Ở phần **Audience** bấm **Publish app** để chuyển sang **In production**. Bước này quan trọng: ở chế độ
+   email của bạn. Google chỉ cho Publish khi trang **Branding** có link trang chủ và link chính sách quyền riêng tư công
+   khai (cùng domain đó trong **Authorised domains**); app của owner dùng <https://yaiba2307.github.io/motio-privacy/> và
+   `.../privacy.html` (repo công khai `yaiba2307/motio-privacy`). Ở phần **Audience** bấm **Publish app** để chuyển sang
+   **In production**. Bước này quan trọng: ở chế độ
    *Testing*, Google huỷ đăng nhập sau 7 ngày. Scope `drive.file` không cần Google duyệt app; lúc đăng nhập bạn sẽ thấy
    cảnh báo "Google hasn't verified this app": chọn **Advanced → Go to Motio (unsafe)**, đó là app của chính bạn.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**, loại ứng dụng **TVs and Limited Input
-   devices**. Chép **Client ID** và **Client secret**.
+   devices**. Chép **Client ID** và **Client secret** ngay (hoặc **Download JSON**): Google chỉ hiện secret lúc vừa tạo,
+   đóng hộp thoại rồi thì phải tạo secret mới.
 5. Trong Motio: **Cài đặt → Kho lưu trữ (Google Drive)**. Dán Client ID và Client secret, bật "Dùng Google Drive làm kho
    chính", bấm **Lưu**.
 6. Bấm **Đăng nhập Google**. Motio hiện một mã; mở địa chỉ hiện ra (google.com/device) trên bất kỳ thiết bị nào, chọn tài
