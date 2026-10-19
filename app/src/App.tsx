@@ -50,12 +50,15 @@ function RailBadge({ count, label, tone, className }: { count: number; label: st
     <span
       role="img"
       aria-label={label}
+      title={label}
       className={cn(
-        "absolute flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
+        "absolute flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
         tone === "amber" ? "bg-pink text-on-pink" : "bg-coral text-on-amber",
         className,
       )}
     >
+      {/* The warning sign tells the failed count from the pink "needs you" count when both show the same number. */}
+      {tone === "coral" && <TriangleAlert className="size-2.5" strokeWidth={3} />}
       {count}
     </span>
   );
