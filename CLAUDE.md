@@ -249,8 +249,9 @@ on every PR; keep them green.
   from the page context, so the result cards are the same `aweme_info` rows; a plain HTTP client gets the anti-spam
   answer and a browser that keeps the "HeadlessChrome" agent gets the captcha page, hence the real reduced user agent
   and the page-context request. Both paths report a login or a browser check; no captcha or fake session is ever made.
-  The signed path is covered by mocked tests only (the owner has no Douyin account); the browser path is checked live
-  on the owner's Mac.
+  Both paths are checked live on the owner's Mac: the signed path with the owner's own douyin.com cookies (2026-10-19:
+  20 rows for "美食", 10 for "旅行") and the browser path with no account. On macOS 27 another app cannot read Chrome's
+  cookie store even with Full Disk Access, so the cookie file exported from inside Chrome is the cookie source there.
   f2 is imported lazily and once, in a background thread that `_f2()` waits for 15 s at most (importing it asks Douyin
   for an `msToken`, and f2 itself retries for ~135 s when packets are dropped; the load goes on and is used by the next
   download if it ends well; a failed import is not started again for two minutes), its logger

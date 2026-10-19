@@ -152,8 +152,11 @@ What Douyin answered from this Mac (fresh `ttwid`, real `msToken`, browser-like 
 | home feed (`tab/feed`) | still anonymous and fine |
 
 So the signature is not the blocker: Douyin's own search requires a login. When the owner's own douyin.com cookies are
-set up (Settings → Browser cookies), `search` uses this reader. That answer path is covered by mocked tests only (the
-owner has no Douyin account).
+set up (Settings → Browser cookies), `search` uses this reader. Checked live 2026-10-19 with the owner's own exported
+cookies: 20 rows for "美食" and 10 for "旅行" through `douyin_feed.search`, with title, length, author and likes (the
+search cards often carry no play count). On macOS 27 another app cannot read Chrome's cookie store, even with Full Disk
+Access (checked from Terminal and from the app process: `Operation not permitted`), so the cookie source there is a
+`cookies.txt` exported from inside Chrome (a browser extension) and set as the cookie file — not the browser option.
 
 ### 2. The public search site `so.douyin.com`, in a headless Chrome, with no account
 

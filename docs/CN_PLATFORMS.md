@@ -88,11 +88,13 @@ Owner's ask: follow a channel on Kuaishou, Douyin and Weibo, and a scanner (plat
   each), every row's mp4 address remembered so "Make video" works.
 - **Douyin** (`douyin_feed.search`): two readers. With the owner's own douyin.com cookies (Settings → Browser cookies) it
   uses Douyin's own search API, signed by f2; that API answers an anonymous session with `status_code 2483` "please log in
-  first", so it needs the login. With no account it reads the public search site `so.douyin.com` in a headless Chrome
-  (`motio/chrome.py`, real reduced user agent, the page's own unsigned search request made from the page context): live
-  from France, 20 rows for "美食" in 12 s and 50 for "旅行" in 15 s. A browser verification Douyin asks for is reported,
-  never solved. The engine needs Google Chrome / Chromium / Edge installed for that reader (`MOTIO_CHROME` overrides);
-  details in `docs/DOUYIN_F2.md`.
+  first", so it needs the login. Checked live with the owner's account (cookies exported from Chrome): 20 rows for "美食"
+  and 10 for "旅行". On macOS 27 another app cannot read Chrome's cookie store even with Full Disk Access, so the cookie
+  source there is a `cookies.txt` file exported from inside Chrome (extension), not the browser option. With no account it
+  reads the public search site `so.douyin.com` in a headless Chrome (`motio/chrome.py`, real reduced user agent, the
+  page's own unsigned search request made from the page context): live from France, 20 rows for "美食" in 12 s and 50 for
+  "旅行" in 15 s. A browser verification Douyin asks for is reported, never solved. The engine needs Google Chrome /
+  Chromium / Edge installed for that reader (`MOTIO_CHROME` overrides); details in `docs/DOUYIN_F2.md`.
 - **Kuaishou** (`accounts.search_kuaishou`): its search page (`visionSearchPhoto`) with the owner's own cookies; a guest
   `did` cookie gets the slider captcha (`result: 400002`, checked live) and the app reports it. The logged-in path is
   unit-tested; the agent session could not open it because macOS blocks this process from Chrome's cookie store.
