@@ -127,7 +127,6 @@ VI = {
     "ERROR: the engine stopped while the project was running. Click Re-render or create it again.":
         "LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.",
     # pipeline errors
-    "Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)": "Đã đủ {n} video hôm nay (MAX_VIDEOS_PER_DAY)",
     "No voice: add ELEVENLABS_API_KEY in Settings":
         "Chưa có giọng đọc: nhập ELEVENLABS_API_KEY trong Cài đặt",
     "No source links yet": "Chưa có link nguồn nào",
@@ -628,7 +627,7 @@ VI = {
     "This video is larger than {mb} MB": "Video này lớn hơn {mb} MB",
     "This video is too short to use (under {n} s)": "Video quá ngắn để dùng (dưới {n} giây)",
     "Quality check failed: {problems}": "Kiểm tra chất lượng không đạt: {problems}",
-    # Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py)
+    # Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py, feeds.py)
     "{site} cannot be downloaded by Motio (it blocks scripts and yt-dlp has no support). Download the video yourself "
     "and add the file":
         "Motio không tải được video từ {site} (trang chặn công cụ tự động, yt-dlp không hỗ trợ). Hãy tự tải video "
@@ -667,10 +666,15 @@ VI = {
         "Haokan không có video này (đã xoá, riêng tư hoặc link sai)",
     "Haokan sent a page, not a video": "Haokan trả về một trang web chứ không phải video",
     "Haokan sent an empty file": "Haokan trả về file rỗng",
+    "Unknown trending list: {target}": "Không có bảng xếp hạng này: {target}",
+    "Could not reach {site}: {error}": "Không kết nối được {site}: {error}",
+    "{site} returned an error: {error}": "{site} trả về lỗi: {error}",
+    "AcFun returned an error: {error}": "AcFun trả về lỗi: {error}",
+    "Pear Video returned an error: {error}": "Pear Video trả về lỗi: {error}",
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
-    "Not a {site} account link or id: {text}": "Không phải link hay mã tài khoản {site}: {text}",
+"Not a {site} account link or id: {text}": "Không phải link hay mã tài khoản {site}: {text}",
     "Reading an account works on Kuaishou, Douyin and Weibo only":
         "Đọc tài khoản chỉ dùng được cho Kuaishou, Douyin và Weibo",
     "Reading a Kuaishou account needs your own login: sign in to kuaishou.com in your browser, then set the "
@@ -693,4 +697,19 @@ VI = {
     "This link is not a {site} channel, playlist or account": "Link này không phải kênh, playlist hay tài khoản {site}",
     "Enter a hashtag or keyword": "Nhập hashtag hoặc từ khoá",
     "Reading {n} of {total}: {line}": "Đang đọc {n}/{total}: {line}",
+    # Google Drive storage
+    "Google Drive is not signed in: add the client ID and secret, then sign in in Settings":
+        "Chưa đăng nhập Google Drive: nhập client ID và secret rồi đăng nhập trong Cài đặt",
+    "Could not connect to Google: {error}": "Không kết nối được tới Google: {error}",
+    "Google refused the saved sign-in ({error}): sign in again in Settings":
+        "Google từ chối lần đăng nhập đã lưu ({error}): hãy đăng nhập lại trong Cài đặt",
+    "Google Drive error {status}: {error}": "Google Drive báo lỗi {status}: {error}",
+    "Fill in the Google client ID and secret first": "Hãy nhập client ID và secret của Google trước",
+    "Google refused the sign-in ({error})": "Google từ chối đăng nhập ({error})",
+    "Google gave no refresh token: remove Motio at myaccount.google.com/permissions and sign in again":
+        "Google không trả refresh token: hãy gỡ Motio ở myaccount.google.com/permissions rồi đăng nhập lại",
+    "Drive's copy of {name} does not match the file; kept it here":
+        "Bản của {name} trên Drive không khớp với file; đã giữ lại bản trên máy",
+    "Google Drive is switched off or not signed in": "Google Drive đang tắt hoặc chưa đăng nhập",
+    "Could not move files to Google Drive: {error}": "Không chuyển được file lên Google Drive: {error}",
 }

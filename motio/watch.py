@@ -14,13 +14,13 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 from yt_dlp import YoutubeDL
 
-from . import accounts, db, douyin_feed, kuaishou_feed, llm, search, topic, trending, weibo_feed
+from . import accounts, db, douyin_feed, feeds, kuaishou_feed, llm, search, topic, trending, weibo_feed
 from .i18n import tr
 
 KINDS = ("channel", "playlist", "space", "search", "trending", "account")
 SITES = ("youtube", "bilibili")
 # the other trending lists; Bilibili's is trending.py
-FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed, "weibo": weibo_feed}
+FEEDS = {"kuaishou": kuaishou_feed, "douyin": douyin_feed, "weibo": weibo_feed, "acfun": feeds, "pearvideo": feeds}
 FIRST_TAKE = 10  # nguồn mới thêm: hiện 10 video mới nhất mỗi danh sách, phần còn lại coi như đã thấy
 TRENDING_TAKE = 20  # bảng xếp hạng mới thêm: hiện 20 video đầu bảng
 PER_LIST = 15  # mỗi lần kiểm tra đọc tối đa 15 mục đầu của mỗi danh sách
@@ -63,6 +63,8 @@ def classify(text: str, site: str = "youtube") -> dict:
         return {"kind": "trending", "site": "kuaishou", "target": text, "name": kuaishou_feed.name(text)}
     if text.startswith(douyin_feed.PREFIX):  # "douyin:feed"
         return {"kind": "trending", "site": "douyin", "target": text, "name": douyin_feed.name(text)}
+    if feeds.is_target(text):  # "acfun:rank", "acfun:channel:63", "pearvideo:home"
+        return {"kind": "trending", "site": feeds.site(text), "target": text, "name": feeds.name(text)}
     if text.startswith(weibo_feed.PREFIX):  # "weibo:hot"
         return {"kind": "trending", "site": "weibo", "target": text, "name": weibo_feed.name(text)}
     if not re.match(r"^https?://", text, re.I):
@@ -379,18 +381,21 @@ def check_all(ids: list[int] | None = None) -> dict:
 
 
 # ---------- làm video ----------
-def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True) -> int:
+def produce(cid: str, duration: int = 80, links_only: bool | None = None, mute_voice: bool = True,
+            subject: str | None = None) -> int:
     """Dự án chủ đề từ một video mới: link của video + tiêu đề làm chủ đề. LookupError / ValueError.
 
     links_only: None (mặc định) hoặc False = tìm thêm video cho chủ đề; True = chỉ dùng video này. Không còn khai báo
     quyền nguồn (chủ, 2026-10-18: video từ đâu cũng được).
     mute_voice (mặc định): tiếng gốc của nguồn (giọng tiếng Trung) im hẳn dưới giọng đọc Pháp, `meta.mute_source`.
+    subject: chủ đề chủ đã sửa ở trang "Video mới"; None = tiêu đề của video, "" = chỉ dùng link.
     """
     c = db.get_clip(cid)
     if not c:
         raise LookupError(tr("Video not found"))
     title_fr, title = c.get("title_fr") or "", c.get("title") or ""
-    subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
+    if subject is None:
+        subject = f"{title_fr} ({title})" if title_fr and title and title_fr != title else title_fr or title
     pid = topic.create(subject, [c["url"]], bool(links_only), duration)
     db.set_clip_status(cid, "used", pid)
     db.update_project(pid, log=tr("From Followed: {source} · {url}", source=c.get("watch_name") or c["site"],

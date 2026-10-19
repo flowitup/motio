@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from . import config, qa
+from . import config, drive, qa
 from .i18n import tr
 
 PLATFORM = "File"
@@ -37,6 +37,11 @@ def parse(link: str) -> tuple[str, str] | None:
 
 def path_of(uid: str) -> Path | None:
     p = folder() / f"{PLATFORM}_{uid}.mp4"
+    if not p.is_file():
+        try:
+            drive.ensure(p)  # moved to Google Drive: the added file is only there now
+        except drive.DriveError:
+            return None
     return p if p.is_file() else None
 
 

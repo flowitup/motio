@@ -124,6 +124,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | More Chinese sites for pasted links (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu) | `motio/platforms.py` (`identify`, `normalize`, `expand`, `hint`), `motio/haokan.py` (`find_id`, `pick`, `download`; `_transport` hook), `motio/kuaishou.py` (runs the `videodl` command, Kuaishou client only), hooks in `search.download`; docs `docs/CN_PLATFORMS.md`; tests `tests/test_platforms.py`, `test_haokan.py`, `test_kuaishou.py`, `test_search.py` (last block) |
 | A video file added by hand as a source (Douyin etc.) | `motio/localfile.py` (`save`, `parse`, `check`, `source`), `search.clean_links` / `search.download`, `douyin.is_douyin`, `POST /api/uploads`, `app/src/components/add-video-file.tsx` (New video, project sources, trend links); tests `tests/test_localfile.py` |
 | Windows PC at home as the 24/7 engine (Mac = remote client, nothing stored on the Mac) | `tools/windows/motio-server.ps1` (Task Scheduler task "Motio engine", Tailscale-only bind, firewall rule, launcher + token under `%LOCALAPPDATA%\MotioServer`), runbook `docs/WINDOWS_SERVER.md`; `config.disk()` → `/api/health` `disk`, shown in `HealthCard` (`app/src/pages/settings.tsx`) |
+| Google Drive as main storage (finished projects and idle sources leave the machine) | `motio/drive.py` (`sign_in_start` / `sign_in_poll`, `upload` (resumable + md5), `offload_project` / `offload_sources` / `sweep` / `start_sync` / `after_done`, `ensure` / `restore_project` / `restore_glob`, `open_stream`, `forget_project`, `purge_orphans`; `_transport` / `_sleep` test hooks), `db.drive_*` (`drive_file`, `drive_folder`), hooks in `pipeline._produce` / `_load_sources` / `saved_narration` / `_deliver` / `approve_video`, `postiz.project_video`, `edit.delete`, `creator.media`, `api` `/media` fallback + `/api/drive*`, `DRIVE_*` settings, Storage section in `app/src/pages/settings.tsx` (`DriveActions`); docs `docs/GOOGLE_DRIVE.md`; tests `tests/test_drive.py` (fake Drive) |
 | Slack alerts (review / done / failed, one-way Incoming Webhook) | `motio/notify.py` (`valid`, `send`, `project`, `escape`), hooks in `pipeline._await_review` / `_deliver` / `approve_video` / failure handlers, `SLACK_WEBHOOK_URL` (secret), `POST /api/notify/test`, Settings card in `app/src/pages/settings.tsx`; tests `tests/test_notify.py`, `fake_slack` fixture |
 | Legacy Jinja dashboard | `motio/web.py` + `templates/` (to be removed; don't extend) |
 | UI API client + types | `app/src/lib/api.ts` |
@@ -160,8 +161,7 @@ live in `data/tools/delogo/<hex>/`.
   `docs/DEPLOY.md` is still Vietnamese); short comments may be Vietnamese.
 - **Content rules.** Keep "Voix off générée par IA." in the post and the platforms' AI flags (AI Act art. 50).
   The owner removed the on-video "Voix de synthèse (IA)" label on 2026-09-26; don't re-add it unless they ask.
-  Always write `sources.txt`; on-video / in-post credits stay optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`,
-  default off). News videos carry an original French script; source clips only illustrate, in short segments.
+  Always write `sources.txt`; sources are never shown on the video or in the post (owner, 2026-10-18). News videos carry an original French script; source clips only illustrate, in short segments.
 - **Logo removal stays manual.** The only watermark / logo removal is the "Remove logo" tool (`motio/delogo.py`,
   owner's ask 2026-09-27): the user picks one video (a project source or an upload) and starts it; the owner removed
   the rights confirmation (PR #19) and the per-source rights field (PR #21). A rights value sent through the API is
@@ -360,7 +360,7 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
   usually works. Expect fewer sources on the server.
 - `uv` is not on PATH when the app is launched from Finder / Explorer; `engine.rs` searches common
   locations. Keep that list in sync if you change how uv is found.
-- The engine does one video at a time (single worker queue) and enforces `MAX_VIDEOS_PER_DAY` in `produce`. "Remove logo"
+- The engine does one video at a time (single worker queue). "Remove logo"
   jobs have their own one-at-a-time queue (`tools` in `api.py`) so a long LaMa run doesn't hold up production.
 - Stale `running` projects are marked `failed` on engine start; don't rely on resuming them.
 - Release asset names feed `tools/updater_manifest.py`: renaming bundles or changing `bundles:` in

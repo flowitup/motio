@@ -1,7 +1,8 @@
 # Chinese video sites besides Bilibili and Douyin
 
 Owner's ask of 2026-10-17: more source videos from Xiaohongshu, Weibo, Xigua, Kuaishou and Haokan (Baidu). AcFun and Pear Video
-were added in a first version by mistake and removed again the same day; Zhihu stays because the owner asked to test it. Research and options:
+were added in a first version, removed on 2026-10-17 and put back on the owner's word of 2026-10-18 (see "Trending feeds");
+Zhihu stays because the owner asked to test it. Research and options:
 `motio/plans/research-261017-cn-video-platforms.md` in the project files. What is built is below. Everything here
 removes the source's own voice like every other clip, and does nothing to hide where a video came from. Source rights
 are no longer declared anywhere (owner, 2026-10-18).
@@ -38,12 +39,19 @@ Mac or PC may fare differently, and the sandbox's proxy resets connections now a
 
 ## Trending feeds (2026-10-18)
 
-Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou, Douyin and Weibo have a list that a plain visitor can read:
+Owner's question: why does Trending show only Bilibili? Only Bilibili, Kuaishou, Douyin, Weibo, AcFun and Pear Video have a list that a plain visitor can read:
 - **Kuaishou**: the Featured page (`kuaishou.com/brilliant`) asks one GraphQL query (`brilliantTypeData`, channel `00`) that
   answers with no cookie: ~20 videos per answer with the mp4 address. It is a random draw, not a ranking, and there is no
   category. Its search (`visionSearchPhoto`) and detail (`visionVideoDetail`) answer `result: 2` (risk control) without a `did`
   cookie, so they are not used. Tested from a cloud sandbox: feed read and one video downloaded and probed.
 - **Douyin**: the home recommendation feed through f2 (`douyin_feed.py`, Trending → "Douyin · Home feed"): fresh draw, no category. The cloud sandbox cannot reach Douyin's API, so it was tried on the owner's Mac (result below).
+- **AcFun** (`feeds.py`, Trending → "AcFun · …"): the daily ranking `acfun.cn/rest/pc-direct/rank/channel?channelId=<id>&rankPeriod=DAY`
+  answers JSON with no login (up to 100 videos with length, views, likes, upload time); `channelId` empty = all sections,
+  eight sections are offered. Read from a cloud sandbox on 2026-10-16; on 2026-10-18 `acfun.cn` did not answer at all from the
+  sandbox (timeouts on the home page too), so today's run of this source is only covered by mocked tests.
+- **Pear Video** (`feeds.py`, Trending → "Pear Video · Today"): the home page lists the day's clips as `video_<id>` links
+  with a title (no length or view count, so a row can be a few seconds long). Checked 2026-10-18 from the sandbox: 15 clips
+  read, one downloaded through `search.download` (yt-dlp `PearVideo`, 406x720 h264 + aac, 9 s).
 - **Weibo** (`weibo_feed.py`, Trending → "Weibo · Hot videos"): the hot timeline (`/ajax/feed/hottimeline?group_id=102803`)
   answers a visitor once the browser has asked Weibo's own guest endpoint (`passport.weibo.com/visitor/genvisitor2`, one POST,
   `SUB` / `SUBP` cookies); without that cookie it is a 403, which is why the first try failed. About half of the posts are videos,

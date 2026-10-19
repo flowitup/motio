@@ -369,7 +369,6 @@ export type Health = {
   ffprobe: string | null;
   js_runtime: string | null;
   postiz: boolean;
-  quota_left: number | null;
   data_dir: string;
   disk: { free: number; total: number } | null; // ổ chứa thư mục dữ liệu của engine (byte)
 };
@@ -397,7 +396,7 @@ export type RefreshState = {
 };
 
 export type WatchKind = "channel" | "playlist" | "space" | "search" | "trending" | "account";
-export type Site = "youtube" | "bilibili" | "kuaishou" | "douyin" | "weibo";
+export type Site = "youtube" | "bilibili" | "kuaishou" | "douyin" | "weibo" | "acfun" | "pearvideo";
 
 /** Nguồn theo dõi: kênh / playlist YouTube, không gian Bilibili, tìm kiếm đã lưu, bảng xếp hạng Bilibili. */
 export type Watch = {
@@ -473,6 +472,19 @@ export type Clip = {
   first_seen: number;
   status: ClipStatus | "old"; // old = có sẵn lúc thêm nguồn (chỉ hiện trong trang tài khoản)
   project_id: number | null;
+};
+
+export type DriveStatus = {
+  enabled: boolean;
+  signed_in: boolean;
+  client: boolean;
+  folder: string;
+  keep_local: boolean;
+  files: number;
+  bytes: number;
+  account: { email?: string; used?: number | null; limit?: number | null };
+  pending: boolean;
+  sync: { running: boolean; freed: number; error: string; finished: number };
 };
 
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };
@@ -613,8 +625,8 @@ export function makeApi(url: string, token: string) {
     redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
     continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới. */
-    dubClip: (id: string, channel?: number, whole?: boolean) =>
-      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, { channel, whole }),
+    dubClip: (id: string, body: { channel?: number; whole?: boolean; start?: number; end?: number }) =>
+      call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, body),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
     /** Đặt âm lượng tiếng gốc (0..1); nếu đã có giọng đọc thì dựng lại video ngay, không đọc lại. */
     setSourceVolume: (id: number, volume: number) =>
@@ -656,10 +668,14 @@ export function makeApi(url: string, token: string) {
     checkWatch: (id: number) => call<{ started: boolean }>("POST", `/api/watches/${id}/check`),
     clips: (status: ClipStatus, watchId?: number) =>
       call<Clip[]>("GET", `/api/clips?status=${status}${watchId ? `&watch_id=${watchId}` : ""}`),
+    clip: (id: string) => call<Clip>("GET", `/api/clips/${encodeURIComponent(id)}`),
     setClipStatus: (id: string, status: "new" | "hidden") =>
       call<Clip>("PATCH", `/api/clips/${encodeURIComponent(id)}`, { status }),
     /** Video giải thích từ một video mới; links_only = chỉ dùng video này, không tìm thêm YouTube / Bilibili. */
-    produceClip: (id: string, body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean }) =>
+    produceClip: (
+      id: string,
+      body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean; topic?: string },
+    ) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
     /** Trang dự án có lọc (kênh, kiểu, trạng thái, tìm chữ) và "tải thêm" bằng `before`. */
@@ -728,6 +744,11 @@ export function makeApi(url: string, token: string) {
     settings: () => call<Settings>("GET", "/api/settings"),
     saveSettings: (changes: Record<string, string | boolean | null>) => call<Settings>("PUT", "/api/settings", changes),
     testSlack: () => call<{ sent: boolean }>("POST", "/api/notify/test"),
+    drive: () => call<DriveStatus>("GET", "/api/drive"),
+    driveSignIn: () => call<{ code: string; url: string; interval: number; expires_in: number }>("POST", "/api/drive/sign-in"),
+    driveSignInCheck: () => call<{ state: "pending" | "ok" | "denied" | "expired" }>("POST", "/api/drive/sign-in/check"),
+    driveSignOut: () => call<DriveStatus>("POST", "/api/drive/sign-out"),
+    driveSync: () => call<{ started: boolean }>("POST", "/api/drive/sync"),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
     eventsUrl: (id: number) => `${url}/api/projects/${id}/events?${q}`,
   };

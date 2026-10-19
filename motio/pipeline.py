@@ -13,10 +13,10 @@ from . import (
     creator,
     db,
     delogo,
+    drive,
     dub,
     effects,
     llm,
-    localfile,
     masks,
     notify,
     postiz,
@@ -145,26 +145,9 @@ def _fit(plan: dict, want: int) -> dict:
     return creator.tidy(fitted) if ai else fitted
 
 
-class QuotaExceeded(RuntimeError):
-    pass
-
-
 def today_start() -> float:
     t = time.localtime()
     return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
-
-
-def quota_left(exclude: int | None = None) -> int | None:
-    """Số video còn được làm hôm nay theo MAX_VIDEOS_PER_DAY; None = không giới hạn."""
-    cap = config.max_videos_per_day()
-    if not cap:
-        return None
-    return max(cap - db.count_projects_since(today_start(), exclude), 0)
-
-
-def check_quota(exclude: int | None = None) -> None:
-    if quota_left(exclude) == 0:
-        raise QuotaExceeded(tr("Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)", n=config.max_videos_per_day()))
 
 
 class Step:
@@ -373,9 +356,12 @@ def _load_sources(pid: int) -> list[dict]:
     sources = []
     for s in db.get_project(pid)["meta"].get("sources") or []:
         path = s.get("path")
+        if path and not Path(path).exists():
+            drive.ensure(Path(path))  # moved to Google Drive: fetch it back
         if not path or not Path(path).exists():
             vid = s.get("id") or s["url"].rsplit("=", 1)[-1]
-            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4"))
+            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4")) \
+                or drive.restore_glob(config.CACHE / "sources", f"*_{vid}.mp4")
             if not hits:
                 raise FileNotFoundError(tr("Source file missing: {url}", url=s["url"]))
             path = str(hits[0])
@@ -429,7 +415,10 @@ def saved_narration(pid: int) -> dict | None:
         plan = json.loads((out / "script.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if nar.get("texts") != [ln["text"] for ln in plan.get("lines") or []] or not Path(nar.get("audio", "")).is_file():
+    if nar.get("texts") != [ln["text"] for ln in plan.get("lines") or []]:
+        return None
+    audio = Path(nar.get("audio", ""))
+    if not (audio.is_file() or (nar.get("audio") and drive.has(audio))):  # the voice may be on Google Drive
         return None
     return nar
 
@@ -506,11 +495,10 @@ def _produce(pid: int, duration_sec: int, max_sources: int, start: str) -> None:
     at = STEPS.index(start)
     is_ai = creator.is_ai(db.get_project(pid))
     try:
+        drive.restore_project(pid)  # voice, pictures and clips that moved to Google Drive come back before the run
         if db.get_project(pid)["meta"].get("review"):  # chạy lại / làm tiếp: bỏ trạng thái chờ duyệt cũ
             db.update_project(pid, meta={"review": None})
-        if at == 0:  # chạy lại từ bước sau không làm thêm video mới trong ngày
-            check_quota(exclude=pid)
-        else:
+        if at != 0:
             step(STEP_LABELS[start], STEP_PCT[start], tr("Rerun from step {step}", step=tr(STEP_LABELS[start])))
         at = max(at, STEPS.index("script")) if is_ai else at  # video AI không tìm / tải / bóc lời nguồn
         if is_ai:
@@ -616,13 +604,9 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
 def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
     (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
-    lines = [(s["platform"], f"• {s['platform']} · {s['uploader']} — {s['url']}") for s in sources]
-    (out / "sources.txt").write_text("\n".join(ln for _, ln in lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
-    # a video file added by hand has no uploader or web link to credit: it stays in sources.txt only
-    credits = "\n".join(ln for platform, ln in lines if platform != localfile.PLATFORM)
+    lines = [f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources]
+    (out / "sources.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
     desc = plan.get("description", "").strip()
-    if credits and config.flag("CREDIT_IN_POST"):
-        desc += f"\n\nSources :\n{credits}"
     label = "Voix off générée par IA." + (" Images et vidéos générées par IA." if ai_images and ai_clips
                                           else " Images générées par IA." if ai_images else "")
     desc += f"\n\n{label}\n{' '.join(plan.get('hashtags', [])[:6])}"
@@ -776,6 +760,7 @@ def _deliver(pid: int, ch: dict | None) -> None:
     ok = send_to_postiz(pid, ch) if ch and not sent and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
     notify.project(pid, "done", sent=ok)
+    drive.after_done(pid)
 
 
 def send_to_postiz(pid: int, ch: dict) -> bool:
@@ -821,6 +806,7 @@ def approve_video(pid: int, send: bool = True) -> None:
     ok = send_to_postiz(pid, ch) if send and ch and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
     notify.project(pid, "done", sent=ok)
+    drive.after_done(pid)
 
 
 def rerender(pid: int) -> None:

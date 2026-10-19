@@ -61,7 +61,6 @@ def _items(n):
 def test_news_scoring_accepts_a_wrapped_list_and_skips_unanswered_items(monkeypatch):
     items = _items(3)
     monkeypatch.setattr(newsnow, "fetch", lambda s: items)
-    monkeypatch.setattr(newsnow.config, "news_sources", lambda: ["weibo"])
     answer = {"items": [{"id": "weibo:0", "title_fr": "Un", "score": 80},
                         {"id": "weibo:1", "title_fr": "Deux", "score": 40}]}
     monkeypatch.setattr(newsnow.llm, "ask_json", lambda *a, **k: answer)

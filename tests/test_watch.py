@@ -343,9 +343,29 @@ def test_watch_routes(client, monkeypatch):
     assert p["meta"]["mute_source"] is True  # the source's own (Chinese) voice is off unless asked otherwise
     assert client.post("/api/clips/youtube:v1/produce", headers=H, json={"duration": 5}).status_code == 400
     assert client.post("/api/clips/nope/produce", headers=H).status_code == 404
+    one = client.get("/api/clips/youtube:v1", headers=H).json()  # the "Make video" page reads one video
+    assert one["id"] == "youtube:v1" and one["watch_name"] == "Vox FR" and one["watch_kind"] == "channel"
+    assert client.get("/api/clips/nope", headers=H).status_code == 404
     assert client.patch("/api/clips/youtube:v1", headers=H, json={"status": "hidden"}).status_code == 400
 
     assert client.delete(f"/api/watches/{w['id']}", headers=H).json() == {"deleted": w["id"]}
     assert client.get("/api/watches", headers=H).json() == []
     assert db.get_clip("youtube:v1")["status"] == "used"  # video đã làm giữ lại
     assert client.delete(f"/api/watches/{w['id']}", headers=H).status_code == 404
+
+
+def test_produce_clip_with_a_topic_from_the_form(client):
+    db.insert_clips([{"id": "youtube:t1", "site": "youtube", "title": "Pandas", "title_fr": "Les pandas",
+                      "url": "https://www.youtube.com/watch?v=t1", "status": "new"},
+                     {"id": "youtube:t2", "site": "youtube", "title": "Koalas",
+                      "url": "https://www.youtube.com/watch?v=t2", "status": "new"}])
+    body = {"duration": 80, "topic": "  Pourquoi les pandas   dorment "}
+    r = client.post("/api/clips/youtube:t1/produce", headers=H, json=body)
+    assert db.get_project(r.json()["project_id"])["meta"]["topic"] == "Pourquoi les pandas dorment"
+    default = client.post("/api/clips/youtube:t2/produce", headers=H, json={"duration": 80})  # no topic: the title
+    assert db.get_project(default.json()["project_id"])["meta"]["topic"] == "Koalas"
+    db.insert_clips([{"id": "youtube:t3", "site": "youtube", "title": "Ours",
+                      "url": "https://www.youtube.com/watch?v=t3", "status": "new"}])
+    blank = client.post("/api/clips/youtube:t3/produce", headers=H, json={"duration": 80, "topic": ""})
+    meta = db.get_project(blank.json()["project_id"])["meta"]
+    assert meta["topic"] == "" and meta["links_only"] is True  # an emptied topic = made from the video alone

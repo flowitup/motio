@@ -591,7 +591,7 @@ def burn_cues(entries: list[dict], measure: Callable[[str], float], max_w: float
 def burn_layout(width: int, height: int, size: str, cjk: bool) -> render.Layout:
     """Dải phụ đề sát đáy, cỡ chữ theo cạnh ngắn của khung hình; nét viền và lề theo tỉ lệ với cỡ chữ."""
     cap = max(18, round(min(width, height) * SIZES[size]) // 2 * 2)
-    base = render.Layout(width, height, "burn_", cap / render.CAP_SIZE, 0, 0, 0, 0, False, 0, 0, cap,
+    base = render.Layout(width, height, "burn_", cap / render.CAP_SIZE, 0, 0, 0, 0, False, 0, cap,
                          round(cap * 1.3), cjk)
     return replace(base, cap_top=height - base.cap_h - round(height * (0.08 if height > width else 0.05)))
 

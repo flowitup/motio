@@ -66,6 +66,10 @@ as authoritative for scope and milestones.
     (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are videos, a fresh draw, no categories; each row's
     mp4 address (http on `*.weibocdn.com`, only that host and only public addresses are fetched) is kept in
     `data/cache/weibo_media.json` so `search.download` gets the file without yt-dlp (`weibo_feed.download`)
+  - `feeds.py` AcFun's daily ranking (`acfun:rank`, `acfun:channel:<id>` for 8 sections) and Pear Video's home page
+    (`pearvideo:home`) as Trending sources, plus both as pasted links (yt-dlp has an extractor for each, no login; they
+    were removed on 2026-10-17 and put back on the owner's word of 2026-10-18: "Thêm AcFun và PearVideo"); Pear Video's
+    list has no length, so a row can be a few seconds long
   - `platforms.py` + `haokan.py` more Chinese sites for pasted links (owner, 2026-10-17: Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan):
     `platforms.py` knows the hosts (Xiaohongshu, Weibo, Xigua, Kuaishou, Haokan, Zhihu), fixes link shapes
     yt-dlp does not understand (`normalize`: `weibo.com/2/detail/<id>`, Xigua ids), follows an `xhslink.com` short link
@@ -73,7 +77,7 @@ as authoritative for scope and milestones.
     `haokan.py` downloads Haokan videos from the address in the phone page (yt-dlp has no extractor); Xigua links are tried on Douyin first (same id, f2, no cookies; the web page is a bot check); `kuaishou.py` runs the separate
     videodl program for Kuaishou (owner 2026-10-17: "dùng videodl"; PolyForm Noncommercial, so never bundled or imported, only
     called as a command, only its Kuaishou client, never its generic parsers that use watermark-removal sites); no feed
-    for these sites (AcFun and Pear Video were added by mistake and removed, owner 2026-10-17); details and what was tested in
+    for these sites except as below; details and what was tested in
     `docs/CN_PLATFORMS.md`
   - `accounts.py` + `scan.py` the videos of one account on Kuaishou, Douyin and Weibo (owner, 2026-10-18: follow a channel, and a
     scanner): `accounts.fetch` reads a Weibo profile (guest session, no signing), a Douyin account (f2 signs it) and a
@@ -97,12 +101,17 @@ as authoritative for scope and milestones.
     from the channel's / playlist's RSS feed (a flat list has none), Bilibili's from the video page, a video with no time
     goes last under "Date unknown"
   - `postiz.py` hand finished videos to a self-hosted Postiz (Public API) for posting
+  - `drive.py` Google Drive as the main storage (owner, 2026-10-18: "storage chính", 30 TB account): the Drive REST API through
+    httpx with the owner's own OAuth client (device flow, scope `drive.file`, `DRIVE_*` settings, tokens only in `settings.json`);
+    a finished project's files ≥ 1 MiB and idle `cache/sources/` videos are uploaded (resumable, size + md5 checked) and then
+    deleted locally unless `DRIVE_KEEP_LOCAL`; `drive_file` in SQLite says where each went; `/media` streams from Drive when a file
+    is not local, `restore_project` / `ensure` bring files back before a run; runbook `docs/GOOGLE_DRIVE.md`
   - `notify.py` Slack alerts: one message to the owner's Incoming Webhook (`SLACK_WEBHOOK_URL`, https://hooks.slack.com only) when a project waits for approval, is done (and whether Postiz took it) or fails; a failure to send is only logged
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
   - `automake.py` after each scheduled refresh, make videos for new trends at or above a profile's `auto_score`
-    (per-profile `auto_daily` cap + `MAX_VIDEOS_PER_DAY`); such projects carry `meta.auto`
+    (per-profile `auto_daily` cap); such projects carry `meta.auto`
   - `i18n.py` engine messages in the UI language (`tr`, `tr_n`, Vietnamese in `VI`, `UI_LANG`)
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a
@@ -176,8 +185,8 @@ on every PR; keep them green.
   never hardcode `/opt/homebrew` or `C:\` paths outside a lookup helper.
 - All LLM calls go through `motio/llm.py` and the Anthropic API (owner, 2026-10-08: $200/month API budget, `claude -p`
   is gone). Light work (scoring, picking) passes `light=True` for the fast model; every call is recorded in `usage`.
-- Source credits are optional (`CREDIT_ON_VIDEO`, `CREDIT_IN_POST`, default off); always write
-  `sources.txt` in the project folder.
+- Sources are never credited on the video or in the post (owner, 2026-10-18: the credit switches, the daily video cap
+  and `NEWS_SOURCES` were removed); always write `sources.txt` in the project folder.
 - Source rights are not declared (owner, 2026-10-18: "remove this for all actions that need to put it as mine, we
   don't mind if the video came from nowhere"): no rights field in the app or the API, and no rights gate — a dub or
   an explainer is auto-sent like any video through a channel profile that lists Postiz channels with its video gate
