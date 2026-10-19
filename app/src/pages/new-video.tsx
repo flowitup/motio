@@ -639,6 +639,7 @@ export default function NewVideoPage() {
           label={t.projects.create}
           value={kind}
           onChange={setKind}
+          accent="pink"
           className="w-[460px] max-w-full"
           options={kinds.map(({ value, icon: Icon }) => ({
             value,

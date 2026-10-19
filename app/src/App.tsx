@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
-import { Led } from "@/components/studio";
+import { HUE_SOLID, HUE_TILE, Led, type Hue } from "@/components/studio";
 import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
 import { BUSY_MS } from "@/lib/poll";
@@ -24,27 +24,27 @@ import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 import TrendVideosPage from "@/pages/trend-videos";
 
-type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame };
+type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame; hue?: Hue };
 /** The rail's groups, separated by thin dividers. Settings sits at the bottom, above the engine status. */
 const NAV: NavItem[][] = [
   [
-    { to: "/trends", label: "trends", icon: Flame },
-    { to: "/news", label: "news", icon: Newspaper }, // only while NEWS_TOPICS is on
-    { to: "/clips", label: "clips", icon: Rss },
-    { to: "/projects", label: "projects", icon: FolderKanban },
+    { to: "/trends", label: "trends", icon: Flame, hue: "amber" },
+    { to: "/news", label: "news", icon: Newspaper, hue: "orange" }, // only while NEWS_TOPICS is on
+    { to: "/clips", label: "clips", icon: Rss, hue: "cyan" },
+    { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
-  [{ to: "/channels", label: "channels", icon: Tv }],
+  [{ to: "/channels", label: "channels", icon: Tv, hue: "pink" }],
   [
-    { to: "/delogo", label: "delogo", icon: Eraser },
-    { to: "/tools", label: "tools", icon: Wrench },
+    { to: "/delogo", label: "delogo", icon: Eraser, hue: "coral" },
+    { to: "/tools", label: "tools", icon: Wrench, hue: "lime" },
   ],
-  [{ to: "/stats", label: "stats", icon: ChartColumn }],
+  [{ to: "/stats", label: "stats", icon: ChartColumn, hue: "mint" }],
 ];
 
 const railItem =
-  "relative flex h-14 flex-col items-center justify-center gap-1 text-xs leading-4 font-medium whitespace-nowrap transition-colors";
+  "relative mx-2 flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-xs leading-4 font-medium whitespace-nowrap transition-colors";
 
-/** A count on the rail: amber = waiting for you (approvals), coral = failed lately. */
+/** A count on the rail: pink = waiting for you (approvals), coral = failed lately. */
 function RailBadge({ count, label, tone, className }: { count: number; label: string; tone: "amber" | "coral"; className: string }) {
   return (
     <span
@@ -52,7 +52,7 @@ function RailBadge({ count, label, tone, className }: { count: number; label: st
       aria-label={label}
       className={cn(
         "absolute flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
-        tone === "amber" ? "bg-amber text-on-amber" : "bg-coral text-on-amber",
+        tone === "amber" ? "bg-pink text-on-pink" : "bg-coral text-on-amber",
         className,
       )}
     >
@@ -65,27 +65,34 @@ function RailItem({
   to,
   label,
   icon: Icon,
+  hue,
   count,
   failed,
 }: {
   to: string;
   label: string;
   icon: typeof Flame;
+  hue?: Hue;
   count?: number;
   failed?: number;
 }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) => cn(railItem, isActive ? "bg-raised text-foreground" : "text-muted-foreground hover:bg-raised/60 hover:text-foreground")}
+      className={({ isActive }) => cn(railItem, isActive ? "bg-white/8 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}
     >
       {({ isActive }) => (
         <>
-          {isActive && <span className="absolute inset-y-0 left-0 w-0.5 bg-amber" />}
-          <span className="relative">
-            <Icon className={cn("size-5", isActive && "text-amber")} />
-            {!!count && <RailBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" className="-top-1.5 -right-3" />}
-            {!!failed && <RailBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" className="-bottom-1.5 -left-3" />}
+          {/* Each section has its own hue: a tinted tile, solid while it is the open page. */}
+          <span
+            className={cn(
+              "relative flex size-[38px] items-center justify-center rounded-[11px]",
+              hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "bg-white/10 text-muted-foreground",
+            )}
+          >
+            <Icon className="size-5" />
+            {!!count && <RailBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" className="-top-1.5 -right-2" />}
+            {!!failed && <RailBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" className="-bottom-1.5 -left-2" />}
           </span>
           <span>{label}</span>
         </>
@@ -117,7 +124,7 @@ function UpdateNotice() {
     <NavLink
       to="/settings"
       title={t.update.available(result.version)}
-      className={cn(railItem, "text-mint hover:bg-raised/60 hover:text-mint")}
+      className={cn(railItem, "text-mint hover:bg-white/5 hover:text-mint")}
     >
       <Download className="size-5" />
       <span>{t.update.short}</span>
@@ -209,8 +216,8 @@ export default function App() {
       >
         {t.a11y.skip}
       </button>
-      <nav aria-label={t.studio.mainNav} className="flex w-20 shrink-0 flex-col border-r bg-ground">
-        <div className="flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
+      <nav aria-label={t.studio.mainNav} className="flex w-[92px] shrink-0 flex-col border-r bg-monitor">
+        <div className="flex h-16 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
           <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">
             <g stroke="var(--amber)">
@@ -226,8 +233,8 @@ export default function App() {
         <div className="flex flex-1 flex-col overflow-y-auto pt-2">
           {NAV.map((group, i) => (
             <div key={i} className={cn("flex flex-col", i > 0 && "mt-2 border-t pt-2")}>
-              {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon }) => (
-                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} count={to === "/projects" ? counts?.review : undefined}
+              {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon, hue }) => (
+                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} count={to === "/projects" ? counts?.review : undefined}
                   failed={to === "/projects" ? counts?.failed_recent : undefined}
                 />
               ))}

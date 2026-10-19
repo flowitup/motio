@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice } from "@/components/form";
 import { SetupCard } from "@/components/setup-notices";
-import { FilterChip, Led, LedLabel, PageTitle, TopBar } from "@/components/studio";
+import { FilterChip, Led, PageTitle, STATUS_HUE, StatusSticker, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,16 +74,21 @@ function ProjectCard({
         aria-label={t.studio.openProject(title)}
         className="block rounded-lg text-foreground hover:text-foreground"
       >
-        <div className="rounded-lg border border-hairline-strong bg-monitor p-2">
+        <div
+          className={cn(
+            "rounded-xl border bg-monitor p-2",
+            p.status === "review" ? "border-2 border-amber" : p.status === "failed" ? "border-coral/50" : "border-hairline-strong",
+          )}
+        >
           <div className="relative aspect-[9/16] overflow-hidden rounded-xs bg-monitor">
             {p.meta.thumb ? (
               <img src={api.mediaUrl(p.meta.thumb, p.updated_at)} alt="" className="size-full object-cover" loading="lazy" />
             ) : (
               <PosterPlaceholder p={p} />
             )}
-            <span className="absolute top-2 left-2 inline-flex h-6 items-center rounded-lg border border-hairline-strong bg-monitor px-2">
-              <LedLabel status={p.status}>{t.projects.status[p.status] ?? p.status}</LedLabel>
-            </span>
+            <StatusSticker status={p.status} className="absolute top-2 left-2">
+              {t.projects.status[p.status] ?? p.status}
+            </StatusSticker>
             {busy && (
               <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/12">
                 <div className="h-full bg-cyan" style={{ width: `${p.pct}%` }} />
@@ -182,7 +187,7 @@ export default function ProjectsPage() {
       <div className="sticky top-14 z-10 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b bg-ground px-6 py-2">
         <div className="flex items-center gap-2 overflow-x-auto">
           {FILTERS.map((f) => (
-            <FilterChip key={f} on={filter === f} onClick={() => setFilter(f)} count={countOf(f)} led={f !== "all" && <Led status={f} />}>
+            <FilterChip key={f} on={filter === f} onClick={() => setFilter(f)} count={countOf(f)} hue={f === "all" ? undefined : STATUS_HUE[f]} led={f !== "all" && <Led status={f} />}>
               {f === "all" ? t.studio.filterAll : f === "review" ? t.studio.filterNeedsYou : t.projects.status[f]}
             </FilterChip>
           ))}

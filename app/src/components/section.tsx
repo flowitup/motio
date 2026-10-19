@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
-import { PanelHeader } from "@/components/studio";
+import { HUE_TEXT, hueFor, PanelHeader } from "@/components/studio";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,7 +45,7 @@ export function Section({
             )}
           >
             <ChevronRight aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
-            <span className="font-mono text-xs leading-4 font-medium tracking-[0.06em] text-muted-foreground uppercase">{title}</span>
+            <span className={cn("font-mono text-xs leading-4 font-medium tracking-[0.06em] uppercase", HUE_TEXT[typeof title === "string" ? hueFor(title) : "cyan"])}>{title}</span>
             {aside && <span className="ml-auto min-w-0 truncate pl-3 text-xs text-muted-foreground">{aside}</span>}
           </button>
         </h2>
