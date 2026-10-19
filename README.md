@@ -273,6 +273,7 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `YTDLP_COOKIES_FILE` | Path (on the engine's machine) of a `cookies.txt` exported from a browser, for an engine without a browser (server, Windows PC): used for pasted links and for Bilibili (search, downloads, followed spaces); wins over the browser; checked when saved, never served by `/media` |
 | `CREDIT_ON_VIDEO`, `CREDIT_IN_POST` | Show source credits on the video / in the post (default off; `sources.txt` is always written) |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
+| `DRIVE_ON`, `DRIVE_CLIENT_ID`, `DRIVE_CLIENT_SECRET`, `DRIVE_FOLDER` (default `Motio`), `DRIVE_KEEP_LOCAL` | Google Drive as main storage: finished projects and idle source videos move to your Drive and leave this machine (runbook `docs/GOOGLE_DRIVE.md`). `DRIVE_REFRESH_TOKEN` is written by the sign-in in Settings, never by hand |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
 | `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
 | `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |

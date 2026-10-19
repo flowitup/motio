@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from . import config, db
+from . import config, db, drive
 from .i18n import tr
 
 MODES = ("draft", "schedule", "now")
@@ -122,6 +122,11 @@ def project_video(meta: dict, version: str = "vertical") -> Path | None:
     """File video của dự án theo khổ, None nếu chưa có."""
     rel = meta.get("wide" if version == "wide" else "video")
     path = config.DATA / rel if rel else None
+    if path and not path.is_file():
+        try:
+            drive.ensure(path)  # the video moved to Google Drive: bring it back to send it
+        except drive.DriveError:
+            return None
     return path if path and path.is_file() else None
 
 

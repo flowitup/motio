@@ -13,6 +13,7 @@ from . import (
     creator,
     db,
     delogo,
+    drive,
     dub,
     effects,
     llm,
@@ -373,9 +374,12 @@ def _load_sources(pid: int) -> list[dict]:
     sources = []
     for s in db.get_project(pid)["meta"].get("sources") or []:
         path = s.get("path")
+        if path and not Path(path).exists():
+            drive.ensure(Path(path))  # moved to Google Drive: fetch it back
         if not path or not Path(path).exists():
             vid = s.get("id") or s["url"].rsplit("=", 1)[-1]
-            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4"))
+            hits = sorted((config.CACHE / "sources").glob(f"*_{vid}.mp4")) \
+                or drive.restore_glob(config.CACHE / "sources", f"*_{vid}.mp4")
             if not hits:
                 raise FileNotFoundError(tr("Source file missing: {url}", url=s["url"]))
             path = str(hits[0])
@@ -429,7 +433,10 @@ def saved_narration(pid: int) -> dict | None:
         plan = json.loads((out / "script.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if nar.get("texts") != [ln["text"] for ln in plan.get("lines") or []] or not Path(nar.get("audio", "")).is_file():
+    if nar.get("texts") != [ln["text"] for ln in plan.get("lines") or []]:
+        return None
+    audio = Path(nar.get("audio", ""))
+    if not (audio.is_file() or (nar.get("audio") and drive.has(audio))):  # the voice may be on Google Drive
         return None
     return nar
 
@@ -506,6 +513,7 @@ def _produce(pid: int, duration_sec: int, max_sources: int, start: str) -> None:
     at = STEPS.index(start)
     is_ai = creator.is_ai(db.get_project(pid))
     try:
+        drive.restore_project(pid)  # voice, pictures and clips that moved to Google Drive come back before the run
         if db.get_project(pid)["meta"].get("review"):  # chạy lại / làm tiếp: bỏ trạng thái chờ duyệt cũ
             db.update_project(pid, meta={"review": None})
         if at == 0:  # chạy lại từ bước sau không làm thêm video mới trong ngày
@@ -776,6 +784,7 @@ def _deliver(pid: int, ch: dict | None) -> None:
     ok = send_to_postiz(pid, ch) if ch and not sent and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
     notify.project(pid, "done", sent=ok)
+    drive.after_done(pid)
 
 
 def send_to_postiz(pid: int, ch: dict) -> bool:
@@ -821,6 +830,7 @@ def approve_video(pid: int, send: bool = True) -> None:
     ok = send_to_postiz(pid, ch) if send and ch and ch["postiz"] else None
     db.update_project(pid, status="done", step=tr("Done"), pct=100)
     notify.project(pid, "done", sent=ok)
+    drive.after_done(pid)
 
 
 def rerender(pid: int) -> None:

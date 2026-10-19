@@ -5,6 +5,7 @@ Xác thực: `Authorization: Bearer <token>`; `?token=` chỉ nhận cho /media 
 """
 import asyncio
 import json
+import mimetypes
 import platform
 import re
 import secrets
@@ -31,6 +32,7 @@ from . import (
     db,
     delogo,
     douyin_feed,
+    drive,
     dub,
     edit,
     effects,
@@ -1055,6 +1057,39 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(400, str(e)) from e
         return {"sent": True}
 
+    # ---------- Google Drive (kho chính) ----------
+    def _drive(fn, *args):
+        try:
+            return fn(*args)
+        except drive.DriveError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/drive", dependencies=[Depends(auth)])
+    def drive_status():
+        return drive.status()
+
+    @app.post("/api/drive/sign-in", dependencies=[Depends(auth)])
+    def drive_sign_in():
+        """Bước 1: Google trả mã; người dùng nhập mã ở google.com/device bằng tài khoản Drive của mình."""
+        return _drive(drive.sign_in_start)
+
+    @app.post("/api/drive/sign-in/check", dependencies=[Depends(auth)])
+    def drive_sign_in_check():
+        """Bước 2 (app hỏi mỗi vài giây): pending | ok | denied | expired."""
+        return {"state": _drive(drive.sign_in_poll)}
+
+    @app.post("/api/drive/sign-out", dependencies=[Depends(auth)])
+    def drive_sign_out():
+        drive.sign_out()
+        return drive.status()
+
+    @app.post("/api/drive/sync", dependencies=[Depends(auth)], status_code=202)
+    def drive_sync():
+        """Đưa ngay mọi thứ có thể đưa lên Drive (dự án xong, video nguồn không ai dùng) rồi dọn bản trên máy."""
+        if not drive.enabled():
+            raise HTTPException(400, tr("Google Drive is switched off or not signed in"))
+        return {"started": drive.start_sync()}
+
     # ---------- xoá logo (video người dùng chọn) ----------
     def _dl(fn, *args):
         try:
@@ -1208,14 +1243,21 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     # ---------- file ----------
     @app.get("/media/{path:path}", dependencies=[Depends(auth_or_query)])
-    def media(path: str):
+    def media(path: str, request: Request):
         root = config.DATA.resolve()
         f = (root / path).resolve()
         cookies = search.cookie_file()  # cookie đăng nhập: không phục vụ dù đặt trong thư mục dữ liệu
-        if (not f.is_relative_to(root) or not f.is_file() or f.name == settings.path().name
+        if (not f.is_relative_to(root) or f.name == settings.path().name
                 or f.relative_to(root).parts[0] not in MEDIA_DIRS or f.name.startswith(".env")
                 or (cookies and f == cookies.resolve())):
             raise HTTPException(404, tr("File not found"))
+        if not f.is_file():  # moved to Google Drive: play it from there
+            stream = drive.open_stream(f.relative_to(root).as_posix(), request.headers.get("range"))
+            if not stream:
+                raise HTTPException(404, tr("File not found"))
+            code, headers, body = stream
+            kind = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+            return StreamingResponse(body, status_code=code, headers=headers, media_type=kind)
         return FileResponse(f)
 
     return app

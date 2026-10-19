@@ -16,7 +16,7 @@ import re
 import time
 from pathlib import Path
 
-from . import aiclips, config, db, images, render, series, topic, usage
+from . import aiclips, config, db, drive, images, render, series, topic, usage
 from .i18n import tr
 
 MODE = "ai"
@@ -341,7 +341,7 @@ def view(proj: dict) -> dict | None:
 
 def media(path: Path) -> str | None:
     """A file under the data folder as the path /media serves; None when it isn't there."""
-    if not path.is_file():
+    if not path.is_file() and not drive.has(path):  # a picture on Google Drive is served from there
         return None
     try:
         return path.resolve().relative_to(config.DATA.resolve()).as_posix()
