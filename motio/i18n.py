@@ -342,8 +342,13 @@ VI = {
     "Claude is translating lines {a}–{b} of {n}": "Claude đang dịch câu {a}–{b} trên {n} câu",
     "Dub the whole video": "Lồng tiếng cả video",
     "Dub a part of the video": "Lồng tiếng một đoạn của video",
-    " (a dub of the whole video is longer than {max} s, the Facebook Reels limit: approve it and send it yourself)":
-        " (bản lồng tiếng cả video dài hơn {max} giây, giới hạn của Facebook Reels: bạn duyệt rồi tự gửi)",
+    " (the video is longer than {max} s, the Facebook Reels limit: approve it and send it yourself)":
+        " (video dài hơn {max} giây, giới hạn của Facebook Reels: bạn duyệt rồi tự gửi)",
+    "Duration must be {lo}–{hi} seconds": "Độ dài phải từ {lo} đến {hi} giây (hoặc 70, 80, 90)",
+    "Claude returned no plan for the video": "Claude không trả về dàn ý cho video",
+    "Writing part {k} of {n}": "Đang viết phần {k} trên {n}",
+    "Claude wrote no lines for part {k}": "Claude không viết câu nào cho phần {k}",
+    "Video is {length} s (you asked for about {target} s)": "Video dài {length} giây (bạn chọn khoảng {target} giây)",
     "end": "cuối",
     "auto": "tự chọn",
     "Dub in French: {url}{part}": "Lồng tiếng Pháp: {url}{part}",

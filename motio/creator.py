@@ -16,11 +16,14 @@ import re
 import time
 from pathlib import Path
 
-from . import aiclips, config, db, drive, images, render, series, topic, usage
+from . import aiclips, config, db, drive, images, llm, render, series, topic, usage
 from .i18n import tr
 
 MODE = "ai"
-DURATIONS = topic.DURATIONS  # 70 | 80 | 90 s: every video is 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
+DURATIONS = topic.DURATIONS  # 70 | 80 | 90 s: the presets, which keep the 62–90 s rule (pipeline.MIN_SECONDS…)
+FREE_MIN, FREE_MAX = 30, 1800  # seconds: any other length the owner picks for an AI video (owner, 2026-10-18)
+LONG = 150  # seconds: a longer video is written part by part (one Claude call per part), not fitted afterwards
+PART = 75  # seconds of narration in one part of a long video
 MAX_PROMPT = 600
 MAX_RECAP = 500
 MAX_CAST_TEXT = 2500  # a video's own cast lines (same limit as a channel's)
@@ -66,6 +69,15 @@ def is_ai(proj: dict | None) -> bool:
     return bool(proj) and proj.get("mode") == MODE
 
 
+def is_free(duration) -> bool:
+    """A length the owner picked (FREE_MIN–FREE_MAX s) that is not one of the presets: no 62–90 s window applies."""
+    try:
+        d = int(duration)
+    except (TypeError, ValueError):
+        return False
+    return d not in DURATIONS and FREE_MIN <= d <= FREE_MAX
+
+
 def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, review_shots: bool = False,
            cast: str = "", same_face: bool = True) -> int:
     """Create an AI video project (not started). ValueError (translated) when something is missing or wrong, or
@@ -77,8 +89,8 @@ def create(topic_text: str, duration: int = 80, clip_limit: int | None = None, r
     text = _one(topic_text)[:300]
     if not text:
         raise ValueError(tr("Enter a topic for the AI video"))
-    if duration not in DURATIONS:
-        raise ValueError(tr("Duration must be one of {choices} seconds", choices=", ".join(map(str, DURATIONS))))
+    if not is_free(duration) and duration not in DURATIONS:
+        raise ValueError(tr("Duration must be {lo}–{hi} seconds", lo=FREE_MIN, hi=FREE_MAX))
     if clip_limit is not None and not 0 <= clip_limit <= aiclips.MAX_PER_VIDEO:
         raise ValueError(tr("AI clips per video must be between 0 and {n}", n=aiclips.MAX_PER_VIDEO))
     cast_text = "\n".join(ln.strip() for ln in str(cast or "").strip().splitlines() if ln.strip())[:MAX_CAST_TEXT]
@@ -129,6 +141,88 @@ def tidy(plan: dict) -> dict:
     if "recap" in plan:
         tidy_plan["recap"] = _one(plan["recap"])[:MAX_RECAP]
     return tidy_plan
+
+
+OUTLINE_PROMPT = """Sujet : {topic}
+
+Prépare le plan d'une vidéo explicative d'environ {minutes} de voix off (≈ {sec} secondes, {words} mots au total),
+découpée en {n} parties d'environ {part} mots. Toutes les images sont générées par IA (une image par ligne).
+- La partie 1 s'ouvre sur une accroche ; la dernière se termine par une question ou une ouverture.
+- Les parties se suivent comme un récit ou une démonstration, sans se répéter.
+- N'invente aucun fait précis (chiffre, nom, date, citation) dont tu n'es pas sûr. Reste neutre sur les sujets
+  politiques.
+- « style » : une phrase en anglais (10 à 20 mots) qui fixe le style visuel commun à toutes les images (type de
+  photo, palette, lumière).{extra}
+
+Réponds avec :
+{{"title_fr": "titre final (max 80 caractères)", "style": "...",
+  "sections": [{{"title": "...", "summary": "2 phrases : ce que raconte cette partie"}}],
+  "description": "2 phrases pour la description du post, sans hashtags",
+  "hashtags": ["#...", "..."]}}"""
+
+SECTION_PROMPT = """Sujet de la vidéo : {topic}
+Titre : {title}
+Style visuel commun à toutes les images : {style}
+Plan : {outline}
+
+Tu écris la partie {k} sur {n} : « {name} » — {summary}
+{before}Écris UNIQUEMENT la voix off de cette partie : {w_min}–{w_max} mots au total, en lignes de 20 mots maximum.
+- Ne répète pas ce qui est dit dans les autres parties ; reste dans le sujet de cette partie.{opening}{closing}
+- « image » : pour chaque ligne, un prompt EN ANGLAIS de 25 à 50 mots qui décrit UNE scène concrète et visuelle
+  illustrant la ligne (sujet, décor, lumière, cadrage), comme une photo de reportage. Ce sont des illustrations
+  générées par IA : pas de texte, de logo, de sous-titre ni de panneau lisible dans l'image, aucune personnalité
+  réelle reconnaissable, aucune scène violente ou choquante. Varie les plans (large, moyen, gros plan) et les lieux.
+  Un personnage qui revient garde exactement la même description d'une image à l'autre.
+- « motion » : le mouvement lent de la caméra sur l'image, parmi zoom_in, zoom_out, pan_left, pan_right (alterne).{cast}
+
+Réponds avec :
+{{"lines": [{{"text": "...", "image": "...", "motion": "zoom_in"}}]}}"""
+
+
+def parts_for(seconds: int) -> int:
+    return max(2, round(seconds / PART))
+
+
+def write_long(topic_text: str, seconds: int, words: int, system: str, extra: str, cast_note: str, step,
+               pcts: tuple[int, int] = (5, 20)) -> dict:
+    """The script of a long video (more than LONG seconds), part by part: one call for the plan (title, visual style,
+    description, hashtags, the parts), then one call per part for its lines (text, picture prompt, camera move), each
+    knowing the plan and the end of the part before it. `extra`: the channel's series block (asks for the recap too);
+    `cast_note`: only the cast rules, for the parts. Returns the tidy plan (title_fr, style, lines…)."""
+    n = parts_for(seconds)
+    part_words = max(40, round(words / n))
+    outline = llm.ask_json(OUTLINE_PROMPT.format(
+        topic=topic_text, minutes=f"{seconds / 60:.0f} minutes" if seconds >= 90 else f"{seconds} secondes",
+        sec=seconds, words=words, n=n, part=part_words, extra=extra), system)
+    outline = outline if isinstance(outline, dict) else {}
+    secs = [x for x in outline.get("sections") or []
+            if isinstance(x, dict) and _one(x.get("title") or x.get("summary"))]
+    if len(secs) < 2:
+        raise RuntimeError(tr("Claude returned no plan for the video"))
+    title, style = _one(outline.get("title_fr")) or topic_text, _one(outline.get("style"))
+    names = " / ".join(f"{i + 1}. {_one(x.get('title'))}" for i, x in enumerate(secs))
+    lines: list[dict] = []
+    lo, hi = pcts
+    for k, sec in enumerate(secs):
+        step("Script", lo + (hi - lo) * k // len(secs), tr("Writing part {k} of {n}", k=k + 1, n=len(secs)))
+        before = ""
+        if lines:
+            tail = " ".join(_one(ln.get("text")) for ln in lines[-3:])
+            before = f"Fin de la partie précédente (continue sans la répéter) : « {tail} »\n"
+        res = llm.ask_json(SECTION_PROMPT.format(
+            topic=topic_text, title=title, style=style or "-", outline=names, k=k + 1, n=len(secs),
+            name=_one(sec.get("title")), summary=_one(sec.get("summary")), before=before,
+            w_min=part_words - 20, w_max=part_words + 20,
+            opening="\n- La première ligne est une accroche de 14 mots maximum." if k == 0 else "",
+            closing="\n- Termine par une question ou une ouverture." if k == len(secs) - 1 else "",
+            cast=("\n" + cast_note.strip()) if cast_note.strip() else ""), system)
+        got = [ln for ln in (res.get("lines") if isinstance(res, dict) else None) or []
+               if isinstance(ln, dict) and _one(ln.get("text"))]
+        if not got:
+            raise RuntimeError(tr("Claude wrote no lines for part {k}", k=k + 1))
+        lines += got
+    plan = {k: outline[k] for k in ("title_fr", "style", "description", "hashtags", "recap") if outline.get(k)}
+    return tidy({**plan, "lines": lines})
 
 
 def _scene(plan: dict, ln: dict) -> str:

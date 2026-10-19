@@ -710,6 +710,13 @@ const en = {
     confirmDeleteResult: "The cleaned copy is deleted. Your uploaded video stays.",
   },
   ai: {
+    length: "Length",
+    lengthHint:
+      "Pick 1 min 10 s, 1 min 20 s or 1 min 30 s (1 min 2 s to 1 min 30 s), or Your length: any length from 30 s to 30 min. A video longer than 1 min 30 s is written part by part, costs more (voice, pictures) and is not sent to Postiz on its own (Facebook Reels limit): you approve it and send it yourself.",
+    lengthCustom: "Your length",
+    lengthPlaceholder: "5:00",
+    lengthBad: "Write a length between 0:30 and 30:00, like 5:00 or 300.",
+    lengthRule: "Your length, from 0:30 to 30:00. The video aims at it, give or take 10 %. Longer than 1:30, it waits for your approval before Postiz.",
     topic: "Topic",
     topicHint:
       "Any subject, in any language. Claude writes the French narration and one picture prompt per line, an image model makes every picture, and Motio adds a slow camera move, the voice and the captions.",
@@ -1857,6 +1864,13 @@ const vi: Messages = {
     confirmDeleteResult: "Bản đã xoá logo bị xoá. Video bạn tải lên vẫn còn.",
   },
   ai: {
+    length: "Độ dài",
+    lengthHint:
+      "Chọn 1 phút 10, 1 phút 20 hoặc 1 phút 30 (1 phút 2 giây đến 1 phút 30 giây), hoặc Độ dài của bạn: từ 30 giây đến 30 phút. Video dài hơn 1 phút 30 được viết từng phần, tốn hơn (giọng đọc, ảnh) và không tự gửi Postiz (giới hạn Facebook Reels): bạn duyệt rồi tự gửi.",
+    lengthCustom: "Độ dài của bạn",
+    lengthPlaceholder: "5:00",
+    lengthBad: "Ghi độ dài từ 0:30 đến 30:00, ví dụ 5:00 hoặc 300.",
+    lengthRule: "Độ dài của bạn, từ 0:30 đến 30:00. Video nhắm tới độ dài đó, lệch khoảng 10 %. Dài hơn 1:30 thì chờ bạn duyệt trước khi gửi Postiz.",
     topic: "Chủ đề",
     topicHint:
       "Chủ đề bất kỳ, bằng ngôn ngữ nào cũng được. Claude viết lời bình tiếng Pháp và một prompt ảnh cho mỗi dòng, mô hình ảnh làm từng ảnh, rồi Motio thêm chuyển động máy quay chậm, giọng đọc và phụ đề.",

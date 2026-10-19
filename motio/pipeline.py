@@ -106,6 +106,28 @@ def target_seconds(duration_sec: int | None) -> int:
     return min(max(int(duration_sec or DEFAULT_SECONDS), MIN_SECONDS + 8), MAX_SECONDS - TOP_MARGIN)
 
 
+def length_rule(proj: dict, default: int = DEFAULT_SECONDS) -> dict:
+    """The length a video is held to: {free, long, target, lo, hi} in seconds. The presets (and every other mode) keep
+    62–90 s. An AI video whose length the owner picked (creator.is_free, 30 s to 30 min, owner 2026-10-18) aims at that
+    length: up to creator.LONG seconds it is fitted to ±10 %, a longer one is written part by part and never
+    fitted or trimmed afterwards (lo 0, hi a day)."""
+    meta = proj.get("meta") or {}
+    d = meta.get("duration") or default
+    if creator.is_ai(proj) and creator.is_free(d):
+        d = int(d)
+        long = d > creator.LONG
+        return {"free": True, "long": long, "target": d, "lo": 0.0 if long else round(d * 0.9, 1),
+                "hi": 86400.0 if long else round(d * 1.1, 1)}
+    return {"free": False, "long": False, "target": target_seconds(d), "lo": float(MIN_SECONDS),
+            "hi": float(MAX_SECONDS)}
+
+
+def too_long_to_send(proj: dict) -> bool:
+    """A finished video longer than the Facebook Reels limit (MAX_SECONDS): never sent to Postiz on its own, it waits at
+    the video gate and the owner sends it from the app. `meta.seconds` is set by the render."""
+    return float((proj.get("meta") or {}).get("seconds") or 0) > MAX_SECONDS + qa.LENGTH_SLACK
+
+
 def _words(plan: dict) -> int:
     return sum(len(ln["text"].split()) for ln in plan["lines"])
 
@@ -114,27 +136,27 @@ def _save_script(out: Path, plan: dict) -> None:
     (out / "script.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-def _trim(plan: dict, nar: dict) -> tuple[dict, int]:
+def _trim(plan: dict, nar: dict, hi: float = MAX_SECONDS) -> tuple[dict, int]:
     """Bỏ câu gần cuối (giữ câu mở đầu và câu kết, còn ít nhất 3 câu) theo thời lượng từng câu đã đo, tới khi
-    giọng + đuôi ≤ MAX_SECONDS. Trả (plan mới, số câu đã bỏ)."""
+    giọng + đuôi ≤ hi (mặc định MAX_SECONDS). Trả (plan mới, số câu đã bỏ)."""
     lines = list(plan["lines"])
     spans = [s["end"] - s["start"] for s in nar.get("lines") or []]
     if len(spans) != len(lines):  # thiếu mốc thời gian từng câu: chia theo số từ
         total_words = max(_words(plan), 1)
         spans = [nar["duration"] * len(ln["text"].split()) / total_words for ln in lines]
-    total, budget = nar["duration"], MAX_SECONDS - render.TAIL - TRIM_MARGIN
+    total, budget = nar["duration"], hi - render.TAIL - TRIM_MARGIN
     while total > budget and len(lines) > 3:
         total -= spans.pop(-2)
         del lines[-2]
     return {**plan, "lines": lines}, len(plan["lines"]) - len(lines)
 
 
-def _fit(plan: dict, want: int) -> dict:
+def _fit(plan: dict, want: int, min_s: float = MIN_SECONDS, max_s: float = MAX_SECONDS) -> dict:
     """Claude viết lại kịch bản cho đủ khoảng `want` từ; lỗi hay trả về ít dòng quá thì giữ bản cũ."""
     now = _words(plan)
     ai = any(isinstance(ln, dict) and ln.get("image") for ln in plan["lines"])  # video AI: lines carry picture prompts
     new = llm.ask_json(FIT_PROMPT.format(
-        now=now, want=want, lo=want - 5, hi=want + 10, min_s=MIN_SECONDS, max_s=MAX_SECONDS,
+        now=now, want=want, lo=want - 5, hi=want + 10, min_s=f"{min_s:.0f}", max_s=f"{max_s:.0f}",
         how=(FIT_LONGER_AI if ai else FIT_LONGER) if want > now else FIT_SHORTER,
         plan=json.dumps(plan, ensure_ascii=False)), FIT_SYSTEM)
     lines = [ln for ln in (new.get("lines") if isinstance(new, dict) else None) or [] if (ln.get("text") or "").strip()]
@@ -310,14 +332,18 @@ def _step_script(proj: dict, sources: list[dict], transcripts: list[dict], out: 
 
 
 def _finish_script(proj: dict, plan: dict, ch: dict | None, out: Path, step, words: int, title: str,
-                   pcts: tuple[int, int]) -> dict:
-    """Phần chung của bước kịch bản: đủ dòng, đủ dài (Claude viết thêm nếu ngắn), tiêu đề, hashtag kênh, lưu."""
+                   pcts: tuple[int, int], rule: dict | None = None) -> dict:
+    """Phần chung của bước kịch bản: đủ dòng, đủ dài (Claude viết thêm nếu ngắn), tiêu đề, hashtag kênh, lưu.
+    `rule` (length_rule): video dài tự chọn thì không viết lại để chỉnh độ dài (đã viết từng phần)."""
     if len(plan["lines"]) < 3:
         raise RuntimeError(tr("Script too short"))
-    if _words(plan) < (MIN_SECONDS - render.TAIL) * WORDS_PER_SEC:  # chắc chắn dưới 62 s: viết dài ra trước khi đọc
+    min_s = rule["lo"] if rule and rule["free"] else MIN_SECONDS
+    max_s = rule["hi"] if rule and rule["free"] else MAX_SECONDS
+    if not (rule and rule["long"]) and _words(plan) < (min_s - render.TAIL) * WORDS_PER_SEC:
+        # chắc chắn dưới độ dài tối thiểu: viết dài ra trước khi đọc
         step("Script", pcts[0], tr("Script has {words}, too short for a video ≥ {min} s: making it longer",
-                                   words=tr_n(_words(plan), "word"), min=MIN_SECONDS))
-        plan = _fit(plan, words)
+                                   words=tr_n(_words(plan), "word"), min=f"{min_s:.0f}"))
+        plan = _fit(plan, words, *((min_s, max_s) if rule and rule["free"] else ()))
     plan["title_fr"] = plan.get("title_fr") or title
     if ch:
         plan["hashtags"] = channels.merge_tags(ch, plan.get("hashtags") or [])
@@ -332,18 +358,24 @@ def _step_ai_script(proj: dict, out: Path, step, duration_sec: int) -> dict:
     nguồn video nên bước này là bước đầu tiên."""
     step("Script", 5, tr("Claude is writing the French narration and the picture prompts"))
     ch = channels.for_project(proj)
+    rule = length_rule(proj, duration_sec)
     words = int(duration_sec * WORDS_PER_SEC)
     n_min, n_max = topic.lines_for(duration_sec)
     cast = series.for_project(ch, proj)  # the channel's recurring characters and the video's own
     extra, episode = series.block(ch, proj["id"], cast)  # the channel's series (earlier recaps) and the cast
-    plan = creator.tidy(llm.ask_json(creator.SCRIPT_PROMPT.format(
-        topic=proj["meta"]["topic"], n_min=n_min, n_max=n_max, w_min=words - 15, w_max=words + 10, sec=duration_sec,
-        extra=extra), creator.SCRIPT_SYSTEM + channels.style_note(ch)))
+    if rule["long"]:  # a long video is written part by part: a plan, then the lines of each part
+        plan = creator.write_long(proj["meta"]["topic"], duration_sec, words,
+                                  creator.SCRIPT_SYSTEM + channels.style_note(ch), extra,
+                                  series.block(None, proj["id"], cast)[0], step, (5, 20))
+    else:
+        plan = creator.tidy(llm.ask_json(creator.SCRIPT_PROMPT.format(
+            topic=proj["meta"]["topic"], n_min=n_min, n_max=n_max, w_min=words - 15, w_max=words + 10,
+            sec=duration_sec, extra=extra), creator.SCRIPT_SYSTEM + channels.style_note(ch)))
     if cast:  # kept with the script: the same looks reach every picture, also when the profile changes later
         plan["cast"] = cast
         if (proj["meta"].get("ai") or {}).get("same_face"):
             plan["same_face"] = True  # scenes made from one reference portrait per character (creator.faces_on)
-    plan = _finish_script(proj, plan, ch, out, step, words, proj["title"], (20, 30))
+    plan = _finish_script(proj, plan, ch, out, step, words, proj["title"], (20, 30), rule)
     if episode:
         ai = {**((db.get_project(proj["id"]) or {}).get("meta", {}).get("ai") or {}), "episode": episode,
               "recap": plan.get("recap") or ""}
@@ -488,7 +520,7 @@ def _produce(pid: int, duration_sec: int, max_sources: int, start: str) -> None:
     if start not in STEPS:
         raise ValueError(tr("Invalid step: {step}", step=start))
     step = Step(pid)
-    duration_sec = target_seconds(db.get_project(pid)["meta"].get("duration") or duration_sec)
+    duration_sec = length_rule(db.get_project(pid), duration_sec)["target"]
     out = config.PROJECTS / str(pid)
     out.mkdir(parents=True, exist_ok=True)
     t_begin = time.time()
@@ -565,35 +597,38 @@ def resume(pid: int, start: str | None = None) -> None:
     produce(pid, start=start)
 
 
-def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = None) -> tuple[dict, dict]:
+def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = None,
+           rule: dict | None = None) -> tuple[dict, dict]:
     """Đọc kịch bản (voice: giọng ElevenLabs của kênh, None = theo Cài đặt). Video (giọng + đuôi) ngoài
-    [MIN_SECONDS, MAX_SECONDS] thì Claude chỉnh độ dài một lần, theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá
-    MAX_SECONDS thì bỏ câu gần cuối và đọc lại. Trả (plan, narration)."""
+    [lo, hi] (mặc định MIN_SECONDS–MAX_SECONDS; video AI do chủ chọn độ dài thì theo length_rule) thì Claude chỉnh độ
+    dài một lần, theo tốc độ đọc đo được, rồi đọc lại. Vẫn quá hi thì bỏ câu gần cuối và đọc lại. Trả (plan,
+    narration)."""
+    lo, hi = (rule["lo"], rule["hi"]) if rule else (MIN_SECONDS, MAX_SECONDS)
     step("Voice", 64, tr("Generating the French voice"))
     nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
     length = nar["duration"] + render.TAIL
     step("Voice", 67, f"{nar['provider']} · {nar['voice']} · {nar['duration']:.1f} s")
     if nar["duration"] <= 0:
         return plan, nar
-    if not MIN_SECONDS <= length <= MAX_SECONDS:
+    if not lo <= length <= hi:
         want = round(_words(plan) * (duration_sec - render.TAIL) / nar["duration"])
         step("Voice", 67, tr("Video is {length} s, needs {min}–{max} s: adjusting the script to ~{words} words",
-                             length=f"{length:.0f}", min=MIN_SECONDS, max=MAX_SECONDS, words=want))
-        fitted = _fit(plan, want)
+                             length=f"{length:.0f}", min=f"{lo:.0f}", max=f"{hi:.0f}", words=want))
+        fitted = _fit(plan, want, *((lo, hi) if rule else ()))
         if fitted is not plan:
             plan = fitted
             _save_script(out, plan)
             nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
             step("Voice", 68, tr("Re-voiced: {duration} s", duration=f"{nar['duration']:.1f}"), title=plan["title_fr"])
-    for _ in range(2):  # trần cứng: Facebook Reels (API) không nhận video quá 90 s
+    for _ in range(2):  # trần cứng: Facebook Reels (API) không nhận video quá 90 s (video AI tự chọn: ±10 %)
         length = nar["duration"] + render.TAIL
-        if length <= MAX_SECONDS:
+        if length <= hi:
             break
-        cut, n = _trim(plan, nar)
+        cut, n = _trim(plan, nar, hi)
         if not n:
             break
         step("Voice", 69, tr("Video is {length} s, max {max} s: dropping {sentences} near the end and re-voicing",
-                             length=f"{length:.0f}", max=MAX_SECONDS, sentences=tr_n(n, "sentence")))
+                             length=f"{length:.0f}", max=f"{hi:.0f}", sentences=tr_n(n, "sentence")))
         plan = cut
         _save_script(out, plan)
         nar = tts.synthesize([ln["text"] for ln in plan["lines"]], out / "audio", voice=voice)
@@ -620,6 +655,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     ch = channels.for_project(proj)
     is_dub = proj.get("mode") == dub.MODE
     is_ai = creator.is_ai(proj)
+    rule = length_rule(proj, duration_sec)  # video AI chủ tự chọn độ dài: không bó trong 62–90 s
     want = aiclips.limit(proj, ch) if is_ai else 0  # số cảnh thành clip AI (kênh hoặc riêng video này)
     if want:
         aiclips.check_ready()  # thiếu khoá fal thì dừng trước khi trả tiền cho bất kỳ ảnh nào
@@ -640,7 +676,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                 dub.remember_voices(pid, nar)
             else:
                 before = plan
-                plan, nar = _voice(plan, out, step, duration_sec, voice=voice)
+                keep = {"rule": rule} if rule["free"] else {}  # video AI chủ tự chọn độ dài
+                plan, nar = _voice(plan, out, step, duration_sec, voice=voice, **keep)
                 if is_ai and plan is not before:  # the voice step rewrote or trimmed the script: one picture per scene
                     sources = creator.pictures(pid, plan, out, step, lo=69, hi=69)
         (out / "audio").mkdir(parents=True, exist_ok=True)
@@ -655,6 +692,9 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
     length = nar["duration"] + render.TAIL
     if is_dub:  # độ dài đã định ở bước giọng (dub.voice): đoạn gốc + phần mở / kết
         pass
+    elif rule["free"]:
+        step("Voice", 70, tr("Video is {length} s (you asked for about {target} s)", length=f"{length:.0f}",
+                             target=rule["target"]))
     elif length < MIN_SECONDS:
         step("Voice", 70, tr("Voice is {length} s: holding the last picture until {min} s" if is_ai
                              else "Voice is {length} s: extending the ending with source footage to {min} s",
@@ -676,7 +716,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
                             badge=channels.badge_for(proj), wide=wide)
     elif is_ai:
-        res = render.render(**creator.render_args(plan, sources, nar, MIN_SECONDS), narration=nar, out_dir=out,
+        res = render.render(**creator.render_args(plan, sources, nar, 0.0 if rule["free"] else MIN_SECONDS),
+                            narration=nar, out_dir=out,
                             progress=prog, badge=channels.badge_for(proj), wide=wide)
     else:
         # the source's own sound under the French voice: the owner's level (meta.src_volume), or none for a video made
@@ -693,8 +734,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                               "Open Remove logo, click Remove logo again, then Re-render video", n=i + 1, spans=spans))
 
     # 6b. Kiểm tra chất lượng video vừa dựng: lỗi nặng thì không tự gửi Postiz (xem _deliver)
-    # a whole-video dub lasts as long as the source video: no 62–90 s window for the length check
-    lo, hi = (0, 24 * 3600) if dub.is_whole(proj) else (MIN_SECONDS, MAX_SECONDS)
+    # a whole-video dub lasts as long as the source, and an AI video's length is the owner's pick: no 62–90 s window
+    lo, hi = (0, 24 * 3600) if dub.is_whole(proj) or rule["free"] else (MIN_SECONDS, MAX_SECONDS)
     verdict = qa.check_project(pid, Path(res.get("video") or out / "final.mp4"), lo, hi)
     bad = [c["msg"] for c in verdict["checks"] if c["level"] != "ok"]
     step("Render", 97, tr("Quality check: {problems}", problems=" · ".join(bad)) if bad else tr("Quality check passed"),
@@ -714,7 +755,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
                             "wide": f"projects/{pid}/final_wide.mp4" if res.get("wide") else None,
                             "title": plan["title_fr"], "description": desc,
                             "hashtags": plan.get("hashtags", []), "tts": nar["provider"],
-                            "voice": nar["voice"], "elapsed": round(time.time() - t_begin)})
+                            "voice": nar["voice"], "elapsed": round(time.time() - t_begin),
+                            "seconds": round(res["duration"], 1)})
     # 8. Chờ duyệt video, tự gửi Postiz, hoặc xong (theo hồ sơ kênh)
     _deliver(pid, ch)
 
@@ -731,10 +773,9 @@ def _why_held(proj: dict) -> str:
         problems = " · ".join(c["msg"] for c in proj["meta"]["qa"]["checks"] if c["level"] == "fail")
         return tr(" (quality check failed: {problems}; fix it, or approve the video yourself before it goes out)",
                   problems=problems)
-    if dub.too_long_to_send(proj):
-        return tr(" (a dub of the whole video is longer than {max} s, the Facebook Reels limit: approve it and send "
-                  "it yourself)", max=MAX_SECONDS)
-
+    if too_long_to_send(proj):
+        return tr(" (the video is longer than {max} s, the Facebook Reels limit: approve it and send it yourself)",
+                  max=MAX_SECONDS)
     if creator.clips_need_review(proj):
         return tr(" (clips from a provider whose terms for monetized channels are not checked yet: approve the "
                   "video yourself before it goes out)")
@@ -749,7 +790,7 @@ def _deliver(pid: int, ch: dict | None) -> None:
     video dài quá giới hạn Reels, không bao giờ tự gửi: luôn dừng chờ duyệt video."""
     proj = db.get_project(pid)
     sent = bool(proj["meta"].get("postiz"))
-    held = bool(ch and ch["postiz"] and (dub.too_long_to_send(proj) or creator.needs_review(proj)
+    held = bool(ch and ch["postiz"] and (too_long_to_send(proj) or creator.needs_review(proj)
                                          or qa.failed(proj)))
     if ch and not sent and (ch["gate_video"] or held):
         why = _why_held(proj) if held and not ch["gate_video"] else ""
