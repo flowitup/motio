@@ -1,4 +1,6 @@
 """Accounts (motio/accounts.py): the videos of a Weibo / Douyin / Kuaishou account, followed or scanned."""
+import json
+
 import httpx
 import pytest
 
@@ -138,7 +140,8 @@ def kuaishou_site(monkeypatch):
 
     def handler(req: httpx.Request) -> httpx.Response:
         state["calls"].append(req)
-        body = state["data"] or {"visionProfilePhotoList": {"result": 1, "pcursor": "no_more", "feeds": state["feeds"]}}
+        op = json.loads(req.content)["operationName"]
+        body = state["data"] or {op: {"result": 1, "pcursor": "no_more", "feeds": state["feeds"]}}
         return httpx.Response(200, json={"data": body})
 
     monkeypatch.setattr(accounts, "_transport", httpx.MockTransport(handler))
@@ -167,6 +170,23 @@ def test_kuaishou_captcha_is_reported_not_worked_around(kuaishou_site):
     with pytest.raises(accounts.AccountError, match="slider captcha"):
         accounts.fetch("kuaishou", "3xnh5duxe4aafxk")
     assert len(kuaishou_site["calls"]) == 1  # no retry loop against the check
+
+
+def test_kuaishou_keyword_search_uses_the_same_cookies_and_search_page(kuaishou_site):
+    rows = accounts.search_kuaishou("美食")
+    assert [r["id"] for r in rows] == ["kuaishou:3xaaaaaaaaaaaaa", "kuaishou:3xbbbbbbbbbbbbb"]
+    req = kuaishou_site["calls"][0]
+    sent = json.loads(req.content)
+    assert sent["operationName"] == "visionSearchPhoto" and sent["variables"]["keyword"] == "美食"
+    assert sent["variables"]["page"] == "search" and "did=web_1" in req.headers["cookie"]
+    assert kuaishou_feed.media_url("3xaaaaaaaaaaaaa") == KS_MP4
+
+
+def test_kuaishou_keyword_search_without_a_login_does_not_even_ask(kuaishou_site):
+    kuaishou_site["cookies"] = {}
+    with pytest.raises(accounts.AccountError, match="your own login"):
+        accounts.search_kuaishou("美食")
+    assert kuaishou_site["calls"] == []
 
 
 # ---------- Douyin ----------
@@ -300,6 +320,20 @@ def test_scan_hashtag_and_keyword_use_the_platform_search(monkeypatch):
     assert _wait(scan.start("youtube", "hashtag", "#roblox", 20)["id"])["rows"][0]["views"] == 5
     assert _wait(scan.start("youtube", "keyword", "roblox", 20)["id"])["status"] == "done"
     assert [c[1] for c in calls] == ["https://www.youtube.com/hashtag/roblox", "ytsearch20:roblox"]
+
+
+def test_scan_kuaishou_keyword_and_hashtag_go_to_its_search(monkeypatch):
+    asked = []
+
+    def fake(word, take=50):
+        asked.append((word, take))
+        return [{"id": "kuaishou:3xaaaaaaaaaaaaa", "site": "kuaishou", "url": "https://www.kuaishou.com/short-video/3xaaaaaaaaaaaaa",
+                 "title": "t", "views": 9}]
+
+    monkeypatch.setattr(accounts, "search_kuaishou", fake)
+    assert _wait(scan.start("kuaishou", "keyword", "美食", 20)["id"])["rows"][0]["views"] == 9
+    assert _wait(scan.start("kuaishou", "hashtag", "#美食", 20)["id"])["status"] == "done"
+    assert asked == [("美食", 20), ("美食", 20)]
 
 
 def test_scan_can_be_stopped(monkeypatch):

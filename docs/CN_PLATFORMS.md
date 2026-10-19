@@ -90,3 +90,10 @@ A new site with a yt-dlp extractor: add a `Platform` in `platforms.py`, its extr
 - Xigua with real browser cookies (for videos not on Douyin), Zhihu with cookies, and Xiaohongshu notes that need a login: try them on the Mac.
 - A Xiaohongshu / Haokan feed (category or account page): none could be read without a login. Weibo has the hot-video feed only (no category, no account page).
 - Kuaishou: videodl reads some links only; share links (`v.kuaishou.com`, `/f/…`) failed in the Mac test. A logged-in crawler such as MediaCrawler would be a separate decision.
+
+### Keyword and hashtag scan on Kuaishou (2026-10-19, not tried on the real site)
+
+The Scan screen's keyword / hashtag mode works on Kuaishou through its own search page (`visionSearchPhoto`, the same
+GraphQL call the page makes), read with the owner's cookies like an account (`accounts.search_kuaishou`). It was built
+from the page's public request and tested only against a mock. Douyin has no keyword scan (f2 has no search method; its
+search is signed, and Motio does not write signing code). Weibo's search wants a login and was not reachable as a guest.

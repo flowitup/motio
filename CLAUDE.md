@@ -81,7 +81,7 @@ as authoritative for scope and milestones.
     browser, `search.site_cookies`; a slider captcha is reported, never solved); `watch.py` follows such an account (kind
     `account`, target `<site>:user:<id>`, `accounts.identify` reads the link); `scan.py` is the Scan screen's engine (one
     platform + mode account / hashtag / keyword, 1–10 lines, a background job read by polling, nothing saved or made;
-    YouTube / Bilibili go through yt-dlp and `trending.py`, hashtag and keyword exist only where a site's search is open)
+    YouTube / Bilibili go through yt-dlp and `trending.py`, hashtag and keyword exist on YouTube, Bilibili and Kuaishou (its search page, owner's cookies, untried on the real site))
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option

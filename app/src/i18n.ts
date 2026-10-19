@@ -189,7 +189,7 @@ const en = {
     limitOption: (n: number) => `${n} videos`,
     noSearch: "This platform has no hashtag or keyword scan: its search only answers a signed-in app. Scan an account instead, or follow it.",
     notes: {
-      kuaishou: "A Kuaishou account page opens only for a signed-in browser: Motio uses your own login from Settings → Browser cookies.",
+      kuaishou: "Kuaishou accounts and keyword search open only for a signed-in browser: Motio uses your own login from Settings → Browser cookies. Keyword search has not been tried on the real site yet.",
       bilibili: "Bilibili spaces may ask for your login (Settings → Browser cookies). A tag shows the most played of the last 7 days, up to 20.",
       youtube: "A channel gives its latest videos and Shorts, up to the number above for each.",
       douyin: "Douyin accounts are read without a login; a private or empty account shows as an error.",
@@ -1315,7 +1315,7 @@ const vi: Messages = {
     limitOption: (n: number) => `${n} video`,
     noSearch: "Nền tảng này không quét theo hashtag hay từ khoá: tìm kiếm của họ chỉ trả lời app đã đăng nhập. Hãy quét tài khoản, hoặc theo dõi tài khoản.",
     notes: {
-      kuaishou: "Trang tài khoản Kuaishou chỉ mở cho trình duyệt đã đăng nhập: Motio dùng đăng nhập của chính bạn ở Cài đặt → Cookie trình duyệt.",
+      kuaishou: "Tài khoản và tìm kiếm từ khoá của Kuaishou chỉ mở cho trình duyệt đã đăng nhập: Motio dùng đăng nhập của chính bạn ở Cài đặt → Cookie trình duyệt. Tìm từ khoá chưa thử trên trang thật.",
       bilibili: "Không gian Bilibili có thể đòi đăng nhập (Cài đặt → Cookie trình duyệt). Tag hiện video xem nhiều nhất 7 ngày qua, tối đa 20.",
       youtube: "Một kênh trả về video và Shorts mới nhất, mỗi loại tối đa bằng số ở trên.",
       douyin: "Tài khoản Douyin đọc được không cần đăng nhập; tài khoản riêng tư hoặc trống sẽ báo lỗi.",

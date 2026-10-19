@@ -15,7 +15,7 @@ link like any pasted one.
 """
 import re
 import time
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -215,31 +215,40 @@ def _douyin(ident: str, take: int) -> tuple[str, list[dict]]:
 
 
 # ---------- Kuaishou ----------
-def _kuaishou(ident: str, take: int) -> tuple[str, list[dict]]:
+KS_SEARCH = ("fragment photoContent on PhotoEntity{__typename id duration caption likeCount viewCount coverUrl "
+             "photoUrl timestamp} fragment feedContent on Feed{type author{id name} photo{...photoContent}} "
+             "query visionSearchPhoto($keyword:String,$pcursor:String,$searchSessionId:String,$page:String){"
+             "visionSearchPhoto(keyword:$keyword,pcursor:$pcursor,searchSessionId:$searchSessionId,page:$page){"
+             "result searchSessionId pcursor feeds{...feedContent}}}")
+
+
+def _ks_read(op: str, query: str, root: str, variables: dict, referer: str, take: int) -> tuple[str, list[dict]]:
+    """Pages of one Kuaishou GraphQL list, read with the owner's own cookies exactly as their browser asks for it."""
     cookies = search.site_cookies("kuaishou.com")
     if not cookies:
         raise AccountError(tr(
             "Reading a Kuaishou account needs your own login: sign in to kuaishou.com in your browser, then set the "
             "browser or the exported cookie file in Settings → Browser cookies"))
     rows: dict[str, tuple[dict, str]] = {}
-    name, cursor = "", ""
-    headers = {"User-Agent": kuaishou_feed.UA, "Referer": f"https://www.kuaishou.com/profile/{ident}"}
+    name, cursor, session = "", "", ""
+    headers = {"User-Agent": kuaishou_feed.UA, "Referer": referer}
     with httpx.Client(timeout=TIMEOUT, transport=_transport, follow_redirects=True, headers=headers,
                       cookies=cookies) as client:
         for i in range(MAX_PAGES):
             if i:
                 time.sleep(_PAUSE)
+            page = {**variables, "pcursor": cursor}
+            if root == "visionSearchPhoto":
+                page["searchSessionId"] = session
             try:
-                r = client.post(kuaishou_feed.GRAPHQL, json={
-                    "operationName": "visionProfilePhotoList", "query": KS_PROFILE,
-                    "variables": {"userId": ident, "pcursor": cursor, "page": "profile"}})
+                r = client.post(kuaishou_feed.GRAPHQL, json={"operationName": op, "query": query, "variables": page})
                 body = r.json()
             except httpx.HTTPError as e:
                 raise AccountError(tr("Could not reach Kuaishou: {error}", error=str(e)[:200])) from e
             except ValueError as e:
                 raise AccountError(tr("Kuaishou returned an error: {error}", error=f"{r.status_code} not JSON")) from e
             top = (body.get("data") or {}) if isinstance(body, dict) else {}
-            data = top.get("visionProfilePhotoList") or {}
+            data = top.get(root) or {}
             if top.get("result") == 400002 or data.get("result") == 400002:  # the slider captcha
                 raise AccountError(tr(
                     "Kuaishou asks for a verification (slider captcha) before it shows this account. Open kuaishou.com "
@@ -248,18 +257,31 @@ def _kuaishou(ident: str, take: int) -> tuple[str, list[dict]]:
                 raise AccountError(tr("Kuaishou returned an error: {error}",
                                       error=f"{r.status_code} result {data.get('result')}"))
             for feed in data.get("feeds") or []:
-                if not isinstance(feed, dict):
+                if not isinstance(feed, dict) or not isinstance(feed.get("photo"), dict):
                     continue
                 name = name or (feed.get("author") or {}).get("name") or ""
                 row = kuaishou_feed._clip(feed, 0, min_seconds=0)
                 if row and row["id"] not in rows:
                     rows[row["id"]] = (row, feed["photo"]["photoUrl"])
             cursor = str(data.get("pcursor") or "")
+            session = str(data.get("searchSessionId") or session)
             if len(rows) >= take or not cursor or cursor == "no_more":
                 break
     out = [row for row, _ in list(rows.values())[:take]]
     kuaishou_feed._remember({r["id"].removeprefix("kuaishou:"): rows[r["id"]][1] for r in out})
     return name, out
+
+
+def _kuaishou(ident: str, take: int) -> tuple[str, list[dict]]:
+    return _ks_read("visionProfilePhotoList", KS_PROFILE, "visionProfilePhotoList",
+                    {"userId": ident, "page": "profile"}, f"https://www.kuaishou.com/profile/{ident}", take)
+
+
+def search_kuaishou(word: str, take: int = TAKE) -> list[dict]:
+    """Videos for a keyword, in Kuaishou's own order (its search page, owner's cookies). Not tried from the sandbox."""
+    _, rows = _ks_read("visionSearchPhoto", KS_SEARCH, "visionSearchPhoto", {"keyword": word, "page": "search"},
+                       f"https://www.kuaishou.com/search/video?searchKey={quote(word)}", take)
+    return [{**r, "rank": i + 1} for i, r in enumerate(rows)]
 
 
 READERS = {"weibo": _weibo, "douyin": _douyin, "kuaishou": _kuaishou}

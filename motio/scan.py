@@ -6,9 +6,9 @@ site, so the limits are the sites' own:
 | platform | account (link or id)                       | hashtag / keyword                         |
 | YouTube  | channel, playlist (yt-dlp)                 | ytsearch / hashtag page (yt-dlp)          |
 | Bilibili | space (yt-dlp + video pages)               | tag search, most played of 7 days (trending.py, up to 20) |
-| Douyin   | accounts.py (f2 signs the request)         | no: its search is signed and logged-in    |
-| Kuaishou | accounts.py (the owner's own cookies)      | no: its search wants a browser `did`      |
-| Weibo    | accounts.py (guest session)                | no                                        |
+| Douyin   | accounts.py (f2 signs the request)         | no: f2 has no search, it is signed        |
+| Kuaishou | accounts.py (the owner's own cookies)      | its search page, the owner's own cookies  |
+| Weibo    | accounts.py (guest session)                | no: its search wants a login              |
 
 A scan runs in a background thread and is read by polling (`view`); the rows are `clip`-shaped dicts with views and
 likes when the site gives them. "Download selected" and "Follow" are done by the app through the Tools downloads and
@@ -26,7 +26,7 @@ from .i18n import tr
 
 PLATFORMS = ("youtube", "bilibili", "douyin", "kuaishou", "weibo")
 MODES = {"youtube": ("account", "keyword", "hashtag"), "bilibili": ("account", "keyword", "hashtag"),
-         "douyin": ("account",), "kuaishou": ("account",), "weibo": ("account",)}
+         "douyin": ("account",), "kuaishou": ("account", "keyword", "hashtag"), "weibo": ("account",)}
 MAX_LINES = 10
 LIMITS = (20, 50, 100)
 DEFAULT_LIMIT = 50
@@ -102,6 +102,8 @@ def _tag(site: str, mode: str, line: str, limit: int) -> list[dict]:
     word = line.lstrip("#＃").strip()
     if not word:
         raise ValueError(tr("Enter a hashtag or keyword"))
+    if site == "kuaishou":  # its search page, with the owner's own cookies
+        return accounts.search_kuaishou(word, limit)
     if site == "bilibili":  # its search, the most played of the last 7 days
         rows = trending.fetch(f"bilibili:tag:{word}", limit)
         return [{**c, "watch_id": None} for c in rows]
