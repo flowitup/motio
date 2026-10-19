@@ -1,8 +1,7 @@
 """Tự làm video khi một tin hot đạt điểm của hồ sơ kênh (GĐ1). Chạy sau mỗi lượt tự cập nhật tin theo lịch.
 
 Mỗi tin chỉ làm một lần (dự án đầu tiên đánh dấu tin là đã dùng), theo điểm giảm dần. Mỗi hồ sơ tự làm tối đa
-`auto_daily` video mỗi ngày, và tổng số video trong ngày vẫn theo MAX_VIDEOS_PER_DAY. Dự án tự làm dừng ở các cổng
-duyệt của kênh như dự án bấm tay.
+`auto_daily` video mỗi ngày. Dự án tự làm dừng ở các cổng duyệt của kênh như dự án bấm tay.
 """
 import time
 
@@ -24,13 +23,10 @@ def picks(now: float | None = None) -> list[tuple[dict, dict]]:
     chans = profiles()
     if not chans or usage.over_budget(now):  # hết ngân sách tháng: tự làm dừng (bấm tay vẫn được)
         return []
-    left = pipeline.quota_left()  # None = không giới hạn
     start = pipeline.today_start()
     room = {ch["id"]: max(ch["auto_daily"] - db.count_auto_since(start, ch["id"]), 0) for ch in chans}
     out: list[tuple[dict, dict]] = []
     for t in db.list_trends(hours=HOURS, limit=200):  # điểm giảm dần
-        if left is not None and len(out) >= left:
-            break
         if t["status"] != "new" or (t.get("first_seen") or 0) < now - FRESH_HOURS * 3600:
             continue
         ch = next((c for c in chans if room[c["id"]] and (t["score"] or 0) >= c["auto_score"]), None)

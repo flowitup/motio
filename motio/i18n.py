@@ -127,7 +127,6 @@ VI = {
     "ERROR: the engine stopped while the project was running. Click Re-render or create it again.":
         "LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.",
     # pipeline errors
-    "Daily limit reached: {n} videos (MAX_VIDEOS_PER_DAY)": "Đã đủ {n} video hôm nay (MAX_VIDEOS_PER_DAY)",
     "No voice: add ELEVENLABS_API_KEY in Settings":
         "Chưa có giọng đọc: nhập ELEVENLABS_API_KEY trong Cài đặt",
     "No source links yet": "Chưa có link nguồn nào",

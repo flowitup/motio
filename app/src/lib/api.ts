@@ -369,7 +369,6 @@ export type Health = {
   ffprobe: string | null;
   js_runtime: string | null;
   postiz: boolean;
-  quota_left: number | null;
   data_dir: string;
   disk: { free: number; total: number } | null; // ổ chứa thư mục dữ liệu của engine (byte)
 };

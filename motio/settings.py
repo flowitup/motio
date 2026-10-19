@@ -8,9 +8,8 @@ import threading
 from pathlib import Path
 
 KEYS = ("LLM_MODEL", "LLM_MODEL_FAST", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
-        "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "NEWS_SOURCES", "REFRESH_EVERY_MIN", "CREDIT_ON_VIDEO",
-        "CREDIT_IN_POST",
-        "MAX_VIDEOS_PER_DAY", "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "YTDLP_COOKIES_FILE",
+        "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "REFRESH_EVERY_MIN",
+        "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "YTDLP_COOKIES_FILE",
         "UI_LANG",
         "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
         "FAL_IMAGE_MODEL", "IMAGE_STYLE", "NEWS_TOPICS",
@@ -109,13 +108,12 @@ def update(changes: dict) -> dict[str, dict]:
     hook = _normalize(changes.get("SLACK_WEBHOOK_URL"))
     if hook and not hook.startswith(MASK) and not valid(hook):
         raise ValueError(tr("SLACK_WEBHOOK_URL must be a https://hooks.slack.com/… link"))
-    for k in ("MAX_VIDEOS_PER_DAY", "REFRESH_EVERY_MIN"):
-        if k in changes and changes[k] not in (None, ""):
-            try:
-                if int(changes[k]) < 0:
-                    raise ValueError
-            except (TypeError, ValueError):
-                raise ValueError(tr("{key} must be an integer ≥ 0", key=k)) from None
+    if changes.get("REFRESH_EVERY_MIN") not in (None, ""):
+        try:
+            if int(changes["REFRESH_EVERY_MIN"]) < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(tr("{key} must be an integer ≥ 0", key="REFRESH_EVERY_MIN")) from None
     for k in ("ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "AI_CLIP_USD_PER_SEC"):
         if k in changes and changes[k] not in (None, ""):
             try:

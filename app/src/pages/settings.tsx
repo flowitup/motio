@@ -303,7 +303,6 @@ function HealthCard({ api }: { api: Api }) {
     ["ffmpeg", h.ffmpeg ?? <span className="text-destructive">{t.settings.notFound}</span>],
     [t.settings.jsRuntime, h.js_runtime ?? <span className="text-destructive">{t.settings.jsRuntimeMissing}</span>],
     ["Postiz", h.postiz ? "✓" : <span className="text-muted-foreground">{t.settings.none}</span>],
-    [t.settings.quotaLeft, h.quota_left ?? t.settings.unlimited],
     ["data", h.data_dir],
     [t.settings.disk, h.disk ? t.settings.diskFree(bytes(h.disk.free), bytes(h.disk.total)) : "—"],
   ];
@@ -391,16 +390,6 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         <div className="grid content-start gap-1 sm:col-span-2">
           {switchRow("NEWS_TOPICS", t.settings.newsTopics)}
           <p className="text-xs text-muted-foreground">{t.settings.newsTopicsHint}</p>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label={t.settings.newsSources} hint={src("NEWS_SOURCES")}>
-            {text("NEWS_SOURCES", "douyin,weibo,baidu,bilibili-hot-search,toutiao,thepaper")}
-          </Field>
-        </div>
-        <Field label={t.settings.maxPerDay}>{num("MAX_VIDEOS_PER_DAY", "0", "1")}</Field>
-        <div className="grid content-start gap-3">
-          {switchRow("CREDIT_ON_VIDEO", t.settings.creditOnVideo)}
-          {switchRow("CREDIT_IN_POST", t.settings.creditInPost)}
         </div>
       </Section>
 

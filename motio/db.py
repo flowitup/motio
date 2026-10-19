@@ -200,13 +200,6 @@ def delete_project(pid: int) -> bool:
         return bool(gone)
 
 
-def count_projects_since(ts: float, exclude: int | None = None) -> int:
-    """Số dự án tạo từ `ts`, không tính dự án lỗi."""
-    with conn() as c:
-        return c.execute("SELECT COUNT(*) FROM project WHERE created_at >= ? AND status != 'failed' AND id != ?",
-                         (ts, exclude or -1)).fetchone()[0]
-
-
 def projects_since(ts: float) -> list[dict]:
     """Dự án tạo từ `ts` (trang Stats), không kèm log."""
     with conn() as c:
