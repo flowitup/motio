@@ -6,7 +6,7 @@ site, so the limits are the sites' own:
 | platform | account (link or id)                       | hashtag / keyword                         |
 | YouTube  | channel, playlist (yt-dlp)                 | ytsearch / hashtag page (yt-dlp)          |
 | Bilibili | space (yt-dlp + video pages)               | tag search, most played of 7 days (trending.py, up to 20) |
-| Douyin   | accounts.py (f2 signs the request)         | its own search (f2 signs; login needed)   |
+| Douyin   | accounts.py (f2 signs the request)         | its own search (login), else so.douyin.com in Chrome |
 | Kuaishou | accounts.py (the owner's own cookies)      | its search page, the owner's own cookies  |
 | Weibo    | accounts.py (guest session)                | its search, the same guest session        |
 

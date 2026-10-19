@@ -130,11 +130,15 @@ local machine worked), long-term stability, keyword search, an author's video li
    and the runtime dependencies they import, not the whole package.
 5. Rebuild the engine (`tools/build_engine.py` checks that f2's yaml files are bundled).
 
-## Keyword search through f2 (2026-10-19, the owner's Mac)
+## Keyword search (2026-10-19, the owner's Mac, in France)
 
-The Scan screen's Douyin keyword search also goes through f2's signing, not new signing code. f2 ships the general
-search endpoint (`aweme/v1/web/general/search/single/`, `DouyinAPIEndpoints.POST_SEARCH`) and its request model
-(`PostSearch`), but it has no crawler method for it, so `douyin_feed._search_page` calls
+The Scan screen's Douyin keyword search has two readers — `douyin_feed.search` picks one — and neither copies signing
+code.
+
+### 1. Douyin's own search API, signed by f2, with the owner's login
+
+f2 ships the general search endpoint (`aweme/v1/web/general/search/single/`, `DouyinAPIEndpoints.POST_SEARCH`) and its
+request model (`PostSearch`), but it has no crawler method for it, so `douyin_feed._search_page` calls
 `crawler.bogus_manager.model_2_endpoint(UA, endpoint, params.model_dump())` (a_bogus, exactly the path `fetch_user_post`
 uses) and then `crawler._fetch_get_json(endpoint)`.
 
@@ -145,14 +149,37 @@ What Douyin answered from this Mac (fresh `ttwid`, real `msToken`, browser-like 
 | general search, web app id `6383` | HTTP 200, `status_code: 2483`, `status_msg: "请先登录，再继续搜索吧"` (log in first), no data |
 | the older `/aweme/v1/web/search/item/` | the same 2483 |
 | `aid` 1128 / 2329 / 8663 | `status_code: 0` with `search_nil_info: antispam_check / hit_shark` |
-| headless Chrome, no account | Douyin's captcha middle page (验证码中间页), even in a real browser |
 | home feed (`tab/feed`) | still anonymous and fine |
 
-So the signature is not the blocker: Douyin requires a login for search. `douyin_feed.search` sends the owner's own
-douyin.com cookies (Settings → Browser cookies, the Kuaishou pattern) when they exist, gives the "Douyin asks for a login…"
-or "Douyin refused the search…" error otherwise, and never solves a captcha or fakes a session. The logged-in answer is
-covered by mocked tests (`tests/test_douyin_search.py`); it was not run live because the owner has no Douyin account.
-The anonymous attempt still runs first, so a future Douyin that opens search to visitors needs no change here.
+So the signature is not the blocker: Douyin's own search requires a login. When the owner's own douyin.com cookies are
+set up (Settings → Browser cookies), `search` uses this reader. That answer path is covered by mocked tests only (the
+owner has no Douyin account).
+
+### 2. The public search site `so.douyin.com`, in a headless Chrome, with no account
+
+Douyin's SEO/mobile search site shows the same results to a visitor with no login (checked in a browser from France:
+titles, lengths, likes and authors). Its page calls `/s/fe/api/aweme/v2/search/msite/general/search/single/` on its own
+origin, unsigned, with `aid=581610`, `pd=general`, `keyword`, `offset`, `count=10` (more than 20 is `params_check`) and
+`currentPage`; the answer carries the same `aweme_info` cards the rest of the app reads, and paging uses the
+`business_config.next_page` `search_id` with `offset`/`currentPage`. `motio/chrome.py` starts a headless Chrome with the
+installed browser's own reduced user agent, waits for the page, then makes that request from the page context (the page's
+cookies and fingerprint), so nothing is signed and no login or captcha is solved.
+
+What did not work, and why this shape is needed:
+
+| Try | Answer |
+|---|---|
+| plain HTTP client with the page's exact params | `status_code: 0` with `search_nil_info: antispam_check / hit_shark` |
+| headless Chrome keeping the default `HeadlessChrome` agent | Douyin's captcha middle page (验证码中间页) |
+| headless Chrome with the full four-part build number in the user agent (a pre-110 style) | the search request is held (no answer) |
+| headless Chrome with the reduced agent (`Chrome/<major>.0.0.0`) | results, no verification (checked live) |
+
+Live result from the owner's Mac: `美食` → 20 rows in 12 s, `旅行` → 50 rows in 15 s (the first call includes the Chrome
+start; one session per keyword, closed at the end). Views are often missing from these cards; likes, length, author and
+title are there, and the mp4 is downloaded later like any Douyin link. A browser verification Douyin asks for is
+reported, never solved (the Scan line shows the message). The engine does not bundle a browser: it needs Google Chrome,
+Chromium or Microsoft Edge installed (`MOTIO_CHROME` overrides the path); without one the error says to install it or to
+set Douyin cookies.
 
 ## Alternatives looked at
 

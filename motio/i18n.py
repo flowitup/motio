@@ -694,6 +694,14 @@ VI = {
         "Douyin từ chối tìm kiếm (request trông giống bot). Mở douyin.com trên trình duyệt đã đăng nhập rồi thử lại",
     "Type a keyword to search Douyin": "Nhập từ khoá để tìm trên Douyin",
     "Douyin gave no videos for this keyword": "Douyin không trả video nào cho từ khoá này",
+    "Douyin keyword search needs Google Chrome (or Chromium / Edge) installed. Install it, or set your own douyin.com "
+    "cookies in Settings → Browser cookies":
+        "Tìm kiếm Douyin cần cài Google Chrome (hoặc Chromium / Edge). Hãy cài, hoặc đặt cookie douyin.com của chính "
+        "bạn trong Cài đặt → Cookie trình duyệt",
+    "Could not run Google Chrome for the Douyin search: {error}":
+        "Không chạy được Google Chrome cho lần tìm kiếm Douyin: {error}",
+    "Douyin asked for a browser verification for this search (it looked like a bot). Try again in a minute":
+        "Douyin đòi xác minh trình duyệt cho lần tìm kiếm này (request trông giống bot). Hãy thử lại sau một phút",
     "Kuaishou asks for a verification (slider captcha) before it shows this page. Open kuaishou.com in your browser "
     "while signed in, pass the check, export the cookies again, then retry":
         "Kuaishou đòi xác minh (captcha kéo) trước khi hiện trang này. Mở kuaishou.com trên trình duyệt đã đăng "

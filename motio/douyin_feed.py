@@ -5,18 +5,22 @@ home feed (`/aweme/v1/web/tab/feed/`): a fresh draw of recommended videos, ~10 p
 the request, Motio only calls it, with the same anonymous `ttwid` / `msToken` session the video download uses. It is not
 a ranking and it has no category: the Trending screen says so.
 
-Keyword search is Douyin's general search (`/aweme/v1/web/general/search/single/`, also signed by f2). Unlike the home
-feed it answers an anonymous session with status_code 2483 "please log in first": checked 2026-10-19 through f2's own
-signing with a fresh ttwid/msToken, a browser-like Referer and every parameter the web page sends; the older
-`/aweme/v1/web/search/item/` endpoint says the same, other `aid` values get "antispam" instead, and the search page
-itself is Douyin's JavaScript bot check (`__ac_nonce`, no data). So `search` sends the owner's own signed-in
-douyin.com cookies (`search.site_cookies`, the same pattern as Kuaishou in accounts.py) and says in plain English when
-there are none or Douyin still refuses. Nothing here solves a captcha or fakes a session.
+Keyword search has two readers. Douyin's own search API (`/aweme/v1/web/general/search/single/`, signed by f2)
+answers an anonymous session with status_code 2483 "please log in first": checked 2026-10-19 through f2's own signing
+with a fresh ttwid/msToken, a browser-like Referer and every parameter the web page sends; the older
+`/aweme/v1/web/search/item/` endpoint says the same and other `aid` values get "antispam" instead. So when the owner's
+own signed-in douyin.com cookies are set up (`search.site_cookies`) the search goes that way. With no Douyin account
+the public search site `so.douyin.com` is used instead: it shows the same results to a visitor with no login (checked
+2026-10-19 from France), and its page asks an unsigned search endpoint of its own whose answer is the same
+`aweme_info` cards; `chrome.py` reads it in a headless Chrome with a real browser user agent, because a plain HTTP
+client gets the anti-spam answer and the default headless agent gets Douyin's captcha page. Nothing here logs in,
+solves a captcha or fakes a session: a browser check Douyin still asks for is reported.
 
 Rows are `clip` rows like every other followed list; "Make video" then goes through `search.download`, which already
 downloads a Douyin link with f2 (yt-dlp second). Photo posts, ads, live rooms and videos under 15 s are left out of the
 feed; a search keeps short clips (the Scan screen wants what matches the keyword).
 """
+import json
 import time
 from urllib.parse import quote
 
@@ -34,6 +38,60 @@ SEARCH_COUNT = 20  # rows asked per search answer (the web page asks about 20)
 SEARCH_PAGES = 10  # answers read at most for one search (take <= TAKE_MAX needs 5)
 _SEARCH_FILTER = '{"sort_type":"0","publish_time":"0","filter_duration":"","search_range":"0"}'
 _PAUSE = 0.8  # between two answers, like douyin._pause
+WEB_PAGE = "https://so.douyin.com/?keyword="
+WEB_API = "/s/fe/api/aweme/v2/search/msite/general/search/single/"  # the so.douyin.com page's own search endpoint
+WEB_PAGES = 12  # cards asked per answer is 10: this many answers cover TAKE_MAX
+WEB_SCRIPT = """
+(async () => {
+  const word = __WORD__;
+  const take = __TAKE__;
+  const base = {
+    aid: '581610', device_platform: 'webapp', search_source: 'normal_search',
+    app_version: '290000', version_code: '290000', version_name: '29.0.0', webapp_platform: 'mac',
+    innerWidth: '756', innerHeight: '469', pd: 'general', need_filter_settings: '1',
+    'options[stream]': 'false',
+  };
+  const rows = [];
+  let searchId = '';
+  let cursor = 0;
+  let error = null;
+  for (let page = 0; page < __PAGES__ && rows.length < take; page++) {
+    const params = Object.assign({}, base, {
+      keyword: word, offset: String(page * 10), count: '10', currentPage: String(page),
+    });
+    if (searchId) { params.search_id = searchId; params.search_request_id = searchId; params.cursor = String(cursor); }
+    let answer;
+    try {
+      const reply = await fetch('__API__?' + new URLSearchParams(params).toString(),
+                                {headers: {'Accept': 'application/json, text/plain, */*'}, credentials: 'include'});
+      answer = await reply.json();
+    } catch (e) {
+      error = 'fetch';
+      break;
+    }
+    const config = answer.business_config || {};
+    const nil = config.search_nil_info;
+    if (nil && nil.search_nil_type) { error = nil.search_nil_type; break; }
+    for (const card of answer.business_data || []) {
+      const info = card && card.data && card.data.aweme_info;
+      if (!info) continue;
+      rows.push({
+        aweme_id: info.aweme_id, desc: info.desc, create_time: info.create_time,
+        video: {duration: info.video && info.video.duration,
+                cover: {url_list: (info.video && info.video.cover && info.video.cover.url_list) || []}},
+        statistics: {digg_count: info.statistics && info.statistics.digg_count,
+                     play_count: info.statistics && info.statistics.play_count},
+        author: {nickname: info.author && info.author.nickname},
+      });
+    }
+    const next = config.next_page;
+    if (!next || !config.has_more || !next.search_id) break;
+    searchId = next.search_id;
+    cursor = next.cursor;
+  }
+  return {rows: rows, error: error};
+})()
+"""
 
 
 class FeedError(RuntimeError):
@@ -187,15 +245,56 @@ def _search_post(item) -> dict | None:
     return item if "aweme_id" in item and ("video" in item or "statistics" in item) else None
 
 
-def search(keyword: str, take: int = 50) -> list[dict]:
-    """Videos for a keyword in Douyin's own order, as `clip` rows (id, url, title, uploader, duration, views, likes,
-    pubdate, thumbnail, rank). At most TAKE_MAX rows. FeedError with an English message when Douyin cannot be reached,
-    wants a login it does not have, or refuses the search.
+def _web_rows(answer) -> tuple[list[dict], str]:
+    """The `clip` rows of one so.douyin.com answer and the refusal it reported ("" when it was a normal answer)."""
+    rows: dict[str, dict] = {}
+    for post in (answer or {}).get("rows") or []:
+        row = _clip(post, 0, min_seconds=0) if isinstance(post, dict) else None
+        if row and row["id"] not in rows:
+            rows[row["id"]] = row
+    return [{**row, "rank": i + 1} for i, row in enumerate(rows.values())], str((answer or {}).get("error") or "")
 
-    Douyin answered an anonymous session with 2483 "please log in" when this was written (see the module docstring),
-    so the owner's own douyin.com cookies are sent when they are set up; without them the customer-facing error says
-    where to set them. The guest ttwid/msToken session is still tried, so a future Douyin that opens search to
-    visitors needs no change here.
+
+def search_web(keyword: str, take: int = 50) -> list[dict]:
+    """Videos for a keyword from Douyin's public search site, with no account, as `clip` rows.
+
+    `chrome.evaluate` opens `so.douyin.com` in a headless Chrome and runs the page's own search request in the page
+    context (the page's cookies and session, nothing signed); the answer carries the same `aweme_info` cards as the
+    app's other Douyin reads. FeedError when Chrome is missing or cannot run, when Douyin asks for a browser
+    verification (reported, never solved) or when there is no video.
+    """
+    word = " ".join(str(keyword or "").split())
+    if not word:
+        raise FeedError(tr("Type a keyword to search Douyin"))
+    take = max(1, min(int(take or 50), TAKE_MAX))
+    from . import chrome  # a scan of the other sites never pays for this import
+
+    script = (WEB_SCRIPT.replace("__WORD__", json.dumps(word, ensure_ascii=False))
+                        .replace("__TAKE__", str(take)).replace("__PAGES__", str(WEB_PAGES))
+                        .replace("__API__", WEB_API))
+    try:
+        answer = chrome.evaluate(WEB_PAGE + quote(word, safe=""), script, timeout=90)
+    except chrome.Missing as e:
+        raise FeedError(tr("Douyin keyword search needs Google Chrome (or Chromium / Edge) installed. Install it, or "
+                           "set your own douyin.com cookies in Settings → Browser cookies")) from e
+    except chrome.ChromeError as e:
+        raise FeedError(tr("Could not run Google Chrome for the Douyin search: {error}", error=str(e)[:200])) from e
+    rows, refused = _web_rows(answer)
+    if rows:  # a refusal on a later page keeps what the first pages gave
+        return rows[:take]
+    if refused in ("verify_check", "antispam_check", "hit_shark"):
+        raise FeedError(tr("Douyin asked for a browser verification for this search (it looked like a bot). Try "
+                           "again in a minute"))
+    if refused == "params_check":
+        raise FeedError(tr("Douyin returned an error: {error}", error="params_check"))
+    raise FeedError(tr("Douyin gave no videos for this keyword"))
+
+
+def _search_api(keyword: str, take: int = 50) -> list[dict]:
+    """Douyin's own general search, signed by f2, with the owner's own signed-in douyin.com cookies.
+
+    At most TAKE_MAX rows. FeedError with an English message when Douyin cannot be reached, wants a login it does not
+    have, or refuses the search. Only called when `_cookies()` is not empty (see `search`).
     """
     word = " ".join(str(keyword or "").split())
     if not word:
@@ -244,3 +343,27 @@ def search(keyword: str, take: int = 50) -> list[dict]:
                                "DNS filter), then try again")) from e
         raise FeedError(tr("Douyin returned an error: {error}", error=str(e)[:200])) from e
     raise FeedError(tr("Douyin gave no videos for this keyword"))
+
+
+def search(keyword: str, take: int = 50) -> list[dict]:
+    """Videos for a keyword in Douyin's own order, as `clip` rows (id, url, title, uploader, duration, views, likes,
+    pubdate, thumbnail, rank). At most TAKE_MAX rows. FeedError with an English message when it cannot be read.
+
+    With the owner's own signed-in douyin.com cookies set up (`search.site_cookies`, the same pattern as Kuaishou in
+    accounts.py) this is Douyin's own search API; if that refuses (an expired cookie, say) the public search site is
+    tried instead. Without cookies it is the public search site, read in a headless Chrome (`chrome.py`) with no
+    account at all. A login or a browser check Douyin asks for is reported as an error, never worked around.
+    """
+    word = " ".join(str(keyword or "").split())
+    if not word:
+        raise FeedError(tr("Type a keyword to search Douyin"))
+    take = max(1, min(int(take or 50), TAKE_MAX))
+    if _cookies():
+        try:
+            return _search_api(word, take)
+        except FeedError as e:
+            try:
+                return search_web(word, take)
+            except FeedError:
+                raise e from None
+    return search_web(word, take)

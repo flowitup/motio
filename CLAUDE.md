@@ -60,12 +60,21 @@ as authoritative for scope and milestones.
     a pasted link); Kuaishou's detail query wants a browser `did` cookie, so it is not read; its search is read for the Scan
     screen with the owner's own cookies (`accounts.search_kuaishou`)
   - `douyin_feed.py` Douyin's home recommendation feed (`douyin:feed`, Trending screen) and keyword search (`search`, Scan
-    screen): f2 signs both (the anonymous `tab/feed`; the general search `aweme/v1/web/general/search/single/`, whose endpoint
-    and `PostSearch` model f2 ships without a crawler method, so Motio calls f2's `bogus_manager.model_2_endpoint` +
-    `_fetch_get_json` — still no signing code copied). The feed is anonymous; the search answers an anonymous session with
-    `status_code 2483` "please log in first" (checked 2026-10-19; a browser without an account gets Douyin's captcha page), so
-    it sends the owner's own douyin.com cookies (`search.site_cookies`) and reports a login wall or a refused (bot-check)
-    search. Feed photos, ads and clips under 15 s are skipped; a row is downloaded like any pasted Douyin link.
+    screen): f2 signs the feed (the anonymous `tab/feed`) and Douyin's own search
+    (`aweme/v1/web/general/search/single/`, whose endpoint and `PostSearch` model f2 ships without a crawler method, so
+    Motio calls f2's `bogus_manager.model_2_endpoint` + `_fetch_get_json` — still no signing code copied). The feed is
+    anonymous; Douyin's own search answers an anonymous session with `status_code 2483` "please log in first" (checked
+    2026-10-19), so with the owner's own douyin.com cookies set up (`search.site_cookies`) that search is used, and without
+    them — or when it refuses — the public search site `so.douyin.com` is read in a headless Chrome instead (`chrome.py`):
+    it shows the same results to a visitor with no account (checked live 2026-10-19 from France, 20 and 50 rows for two
+    keywords). Feed photos, ads and clips under 15 s are skipped; a row is downloaded like any pasted Douyin link.
+  - `chrome.py` a headless Google Chrome for the sites that only answer a real browser (`douyin_feed.search_web`):
+    finds Chrome / Chromium / Edge on macOS, Windows and Linux (`MOTIO_CHROME` overrides), starts one with a throwaway
+    profile under the data cache, sends the installed browser's own reduced user agent (`Chrome/<major>.0.0.0`; the full
+    build number makes Douyin hold the request), waits for the page, and runs one async script in the page over the
+    DevTools protocol (`websockets`, which f2 already needs). The page's own search request is made from its context, so
+    nothing is signed and no login or captcha is solved; a browser check is reported. One Chrome per call, closed at the
+    end; tests fake `evaluate`, no test starts a browser. The engine does not bundle a browser.
   - `weibo_feed.py` Weibo's hot timeline (`weibo:hot`, Trending screen) and keyword search (`search`, Scan screen): the visitor
     cookie comes from Weibo's own guest endpoint (`genvisitor2`, nothing signed), ~10 posts per answer of which about half are
     videos, a fresh draw, no categories; the search (`/ajax/statuses/search`) answers that same guest session with no login
@@ -93,7 +102,8 @@ as authoritative for scope and milestones.
     platform + mode account / hashtag / keyword, 1–10 lines, a background job read by polling, nothing saved or made;
     YouTube / Bilibili go through yt-dlp and `trending.py`; keyword and hashtag also exist on Kuaishou (its search page with the
     owner's own cookies; a guest is answered with the slider captcha), Weibo (its own search, the guest session, no login) and
-    Douyin (its own search, f2 signs it; Douyin wants a douyin.com login))
+    Douyin (its own search, f2-signed with a douyin.com login, or read on its public `so.douyin.com` search page in a
+    headless Chrome with no account at all))
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option
@@ -231,12 +241,16 @@ on every PR; keep them green.
   (`localfile.py`). When f2 could not connect at all (`douyin.Unreachable`), yt-dlp still gets its turn, but if it fails
   with its cookie hint the error says "Could not connect to Douyin" instead (yt-dlp asks for cookies even when offline;
   any other yt-dlp error is shown as it is); a link with no id that cannot be fetched without a connection stops there.
-  The Scan screen's Douyin keyword search goes through the same f2 signing (`douyin_feed.search`): f2 has the endpoint and
-  the `PostSearch` model but no crawler method, so Motio calls its signing helpers (still nothing copied). Douyin answers an
-  anonymous session with `status_code 2483` ("please log in first") and a browser without an account gets its captcha page
-  (checked 2026-10-19), so that search reads with the owner's own douyin.com cookies (`search.site_cookies`) and reports the
-  login wall; no captcha or fake session is ever made. That answer path is covered by mocked tests only (the owner has no
-  Douyin account to try it live).
+  The Scan screen's Douyin keyword search (`douyin_feed.search`) has two readers. Douyin's own search API is signed by f2
+  (`_search_page`: f2 has the endpoint and the `PostSearch` model but no crawler method, so Motio calls its signing
+  helpers — still nothing copied), and that answers an anonymous session with `status_code 2483` ("please log in
+  first"), so it is used only with the owner's own douyin.com cookies. With no account, `search_web` reads Douyin's
+  public search site `so.douyin.com` in a headless Chrome (`chrome.py`): the page's own unsigned search request is made
+  from the page context, so the result cards are the same `aweme_info` rows; a plain HTTP client gets the anti-spam
+  answer and a browser that keeps the "HeadlessChrome" agent gets the captcha page, hence the real reduced user agent
+  and the page-context request. Both paths report a login or a browser check; no captcha or fake session is ever made.
+  The signed path is covered by mocked tests only (the owner has no Douyin account); the browser path is checked live
+  on the owner's Mac.
   f2 is imported lazily and once, in a background thread that `_f2()` waits for 15 s at most (importing it asks Douyin
   for an `msToken`, and f2 itself retries for ~135 s when packets are dropped; the load goes on and is used by the next
   download if it ends well; a failed import is not started again for two minutes), its logger
