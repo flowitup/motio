@@ -124,6 +124,16 @@ def _read(site: str, mode: str, line: str, limit: int) -> list[dict]:
         raise RuntimeError(str(e)) from e
 
 
+def _words(keyword: str) -> list[str]:
+    return (keyword or "").lower().split()
+
+
+def _matches(c: dict, words: list[str]) -> bool:
+    """Every word of the optional keyword is in the title or the account's name."""
+    text = f"{c.get('title') or ''} {c.get('uploader') or ''}".lower()
+    return all(w in text for w in words)
+
+
 def _row(c: dict, line: str) -> dict:
     """The columns the table shows."""
     vid = str(c["id"]).partition(":")[2] or str(c["id"])
@@ -133,9 +143,11 @@ def _row(c: dict, line: str) -> dict:
 
 
 # ---------- the job ----------
-def _run(job_id: str, site: str, mode: str, lines: list[str], limit: int) -> None:
+def _run(job_id: str, site: str, mode: str, lines: list[str], limit: int, keyword: str = "") -> None:
     stop = _stops[job_id]
     rows: dict[str, dict] = {}
+    read: set[str] = set()
+    words = _words(keyword)
     errors: list[str] = []
     try:
         for i, line in enumerate(lines):
@@ -144,11 +156,13 @@ def _run(job_id: str, site: str, mode: str, lines: list[str], limit: int) -> Non
             _set(job_id, message=tr("Reading {n} of {total}: {line}", n=i + 1, total=len(lines), line=line[:60]))
             try:
                 for c in _read(site, mode, line, limit):
-                    rows.setdefault(c["id"], _row(c, line))
+                    read.add(c["id"])
+                    if _matches(c, words):
+                        rows.setdefault(c["id"], _row(c, line))
             except Exception as e:  # one bad line does not stop the others
                 errors.append(f"{line[:60]}: {watch._short(e, site)[:240]}")
-            _set(job_id, rows=list(rows.values()), errors=list(errors))
-        status = "done" if rows or not errors else "failed"
+            _set(job_id, rows=list(rows.values()), errors=list(errors), read=len(read))
+        status = "done" if rows or read or not errors else "failed"
     except Stopped:
         status = "stopped"
     _set(job_id, status=status, message=None, finished_at=time.time())
@@ -160,20 +174,27 @@ def _set(job_id: str, **fields) -> None:
             _jobs[job_id].update(fields)
 
 
-def start(site: str, mode: str, text: str, limit: int = DEFAULT_LIMIT) -> dict:
-    """Begin a scan in the background. ValueError when the request is not usable."""
+def start(site: str, mode: str, text: str, limit: int = DEFAULT_LIMIT, keyword: str = "") -> dict:
+    """Begin a scan in the background. ValueError when the request is not usable.
+
+    `keyword` is optional: only the videos read whose title (or account name) holds every one of its words are kept,
+    and `read` says how many were read before that, so an empty table can tell "nothing matched" from "nothing found".
+    """
     lines, limit = check(site, mode, text, limit)
+    keyword = " ".join((keyword or "").split())[:100]
     job_id = uuid.uuid4().hex[:12]
     with _lock:
         for old in sorted(_jobs.values(), key=lambda j: j["created_at"])[:-(KEEP_JOBS - 1)]:
             if old["status"] != "running":
                 _jobs.pop(old["id"], None)
                 _stops.pop(old["id"], None)
-        _jobs[job_id] = {"id": job_id, "site": site, "mode": mode, "lines": lines, "limit": limit, "status": "running",
+        _jobs[job_id] = {"id": job_id, "site": site, "mode": mode, "lines": lines, "limit": limit, "keyword": keyword,
+                         "read": 0, "status": "running",
                          "message": tr("Starting…"), "rows": [], "errors": [], "created_at": time.time(),
                          "finished_at": None}
         _stops[job_id] = threading.Event()
-    threading.Thread(target=_run, args=(job_id, site, mode, lines, limit), daemon=True, name="motio-scan").start()
+    threading.Thread(target=_run, args=(job_id, site, mode, lines, limit, keyword), daemon=True,
+                     name="motio-scan").start()
     return view(job_id)
 
 

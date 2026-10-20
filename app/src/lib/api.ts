@@ -435,6 +435,8 @@ export type ScanJob = {
   mode: ScanMode;
   lines: string[];
   limit: number;
+  keyword: string; // optional filter: only titles holding every word are kept
+  read: number; // videos read before the keyword dropped some
   status: "running" | "done" | "failed" | "stopped";
   message: string | null;
   rows: ScanRow[];
@@ -658,7 +660,7 @@ export function makeApi(url: string, token: string) {
     deleteWatch: (id: number) => call<{ deleted: number }>("DELETE", `/api/watches/${id}`),
     checkWatches: () => call<{ started: boolean }>("POST", "/api/watches/check"),
     scanOptions: () => call<ScanOptions>("GET", "/api/scan/options"),
-    startScan: (body: { site: Site; mode: ScanMode; text: string; limit: number }) => call<ScanJob>("POST", "/api/scan", body),
+    startScan: (body: { site: Site; mode: ScanMode; text: string; limit: number; keyword: string }) => call<ScanJob>("POST", "/api/scan", body),
     scan: (id: string) => call<ScanJob>("GET", `/api/scan/${id}`),
     /** The scan started last (null after an engine restart): the Scan screen shows it again when you come back. */
     latestScan: () => call<ScanJob | null>("GET", "/api/scan/latest"),

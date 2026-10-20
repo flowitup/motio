@@ -147,6 +147,7 @@ class ScanIn(BaseModel):
     mode: str  # account | keyword | hashtag
     text: str  # one to ten lines: links, ids, hashtags or keywords
     limit: int = scan.DEFAULT_LIMIT
+    keyword: str = ""  # optional: keep only the videos whose title holds every word
 
 
 class WatchPatch(BaseModel):
@@ -571,7 +572,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.post("/api/scan", status_code=202, dependencies=[Depends(auth)])
     def scan_start(body: ScanIn):
         try:
-            return scan.start(body.site, body.mode, body.text, body.limit)
+            return scan.start(body.site, body.mode, body.text, body.limit, body.keyword)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 

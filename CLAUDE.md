@@ -100,7 +100,8 @@ as authoritative for scope and milestones.
     Kuaishou account (its page answers only a signed-in browser, so it uses the owner's own cookies from the cookie file /
     browser, `search.site_cookies`; a slider captcha is reported, never solved); `watch.py` follows such an account (kind
     `account`, target `<site>:user:<id>`, `accounts.identify` reads the link); `scan.py` is the Scan screen's engine (one
-    platform + mode account / hashtag / keyword, 1–10 lines, a background job read by polling, nothing saved or made;
+    platform + mode account / hashtag / keyword, 1–10 lines, an optional keyword filter (titles that hold every word; the job
+    keeps `read`, the count before it), a background job read by polling, nothing saved or made;
     YouTube / Bilibili go through yt-dlp and `trending.py`; keyword and hashtag also exist on Kuaishou (its search page with the
     owner's own cookies; a guest is answered with the slider captcha), Weibo (its own search, the guest session, no login) and
     Douyin (its own search, f2-signed with a douyin.com login, or read on its public `so.douyin.com` search page in a
