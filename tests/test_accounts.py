@@ -303,6 +303,19 @@ def test_scan_reads_each_line_and_keeps_going_after_a_bad_one(weibo_site):
     assert set(r) >= {"id", "url", "title", "uploader", "duration", "pubdate", "thumbnail"}
 
 
+def test_scan_optional_keyword_keeps_only_matching_videos(weibo_site):
+    v = _wait(scan.start("weibo", "account", "3266943013", 50, "  RNHB97  视频 ")["id"])
+    assert v["keyword"] == "RNHB97 视频" and v["read"] == 3
+    assert [r["video_id"] for r in v["rows"]] == ["Rnhb97TyA"]
+    # no keyword: nothing is dropped
+    assert len(_wait(scan.start("weibo", "account", "3266943013", 50)["id"])["rows"]) == 3
+
+
+def test_scan_keyword_with_no_match_is_done_not_failed(weibo_site):
+    v = _wait(scan.start("weibo", "account", "3266943013", 50, "nothing like this")["id"])
+    assert v["status"] == "done" and v["rows"] == [] and v["read"] == 3 and v["errors"] == []
+
+
 def test_scan_fails_when_every_line_fails():
     v = _wait(scan.start("weibo", "account", "nope", 50)["id"])
     assert v["status"] == "failed" and v["rows"] == [] and v["errors"]

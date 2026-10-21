@@ -55,6 +55,7 @@ export default function ScanPage() {
   const [mode, setMode] = useState<ScanMode>("account");
   const [text, setText] = useState("");
   const [limit, setLimit] = useState<number | null>(null);
+  const [keyword, setKeyword] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
@@ -78,6 +79,7 @@ export default function ScanPage() {
     setMode(j.mode);
     setText(j.lines.join("\n"));
     setLimit(j.limit);
+    setKeyword(j.keyword ?? "");
   }, [latest.data, jobId]);
 
   const job = useQuery({
@@ -90,7 +92,7 @@ export default function ScanPage() {
   const running = current?.status === "running";
 
   const start = useMutation({
-    mutationFn: () => api.startScan({ site, mode: effectiveMode, text, limit: effectiveLimit }),
+    mutationFn: () => api.startScan({ site, mode: effectiveMode, text, limit: effectiveLimit, keyword }),
     onSuccess: (j) => {
       setJobId(j.id);
       setSelected(new Set());
@@ -166,7 +168,9 @@ export default function ScanPage() {
     ? running
       ? current.message ?? t.scan.reading
       : current.status === "done"
-        ? t.scan.done(rows.length)
+        ? current.keyword && current.read > rows.length
+          ? t.scan.doneKeyword(rows.length, current.read, current.keyword)
+          : t.scan.done(rows.length)
         : current.status === "stopped"
           ? t.scan.stopped(rows.length)
           : t.scan.failed
@@ -217,6 +221,9 @@ export default function ScanPage() {
                   rows={5}
                   className="font-mono"
                 />
+              </Field>
+              <Field label={t.scan.keyword} hint={t.scan.keywordHint}>
+                <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder={t.scan.keywordPlaceholder} />
               </Field>
               <Field label={t.scan.limit}>
                 <Choice
