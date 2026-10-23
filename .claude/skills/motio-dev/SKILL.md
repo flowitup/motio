@@ -89,7 +89,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Source search / download (yt-dlp), pasted links | `motio/search.py` (`YTDLP_COOKIES_FROM_BROWSER` only for pasted links and followed Bilibili spaces; `YTDLP_COOKIES_FILE` wins over it and also covers Bilibili search / downloads: `cookie_file`, `check_cookie_file`, `_cookie_opts`, `_file_cookie_opts`, `_own_cookie_copy`); tests `tests/test_search.py` |
 | Transcription | `motio/asr.py` (mlx-whisper on macOS arm64, faster-whisper elsewhere) |
 | Any LLM call | `motio/llm.py` only (`complete`, `ask_json`, `parse_json`) |
-| Voice | `motio/tts.py` (ElevenLabs with timestamps; macOS `say` is a dev fallback only) |
+| Voice | `motio/tts.py` (ElevenLabs with timestamps, or Gemini TTS one request per line with no alignment: `provider`, `_gemini`, `GEMINI_VOICES`, `voices_of`; `TTS_PROVIDER` / `GEMINI_*` settings; macOS `say` is a dev fallback only), `docs/GEMINI_TTS.md`; tests `tests/test_gemini_tts.py` |
 | 9:16 render, overlays | `motio/render.py` (Pillow draws text and karaoke frames, FFmpeg composes; `snap_start` / `snap_end`) |
 | French karaoke captions, SRT / ASS | `motio/captions.py` (`word_times`, `french_words`, `build_cues`, `to_srt`, `to_ass`) |
 | Scene cuts | `motio/scenes.py` (FFmpeg `select='gt(scene,0.3)'`, cached next to each source) |
@@ -354,7 +354,7 @@ self-hosted Postiz (+ Postgres, Redis, Temporal, Elasticsearch).
 
 - `mlx-whisper` only installs on macOS arm64; Linux/Windows use `faster-whisper` (CPU int8, CUDA if present).
 - CI has no API key: tests must mock the LLM (`llm.ask_json` or the Anthropic client), TTS, ASR, yt-dlp and Postiz.
-- macOS `say` fallback exists for dev only; without an ElevenLabs key on Windows/Linux, `tts.py` raises
+- macOS `say` fallback exists for dev only; without an ElevenLabs or Gemini key on Windows/Linux, `tts.py` raises
   `TTSUnavailable` with a message the UI shows (in the UI language). Keep it that way, never a silent fallback.
 - YouTube often blocks downloads from datacenter IPs ("Sign in to confirm you're not a bot"); Bilibili
   usually works. Expect fewer sources on the server.

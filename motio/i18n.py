@@ -127,8 +127,8 @@ VI = {
     "ERROR: the engine stopped while the project was running. Click Re-render or create it again.":
         "LỖI: engine đã dừng khi dự án đang chạy. Bấm Dựng lại hoặc tạo lại.",
     # pipeline errors
-    "No voice: add ELEVENLABS_API_KEY in Settings":
-        "Chưa có giọng đọc: nhập ELEVENLABS_API_KEY trong Cài đặt",
+    "No voice: add ELEVENLABS_API_KEY or GEMINI_API_KEY in Settings":
+        "Chưa có giọng đọc: nhập ELEVENLABS_API_KEY hoặc GEMINI_API_KEY trong Cài đặt",
     "No source links yet": "Chưa có link nguồn nào",
     "No videos found for this topic": "Không tìm thấy video nào cho chủ đề này",
     "No videos found for this story": "Không tìm thấy video nào cho tin này",
@@ -159,6 +159,8 @@ VI = {
     "This project's channel has no Postiz channel to send to": "Kênh của dự án này chưa có kênh Postiz để gửi",
     "Project has no 16:9 copy yet": "Dự án chưa có bản 16:9",
     "ELEVENLABS_API_KEY is not set": "Chưa có ELEVENLABS_API_KEY",
+    "GEMINI_API_KEY is not set": "Chưa có GEMINI_API_KEY",
+    "TTS_PROVIDER must be one of {choices}": "TTS_PROVIDER phải là một trong {choices}",
     "ElevenLabs error: {error}": "ElevenLabs lỗi: {error}",
     "File not found": "Không có file",
     # channels
@@ -300,8 +302,14 @@ VI = {
     "Not sent to Postiz: {error}": "Chưa gửi được sang Postiz: {error}",
     "Motio test message: Slack alerts are working.": "Tin thử của Motio: thông báo Slack đang hoạt động.",
     "Enter a topic or at least one video link": "Nhập chủ đề hoặc ít nhất một link video",
-    "No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY (the macOS voice only works on a Mac).":
-        "Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY (giọng macOS chỉ có trên Mac).",
+    "No voice key. Go to Settings → enter ELEVENLABS_API_KEY or GEMINI_API_KEY (the macOS voice only works on a Mac).":
+        "Chưa có key giọng đọc. Vào Cài đặt → nhập ELEVENLABS_API_KEY hoặc GEMINI_API_KEY "
+        "(giọng macOS chỉ có trên Mac).",
+    "No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY.":
+        "Chưa có ElevenLabs API key. Vào Cài đặt → nhập ELEVENLABS_API_KEY.",
+    "No Gemini API key. Go to Settings → enter GEMINI_API_KEY.":
+        "Chưa có Gemini API key. Vào Cài đặt → nhập GEMINI_API_KEY.",
+    "Gemini returned no audio for this line": "Gemini không trả âm thanh cho câu này",
     "The ElevenLabs account has no voices": "Tài khoản ElevenLabs không có giọng nào",
     "This is a link to a single video: paste a channel or playlist link, or use Projects → New video":
         "Đây là link một video: dán link kênh hoặc playlist, hoặc dùng Dự án → Tạo video",

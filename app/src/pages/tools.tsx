@@ -25,7 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { useApi, type Api, type ToolJob, type ToolKind, type ToolOutput } from "@/lib/api";
+import { hasVoiceProvider, useApi, type Api, type ToolJob, type ToolKind, type ToolOutput } from "@/lib/api";
 import { inTauri, openExternal, openFolder, useEngine } from "@/lib/engine";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -229,7 +229,7 @@ function ToolForm({ api, kind, jobs, preset }: { api: Api; kind: ToolKind; jobs:
                 api={api}
                 value={voice}
                 onChange={setVoice}
-                hasKey={health?.providers.tts === "elevenlabs"}
+                hasKey={hasVoiceProvider(health)}
                 autoLabel={t.tools.voiceAuto}
               />
             </Field>

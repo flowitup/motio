@@ -371,6 +371,11 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
   const src = (k: string) =>
     s[k]?.source === "settings" ? t.settings.fromSettings : s[k]?.source === "env" ? t.settings.fromEnv : undefined;
   const hasElKey = !!s.ELEVENLABS_API_KEY?.value && draft.ELEVENLABS_API_KEY !== "";
+  const ttsProviders: [string, string][] = [
+    ["", t.settings.ttsProviderAuto],
+    ["elevenlabs", "ElevenLabs"],
+    ["gemini", "Gemini"],
+  ];
   const dirty = changed.length > 0;
   const grid = "grid gap-4 sm:grid-cols-2";
   const switchRow = (k: string, label: string, dflt = false) => (
@@ -407,14 +412,41 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
       </Section>
 
       <Section id="voice" title={t.settings.voice} bodyClassName={grid}>
+        <div className="grid content-start gap-1 sm:col-span-2">
+          <Field label={t.settings.ttsProvider} hint={src("TTS_PROVIDER") ?? t.settings.ttsProviderHint}>
+            <Choice value={val("TTS_PROVIDER")} onChange={(v) => set("TTS_PROVIDER", v)} options={ttsProviders} className="w-64" />
+          </Field>
+        </div>
         <Field label="ELEVENLABS_API_KEY" hint={src("ELEVENLABS_API_KEY")}>
           {secret("ELEVENLABS_API_KEY")}
         </Field>
         <Field label={t.settings.voiceLabel}>
-          <VoicePicker api={api} hasKey={hasElKey} value={val("ELEVENLABS_VOICE_ID")} onChange={(v) => set("ELEVENLABS_VOICE_ID", v)} />
+          <VoicePicker
+            api={api}
+            hasKey={hasElKey}
+            provider="elevenlabs"
+            value={val("ELEVENLABS_VOICE_ID")}
+            onChange={(v) => set("ELEVENLABS_VOICE_ID", v)}
+          />
         </Field>
         <Field label={t.settings.ttsModel} hint={src("ELEVENLABS_MODEL")}>
           {text("ELEVENLABS_MODEL", "eleven_multilingual_v2")}
+        </Field>
+        <Field label="GEMINI_API_KEY" hint={src("GEMINI_API_KEY") ?? t.settings.geminiKeyHint}>
+          {secret("GEMINI_API_KEY")}
+        </Field>
+        <Field label={t.settings.geminiVoice}>
+          <VoicePicker
+            api={api}
+            hasKey
+            provider="gemini"
+            autoLabel={t.settings.geminiVoiceAuto}
+            value={val("GEMINI_VOICE")}
+            onChange={(v) => set("GEMINI_VOICE", v)}
+          />
+        </Field>
+        <Field label={t.settings.geminiModel} hint={src("GEMINI_TTS_MODEL") ?? t.settings.geminiModelHint}>
+          {text("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")}
         </Field>
       </Section>
 
@@ -424,6 +456,9 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         </Field>
         <Field label={t.settings.voicePrice} hint={t.settings.voicePriceHint}>
           {num("ELEVENLABS_USD_PER_1K_CHARS", "0.22", "0.01")}
+        </Field>
+        <Field label={t.settings.geminiPrice} hint={t.settings.geminiPriceHint}>
+          {num("GEMINI_TTS_USD_PER_MIN", "0.03", "0.01")}
         </Field>
         <Field label={t.settings.clipPrice} hint={t.settings.clipPriceHint}>
           {num("AI_CLIP_USD_PER_SEC", val("CLIP_PROVIDER") === "heygen" ? "0.02" : "0.08", "0.01")}

@@ -486,7 +486,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if not (config.env("ANTHROPIC_API_KEY") or "").strip():
             raise HTTPException(409, tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
         if not voice_ready():
-            raise HTTPException(409, tr("No voice: add ELEVENLABS_API_KEY in Settings"))
+            raise HTTPException(409, tr("No voice: add ELEVENLABS_API_KEY or GEMINI_API_KEY in Settings"))
 
     @app.post("/api/trends/{tid}/produce", status_code=202, dependencies=[Depends(auth)])
     def produce(tid: str, body: ProduceIn | None = None):
@@ -1219,11 +1219,17 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     # ---------- giọng, cài đặt ----------
     @app.get("/api/voices", dependencies=[Depends(auth)])
-    def voices():
-        if not config.env("ELEVENLABS_API_KEY"):
+    def voices(provider: str = ""):
+        """Voices of the provider in use, or of `provider` (Settings shows both before anything is saved). Gemini's
+        30 voices are a fixed list and need no key; ElevenLabs asks its account."""
+        who = provider if provider in tts.PROVIDERS else tts.provider()
+        if who not in tts.PROVIDERS:
+            raise HTTPException(409, tr("ELEVENLABS_API_KEY is not set") if config.env("TTS_PROVIDER") != "gemini"
+                                else tr("GEMINI_API_KEY is not set"))
+        if who == "elevenlabs" and not config.env("ELEVENLABS_API_KEY"):
             raise HTTPException(409, tr("ELEVENLABS_API_KEY is not set"))
         try:
-            vs = tts.list_voices()
+            vs = tts.voices_of(who)
         except Exception as e:
             raise HTTPException(502, tr("ElevenLabs error: {error}", error=str(e)[:200])) from e
         return [{"id": v["voice_id"], "name": v.get("name", v["voice_id"]), "labels": v.get("labels") or {},
