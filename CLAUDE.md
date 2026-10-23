@@ -17,7 +17,7 @@ as authoritative for scope and milestones.
   - `search.py` yt-dlp search/download (cookies: `YTDLP_COOKIES_FILE` per-thread copy, else browser) · `asr.py` mlx-whisper (macOS arm64) / faster-whisper (elsewhere)
   - `douyin.py` public Douyin videos without a login through the `f2` package (it does Douyin's request signing; Motio only
     calls it): `search.download` tries it first for Douyin links and falls back to yt-dlp when f2 cannot
-  - `llm.py` Claude API (Anthropic SDK; main + fast model, each call's cost goes to `usage`) · `tts.py` ElevenLabs (macOS `say` fallback for dev only)
+  - `llm.py` Claude API (Anthropic SDK; main + fast model, each call's cost goes to `usage`) · `tts.py` ElevenLabs or Gemini TTS (`TTS_PROVIDER`, `docs/GEMINI_TTS.md`; macOS `say` fallback for dev only)
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`); the
     source video's own sound under the French voice is the owner's level `meta.src_volume` (0–1, project page card "Original
     sound", `PUT /api/projects/{id}/source-volume` renders again with the saved voice), else 0 for a trending clip

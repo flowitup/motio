@@ -80,6 +80,8 @@ Settings changed in the app go to `data/settings.json` and override `.env`; they
 | `ANTHROPIC_API_KEY` | Claude API key (required; every script, translation and score is an API call) |
 | `LLM_MODEL` / `LLM_MODEL_FAST` | Main model (default `claude-opus-5-5`) / fast model for scoring (default `claude-haiku-5-5`) |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to pick one from the account |
+| `TTS_PROVIDER` | `elevenlabs` / `gemini`; empty = whichever key is set (ElevenLabs first). A chosen provider without its key stops the video instead of switching to the other one |
+| `GEMINI_API_KEY`, `GEMINI_VOICE`, `GEMINI_TTS_MODEL`, `GEMINI_TTS_USD_PER_MIN` | Gemini text-to-speech (Google AI Studio key), one of its 30 voices (default `Charon`), the model, and the price per minute for cost estimates. Details: [docs/GEMINI_TTS.md](docs/GEMINI_TTS.md) |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
 | `REFRESH_EVERY_MIN` | Refresh trends and check followed sources every N minutes (0 = manual; 30 on the server) |
 | `UI_LANG` | `en` (default) / `vi`: language of the engine's messages |
