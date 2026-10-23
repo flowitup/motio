@@ -86,7 +86,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | Change | Files |
 |---|---|
 | Hot-topic fetch, translate, score | `motio/newsnow.py` |
-| Source search / download (yt-dlp), pasted links | `motio/search.py` (`YTDLP_COOKIES_FROM_BROWSER` only for pasted links and followed Bilibili spaces; `YTDLP_COOKIES_FILE` wins over it and also covers Bilibili search / downloads: `cookie_file`, `check_cookie_file`, `_cookie_opts`, `_file_cookie_opts`, `_own_cookie_copy`); tests `tests/test_search.py` |
+| Source search / download (yt-dlp), pasted links | `motio/search.py` (`YTDLP_COOKIES_FROM_BROWSER` only for pasted links and followed Bilibili spaces; `YTDLP_COOKIES_FILE` wins over it and also covers Bilibili search / downloads: `cookie_file`, `check_cookie_file`, `_cookie_opts`, `_file_cookie_opts`, `_own_cookie_copy`; Bilibili falls back to its own API in `motio/bilibili_dl.py` when yt-dlp cannot read the page); tests `tests/test_search.py`, `tests/test_bilibili_dl.py` |
 | Transcription | `motio/asr.py` (mlx-whisper on macOS arm64, faster-whisper elsewhere) |
 | Any LLM call | `motio/llm.py` only (`complete`, `ask_json`, `parse_json`) |
 | Voice | `motio/tts.py` (ElevenLabs with timestamps; macOS `say` is a dev fallback only) |
