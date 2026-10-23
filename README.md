@@ -263,6 +263,9 @@ Settings changed in the app are saved to `data/settings.json`, override `.env` a
 | `LLM_MODEL_FAST` | Fast model for scoring trends / new videos and picking sources (default `claude-haiku-5-5`) |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to let the app pick a French voice from the account |
 | `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
+| `TTS_PROVIDER` | `elevenlabs` / `gemini`; empty = whichever key is set (ElevenLabs first). A chosen provider without its key stops the video instead of switching to the other one |
+| `GEMINI_API_KEY`, `GEMINI_VOICE` | Gemini text-to-speech (Google AI Studio key); one of its 30 voices, default `Charon`. Details: `docs/GEMINI_TTS.md` |
+| `GEMINI_TTS_MODEL`, `GEMINI_TTS_USD_PER_MIN` | Default `gemini-3.1-flash-tts-preview`; price per minute of voice for the cost estimates (default 0.03) |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
 | `NEWSNOW_URL` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
 | `NEWS_TOPICS` | `true` brings back China's hot news (NewsNow) next to the Trending videos: a *News topics* page and the refresh of it. Default off |

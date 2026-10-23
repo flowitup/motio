@@ -376,7 +376,8 @@ calls per use.
   channel is read from its meta), the Tools "Read aloud" job sets `ref="tool:<job>"`. A failed call, or a DB error while
   recording, never fails the work.
 - Price: `ELEVENLABS_USD_PER_1K_CHARS` in Settings (default 0.22, Creator plan); `flash` / `turbo` models count half. It
-  is an estimate: credits on the owner's real plan may differ. `MONTHLY_BUDGET_USD` (0 = none): `summary()["budget"]`
+  is an estimate: credits on the owner's real plan may differ. Gemini voice calls (`docs/GEMINI_TTS.md`) are recorded
+  the same way with the characters sent and a price from the audio length (`GEMINI_TTS_USD_PER_MIN`, default 0.03). `MONTHLY_BUDGET_USD` (0 = none): `summary()["budget"]`
   is `ok` / `warn` (≥ 80%) / `over` (≥ 100%); `over` makes `automake.picks` return nothing, manual makes are never blocked.
 - API: `GET /api/stats` (`price_per_1k`, `month`, `budget`, `total`, `days` × 30, `channels`); a project's detail gets
   `usage: {tts_chars, usd}`. The page is `app/src/pages/stats.tsx` (cards, CSS bar chart, per-channel table).

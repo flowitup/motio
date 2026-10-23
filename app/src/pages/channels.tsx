@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePicker } from "@/components/voice-picker";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
-import { ApiError, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
+import { ApiError, hasVoiceProvider, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
 import { t } from "@/i18n";
 
 const MODES: SendMode[] = ["draft", "schedule", "now"];
@@ -486,7 +486,7 @@ export default function ChannelsPage() {
   const [saved, setSaved] = useState(false);
   const { data, isLoading, error } = useQuery({ queryKey: ["channels"], queryFn: () => api.channels() });
   const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
-  const hasKey = health?.providers.tts === "elevenlabs";
+  const hasKey = hasVoiceProvider(health);
   const done = () => {
     setEditing(null);
     setCopyOf(null);

@@ -29,7 +29,7 @@ SUBS_EXT = (".srt", ".vtt")
 MAX_MEDIA = delogo.MAX_UPLOAD
 MAX_SUBS = 2 * 1024 * 1024
 MAX_ENTRIES = 1500  # số câu phụ đề tối đa khi dịch
-MAX_TEXT = 5000  # ký tự tối đa cho một lần đọc (một lần gọi ElevenLabs)
+MAX_TEXT = 5000  # ký tự tối đa cho một lần đọc (một lần gọi giọng đọc)
 HEIGHTS = (480, 720, 1080)
 LANGS = {"fr": "French (France)", "en": "English", "vi": "Vietnamese"}
 SIZES = {"small": 0.038, "medium": 0.048, "large": 0.058}  # cỡ chữ phụ đề / cạnh ngắn của khung hình
@@ -240,8 +240,7 @@ def _validate(kind: str, params: dict) -> dict:
         if len(text) > MAX_TEXT:
             raise ValueError(tr("The text can have at most {n} characters", n=MAX_TEXT))
         if tts.provider() is None:
-            raise tts.TTSUnavailable(tr("No ElevenLabs API key. Go to Settings → enter ELEVENLABS_API_KEY "
-                                        "(the macOS voice only works on a Mac)."))
+            raise tts.TTSUnavailable(tts.missing_key_message())
         p.update(text=text, voice=str(params.get("voice") or "")[:100])
     elif kind == "burn":
         size = params.get("size") or "medium"

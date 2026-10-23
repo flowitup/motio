@@ -491,6 +491,10 @@ export type DriveStatus = {
 
 export type SettingValue = { value: string; secret: boolean; source: "settings" | "env" | "default" };
 export type Settings = Record<string, SettingValue>;
+/** A voice provider with a key (ElevenLabs or Gemini): voices can be listed and picked. */
+export const hasVoiceProvider = (h?: { providers: { tts: string | null } }) =>
+  h?.providers.tts === "elevenlabs" || h?.providers.tts === "gemini";
+
 export type Voice = { id: string; name: string; labels: Record<string, string>; preview_url: string | null };
 
 export class ApiError extends Error {
@@ -707,7 +711,7 @@ export function makeApi(url: string, token: string) {
     createChannel: (body: ChannelInput) => call<Channel>("POST", "/api/channels", body),
     updateChannel: (id: number, body: ChannelInput) => call<Channel>("PUT", `/api/channels/${id}`, body),
     deleteChannel: (id: number) => call<{ deleted: number }>("DELETE", `/api/channels/${id}`),
-    voices: () => call<Voice[]>("GET", "/api/voices"),
+    voices: (provider = "") => call<Voice[]>("GET", `/api/voices${provider ? `?provider=${provider}` : ""}`),
     postizChannels: () => call<PostizChannel[]>("GET", "/api/postiz/channels"),
     /** Gửi lại video đã xong sang Postiz đúng như kênh của dự án cài đặt (chế độ, giờ đăng, bản 16:9). */
     resend: (id: number) => call<{ sent: boolean; error: string | null }>("POST", `/api/projects/${id}/resend`),

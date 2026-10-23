@@ -8,15 +8,16 @@ import threading
 from pathlib import Path
 
 KEYS = ("LLM_MODEL", "LLM_MODEL_FAST", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
-        "ELEVENLABS_MODEL", "WHISPER_MODEL", "NEWSNOW_URL", "REFRESH_EVERY_MIN",
+        "ELEVENLABS_MODEL", "TTS_PROVIDER", "GEMINI_API_KEY", "GEMINI_VOICE", "GEMINI_TTS_MODEL",
+        "GEMINI_TTS_USD_PER_MIN", "WHISPER_MODEL", "NEWSNOW_URL", "REFRESH_EVERY_MIN",
         "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "YTDLP_COOKIES_FILE",
         "UI_LANG",
         "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
         "FAL_IMAGE_MODEL", "IMAGE_STYLE", "NEWS_TOPICS",
         "AI_CLIP_USD_PER_SEC", "CLIP_PROVIDER", "HEYGEN_API_KEY",
         "DRIVE_ON", "DRIVE_CLIENT_ID", "DRIVE_CLIENT_SECRET", "DRIVE_REFRESH_TOKEN", "DRIVE_FOLDER", "DRIVE_KEEP_LOCAL")
-SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL", "FAL_KEY",
-           "HEYGEN_API_KEY", "DRIVE_CLIENT_SECRET", "DRIVE_REFRESH_TOKEN")
+SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "GEMINI_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL",
+           "FAL_KEY", "HEYGEN_API_KEY", "DRIVE_CLIENT_SECRET", "DRIVE_REFRESH_TOKEN")
 MASK = "••••"
 
 _lock = threading.Lock()
@@ -89,6 +90,7 @@ def update(changes: dict) -> dict[str, dict]:
     from .i18n import LANGS, tr  # i18n, notify và images đọc settings: nhập muộn cho khỏi vòng lặp import
     from .images import FAL_MODELS, PROVIDERS
     from .notify import valid
+    from .tts import PROVIDERS as TTS_PROVIDERS
 
     unknown = [k for k in changes if k not in KEYS]
     if unknown:
@@ -99,6 +101,8 @@ def update(changes: dict) -> dict[str, dict]:
         raise ValueError(tr("IMAGE_PROVIDER must be one of {choices}", choices=", ".join(PROVIDERS)))
     if changes.get("FAL_IMAGE_MODEL") not in (None, "", *FAL_MODELS):
         raise ValueError(tr("FAL_IMAGE_MODEL must be one of {choices}", choices=", ".join(FAL_MODELS)))
+    if changes.get("TTS_PROVIDER") not in (None, "", *TTS_PROVIDERS):
+        raise ValueError(tr("TTS_PROVIDER must be one of {choices}", choices=", ".join(TTS_PROVIDERS)))
     if changes.get("CLIP_PROVIDER") not in (None, "", *CLIP_PROVIDERS):
         raise ValueError(tr("CLIP_PROVIDER must be one of {choices}", choices=", ".join(CLIP_PROVIDERS)))
     cookies = _normalize(changes.get("YTDLP_COOKIES_FILE"))
@@ -114,7 +118,7 @@ def update(changes: dict) -> dict[str, dict]:
                 raise ValueError
         except (TypeError, ValueError):
             raise ValueError(tr("{key} must be an integer ≥ 0", key="REFRESH_EVERY_MIN")) from None
-    for k in ("ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "AI_CLIP_USD_PER_SEC"):
+    for k in ("ELEVENLABS_USD_PER_1K_CHARS", "GEMINI_TTS_USD_PER_MIN", "MONTHLY_BUDGET_USD", "AI_CLIP_USD_PER_SEC"):
         if k in changes and changes[k] not in (None, ""):
             try:
                 if float(changes[k]) < 0:
