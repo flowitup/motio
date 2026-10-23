@@ -679,6 +679,15 @@ VI = {
     "Could not download from Haokan: {error}": "Không tải được từ Haokan: {error}",
     "Haokan link without a video id: use the https://haokan.baidu.com/v?vid=… link":
         "Link Haokan không có mã video: hãy dùng link dạng https://haokan.baidu.com/v?vid=…",
+    "Could not connect to Bilibili. Check your internet connection (or VPN, proxy, DNS filter), then try again":
+        "Không kết nối được tới Bilibili. Hãy kiểm tra mạng (hoặc VPN, proxy, bộ lọc DNS) rồi thử lại",
+    "Bilibili sent a page, not a video": "Bilibili trả về một trang web chứ không phải video",
+    "Bilibili sent an empty file": "Bilibili trả về file rỗng",
+    "Bilibili does not give this video to a guest (paid, a film or a series)":
+        "Bilibili không cho khách tải video này (trả phí, phim hoặc series)",
+    "Bilibili did not give an address for this video": "Bilibili không trả địa chỉ cho video này",
+    "Bilibili has no part {n} in this video": "Video Bilibili này không có phần {n}",
+    "Could not download from Bilibili: {error}": "Không tải được từ Bilibili: {error}",
 "Not a {site} account link or id: {text}": "Không phải link hay mã tài khoản {site}: {text}",
     "Reading an account works on Kuaishou, Douyin and Weibo only":
         "Đọc tài khoản chỉ dùng được cho Kuaishou, Douyin và Weibo",

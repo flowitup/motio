@@ -16,7 +16,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.utils import DownloadError
 
-from . import config, douyin, haokan, kuaishou, localfile, platforms, weibo_feed
+from . import bilibili_dl, config, douyin, haokan, kuaishou, localfile, platforms, weibo_feed
 from .i18n import tr
 
 SEARCH_PREFIX = {"youtube": "ytsearch", "bilibili": "bilisearch"}
@@ -270,6 +270,13 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
             info = y.extract_info(url, download=True)
             path = Path(y.prepare_filename(info)).with_suffix(".mp4")
     except DownloadError as e:
+        if _is_bilibili(url):  # yt-dlp no longer reads Bilibili's video page (2026-10-23): ask Bilibili's own API
+            try:
+                return bilibili_dl.download(url, out_dir, height, hooks)
+            except bilibili_dl.NotSupported:  # a series, a film, a live room: yt-dlp's answer is the real one
+                pass
+            except bilibili_dl.Unavailable as u:
+                raise RuntimeError(str(u)) from e
         if douyin.is_douyin(url) and "cookies" in str(e).lower():  # yt-dlp's Douyin extractor wants a browser session
             if offline:  # nó đòi cookie cả khi mất mạng; f2 không tới được Douyin thì nguyên nhân thật là mạng
                 raise _cannot_reach_douyin() from e

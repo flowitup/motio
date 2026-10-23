@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from yt_dlp.utils import DownloadError
 
-from motio import douyin, haokan, kuaishou, platforms, search, settings
+from motio import bilibili_dl, douyin, haokan, kuaishou, platforms, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -410,3 +410,52 @@ def test_other_yt_dlp_errors_on_those_sites_are_kept(tmp_path):
 def test_downloaded_videos_name_their_site():
     assert search.PLATFORM["XiaoHongShu"] == "Xiaohongshu" and search.PLATFORM["Ixigua"] == "Xigua"
     assert search.PLATFORM["Zhihu"] == "Zhihu"
+
+
+# ---------- Bilibili: yt-dlp cannot read the page any more, the site's own API takes over (bilibili_dl.py) ----------
+BILI = "https://www.bilibili.com/video/BV1UaJ96UEmt"
+
+
+def test_a_bilibili_video_yt_dlp_cannot_read_comes_from_the_bilibili_api(monkeypatch, tmp_path):
+    seen = []
+
+    def fake(url, out_dir, max_height, hooks):
+        seen.append((url, max_height))
+        return {"path": str(out_dir / "BiliBili_1UaJ96UEmt.mp4"), "id": "1UaJ96UEmt", "platform": "Bilibili"}
+
+    FakeYDL.fail = DownloadError("[BiliBili] 1UaJ96UEmt: Unable to extract initial state")
+    monkeypatch.setattr(bilibili_dl, "download", fake)
+    info = search.download(BILI, tmp_path, 480, cookies=False)
+    assert info["platform"] == "Bilibili" and seen == [(BILI, 480)] and FakeYDL.urls == [BILI]
+
+
+def test_yt_dlp_is_tried_first_so_a_cookie_session_still_works(monkeypatch, tmp_path):
+    monkeypatch.setattr(bilibili_dl, "download", lambda *a: pytest.fail("yt-dlp worked: no fallback"))
+    assert search.download(BILI, tmp_path, cookies=False)["id"] == "1"
+
+
+def test_a_bilibili_link_that_is_not_a_video_keeps_yt_dlps_answer(monkeypatch, tmp_path):
+    def refuse(*a):
+        raise bilibili_dl.NotSupported("series")
+
+    FakeYDL.fail = DownloadError("This video is only available for premium members")
+    monkeypatch.setattr(bilibili_dl, "download", refuse)
+    with pytest.raises(DownloadError, match="premium"):
+        search.download("https://www.bilibili.com/bangumi/play/ep1", tmp_path)
+
+
+def test_a_bilibili_video_the_api_does_not_give_says_why(monkeypatch, tmp_path):
+    def refuse(*a):
+        raise bilibili_dl.Unavailable("Bilibili does not give this video to a guest (paid, a film or a series)")
+
+    FakeYDL.fail = DownloadError("Unable to extract initial state")
+    monkeypatch.setattr(bilibili_dl, "download", refuse)
+    with pytest.raises(RuntimeError, match="paid, a film or a series"):
+        search.download(BILI, tmp_path)
+
+
+def test_other_sites_never_reach_the_bilibili_api(monkeypatch, tmp_path):
+    monkeypatch.setattr(bilibili_dl, "download", lambda *a: pytest.fail("not a Bilibili link"))
+    FakeYDL.fail = DownloadError("Unable to extract initial state")
+    with pytest.raises(DownloadError):
+        search.download("https://www.youtube.com/watch?v=abc", tmp_path)
