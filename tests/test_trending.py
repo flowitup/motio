@@ -8,9 +8,11 @@ import pytest
 
 from motio import db, llm, trending, watch
 
+PUB = int(time.time()) - 86400  # posted yesterday: a ranking whose newest video is months old counts as dead
+
 
 def _video(bvid, **kw):
-    base = {"bvid": bvid, "title": f"视频 {bvid}", "duration": 120, "pubdate": 1_790_000_000, "copyright": 1,
+    base = {"bvid": bvid, "title": f"视频 {bvid}", "duration": 120, "pubdate": PUB, "copyright": 1,
             "tname": "影视杂谈", "pic": f"http://i0.hdslb.com/{bvid}.jpg", "owner": {"mid": 1, "name": "UP主"},
             "stat": {"view": 100_000, "like": 5000}, "rights": {"no_reprint": 0, "pay": 0, "movie": 0}}
     return {**base, **kw}
@@ -72,10 +74,10 @@ def test_ranking_keeps_only_originals_that_may_be_reused(bili):
     ok = rows[0]
     assert ok["url"] == "https://www.bilibili.com/video/BV1ok" and ok["uploader"] == "UP主"
     assert (ok["views"], ok["likes"], ok["duration"], ok["category"], ok["rank"]) == (100_000, 5000, 120, "影视杂谈", 1)
-    assert ok["thumbnail"] == "https://i0.hdslb.com/BV1ok.jpg" and ok["pubdate"] == 1_790_000_000
+    assert ok["thumbnail"] == "https://i0.hdslb.com/BV1ok.jpg" and ok["pubdate"] == PUB
     assert rows[1]["rank"] == 8  # the place in the list, not in the kept rows
     req = bili.calls[0]
-    assert req.url.params["rid"] == "181" and req.url.params["type"] == "all"
+    assert req.url.params["rid"] == "1001" and req.url.params["type"] == "all"  # 181 under its current id
     assert req.headers["user-agent"] == trending.UA and "Chrome/" in req.headers["user-agent"]  # a short UA gets -352
     assert req.headers["referer"] == "https://www.bilibili.com"
 
@@ -308,8 +310,28 @@ def test_a_category_is_a_watch_source_with_a_name(bili):
     assert db.get_watch(wid)["name"] == "Bilibili · AI & tools"
 
 
-def test_categories_do_not_depend_on_the_guest_ranking():
-    """Bilibili's ranking API gives guests videos ~2 years old (checked 2026-11-13): categories are tags."""
-    for key, cat in trending.CATEGORIES.items():
-        assert not cat["rankings"], key
-        assert cat["tags"], key
+
+def test_a_ranking_is_asked_with_bilibilis_current_id(bili):
+    """Bilibili froze the old rids in 2025: the target keeps 188, the request says 1012."""
+    bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [_video("BV1a")]}}
+    assert [r["id"] for r in trending.fetch("bilibili:ranking:188")] == ["bilibili:BV1a"]
+    assert bili.calls[-1].url.params["rid"] == "1012"
+    trending.fetch("bilibili:ranking:0")
+    assert bili.calls[-1].url.params["rid"] == "0"  # "all categories" was not renumbered
+    assert set(trending.CURRENT_RID) < set(trending.RANKINGS)
+    for cat in trending.CATEGORIES.values():  # a category never reads a ranking Bilibili stopped updating
+        assert all(rid in trending.CURRENT_RID for rid in cat["rankings"])
+
+
+def test_a_ranking_bilibili_stopped_updating_is_reported(bili):
+    old = int(time.time()) - 590 * 86400
+    bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
+        _video("BV1a", pubdate=old), _video("BV1b", pubdate=old - 86400)]}}
+    with pytest.raises(trending.TrendingError, match="no longer updates"):
+        trending.fetch("bilibili:ranking:160")
+    wid = db.add_watch("trending", "bilibili", "bilibili:ranking:160", trending.name("bilibili:ranking:160"))
+    r = watch.check(db.get_watch(wid))
+    assert r["new"] == [] and "no longer updates" in r["error"]  # the source shows why it is empty
+    bili.answers["/x/web-interface/ranking/v2"] = {"code": 0, "data": {"list": [
+        _video("BV1a", pubdate=old), _video("BV1new")]}}  # one fresh video: the list is alive, old ones stay
+    assert len(trending.fetch("bilibili:ranking:160")) == 2

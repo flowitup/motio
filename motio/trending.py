@@ -37,17 +37,24 @@ PREFIX = "bilibili:"
 RANKINGS = {0: "All categories", 181: "Film & TV", 5: "Entertainment", 36: "Knowledge", 188: "Tech", 160: "Life",
             211: "Food", 4: "Games", 1: "Animation", 3: "Music", 129: "Dance", 217: "Animals", 223: "Cars",
             234: "Sports", 155: "Fashion", 119: "Memes", 168: "Chinese animation"}
+# Bilibili redrew its categories in 2025. The old rids above still answer, but with a list frozen at that time (checked
+# 2026-11-13: every video about 590 days old), so the request uses today's id. The targets keep the old rid: saved
+# sources and the app's names stay as they are. Life (160) and Chinese animation (168) have no ranking that is still
+# updated; `STALE_DAYS` reports them instead of showing two-year-old videos as new.
+CURRENT_RID = {181: 1001, 5: 1002, 36: 1010, 188: 1012, 211: 1020, 4: 1008, 1: 1005, 3: 1003, 129: 1004, 217: 1024,
+               223: 1013, 234: 1018, 155: 1014, 119: 1007}
+STALE_DAYS = 90  # a ranking whose newest video is older than this is one Bilibili stopped updating
 POPULAR, WEEKLY = "popular", "weekly"
 # Categories the owner picks from (Trending screen): English name (the app translates it from the target), the ranking
 # rids it reads and the Chinese tags it searches. Adding one here is all it takes; the app lists `CATEGORIES`.
 CATEGORIES = {
-    "tech": {"name": "Tech", "rankings": (), "tags": ("科技", "数码", "科技评测", "硬件")},
+    "tech": {"name": "Tech", "rankings": (188,), "tags": ()},
     "ai": {"name": "AI & tools", "rankings": (), "tags": ("人工智能", "AI工具", "大模型", "AIGC")},
     "ai_film": {"name": "AI films & series", "rankings": (), "tags": ("AI短片", "AI电影", "AI短剧", "AI漫剧")},
-    "film_tv": {"name": "Series & films", "rankings": (), "tags": ("影视解说", "电影解说", "电视剧", "影视混剪")},
-    "knowledge": {"name": "Knowledge & science", "rankings": (), "tags": ("科普", "冷知识", "知识", "涨知识")},
+    "film_tv": {"name": "Series & films", "rankings": (181,), "tags": ()},
+    "knowledge": {"name": "Knowledge & science", "rankings": (36,), "tags": ()},
     "lifestyle": {"name": "Lifestyle & savoir-vivre", "rankings": (), "tags": ("礼仪", "生活技巧", "情商", "收纳整理")},
-    "food": {"name": "Food", "rankings": (), "tags": ("美食", "美食制作", "街头美食", "家常菜")},
+    "food": {"name": "Food", "rankings": (211,), "tags": ()},
     "travel": {"name": "Travel", "rankings": (), "tags": ("旅行", "旅游攻略", "citywalk")},
 }
 WINDOW_DAYS = 7  # a tag looks at what was posted in the last week
@@ -219,9 +226,18 @@ def _new_client() -> httpx.Client:
                         headers={"User-Agent": UA, "Referer": "https://www.bilibili.com"})
 
 
+def _ranking_rows(client: httpx.Client, rid: int) -> list[dict]:
+    """Every row of a ranking, best first. TrendingError when Bilibili no longer updates it (see `CURRENT_RID`)."""
+    data = _get(client, "/x/web-interface/ranking/v2", {"rid": CURRENT_RID.get(rid, rid), "type": "all"})
+    rows = [v for v in data.get("list") or [] if isinstance(v, dict)]
+    dates = [v["pubdate"] for v in rows if isinstance(v.get("pubdate"), (int, float))]
+    if dates and max(dates) < time.time() - STALE_DAYS * 86400:
+        raise TrendingError(tr("Bilibili no longer updates this ranking: follow a tag or the popular list instead"))
+    return rows
+
+
 def _ranking(client: httpx.Client, rid: int) -> list[dict]:
-    data = _get(client, "/x/web-interface/ranking/v2", {"rid": rid, "type": "all"})
-    return [v for v in data.get("list") or [] if isinstance(v, dict) and usable(v)]
+    return [v for v in _ranking_rows(client, rid) if usable(v)]
 
 
 def _category(client: httpx.Client, key: str, take: int) -> list[dict]:
@@ -264,7 +280,7 @@ def fetch(target: str, take: int = TAKE) -> list[dict]:
             items = _category(client, arg, min(take, TAG_TAKE))
             return [clip(v, i + 1) for i, v in enumerate(items)]
         if kind == "ranking":
-            data = _get(client, "/x/web-interface/ranking/v2", {"rid": arg, "type": "all"})
+            data = {"list": _ranking_rows(client, arg)}
         elif kind == POPULAR:
             data = _get(client, "/x/web-interface/popular", {"ps": 50, "pn": 1})
         else:
