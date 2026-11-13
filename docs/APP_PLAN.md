@@ -540,7 +540,7 @@ project files. Built in this batch:
   output follows the picture's proportions (HeyGen's reference: any `aspect_ratio` is ignored in this mode), so no ratio is
   sent. The job is paid once it exists: its id is kept in `<clip>.job` until the clip is saved, a failed look (429 / 5xx /
   network, up to 6 in a row) is retried, and a timeout or a retry resumes the same job instead of paying for a second one.
-  Default price $0.02/s (HeyGen's page says $0.01/s until the end of October and $0.02/s at 768p with sound, OpenRouter shows
+  Default price $0.02/s (HeyGen's page said $0.01/s until the end of October 2026 (promotion over) and $0.02/s at 768p with sound, OpenRouter shows
   $0.015 after the discount; sources disagree, so the budget uses the list price). Its commercial terms are not confirmed, so HeyGen clips force the video gate
   (`aiclips.REVIEW_PROVIDERS`). CLI `clipcheck <picture> ["<scene>"] [fal | heygen]` makes one paid trial clip (about $0.10 with heygen, $0.40 with fal).
 - **Series and recurring characters** (`motio/series.py`, channel fields `series` / `cast`): the owner picked "AI film

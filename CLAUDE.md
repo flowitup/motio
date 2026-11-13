@@ -54,7 +54,10 @@ as authoritative for scope and milestones.
     (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only; plus the Trending screen's
     categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
     Bilibili search with the public wbi signature, most played of the last 7 days, paid / film flags read from `wbi/view`);
-    Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
+    Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16);
+    Bilibili redrew its categories in 2025 and froze the old ranking ids, so a ranking is asked with today's id
+    (`CURRENT_RID`; the target keeps the old one) and a ranking whose newest video is over `STALE_DAYS` old is reported
+    as no longer updated (Life and Chinese animation have none, checked 2026-11-13)
   - `kuaishou_feed.py` Kuaishou's public "Featured" list (`kuaishou:featured`, Trending screen, no login or cookie; a fresh draw
     of ~50 videos each check, not a ranking): `watch.py` follows it like a Bilibili list (site `kuaishou`); each row's signed mp4
     address is kept in `data/cache/kuaishou_media.json` so `kuaishou.download` can fetch it without videodl (videodl only for

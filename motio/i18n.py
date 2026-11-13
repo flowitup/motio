@@ -320,6 +320,8 @@ VI = {
     "At most {n} sources": "Tối đa {n} nguồn",
     "Unknown Bilibili trending list: {target}": "Không có bảng xếp hạng Bilibili này: {target}",
     "Could not reach Bilibili: {error}": "Không kết nối được Bilibili: {error}",
+    "Bilibili no longer updates this ranking: follow a tag or the popular list instead":
+        "Bilibili không còn cập nhật bảng xếp hạng này: hãy theo dõi một tag hoặc danh sách phổ biến",
     "Bilibili blocked the request ({code}): try again later": "Bilibili chặn yêu cầu ({code}): thử lại sau",
     "Bilibili returned an error: {error}": "Bilibili báo lỗi: {error}",
     "Unknown Kuaishou list: {target}": "Không có danh sách Kuaishou này: {target}",
