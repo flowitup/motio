@@ -52,7 +52,7 @@ as authoritative for scope and milestones.
     has Postiz (`pipeline._why_held`), a warning is only shown
   - `trending.py` Bilibili's own ranking (16 categories or all), popular and weekly lists as followed sources in `watch.py`
     (`bilibili:ranking:<rid>`, `bilibili:popular`, `bilibili:weekly`), original uploads only; plus the Trending screen's
-    categories (`CATEGORIES`: a ranking and / or Chinese tags, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
+    categories (`CATEGORIES`: Chinese tags only since 2026-11-13, because Bilibili's ranking API gives guests ~2-year-old videos, `bilibili:category:<key>`) and free tags (`bilibili:tag:<word>`,
     Bilibili search with the public wbi signature, most played of the last 7 days, paid / film flags read from `wbi/view`);
     Bilibili's "no reprint" tick (~99 % of a ranking) is ignored (owner, 2026-10-16)
   - `kuaishou_feed.py` Kuaishou's public "Featured" list (`kuaishou:featured`, Trending screen, no login or cookie; a fresh draw

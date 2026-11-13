@@ -1001,7 +1001,7 @@ const en = {
     falKeyHint: "From fal.ai → Dashboard → API keys. Your fal account needs credit.",
     clipPrice: "AI clip price ($ per second)",
     clipPriceHint:
-      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02 ($0.01 until the end of October 2026); every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the clip provider chosen above.",
+      "fal H3 Max at 768p is about $0.08 a second, HeyGen Video 1 at 768p $0.02; every clip lasts 5 seconds. Used for the cost estimate and the monthly budget. Leave empty for the list price of the clip provider chosen above.",
     clipProvider: "Clip provider",
     clipProviderHint:
       "Who turns a scene's picture into a 5-second clip. HeyGen Video 1 is much cheaper, but its terms for monetized channels are not checked yet, so videos with HeyGen clips stop at the video approval.",
@@ -2159,7 +2159,7 @@ const vi: Messages = {
     falKeyHint: "Lấy ở fal.ai → Dashboard → API keys. Tài khoản fal cần còn tiền.",
     clipPrice: "Giá clip AI ($ mỗi giây)",
     clipPriceHint:
-      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02 ($0,01 đến hết tháng 10/2026); mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp clip đã chọn ở trên.",
+      "fal H3 Max ở 768p khoảng $0,08 một giây, HeyGen Video 1 ở 768p $0,02; mỗi clip dài 5 giây. Dùng cho chi phí ước lượng và ngân sách tháng. Để trống thì dùng giá niêm yết của nhà cung cấp clip đã chọn ở trên.",
     clipProvider: "Nhà cung cấp clip",
     clipProviderHint:
       "Nơi biến ảnh của cảnh thành clip 5 giây. HeyGen Video 1 rẻ hơn nhiều nhưng chưa kiểm tra điều khoản cho kênh kiếm tiền, nên video có clip HeyGen dừng ở bước duyệt video.",

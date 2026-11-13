@@ -306,3 +306,10 @@ def test_a_category_is_a_watch_source_with_a_name(bili):
     r = watch.check(db.get_watch(wid))
     assert r["error"] is None and r["new"] == ["bilibili:BV1a"]
     assert db.get_watch(wid)["name"] == "Bilibili · AI & tools"
+
+
+def test_categories_do_not_depend_on_the_guest_ranking():
+    """Bilibili's ranking API gives guests videos ~2 years old (checked 2026-11-13): categories are tags."""
+    for key, cat in trending.CATEGORIES.items():
+        assert not cat["rankings"], key
+        assert cat["tags"], key

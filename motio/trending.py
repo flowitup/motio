@@ -41,13 +41,13 @@ POPULAR, WEEKLY = "popular", "weekly"
 # Categories the owner picks from (Trending screen): English name (the app translates it from the target), the ranking
 # rids it reads and the Chinese tags it searches. Adding one here is all it takes; the app lists `CATEGORIES`.
 CATEGORIES = {
-    "tech": {"name": "Tech", "rankings": (188,), "tags": ()},
+    "tech": {"name": "Tech", "rankings": (), "tags": ("科技", "数码", "科技评测", "硬件")},
     "ai": {"name": "AI & tools", "rankings": (), "tags": ("人工智能", "AI工具", "大模型", "AIGC")},
     "ai_film": {"name": "AI films & series", "rankings": (), "tags": ("AI短片", "AI电影", "AI短剧", "AI漫剧")},
-    "film_tv": {"name": "Series & films", "rankings": (181,), "tags": ()},
-    "knowledge": {"name": "Knowledge & science", "rankings": (36,), "tags": ()},
+    "film_tv": {"name": "Series & films", "rankings": (), "tags": ("影视解说", "电影解说", "电视剧", "影视混剪")},
+    "knowledge": {"name": "Knowledge & science", "rankings": (), "tags": ("科普", "冷知识", "知识", "涨知识")},
     "lifestyle": {"name": "Lifestyle & savoir-vivre", "rankings": (), "tags": ("礼仪", "生活技巧", "情商", "收纳整理")},
-    "food": {"name": "Food", "rankings": (211,), "tags": ()},
+    "food": {"name": "Food", "rankings": (), "tags": ("美食", "美食制作", "街头美食", "家常菜")},
     "travel": {"name": "Travel", "rankings": (), "tags": ("旅行", "旅游攻略", "citywalk")},
 }
 WINDOW_DAYS = 7  # a tag looks at what was posted in the last week
