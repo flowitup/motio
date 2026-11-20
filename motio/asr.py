@@ -10,7 +10,7 @@ from .i18n import tr
 MLX_DEFAULT = "mlx-community/whisper-large-v3-turbo"
 FASTER_DEFAULT = "large-v3-turbo"
 # Whisper chạy trong tiến trình của engine và không có giới hạn thời gian riêng: nếu nó treo, hàng đợi một-việc-mỗi-lúc
-# đứng mãi. Giới hạn rộng (lần đầu còn tải model vài GB, CPU int8 chậm hơn thời gian thực) chỉ để không bao giờ chờ vô hạn.
+# đứng mãi. Giới hạn rộng (lần đầu còn tải model vài GB, CPU int8 chậm hơn thời gian thực): chỉ để không chờ vô hạn.
 TIMEOUT_BASE = 60 * 60
 TIMEOUT_PER_SECOND = 10
 

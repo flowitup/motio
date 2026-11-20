@@ -9,8 +9,8 @@ ai: a video made only of AI pictures (Settings → Image provider; `IMAGE_PROVID
 dub: French dub of one video (start / end in seconds; left out = whole video if short, else Claude picks 62–85 s).
 clip: Claude picks the best moments of a long video (default 4) and makes one vertical clip of each, original sound
 kept (15–90 s each). To pick the moments yourself use the Clip Studio in the app.
-automake makes, one after another, the trends that reach a channel's auto-make score (the engine does it by itself
-after each scheduled refresh)."""
+automake makes, one after another, the trends and new videos that reach a channel's auto-make score (the engine does
+it by itself after each scheduled refresh)."""
 import argparse
 import json
 import os
@@ -37,12 +37,12 @@ def main(argv: list[str]) -> None:
         print(json.dumps(newsnow.refresh(), ensure_ascii=False, indent=1))
     elif cmd == "automake":
         from . import automake, pipeline
-        picks = automake.picks()
-        if not picks:
-            print("Nothing to make: no new trend reaches a channel's auto-make score (or today's limit is reached)")
-        for t, ch in picks:
-            pid = automake.start(t, ch)
-            print(f"Project #{pid} ({ch['name']}, score {t['score']}): {t['title_fr']}")
+        made = automake.make()
+        if not made:
+            print("Nothing to make: no new trend or video reaches a channel's auto-make score "
+                  "(or today's limit is reached)")
+        for pid, _kind, item, ch in made:
+            print(f"Project #{pid} ({ch['name']}, score {item['score']}): {item.get('title_fr') or item.get('title')}")
             pipeline.produce(pid)
     elif cmd == "trends":
         for t in db.list_trends()[:30]:

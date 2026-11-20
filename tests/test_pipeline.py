@@ -633,19 +633,20 @@ def test_resend_after_a_partial_send_only_reaches_the_channels_left(fake, fake_p
     first = p["meta"]["postiz"][0]["date"]
     assert p["meta"]["send_left"]["ids"] == ["yt1"]
 
-    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is False  # still down: nothing new, 9:16 not repeated
+    again = lambda: pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid)))  # noqa: E731
+    assert again() is False  # still down: nothing new, the 9:16 post is not repeated
     assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4")]
     assert db.get_project(pid)["meta"]["send_left"]["ids"] == ["yt1"]
 
     monkeypatch.setattr(postiz, "publish_project", real)
-    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is True
+    assert again() is True
     p = db.get_project(pid)
     assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4"), (["yt1"], "final_wide.mp4")]
     assert "only to the Postiz channels that did not get the video: yt1" in p["log"]
     assert p["meta"]["postiz"][1]["date"] == first  # the 16:9 copy keeps the posting time of the 9:16 one
     assert p["meta"]["send_left"] is None and p["meta"]["send_error"] is None
 
-    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is True  # everything was sent: a resend is a full one
+    assert again() is True  # everything was sent: a resend is a full one
     assert len(_posted_media(fake_postiz)) == 4
 
 

@@ -349,6 +349,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             due = next_watch()
             if due is not None and time.time() >= due and not state["watching"]:
                 _check_watches()
+                _automake()  # video mới vừa được chấm điểm: kênh bật tự làm từ video mới làm luôn
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -405,8 +406,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     def _automake() -> None:
         try:
             made = []
-            for t, ch in automake.picks():
-                pid = automake.start(t, ch)
+            for pid, _kind, _item, _ch in automake.make():
                 jobs.submit(_run_job, pipeline.produce, pid)
                 made.append(pid)
             if made:

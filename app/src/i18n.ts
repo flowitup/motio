@@ -444,11 +444,17 @@ const en = {
       "Tick 16:9 for channels that should get a landscape copy (e.g. a YouTube channel for regular videos). Motio then also renders a 16:9 copy of each video, with the same cut, voice and captions.",
     auto: "Make videos automatically",
     autoHint:
-      "After each scheduled refresh, Motio makes a video for this channel from new trending topics at or above the score. They still stop for approval as set above. Needs “Auto refresh” in Settings.",
+      "After each scheduled refresh, Motio makes a video for this channel from new news topics, and from new videos if you turn that on below, at or above the score. They still stop for approval as set above. Needs “Auto refresh” in Settings.",
     autoScore: "Minimum score",
     autoScoreHint: "Out of 100. 85 is a good start.",
     autoDaily: "Videos per day",
     autoDailyHint: "For this channel. The daily limit in Settings still applies.",
+    autoClips: "From new videos (Trending and Followed)",
+    autoClipsModes: { off: "Off", explainer: "Explainer", dub: "French dub" },
+    autoClipsHint:
+      "Off: only news topics are made. Explainer or French dub: after each scheduled check, new videos scored at or above the minimum also become videos for this channel. Each one costs Claude and voice credits.",
+    autoNothing:
+      "News topics are off in Settings and “From new videos” is off, so this channel will not make anything on its own. Pick Explainer or French dub above.",
     summaryGates: (script: boolean, video: boolean): string =>
       script && video ? "Script and video approval" : script ? "Script approval" : video ? "Video approval" : "No approval gates",
     summaryPostiz: (n: number, mode: string) =>
@@ -1672,11 +1678,17 @@ const vi: Messages = {
       "Tick 16:9 cho các kênh cần bản ngang (vd. kênh YouTube đăng video thường). Khi đó Motio dựng thêm một bản 16:9 của mỗi video, cùng đoạn cắt, giọng đọc và phụ đề.",
     auto: "Tự làm video",
     autoHint:
-      "Sau mỗi lần tự cập nhật tin, Motio làm video cho kênh này từ các tin hot mới đạt điểm này trở lên. Video vẫn dừng chờ duyệt như cài đặt ở trên. Cần bật “Tự cập nhật tin” trong Cài đặt.",
+      "Sau mỗi lần tự cập nhật, Motio làm video cho kênh này từ các tin hot mới, và từ video mới nếu bạn bật ở dưới, đạt điểm này trở lên. Video vẫn dừng chờ duyệt như cài đặt ở trên. Cần bật “Tự cập nhật tin” trong Cài đặt.",
     autoScore: "Điểm tối thiểu",
     autoScoreHint: "Trên thang 100. 85 là mức khởi đầu tốt.",
     autoDaily: "Số video mỗi ngày",
     autoDailyHint: "Cho kênh này. Giới hạn mỗi ngày trong Cài đặt vẫn áp dụng.",
+    autoClips: "Từ video mới (Xu hướng và Đang theo dõi)",
+    autoClipsModes: { off: "Tắt", explainer: "Video giải thích", dub: "Lồng tiếng Pháp" },
+    autoClipsHint:
+      "Tắt: chỉ tự làm từ tin hot. Video giải thích hoặc Lồng tiếng Pháp: sau mỗi lần tự kiểm tra, video mới đạt điểm tối thiểu cũng thành video cho kênh này. Mỗi video tốn tiền Claude và giọng đọc.",
+    autoNothing:
+      "Tin hot đang tắt trong Cài đặt và “Từ video mới” cũng tắt, nên kênh này sẽ không tự làm gì. Hãy chọn Video giải thích hoặc Lồng tiếng Pháp ở trên.",
     summaryGates: (script: boolean, video: boolean) =>
       script && video ? "Duyệt kịch bản và video" : script ? "Duyệt kịch bản" : video ? "Duyệt video" : "Không dừng duyệt",
     summaryPostiz: (n: number, mode: string) => (n ? `Tự gửi ${n} kênh Postiz (${mode})` : "Không tự gửi"),
