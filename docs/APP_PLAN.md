@@ -528,8 +528,8 @@ project files. Built in this batch:
   NewsNow hot news is off by default (`NEWS_TOPICS`; the old page is *News topics*). Bilibili's "no reprint" tick (on ~99 % of
   videos) is ignored: the owner does not want it shown or used (2026-10-16). *Create* removes
   the source's own voice (`meta.mute_source`); *Dub in French* already separates it from the music. Douyin has no public
-  category feed (f2 only fetches a known post or a creator), so Douyin stays paste-a-link. Not built: auto-make from
-  trending videos, keeping the source's music under an explainer.
+  category feed (f2 only fetches a known post or a creator), so Douyin stays paste-a-link. Not built: keeping the source's
+  music under an explainer (auto-make from trending videos came on 2026-11-20, below).
 - **Account feed by day** (2026-10-16, owner: click a followed account to see its videos by day): the source name on the
   Followed page opens `/clips/:id`, every video seen from that account (any status) newest upload first under one heading
   per day (Today, Yesterday, the date, "Date unknown" last); *Check now* checks just that account (`POST
@@ -668,6 +668,28 @@ use them. Reverse (play backwards) was built, then dropped on the owner's ask be
   close to the render), "Same for every source", **Save and re-render**.
 - Not verified: a render of a real project with effects on (smoke was a full `render.render` on a synthetic source),
   the card in a real Tauri window, Windows.
+
+## Advisor fixes (2026-11-20)
+
+Three advisors reviewed the app on the owner's ask; the owner said to fix what they found, starting with:
+
+- **Postiz resend after a partial send**: when the 9:16 post went out and the 16:9 one failed, sending again posted the
+  9:16 video twice. `pipeline.send_to_postiz` now keeps what is left in `meta.send_left` (`ids`, `when`) and the next
+  send reaches only those channels, at the same posting time while it is still ahead. A resend after a full send is
+  still a full one.
+- **Whisper guard**: `asr.transcribe` runs Whisper through `asr.bounded` (one hour + 10 s per second of audio); past
+  that the step fails with `asr.Stuck` and the single worker moves on. The faster-whisper model is loaded once
+  (`asr.faster_model`), not once per source.
+- **Auto-make from new videos**: channel field `auto_clips` (`""` | `explainer` | `dub`), `automake.plan` / `make` /
+  `start_clip`, run after the scheduled watch check too. Off by default; the Channels form says so when news topics
+  are off and nothing would be made. News and videos share `auto_daily` and the monthly-budget stop.
+- **Review queue** (`/review`, `app/src/pages/review.tsx`, opened from Projects → "Review queue (n)"): everything that
+  waits at a gate, oldest first, with the script or the player, the post text and the quality check on one screen.
+  Keys: `A` approve (asks first when the channel posts publicly at once), `S` approve without sending, `J` / `K` next /
+  previous, `O` open the project, space plays. "Approve n scripts" approves every waiting script after one
+  confirmation. No engine change: it uses `GET /api/projects?status=review` and `POST /api/projects/{id}/approve`.
+- Not verified: a real Postiz, a real Whisper run, the queue in a real Tauri window and on Windows (checked in a
+  browser against a seeded engine, 1280 × 820 and 960 × 640).
 
 ## Out of scope for now
 

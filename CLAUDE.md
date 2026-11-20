@@ -150,8 +150,10 @@ as authoritative for scope and milestones.
   - `channels.py` "Channels" profiles (GĐ1): badge, script style, voice, hashtags, script / video approval gates, Postiz
     auto-send after approval (draft / next posting time / now), a 16:9 copy for the Postiz channels ticked for it
     (`final_wide.mp4`, `meta.wide`); projects point to one with `meta.channel`
-  - `automake.py` after each scheduled refresh, make videos for new trends at or above a profile's `auto_score`
-    (per-profile `auto_daily` cap); such projects carry `meta.auto`
+  - `automake.py` after each scheduled refresh and each scheduled check of the followed sources, make videos for new
+    trends at or above a profile's `auto_score` (per-profile `auto_daily` cap); a profile that sets `auto_clips`
+    (`explainer` | `dub`, off by default: news topics are off, so a score alone makes nothing) also gets the scored new
+    videos of Trending / Followed (`plan`, `make`, `start_clip`); such projects carry `meta.auto`
   - `i18n.py` engine messages in the UI language (`tr`, `tr_n`, Vietnamese in `VI`, `UI_LANG`)
   - `edit.py` edit a project's script from the app (then re-render from the voice step), delete a project
   - `delogo.py` "Remove logo" tool: remove a static logo from a video the user picks (drawn or auto-found boxes); a

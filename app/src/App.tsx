@@ -18,6 +18,7 @@ import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
 import ProjectDetailPage from "@/pages/project-detail";
 import ProjectsPage from "@/pages/projects";
+import ReviewPage from "@/pages/review";
 import ScanPage from "@/pages/scan";
 import SettingsPage from "@/pages/settings";
 import StatsPage from "@/pages/stats";
@@ -262,6 +263,7 @@ export default function App() {
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
           <Route path="/clips/:id" element={<EngineGate><AccountPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />
+          <Route path="/review" element={<EngineGate><ReviewPage /></EngineGate>} />
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/clip-studio" element={<EngineGate><ClipStudioPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
