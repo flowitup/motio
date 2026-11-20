@@ -613,6 +613,42 @@ def test_missing_16_9_copy_sends_the_9_16_video_everywhere(fake, fake_postiz):
     assert "16:9 copy missing" in p["log"] and not p["meta"]["send_error"]
 
 
+def test_resend_after_a_partial_send_only_reaches_the_channels_left(fake, fake_postiz, monkeypatch):
+    """The 9:16 post went out and the 16:9 one failed: sending again must not post the 9:16 video twice."""
+    from motio import postiz
+    ch = _profile(postiz=["tt1", "yt1"], wide_postiz=["yt1"], send_mode="schedule", send_times=["07:00", "19:00"])
+    pid = _with(ch, _new())
+    real = postiz.publish_project
+
+    def wide_fails(pid, ids, mode, when, profile=None, version="vertical"):
+        if version == "wide":
+            raise postiz.PostizError("YouTube is down")
+        return real(pid, ids, mode, when, profile=profile, version=version)
+
+    monkeypatch.setattr(postiz, "publish_project", wide_fails)
+    pipeline.produce(pid)
+    p = db.get_project(pid)
+    assert p["status"] == "done" and "YouTube is down" in p["meta"]["send_error"]
+    assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4")]
+    first = p["meta"]["postiz"][0]["date"]
+    assert p["meta"]["send_left"]["ids"] == ["yt1"]
+
+    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is False  # still down: nothing new, 9:16 not repeated
+    assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4")]
+    assert db.get_project(pid)["meta"]["send_left"]["ids"] == ["yt1"]
+
+    monkeypatch.setattr(postiz, "publish_project", real)
+    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is True
+    p = db.get_project(pid)
+    assert _posted_media(fake_postiz) == [(["tt1"], "final.mp4"), (["yt1"], "final_wide.mp4")]
+    assert "only to the Postiz channels that did not get the video: yt1" in p["log"]
+    assert p["meta"]["postiz"][1]["date"] == first  # the 16:9 copy keeps the posting time of the 9:16 one
+    assert p["meta"]["send_left"] is None and p["meta"]["send_error"] is None
+
+    assert pipeline.send_to_postiz(pid, channels.for_project(db.get_project(pid))) is True  # everything was sent: a resend is a full one
+    assert len(_posted_media(fake_postiz)) == 4
+
+
 def test_voice_characters_are_charged_to_the_project_and_its_channel(fake, monkeypatch):
     from motio import usage
     real = tts.synthesize

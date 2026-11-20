@@ -1,6 +1,7 @@
 """Pipeline: một tin NewsNow (mode news), một chủ đề / link video (mode topic), một video cần lồng tiếng (mode dub,
 xem dub.py), một đoạn highlight cắt từ video dài giữ tiếng gốc (mode clip, xem clipper.py) hoặc một chủ đề làm
 hoàn toàn bằng ảnh AI (mode ai, xem creator.py) → một video 9:16 tiếng Pháp."""
+import datetime as dt
 import json
 import time
 import traceback
@@ -848,35 +849,62 @@ def _deliver(pid: int, ch: dict | None) -> None:
     drive.after_done(pid)
 
 
+def _send_left(meta: dict, ch: dict) -> tuple[list[str], str | None]:
+    """Lần gửi trước mới xong một phần (vd. bản 9:16 đã lên, bản 16:9 lỗi): (các kênh Postiz còn thiếu, giờ đăng của
+    lần đó). Không có gì dang dở: (mọi kênh của hồ sơ, None)."""
+    left = meta.get("send_left") or {}
+    ids = [i for i in ch["postiz"] if i in (left.get("ids") or [])]
+    return (ids, left.get("when")) if ids else (list(ch["postiz"]), None)
+
+
+def _still_ahead(when: str | None) -> bool:
+    try:
+        return bool(when) and dt.datetime.fromisoformat(when) > dt.datetime.now().astimezone()
+    except (TypeError, ValueError):
+        return False
+
+
 def send_to_postiz(pid: int, ch: dict) -> bool:
     """Gửi video sang các kênh Postiz của hồ sơ: nháp, giờ đăng kế tiếp của kênh, hoặc đăng ngay. Kênh Postiz đánh
     dấu 16:9 nhận bản 16:9 (thiếu bản này thì nhận bản 9:16). Lỗi chỉ ghi vào nhật ký (video vẫn xong, gửi lại bằng
-    tay được). Trả True nếu mọi kênh đã được gửi."""
+    tay được). Lần gửi chỉ xong một phần được nhớ trong `meta.send_left`: gửi lại chỉ tới các kênh còn thiếu (cùng giờ
+    đăng nếu giờ ấy chưa qua), để kênh đã nhận không bị đăng trùng. Trả True nếu mọi kênh đã được gửi."""
     Step(pid)("Send to Postiz", 99, tr("Sending to Postiz ({mode}) for channel {name}", mode=ch["send_mode"],
                                          name=ch["name"]))
     meta = db.get_project(pid)["meta"]
-    wide_ids = [i for i in ch["postiz"] if i in ch["wide_postiz"]]
-    tall_ids = [i for i in ch["postiz"] if i not in wide_ids]
+    targets, kept_when = _send_left(meta, ch)
+    if len(targets) < len(ch["postiz"]):
+        db.update_project(pid, log=tr("Sending again only to the Postiz channels that did not get the video: {names}",
+                                      names=", ".join(targets)))
+    wide_ids = [i for i in targets if i in ch["wide_postiz"]]
+    tall_ids = [i for i in targets if i not in wide_ids]
     if wide_ids and not (meta.get("wide") and (config.DATA / meta["wide"]).is_file()):
         db.update_project(pid, log=tr("16:9 copy missing: sending the 9:16 video to every channel"))
-        tall_ids, wide_ids = list(ch["postiz"]), []
+        tall_ids, wide_ids = list(targets), []
     errors: list[str] = []
+    when = None
     try:
-        when = channels.next_slot(ch, channels.taken_slots(ch["id"])) if ch["send_mode"] == "schedule" else None
+        if ch["send_mode"] == "schedule":
+            when = kept_when if _still_ahead(kept_when) else channels.next_slot(ch, channels.taken_slots(ch["id"]))
     except Exception as e:  # hết giờ đăng trống…: không gửi gì
         when, errors, tall_ids, wide_ids = None, [str(e)], [], []
+    done: list[str] = []
     for ids, version in ((tall_ids, "vertical"), (wide_ids, "wide")):
         if not ids:
             continue
         try:
             postiz.publish_project(pid, ids, ch["send_mode"], when, profile=ch["id"], version=version)
+            done += ids
         except Exception as e:  # Postiz chưa cấu hình, mất mạng, kênh đã bị gỡ…
             errors.append(str(e))
     if errors:
         err = " · ".join(errors)[:300]
-        db.update_project(pid, log=tr("Could not send to Postiz: {error}", error=err), meta={"send_error": err})
+        # chỉ nhớ phần còn thiếu khi đã có kênh nhận được; chưa kênh nào nhận thì lần sau gửi lại tất cả như cũ
+        left = {"ids": [i for i in targets if i not in done], "when": when} if done else meta.get("send_left")
+        db.update_project(pid, log=tr("Could not send to Postiz: {error}", error=err),
+                          meta={"send_error": err, "send_left": left})
         return False
-    db.update_project(pid, meta={"send_error": None})
+    db.update_project(pid, meta={"send_error": None, "send_left": None})
     return True
 
 
