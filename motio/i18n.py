@@ -740,6 +740,13 @@ VI = {
         "Douyin từ chối tìm kiếm (request trông giống bot). Mở douyin.com trên trình duyệt đã đăng nhập rồi thử lại",
     "Type a keyword to search Douyin": "Nhập từ khoá để tìm trên Douyin",
     "Douyin gave no videos for this keyword": "Douyin không trả video nào cho từ khoá này",
+    "Douyin's hot board gave no topics": "Bảng nóng Douyin không trả chủ đề nào",
+    "Douyin's hot board needs Google Chrome (or Chromium / Edge) installed to read its videos. Install it, then try "
+    "again":
+        "Bảng nóng Douyin cần cài Google Chrome (hoặc Chromium / Edge) để đọc video. Hãy cài rồi thử lại",
+    "Could not run Google Chrome for the Douyin hot board: {error}":
+        "Không chạy được Google Chrome cho bảng nóng Douyin: {error}",
+    "Douyin gave no recent videos for its hot topics": "Douyin không trả video mới nào cho các chủ đề nóng",
     "Douyin keyword search needs Google Chrome (or Chromium / Edge) installed. Install it, or set your own douyin.com "
     "cookies in Settings → Browser cookies":
         "Tìm kiếm Douyin cần cài Google Chrome (hoặc Chromium / Edge). Hãy cài, hoặc đặt cookie douyin.com của chính "

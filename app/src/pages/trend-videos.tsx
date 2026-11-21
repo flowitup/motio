@@ -15,15 +15,19 @@ import { t } from "@/i18n";
 
 const ALL = "__all__";
 /** What the "start" button follows: the categories the owner named first. */
-const STARTER = ["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site }));
+const STARTER = [
+  { target: "bilibili:weekly", site: "bilibili" as Site },
+  { target: "bilibili:popular", site: "bilibili" as Site },
+  ...["tech", "ai", "ai_film", "lifestyle"].map((k) => ({ target: `bilibili:category:${k}`, site: "bilibili" as Site })),
+];
 /** The sources the owner can switch on or off, and what switching one on follows when nothing of it is followed yet. */
 const SOURCES = ["bilibili", "kuaishou", "douyin", "weibo", "acfun", "pearvideo"] as const;
 /** Followed lists that are not a Bilibili category: target → key of the name in `t.trendVideos.categories`. */
-const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:feed": "douyin_feed", "weibo:hot": "weibo_hot" };
+const FEED_KEYS: Record<string, string> = { "kuaishou:featured": "kuaishou_featured", "douyin:hot": "douyin_hot", "douyin:feed": "douyin_feed", "weibo:hot": "weibo_hot" };
 const STARTERS: Record<(typeof SOURCES)[number], { target: string; site: Site }[]> = {
   bilibili: STARTER,
   kuaishou: [{ target: "kuaishou:featured", site: "kuaishou" }],
-  douyin: [{ target: "douyin:feed", site: "douyin" }],
+  douyin: [{ target: "douyin:hot", site: "douyin" }, { target: "douyin:feed", site: "douyin" }],
   weibo: [{ target: "weibo:hot", site: "weibo" }],
   acfun: [{ target: "acfun:rank", site: "acfun" }],
   pearvideo: [{ target: "pearvideo:home", site: "pearvideo" }],

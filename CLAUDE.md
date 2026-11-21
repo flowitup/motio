@@ -60,7 +60,7 @@ as authoritative for scope and milestones.
     address is kept in `data/cache/kuaishou_media.json` so `kuaishou.download` can fetch it without videodl (videodl only for
     a pasted link); Kuaishou's detail query wants a browser `did` cookie, so it is not read; its search is read for the Scan
     screen with the owner's own cookies (`accounts.search_kuaishou`)
-  - `douyin_feed.py` Douyin's home recommendation feed (`douyin:feed`, Trending screen) and keyword search (`search`, Scan
+  - `douyin_feed.py` Douyin's home recommendation feed (`douyin:feed`, Trending screen), its hot board (`douyin:hot`, owner 2026-11-21: topics from 热点榜 through f2, then the recent videos of the hottest topics read in one headless Chrome on so.douyin.com, `category` = the topic; `docs/DOUYIN_F2.md`) and keyword search (`search`, Scan
     screen): f2 signs the feed (the anonymous `tab/feed`) and Douyin's own search
     (`aweme/v1/web/general/search/single/`, whose endpoint and `PostSearch` model f2 ships without a crawler method, so
     Motio calls f2's `bogus_manager.model_2_endpoint` + `_fetch_get_json` — still no signing code copied). The feed is

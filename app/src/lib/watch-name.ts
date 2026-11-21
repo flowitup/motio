@@ -8,4 +8,4 @@ export function listName(target: string): string | undefined {
   return tag ? t.watches.tagName(tag[1]) : undefined;
 }
 
-export const isCategory = (target?: string | null) => !!target && /^(bilibili:(category|tag):|(kuaishou:featured|douyin:feed|weibo:hot)$|acfun:|pearvideo:)/.test(target);
+export const isCategory = (target?: string | null) => !!target && /^(bilibili:(category|tag):|bilibili:(popular|weekly|ranking:0)$|(kuaishou:featured|douyin:(feed|hot)|weibo:hot)$|acfun:|pearvideo:)/.test(target);
