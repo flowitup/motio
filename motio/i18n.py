@@ -106,6 +106,11 @@ VI = {
     "Could not send to Postiz: {error}": "Chưa gửi được sang Postiz: {error}",
     " + 16:9 copy": " + bản 16:9",
     "16:9 copy missing: sending the 9:16 video to every channel": "Thiếu bản 16:9: gửi video 9:16 cho mọi kênh",
+    "Sending again only to the Postiz channels that did not get the video: {names}":
+        "Chỉ gửi lại cho các kênh Postiz chưa nhận được video: {names}",
+    "Transcription did not finish after {minutes} min: restart Motio, then continue the project":
+        "Bóc lời chưa xong sau {minutes} phút: hãy khởi động lại Motio rồi chạy tiếp dự án",
+    "Auto-make from new videos must be one of {choices}": "Tự làm từ video mới phải là một trong: {choices}",
     "Made automatically: score {score} (channel {name} makes {min}+)":
         "Tự làm: điểm {score} (kênh {name} tự làm từ {min} điểm)",
     "Video approved": "Đã duyệt video",

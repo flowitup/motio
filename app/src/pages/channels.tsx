@@ -35,6 +35,7 @@ const BLANK: ChannelInput = {
   wide_postiz: [],
   auto_score: 0,
   auto_daily: 2,
+  auto_clips: "",
   ai_clips: 0,
   series: "",
   cast: "",
@@ -169,6 +170,14 @@ function PostizPicker({
 }
 
 /** The Auto refresh interval from Settings (minutes); null while unknown. */
+const AUTO_CLIPS = ["", "explainer", "dub"] as const;
+
+/** News topics (NewsNow) on in Settings? null while loading or on an engine that does not say. */
+function useNewsTopics(api: Api): boolean | null {
+  const { data } = useQuery({ queryKey: ["state"], queryFn: () => api.state(), staleTime: 30_000 });
+  return data?.news_topics ?? null;
+}
+
 function useRefreshMinutes(api: Api): number | null {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => api.settings(), staleTime: 30_000 });
   const v = data?.REFRESH_EVERY_MIN?.value;
@@ -192,6 +201,7 @@ function ChannelForm({
 }) {
   const qc = useQueryClient();
   const refreshMin = useRefreshMinutes(api);
+  const newsTopics = useNewsTopics(api);
   const start = useRef<Draft>(
     toDraft(
       initial ??
@@ -377,6 +387,23 @@ function ChannelForm({
             <Field label={t.channels.autoDaily} hint={t.channels.autoDailyHint}>
               <NumberBox min={1} max={20} className="w-28" value={d.auto_daily} onChange={(v) => set("auto_daily", v)} />
             </Field>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <div className="text-[13px]">{t.channels.autoClips}</div>
+              <Segmented
+                label={t.channels.autoClips}
+                value={d.auto_clips ?? ""}
+                onChange={(m) => set("auto_clips", m)}
+                className="w-full max-w-md"
+                options={AUTO_CLIPS.map((m) => ({ value: m, label: t.channels.autoClipsModes[m || "off"] }))}
+              />
+              <p className="text-xs text-muted-foreground">{t.channels.autoClipsHint}</p>
+            </div>
+            {!d.auto_clips && newsTopics === false && (
+              <p role="status" className="flex items-start gap-2 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-[13px] sm:col-span-2">
+                <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
+                <span>{t.channels.autoNothing}</span>
+              </p>
+            )}
           </div>
         )}
       </Section>

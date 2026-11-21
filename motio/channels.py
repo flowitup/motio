@@ -19,12 +19,13 @@ MAX_SERIES, MAX_CAST_TEXT = 1500, 2500  # video AI: premise of the series, one "
 MAX_DUB_VOICES = 3  # giọng thêm cho các người nói khác trong bản lồng tiếng (giọng chính + 3 = 4 giọng)
 AUTO_SCORE = 85  # điểm tối thiểu gợi ý khi bật tự làm (app đặt sẵn)
 MAX_AUTO_DAILY = 20
+AUTO_CLIPS = ("", "explainer", "dub")  # tự làm từ video mới (Trending / Followed): tắt | giải thích | lồng tiếng
 SLOT_LEAD = dt.timedelta(minutes=10)  # khung đăng sớm nhất: ít nhất 10 phút sau lúc gửi
 _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
 DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
             "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
-            "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "ai_clips": 0,
+            "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "auto_clips": "", "ai_clips": 0,
             "series": "", "cast": ""}
 
 
@@ -80,6 +81,9 @@ def clean(data: dict) -> dict:
         raise ValueError(tr("Auto-make score must be between 1 and 100 (0 = off)"))
     if not 1 <= d["auto_daily"] <= MAX_AUTO_DAILY:
         raise ValueError(tr("Auto-made videos per day must be between 1 and {n}", n=MAX_AUTO_DAILY))
+    d["auto_clips"] = str(d["auto_clips"] or "").strip()
+    if d["auto_clips"] not in AUTO_CLIPS:
+        raise ValueError(tr("Auto-make from new videos must be one of {choices}", choices=", ".join(AUTO_CLIPS[1:])))
     try:
         d["ai_clips"] = int(d["ai_clips"])
     except (TypeError, ValueError):

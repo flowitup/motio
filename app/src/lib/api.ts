@@ -159,6 +159,7 @@ export type ChannelInput = {
   wide_postiz: string[]; // trong `postiz`: kênh nhận bản 16:9
   auto_score: number; // tự làm video khi tin hot đạt điểm này; 0 = tắt
   auto_daily: number; // tối đa số video tự làm mỗi ngày
+  auto_clips?: "" | "explainer" | "dub"; // tự làm từ video mới của Trending / Followed (engine cũ không có)
   ai_clips: number; // video AI: số cảnh thành clip AI mỗi video (0–10); 0 = chỉ ảnh chuyển động
   series: string; // video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
   cast: string; // video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu)

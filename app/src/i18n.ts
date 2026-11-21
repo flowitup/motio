@@ -444,11 +444,17 @@ const en = {
       "Tick 16:9 for channels that should get a landscape copy (e.g. a YouTube channel for regular videos). Motio then also renders a 16:9 copy of each video, with the same cut, voice and captions.",
     auto: "Make videos automatically",
     autoHint:
-      "After each scheduled refresh, Motio makes a video for this channel from new trending topics at or above the score. They still stop for approval as set above. Needs “Auto refresh” in Settings.",
+      "After each scheduled refresh, Motio makes a video for this channel from new news topics, and from new videos if you turn that on below, at or above the score. They still stop for approval as set above. Needs “Auto refresh” in Settings.",
     autoScore: "Minimum score",
     autoScoreHint: "Out of 100. 85 is a good start.",
     autoDaily: "Videos per day",
     autoDailyHint: "For this channel. The daily limit in Settings still applies.",
+    autoClips: "From new videos (Trending and Followed)",
+    autoClipsModes: { off: "Off", explainer: "Explainer", dub: "French dub" },
+    autoClipsHint:
+      "Off: only news topics are made. Explainer or French dub: after each scheduled check, new videos scored at or above the minimum also become videos for this channel. Each one costs Claude and voice credits.",
+    autoNothing:
+      "News topics are off in Settings and “From new videos” is off, so this channel will not make anything on its own. Pick Explainer or French dub above.",
     summaryGates: (script: boolean, video: boolean): string =>
       script && video ? "Script and video approval" : script ? "Script approval" : video ? "Video approval" : "No approval gates",
     summaryPostiz: (n: number, mode: string) =>
@@ -1175,6 +1181,29 @@ const en = {
     resume: (step: string) => `Resume from “${step}”`,
   },
   /** The "Studio" screens: rail, Trending ledger, Projects contact sheet, Project editor, New video console. */
+  queue: {
+    title: "Review queue",
+    openQueue: (n: number) => `Review queue (${n})`,
+    back: "Projects",
+    waiting: (n: number) => `${n} waiting`,
+    kinds: { script: "Script", shots: "Pictures", video: "Video" },
+    auto: "made automatically",
+    empty: "Nothing is waiting for you",
+    emptyHint: "Scripts, pictures and videos that stop at a channel's approval gate show up here, oldest first.",
+    open: "Open project",
+    openToEdit: "Open project to edit",
+    skip: "Next",
+    quality: "Quality check",
+    qualityOk: "Passed",
+    scriptStats: (lines: number, words: number, seconds: number) => `${plural(lines, "line")} · ${plural(words, "word")} · about ${seconds} s`,
+    scriptPlan: "Approving records the voice and renders the video. To change the narration, open the project.",
+    noPostiz: "This channel has no Postiz channel: approving only marks the video as done.",
+    shotsHint: "The pictures of an AI video are approved or redone one by one on the project page.",
+    approveScripts: (n: number) => `Approve ${plural(n, "script")}`,
+    batchTitle: (n: number) => `Approve ${plural(n, "script")}?`,
+    batchBody: "Each one goes on to the voice and the render, one after another, and uses voice credits. Videos still stop at their channel's video approval.",
+    batchConfirm: "Approve all",
+  },
   studio: {
     mainNav: "Main",
     needsYouCount: (n: number) => (n === 1 ? "1 project waiting for you" : `${n} projects waiting for you`),
@@ -1672,11 +1701,17 @@ const vi: Messages = {
       "Tick 16:9 cho các kênh cần bản ngang (vd. kênh YouTube đăng video thường). Khi đó Motio dựng thêm một bản 16:9 của mỗi video, cùng đoạn cắt, giọng đọc và phụ đề.",
     auto: "Tự làm video",
     autoHint:
-      "Sau mỗi lần tự cập nhật tin, Motio làm video cho kênh này từ các tin hot mới đạt điểm này trở lên. Video vẫn dừng chờ duyệt như cài đặt ở trên. Cần bật “Tự cập nhật tin” trong Cài đặt.",
+      "Sau mỗi lần tự cập nhật, Motio làm video cho kênh này từ các tin hot mới, và từ video mới nếu bạn bật ở dưới, đạt điểm này trở lên. Video vẫn dừng chờ duyệt như cài đặt ở trên. Cần bật “Tự cập nhật tin” trong Cài đặt.",
     autoScore: "Điểm tối thiểu",
     autoScoreHint: "Trên thang 100. 85 là mức khởi đầu tốt.",
     autoDaily: "Số video mỗi ngày",
     autoDailyHint: "Cho kênh này. Giới hạn mỗi ngày trong Cài đặt vẫn áp dụng.",
+    autoClips: "Từ video mới (Xu hướng và Đang theo dõi)",
+    autoClipsModes: { off: "Tắt", explainer: "Video giải thích", dub: "Lồng tiếng Pháp" },
+    autoClipsHint:
+      "Tắt: chỉ tự làm từ tin hot. Video giải thích hoặc Lồng tiếng Pháp: sau mỗi lần tự kiểm tra, video mới đạt điểm tối thiểu cũng thành video cho kênh này. Mỗi video tốn tiền Claude và giọng đọc.",
+    autoNothing:
+      "Tin hot đang tắt trong Cài đặt và “Từ video mới” cũng tắt, nên kênh này sẽ không tự làm gì. Hãy chọn Video giải thích hoặc Lồng tiếng Pháp ở trên.",
     summaryGates: (script: boolean, video: boolean) =>
       script && video ? "Duyệt kịch bản và video" : script ? "Duyệt kịch bản" : video ? "Duyệt video" : "Không dừng duyệt",
     summaryPostiz: (n: number, mode: string) => (n ? `Tự gửi ${n} kênh Postiz (${mode})` : "Không tự gửi"),
@@ -2402,6 +2437,29 @@ const vi: Messages = {
     resume: (step: string) => `Chạy tiếp từ “${step}”`,
   },
   /** The "Studio" screens: rail, Trending ledger, Projects contact sheet, Project editor, New video console. */
+  queue: {
+    title: "Hàng duyệt",
+    openQueue: (n: number) => `Hàng duyệt (${n})`,
+    back: "Dự án",
+    waiting: (n: number) => `${n} đang chờ`,
+    kinds: { script: "Kịch bản", shots: "Ảnh", video: "Video" },
+    auto: "tự làm",
+    empty: "Không có gì đang chờ bạn",
+    emptyHint: "Kịch bản, ảnh và video dừng ở cổng duyệt của kênh sẽ hiện ở đây, cái chờ lâu nhất đứng đầu.",
+    open: "Mở dự án",
+    openToEdit: "Mở dự án để sửa",
+    skip: "Kế tiếp",
+    quality: "Kiểm tra chất lượng",
+    qualityOk: "Đạt",
+    scriptStats: (lines: number, words: number, seconds: number) => `${lines} dòng · ${words} từ · khoảng ${seconds} giây`,
+    scriptPlan: "Duyệt là thu giọng và dựng video. Muốn đổi lời bình, hãy mở dự án.",
+    noPostiz: "Kênh này không có kênh Postiz: duyệt chỉ đánh dấu video là xong.",
+    shotsHint: "Ảnh của video AI được duyệt hoặc làm lại từng cái trên trang dự án.",
+    approveScripts: (n: number) => `Duyệt ${n} kịch bản`,
+    batchTitle: (n: number) => `Duyệt ${n} kịch bản?`,
+    batchBody: "Từng cái sẽ lần lượt thu giọng và dựng video, có tốn tiền giọng đọc. Video vẫn dừng ở cổng duyệt video của kênh.",
+    batchConfirm: "Duyệt tất cả",
+  },
   studio: {
     mainNav: "Menu chính",
     needsYouCount: (n: number) => `${n} dự án đang chờ bạn`,

@@ -73,3 +73,97 @@ def test_auto_score_zero_is_off():
     _ch("Off", 0)
     _trend("a", 100)
     assert automake.picks() == []
+
+
+# ---------- new videos of Trending / Followed ----------
+@pytest.fixture
+def no_clips():
+    with db.conn() as c:
+        c.execute("DELETE FROM clip")
+
+
+def _clip(cid: str, score: int | None, first_seen: float | None = None, status: str = "new") -> dict:
+    db.insert_clips([{"id": cid, "watch_id": None, "site": "bilibili", "url": f"https://www.bilibili.com/video/{cid}",
+                      "title": f"标题 {cid}", "uploader": "up", "duration": 120, "views": 1000, "thumbnail": None,
+                      "status": status}])
+    db.score_clip(cid, f"Titre {cid}", score, "r")
+    if first_seen is not None:
+        with db.conn() as c:
+            c.execute("UPDATE clip SET first_seen=? WHERE id=?", (first_seen, cid))
+    return db.get_clip(cid)
+
+
+def _planned() -> list[tuple[str, str, str]]:
+    return [(kind, item["id"], ch["name"]) for kind, item, ch in automake.plan()]
+
+
+def test_new_videos_are_left_alone_unless_the_channel_asks_for_them(no_clips):
+    _ch("Actu", 80)  # auto-make score alone: news topics only, as before
+    _clip("BV1", 95)
+    assert automake.plan() == []
+
+
+def test_scored_new_videos_are_planned_best_first_for_a_channel_that_asks(no_clips):
+    channels.create({"name": "Chine Express", "auto_score": 80, "auto_daily": 5, "auto_clips": "explainer"}, False)
+    _clip("BV1", 85)
+    _clip("BV2", 97)
+    _clip("BV3", 60)  # under the score
+    _clip("BV4", None)  # not scored yet
+    _clip("BV5", 99, first_seen=time.time() - 30 * 3600)  # seen more than a day ago
+    _clip("BV6", 99, status="hidden")
+    _trend("t1", 90)
+    assert _planned() == [("clip", "BV2", "Chine Express"), ("trend", "t1", "Chine Express"),
+                          ("clip", "BV1", "Chine Express")]
+    assert [t["id"] for t, _ in automake.picks()] == ["t1"]
+
+
+def test_news_and_videos_share_the_daily_cap(no_clips):
+    channels.create({"name": "Chine Express", "auto_score": 80, "auto_daily": 2, "auto_clips": "explainer"}, False)
+    _trend("t1", 90)
+    _clip("BV1", 95)
+    _clip("BV2", 85)
+    assert _planned() == [("clip", "BV1", "Chine Express"), ("trend", "t1", "Chine Express")]
+
+
+def test_make_creates_an_explainer_with_the_source_muted(no_clips):
+    ch = channels.create({"name": "Chine Express", "auto_score": 80, "auto_clips": "explainer", "duration": 90}, False)
+    _clip("BV1", 95)
+    (pid, kind, item, got), = automake.make()
+    p = db.get_project(pid)
+    assert kind == "clip" and item["id"] == "BV1" and got["id"] == ch["id"]
+    assert p["mode"] == "topic" and p["meta"]["auto"] is True and p["meta"]["channel"] == ch["id"]
+    assert p["meta"]["mute_source"] is True and p["meta"]["duration"] == 90
+    assert p["meta"]["links"] == ["https://www.bilibili.com/video/BV1"]
+    assert "Made automatically: score 95" in p["log"]
+    assert db.get_clip("BV1")["status"] == "used" and automake.plan() == []  # once only
+
+
+def test_make_creates_a_dub_when_the_channel_dubs(no_clips):
+    channels.create({"name": "Doublage", "auto_score": 80, "auto_clips": "dub"}, False)
+    _clip("BV1", 95)
+    (pid, _kind, _item, _ch), = automake.make()
+    p = db.get_project(pid)
+    assert p["mode"] == "dub" and p["meta"]["auto"] is True and p["meta"]["clip"] == "BV1"
+
+
+def test_a_video_that_cannot_become_a_project_is_hidden_and_the_rest_is_made(no_clips, monkeypatch):
+    from motio import watch
+    channels.create({"name": "Chine Express", "auto_score": 80, "auto_daily": 5, "auto_clips": "explainer"}, False)
+    _clip("BV1", 95)
+    _clip("BV2", 90)
+    real = watch.produce
+
+    def produce(cid, *a, **kw):
+        if cid == "BV1":
+            raise ValueError("bad link")
+        return real(cid, *a, **kw)
+
+    monkeypatch.setattr(watch, "produce", produce)
+    assert [item["id"] for _pid, _kind, item, _ch in automake.make()] == ["BV2"]
+    assert db.get_clip("BV1")["status"] == "hidden"
+
+
+def test_auto_clips_must_be_a_known_mode():
+    with pytest.raises(ValueError):
+        channels.create({"name": "X", "auto_clips": "remix"}, False)
+    assert channels.create({"name": "Y"}, False)["auto_clips"] == ""

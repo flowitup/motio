@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, Clock, Film, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { CircleAlert, Clock, Film, Inbox, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
@@ -178,7 +178,13 @@ export default function ProjectsPage() {
     <div className="flex min-h-full flex-col">
       <TopBar>
         <PageTitle>{t.projects.title}</PageTitle>
-        <Button size="lg" className="ml-auto" onClick={() => navigate("/projects/new")}>
+        {!!counts.data?.review && (
+          <Button variant="secondary" size="lg" className="ml-auto border-amber/60 text-amber" onClick={() => navigate("/review")}>
+            <Inbox />
+            {t.queue.openQueue(counts.data.review)}
+          </Button>
+        )}
+        <Button size="lg" className={counts.data?.review ? undefined : "ml-auto"} onClick={() => navigate("/projects/new")}>
           <Plus />
           {t.projects.create}
         </Button>
