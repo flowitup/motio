@@ -206,7 +206,8 @@ uv run python -m motio engine --port 0 --token <t>
 # after M2:
 cd app && pnpm install && pnpm tauri dev
 # release: bump the version (files listed in the dev skill, §9; tests/test_version.py checks them), then
-git tag vX.Y.Z && git push origin vX.Y.Z   # CI builds .dmg/.msi into a draft GitHub Release
+# merging the bump PR to master tags vX.Y.Z (tag-release.yml) and CI builds .dmg/.msi into a draft GitHub Release;
+# by hand it is still: git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 CI (`.github/workflows/ci.yml`) runs ruff + pytest (Ubuntu, Windows), `pnpm build` and `cargo clippy -D warnings`

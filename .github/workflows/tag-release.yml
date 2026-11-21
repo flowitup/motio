@@ -1,0 +1,90 @@
+name: Tag release
+
+# When a push to master changes the app version (app/src-tauri/tauri.conf.json), create the tag vX.Y.Z on that
+# commit and start the Release workflow on it, so installers + the draft GitHub Release come without a manual tag
+# (cloud Claude sessions cannot push tags). The Release workflow is started with workflow_dispatch on the tag:
+# a tag pushed with GITHUB_TOKEN does not trigger the tag-push build, but a workflow_dispatch from GITHUB_TOKEN does,
+# so no personal token or new secret is needed. A tag that already exists is left alone (the owner may push one
+# by hand: that tag-push triggers Release itself). The draft is still published by the owner.
+# Manual run (Actions → Tag release → Run workflow, on master): tags the version now in the file if it has no tag yet.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "app/src-tauri/tauri.conf.json"
+  workflow_dispatch:
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the tag
+  actions: write # start the Release workflow
+
+jobs:
+  tag:
+    name: Tag and build
+    if: github.repository == 'flowitup/motio'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            app/src-tauri/tauri.conf.json
+            app/package.json
+            motio/__init__.py
+          sparse-checkout-cone-mode: false
+
+      - name: Read the version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          version=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$version' in tauri.conf.json is not X.Y.Z"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # On a push, tag only when this push changed the version (not for other edits of the file).
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ "$BEFORE" =~ [1-9a-f] ]]; then
+            old=$(gh api "repos/$GITHUB_REPOSITORY/contents/app/src-tauri/tauri.conf.json?ref=$BEFORE" --jq .content \
+              | base64 -d | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+            if [ "$old" = "$version" ]; then
+              echo "Version still $version: nothing to tag."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Check the other version files agree
+        if: steps.v.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          pkg=$(node -p "require('./app/package.json').version")
+          eng=$(sed -n 's/^__version__ *= *"\(.*\)"/\1/p' motio/__init__.py)
+          if [ "$pkg" != "$VERSION" ] || [ "$eng" != "$VERSION" ]; then
+            echo "::error::Version mismatch: tauri.conf.json=$VERSION, app/package.json=$pkg, motio/__init__.py=$eng"
+            exit 1
+          fi
+
+      - name: Create the tag and start the build
+        if: steps.v.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>/dev/null; then
+            echo "Tag $tag already exists: skipped."
+            exit 0
+          fi
+          # A tag points at the commit that carries the bump (the push), not at whatever master is later.
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" --silent
+          echo "Created $tag at $GITHUB_SHA."
+          # The release workflow checks github.ref, so it runs on the tag itself.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"
+          echo "Started Release on $tag."
