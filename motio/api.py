@@ -9,6 +9,7 @@ import mimetypes
 import platform
 import re
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -38,6 +39,7 @@ from . import (
     edit,
     effects,
     feeds,
+    frames,
     images,
     kuaishou_feed,
     listing,
@@ -1369,6 +1371,20 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(400, str(e).strip("'")) from e
 
     # ---------- file ----------
+    @app.get("/api/projects/{pid}/frame", dependencies=[Depends(auth_or_query)])
+    def project_frame(pid: int, t: float = 0.0, w: int = 160):
+        """A still of the finished video at `t` seconds (the timeline's pictures); an <img> asks for it, so the token
+        may come in the query like /media."""
+        if not db.get_project(pid):
+            raise HTTPException(404, tr("Project not found"))
+        try:
+            f = frames.frame(pid, t, w)
+        except FileNotFoundError:
+            raise HTTPException(404, tr("File not found")) from None
+        except (ValueError, subprocess.TimeoutExpired) as e:
+            raise HTTPException(422, str(e)) from None
+        return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
     @app.get("/media/{path:path}", dependencies=[Depends(auth_or_query)])
     def media(path: str, request: Request):
         root = config.DATA.resolve()

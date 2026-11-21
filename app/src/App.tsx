@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Rss, ScanSearch, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Plus, Rss, ScanSearch, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import TrendsPage from "@/pages/trends";
 import TrendVideosPage from "@/pages/trend-videos";
 
 type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame; hue?: Hue };
-/** The rail's groups, separated by thin dividers. Settings sits at the bottom, above the engine status. */
+/** The slim icon rail on the left, in groups split by a thin rule: find, make, channels, tools, numbers. Settings sits at the bottom. */
 const NAV: NavItem[][] = [
   [
     { to: "/trends", label: "trends", icon: Flame, hue: "amber" },
@@ -45,20 +45,16 @@ const NAV: NavItem[][] = [
   [{ to: "/stats", label: "stats", icon: ChartColumn, hue: "mint" }],
 ];
 
-const railItem =
-  "relative mx-2 flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-xs leading-4 font-medium whitespace-nowrap transition-colors";
-
-/** A count on the rail: pink = waiting for you (approvals), coral = failed lately. */
-function RailBadge({ count, label, tone, className }: { count: number; label: string; tone: "amber" | "coral"; className: string }) {
+/** A count in the menu: pink = waiting for you (approvals), coral = failed lately. */
+function NavBadge({ count, label, tone }: { count: number; label: string; tone: "amber" | "coral" }) {
   return (
     <span
       role="img"
       aria-label={label}
       title={label}
       className={cn(
-        "absolute flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
+        "dock-badge flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
         tone === "amber" ? "bg-pink text-on-pink" : "bg-coral text-on-amber",
-        className,
       )}
     >
       {/* The warning sign tells the failed count from the pink "needs you" count when both show the same number. */}
@@ -68,40 +64,33 @@ function RailBadge({ count, label, tone, className }: { count: number; label: st
   );
 }
 
-function RailItem({
-  to,
-  label,
-  icon: Icon,
-  hue,
-  count,
-  failed,
-}: {
-  to: string;
-  label: string;
-  icon: typeof Flame;
-  hue?: Hue;
-  count?: number;
-  failed?: number;
-}) {
+const railItem =
+  "dock-item relative flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors";
+
+function RailItem({ to, label, icon: Icon, hue, count, failed }: { to: string; label: string; icon: typeof Flame; hue?: Hue; count?: number; failed?: number }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) => cn(railItem, isActive ? "bg-white/8 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}
+      title={label}
+      aria-label={label}
+      className={({ isActive }) => cn(railItem, isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
     >
       {({ isActive }) => (
         <>
-          {/* Each section has its own hue: a tinted tile, solid while it is the open page. */}
-          <span
-            className={cn(
-              "relative flex size-[38px] items-center justify-center rounded-[11px]",
-              hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "bg-white/10 text-muted-foreground",
-            )}
-          >
-            <Icon className="size-5" />
-            {!!count && <RailBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" className="-top-1.5 -right-2" />}
-            {!!failed && <RailBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" className="-bottom-1.5 -left-2" />}
+          {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
+          <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
+            <Icon className="size-[18px]" />
           </span>
-          <span>{label}</span>
+          {!!count && (
+            <span className="absolute -top-0.5 -right-0.5">
+              <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
+            </span>
+          )}
+          {!!failed && (
+            <span className="absolute -bottom-0.5 -right-0.5">
+              <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
+            </span>
+          )}
         </>
       )}
     </NavLink>
@@ -113,17 +102,18 @@ function EngineBadge() {
   const status = { ready: "done", starting: "review", error: "failed" }[info.status] as "done" | "review" | "failed";
   const label = { ready: t.engine.ready, starting: t.engine.starting, error: t.engine.error }[info.status];
   return (
-    <div
-      className="flex flex-col items-center gap-1.5 px-2 pt-3 pb-4"
-      title={info.error ? t.native(info.error) : info.url}
+    <NavLink
+      to="/settings"
+      className="dock-engine flex size-11 items-center justify-center rounded-lg hover:bg-tint/5"
+      title={info.error ? `${label}: ${t.native(info.error)}` : `${label} · ${info.url}`}
+      aria-label={label}
     >
-      <Led status={status} />
-      <span className="w-full text-center text-xs leading-4 font-medium text-balance text-muted-foreground">{label}</span>
-    </div>
+      <Led status={status} className="size-2.5" />
+    </NavLink>
   );
 }
 
-/** Có bản mới trên GitHub: nhắc ở thanh bên, bấm để vào Cài đặt. */
+/** Có bản mới trên GitHub: nhắc trên dải menu, bấm để vào Cài đặt. */
 function UpdateNotice() {
   const { result } = useUpdater();
   if (!result?.version) return null;
@@ -131,10 +121,10 @@ function UpdateNotice() {
     <NavLink
       to="/settings"
       title={t.update.available(result.version)}
-      className={cn(railItem, "text-mint hover:bg-white/5 hover:text-mint")}
+      aria-label={t.update.available(result.version)}
+      className={cn(railItem, "text-mint hover:bg-tint/5 hover:text-mint")}
     >
-      <Download className="size-5" />
-      <span>{t.update.short}</span>
+      <Download className="size-[18px]" />
     </NavLink>
   );
 }
@@ -214,17 +204,18 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div className="app-shell flex h-screen bg-background text-foreground">
       {/* A button, not a #link: the hash is the router's. */}
       <button
         type="button"
         onClick={() => main.current?.focus()}
-        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-24 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-raised focus-visible:px-3 focus-visible:py-2 focus-visible:text-[13px] focus-visible:font-semibold"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-16 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-raised focus-visible:px-3 focus-visible:py-2 focus-visible:text-[13px] focus-visible:font-semibold"
       >
         {t.a11y.skip}
       </button>
-      <nav aria-label={t.studio.mainNav} className="flex w-[92px] shrink-0 flex-col border-r bg-monitor">
-        <div className="flex h-16 shrink-0 flex-col items-center justify-center gap-[3px] border-b">
+      {/* A slim icon rail, like a video editor's: the page gets the whole height. Each icon names itself on hover. */}
+      <nav aria-label={t.studio.mainNav} className="dock flex w-16 shrink-0 flex-col items-center border-r bg-monitor py-3">
+        <NavLink to="/trends" title={t.appName} aria-label={t.appName} className="dock-brand mb-3 flex size-10 items-center justify-center">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
           <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">
             <g stroke="var(--amber)">
@@ -235,11 +226,18 @@ export default function App() {
               <path d="M75 24v52M91 13v74M107 31v38" />
             </g>
           </svg>
-          <span className="font-mono text-xs leading-4 font-medium tracking-[0.02em]">{t.appName}</span>
-        </div>
-        <div className="flex flex-1 flex-col overflow-y-auto pt-2">
+        </NavLink>
+        <NavLink
+          to="/projects/new"
+          title={t.board.newVideo}
+          aria-label={t.board.newVideo}
+          className="dock-new mb-2 flex size-10 items-center justify-center rounded-lg bg-pink text-on-pink hover:bg-primary-hover hover:text-on-pink"
+        >
+          <Plus className="size-5" />
+        </NavLink>
+        <div className="dock-groups flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto">
           {NAV.map((group, i) => (
-            <div key={i} className={cn("flex flex-col", i > 0 && "mt-2 border-t pt-2")}>
+            <div key={i} className={cn("dock-group flex flex-col items-center gap-1", i > 0 ? "mt-2 w-10 border-t pt-2" : "pt-1")}>
               {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon, hue }) => (
                 <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} count={to === "/projects" ? counts?.review : undefined}
                   failed={to === "/projects" ? counts?.failed_recent : undefined}
@@ -248,13 +246,13 @@ export default function App() {
             </div>
           ))}
         </div>
-        <div className="flex flex-col border-t">
+        <div className="dock-foot flex flex-col items-center gap-1 border-t pt-2">
           <UpdateNotice />
           <RailItem to="/settings" label={t.nav.settings} icon={SettingsIcon} />
           <EngineBadge />
         </div>
       </nav>
-      <main ref={main} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+      <main ref={main} tabIndex={-1} className="app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none">
         <Routes>
           <Route path="/" element={<Navigate to="/trends" replace />} />
           <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />

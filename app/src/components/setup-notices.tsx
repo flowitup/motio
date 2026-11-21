@@ -16,7 +16,7 @@ export function SetupCard({ className }: { className?: string }) {
   if (!h.ffmpeg) missing.push({ id: "ffmpeg", ...t.setup.ffmpeg });
   if (!missing.length) return null;
   return (
-    <section aria-label={t.setup.title} className={cn("shrink-0 border-b border-amber/60 bg-amber/8", className)}>
+    <section aria-label={t.setup.title} data-slot="notice" className={cn("shrink-0 border-b border-amber/60 bg-amber/8", className)}>
       <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 py-3">
         <div className="flex min-w-0 flex-1 basis-[22rem] items-start gap-3">
           <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber" aria-hidden />

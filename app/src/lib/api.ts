@@ -803,6 +803,9 @@ export function makeApi(url: string, token: string) {
     driveSignOut: () => call<DriveStatus>("POST", "/api/drive/sign-out"),
     driveSync: () => call<{ started: boolean }>("POST", "/api/drive/sync"),
     mediaUrl: (rel: string, bust?: number) => `${url}/media/${rel}?${q}${bust ? `&v=${bust}` : ""}`,
+    /** A still of a project's finished video at `sec` (the timeline's pictures); `bust` = the project's updated_at. */
+    frameUrl: (id: number, sec: number, bust?: number, width = 160) =>
+      `${url}/api/projects/${id}/frame?${q}&t=${sec.toFixed(1)}&w=${width}${bust ? `&v=${bust}` : ""}`,
     eventsUrl: (id: number) => `${url}/api/projects/${id}/events?${q}`,
   };
 }

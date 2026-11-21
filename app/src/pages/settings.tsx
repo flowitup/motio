@@ -17,6 +17,7 @@ import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engin
 import { DEFAULT_FAL_MODEL, FAL_MODELS, FAL_PICTURE_USD } from "@/lib/image-models";
 import { useUpdater } from "@/lib/updater";
 import { LANGS, setLang, t, useLang, type Lang } from "@/i18n";
+import { setTheme, THEMES, useTheme, type Theme, FONTS, setFont, useFont, type Font } from "@/lib/theme";
 
 type Draft = Record<string, string | boolean>;
 
@@ -39,6 +40,25 @@ function LanguageField({ unsaved }: { unsaved: number }) {
         onConfirm={() => next && setLang(next)}
       />
     </>
+  );
+}
+
+/** The look of the app: switches at once, nothing is reloaded. */
+function ThemeField() {
+  const theme = useTheme();
+  return (
+    <Field label={t.settings.theme} hint={t.settings.themeHints[theme]}>
+      <Choice value={theme} onChange={(v) => setTheme(v as Theme)} options={THEMES.map((k) => [k, t.settings.themes[k]] as [string, string])} className="w-56" />
+    </Field>
+  );
+}
+
+function FontField() {
+  const font = useFont();
+  return (
+    <Field label={t.settings.font} hint={t.settings.fontHints[font]}>
+      <Choice value={font} onChange={(v) => setFont(v as Font)} options={FONTS.map((k) => [k, t.settings.fonts[k]] as [string, string])} className="w-56" />
+    </Field>
   );
 }
 
@@ -384,6 +404,8 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
     <>
       <Section id="general" title={t.settings.general} bodyClassName={grid}>
         <LanguageField unsaved={changed.length} />
+        <ThemeField />
+        <FontField />
         <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN") ?? t.settings.refreshHint}>
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>
@@ -609,7 +631,7 @@ export default function SettingsPage() {
         <PageTitle>{t.settings.title}</PageTitle>
       </TopBar>
       <div className="flex items-start gap-8 px-6 pt-6">
-        <nav aria-label={t.settings.sections} className="sticky top-20 hidden w-40 shrink-0 min-[1180px]:grid">
+        <nav aria-label={t.settings.sections} className="settings-toc sticky top-20 hidden w-40 shrink-0 min-[1180px]:grid">
           {SECTIONS.map((id) => (
             <button
               key={id}

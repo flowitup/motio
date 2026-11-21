@@ -1,0 +1,249 @@
+/* Theme 3 · Terminal: green console, all mono, square corners, a compact side list. Tokens first, then the shapes this theme changes (see ../themes.css). */
+
+/* Everything is JetBrains Mono here, so the theme needs a real semibold: with only 400 / 500 loaded (index.css) the
+   browser smears a fake bold over every title and button. Bold (700) is mapped to 600 below, so one more weight is enough. */
+
+:root[data-theme="terminal"] {
+    color-scheme: dark;
+    --ui-font: 'JetBrains Mono';
+    --display-font: 'JetBrains Mono';
+    --code-font: 'JetBrains Mono';
+    --ground: #090E0B;
+    --panel: #0D1510;
+    --strip: #111C15;
+    --raised: #15231A;
+    --lift: #1C2F22;
+    --pressed: #25402E;
+    --monitor: #060A08;
+    --hairline: rgb(110 255 160 / 0.13);
+    --hairline-strong: rgb(110 255 160 / 0.27);
+    --field: #4F7F5F;
+    --tint: #B8FFD0;
+    --on-hue: #06110A;
+    --amber: #FFB547;
+    --on-amber: #1A1000;
+    /* The main action is acid yellow-green and "done" a cooler sea green, 80° of hue apart, so a solid "Done" label is
+       never read as a button; running moves to sky blue to stay clear of done, and lime (sections only) to yellow. */
+    --pink: #B8FF3D;
+    --primary-hover: #D0FF7C;
+    --primary-pressed: #9BE61F;
+    --on-pink: #0A1400;
+    --cyan: #5CCBFF;
+    --cyan-hover: #A6E2FF;
+    --mint: #2EDDAA;
+    --coral: #FF6B5E;
+    --lime: #E6E24E;
+    --violet: #B39CFF;
+    --orange: #FF9447;
+    --blue: #7C9BFF;
+    --foreground: #D6F5DF;
+    --card-foreground: #D6F5DF;
+    --popover-foreground: #D6F5DF;
+    --secondary-foreground: #D6F5DF;
+    --accent-foreground: #D6F5DF;
+    --sidebar-foreground: #D6F5DF;
+    --sidebar-accent-foreground: #D6F5DF;
+    --muted-foreground: #8FBA9D;
+    --radius: 0.125rem;
+    /* Mono is about a fifth wider than the default UI face: running text is 13 px (not 14) so lines wrap about as
+       often as in the other themes, and bold is the real 600 weight. Code ligatures (-> != ==) stay off in prose. */
+    --text-sm: 0.8125rem;
+    --text-sm--line-height: calc(20 / 13);
+    --font-weight-bold: 600;
+    font-variant-ligatures: none;
+}
+
+[data-theme="terminal"] * {
+    scrollbar-color: rgb(110 255 160 / 0.28) transparent;
+}
+
+[data-theme="terminal"] ::selection {
+    background: rgb(184 255 61 / 0.3);
+}
+
+/* Chinese text keeps its own face, but the Latin letters and digits beside it stay mono (JetBrains Mono has no Chinese
+   glyphs, so those fall through to the Chinese face). */
+[data-theme="terminal"] :lang(zh) {
+    font-family: var(--code-font), 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* Square everywhere: chips, status labels, count badges, dots and step numbers lose the pill shape too. */
+[data-theme="terminal"] .rounded-full {
+    border-radius: var(--radius);
+}
+
+/* ── Side list: 200 px, icon + name, no tiles ── */
+[data-theme="terminal"] .app-nav {
+    width: 200px;
+}
+
+[data-theme="terminal"] .app-brand {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 0 16px;
+}
+
+[data-theme="terminal"] .app-wordmark {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+/* The cursor blinks a few times when the app opens, then stays lit: spinners are the only looping motion (docs/DESIGN.md). */
+[data-theme="terminal"] .app-wordmark::after {
+    content: "_";
+    color: var(--pink);
+    animation: motio-blink 1.1s steps(1) 4;
+}
+
+@keyframes motio-blink {
+    50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-theme="terminal"] .app-wordmark::after {
+        animation: none;
+    }
+}
+
+/* A row keeps a 14 px gutter on its left for the caret, so names never move when the open page changes. */
+[data-theme="terminal"] .rail-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 1px 8px;
+    padding: 5px 8px 5px 22px;
+    font-size: 13px;
+    line-height: 18px;
+    border-radius: 0;
+}
+
+/* One colour for the list (the console is monochrome); the hues are kept for the page and for the counts. */
+[data-theme="terminal"] .rail-tile {
+    position: static;
+    width: 20px;
+    height: 26px;
+    border-radius: 0;
+    background: transparent !important;
+    color: inherit !important;
+}
+
+[data-theme="terminal"] .rail-tile svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* The open page: a left bar, a caret, acid icon. */
+[data-theme="terminal"] .rail-item[aria-current="page"] {
+    background: var(--raised);
+    box-shadow: inset 2px 0 0 var(--pink);
+    font-weight: 600;
+}
+
+[data-theme="terminal"] .rail-item[aria-current="page"]::before {
+    content: ">";
+    position: absolute;
+    left: 9px;
+    color: var(--pink);
+    font-weight: 600;
+}
+
+[data-theme="terminal"] .rail-item[aria-current="page"] .rail-tile {
+    color: var(--pink) !important;
+}
+
+/* Counts sit at the right end of the row (on a tile they covered the 16 px icon): failed first, then "needs you". */
+[data-theme="terminal"] .rail-tile > [role="img"] {
+    top: 50%;
+    right: 8px;
+    bottom: auto;
+    left: auto;
+    transform: translateY(-50%);
+}
+
+/* "Needs you" is amber here as on the Projects filter (acid is the open page's bar and caret right beside it). */
+[data-theme="terminal"] .rail-tile > .bg-pink[role="img"] {
+    background: var(--amber);
+    color: var(--on-amber);
+}
+
+[data-theme="terminal"] .rail-tile:has(> .bg-pink) > .bg-coral {
+    right: 32px;
+}
+
+/* A long name (Vietnamese) gives way to the counts instead of running under them. */
+[data-theme="terminal"] .rail-item:has([role="img"]) {
+    padding-right: 62px;
+}
+
+[data-theme="terminal"] .rail-item .rail-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The engine light lines up with the icons, its words with the names. */
+[data-theme="terminal"] .rail-engine {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 12px 8px 14px 36px;
+}
+
+[data-theme="terminal"] .rail-engine .rail-label {
+    width: auto;
+    text-align: left;
+}
+
+/* ── Pages ── */
+[data-theme="terminal"] [data-slot="card"],
+[data-theme="terminal"] [data-slot="section"] {
+    box-shadow: 0 0 0 1px var(--hairline-strong);
+}
+
+[data-theme="terminal"] .page-title {
+    letter-spacing: 0;
+}
+
+/* "~/" only where the title opens the bar; after a breadcrumb ("← Projects /") the path is already there. */
+[data-theme="terminal"] .page-title:first-child::before {
+    content: "~/";
+    color: var(--muted-foreground);
+    font-weight: 400;
+}
+
+/* A title after a breadcrumb is as long as the owner made it: smaller, and it gives way (…) before the actions wrap. */
+[data-theme="terminal"] .page-title:not(:first-child) {
+    flex: 1 1 0;
+    min-width: 12ch;
+    font-size: 16px;
+}
+
+/* Settings contents list: names wrap in mono, so a row grows with its text. */
+[data-theme="terminal"] .app-main nav.sticky > button {
+    height: auto;
+    min-height: 32px;
+    padding: 6px 12px;
+    line-height: 18px;
+    border-radius: 0;
+}
+
+/* Project page: with the 200 px list the script column was 340 px wide and the narration wrapped a word per line.
+   The monitor and review columns give some room back, and the word / clip count goes under its line. */
+@media (min-width: 1180px) {
+    [data-theme="terminal"] [class*="grid-cols-[400px_minmax(0,1fr)_340px]"] {
+        grid-template-columns: 340px minmax(0, 1fr) 312px;
+    }
+}
+
+[data-theme="terminal"] li[class*="grid-cols-[28px_52px_minmax(0,1fr)_auto]"] {
+    grid-template-columns: 28px 52px minmax(0, 1fr);
+}
+
+[data-theme="terminal"] li[class*="grid-cols-[28px_52px_minmax(0,1fr)_auto]"] > div:last-child {
+    grid-column: 3;
+    width: auto;
+    padding: 6px 0 0 11px;
+    text-align: left;
+}

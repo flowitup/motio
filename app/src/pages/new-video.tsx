@@ -143,7 +143,7 @@ function LengthRule() {
           {clock(MIN_S)} – {clock(MAX_S)}
         </span>
         <div className="w-40 pb-1">
-          <div className="relative h-1.5 rounded-xs bg-white/12">
+          <div className="relative h-1.5 rounded-xs bg-tint/12">
             <div className="absolute inset-y-0 right-0 rounded-xs bg-cyan" style={{ left: `${(MIN_S / MAX_S) * 100}%` }} />
           </div>
           <div className="relative mt-1 h-4 font-mono text-xs leading-4 text-muted-foreground">

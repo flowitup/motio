@@ -1,0 +1,287 @@
+/* Theme 2 · Paper: warm newsroom paper, serif titles, a masthead menu. Tokens first, then the shapes this theme
+   changes (see ../themes.css). Every text hue below is at least 4.5:1 on ground, panel, strip and raised. */
+:root[data-theme="paper"] {
+    color-scheme: light;
+    --ui-font: 'Be Vietnam Pro';
+    --display-font: 'Fraunces Variable';
+    --code-font: 'IBM Plex Mono';
+    --ground: #F3EDE2;
+    --panel: #FBF7EF;
+    --strip: #F0E8D8;
+    --raised: #FFFCF6;
+    --lift: #E8DECB;
+    --pressed: #DCCFB6;
+    --monitor: #F3EDE2;
+    --hairline: rgb(60 40 20 / 0.16);
+    --hairline-strong: rgb(60 40 20 / 0.3);
+    --field: #8A7862;
+    --tint: #2A1F14;
+    --on-hue: #FFFBF5;
+    /* The warm hues sit apart on purpose: terracotta = the main action, ochre = needs you, crimson = failed. */
+    --amber: #8A5E00;
+    --on-amber: #FFF8EC;
+    --pink: #AE3D18;
+    --primary-hover: #96330F;
+    --primary-pressed: #7E2A0F;
+    --on-pink: #FFF8F0;
+    --cyan: #0E6570;
+    --cyan-hover: #0A4C54;
+    --mint: #256F3A;
+    --coral: #A8143C;
+    --lime: #5A6B12;
+    --violet: #7A3E77;
+    --orange: #7D4E2B;
+    --blue: #2C5A8C;
+    --foreground: #22190F;
+    --card-foreground: #22190F;
+    --popover-foreground: #22190F;
+    --secondary-foreground: #22190F;
+    --accent-foreground: #22190F;
+    --sidebar-foreground: #22190F;
+    --sidebar-accent-foreground: #22190F;
+    --muted-foreground: #5E5146;
+    --radius: 0.25rem;
+}
+
+[data-theme="paper"] * {
+    scrollbar-color: rgb(60 40 20 / 0.3) transparent;
+}
+
+[data-theme="paper"] ::selection {
+    background: rgb(14 101 112 / 0.22);
+}
+
+/* ── Masthead: the menu runs along the top (60 px), closed by a thick-and-thin rule in ink. ── */
+[data-theme="paper"] .app-nav {
+    width: 100%;
+    height: 60px;
+    flex-direction: row;
+    align-items: stretch;
+    border-right: 0;
+    padding-bottom: 5px;
+    background-image: linear-gradient(var(--foreground), var(--foreground)), linear-gradient(var(--foreground), var(--foreground));
+    background-repeat: no-repeat;
+    background-size: 100% 2px, 100% 1px;
+    background-position: 0 calc(100% - 3px), 0 100%;
+}
+
+[data-theme="paper"] .app-brand {
+    height: auto;
+    flex: none;
+    flex-direction: row;
+    gap: 10px;
+    padding: 0 20px 0 24px;
+    border-bottom: 0;
+    border-right: 1px solid var(--hairline);
+}
+
+[data-theme="paper"] .app-wordmark {
+    font-family: var(--font-heading);
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* The groups scroll sideways when the window is too narrow for them; the bar itself never grows. */
+[data-theme="paper"] .app-nav-groups {
+    flex-direction: row;
+    align-items: stretch;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 10px;
+    scrollbar-width: none;
+}
+
+[data-theme="paper"] .app-nav-group {
+    position: relative;
+    flex: none;
+    flex-direction: row;
+    align-items: stretch;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+}
+
+[data-theme="paper"] .app-nav-group + .app-nav-group {
+    margin-left: 8px;
+    padding-left: 9px;
+}
+
+[data-theme="paper"] .app-nav-group + .app-nav-group::before {
+    content: "";
+    position: absolute;
+    top: 19px;
+    bottom: 19px;
+    left: 0;
+    width: 1px;
+    background: var(--hairline-strong);
+}
+
+/* An item is a full-height tab: icon, name, then the counts in line (never on top of the name). */
+[data-theme="paper"] .rail-item {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    padding: 0 10px;
+    font-size: 13px;
+    line-height: 18px;
+    border-radius: 0;
+}
+
+/* The tile dissolves: its icon and its count badges become items of the row. Icons are ink, not a hue per
+   section, so the only colour on the masthead is the logo and the counts that need you. */
+[data-theme="paper"] .rail-tile {
+    display: contents;
+    color: inherit;
+}
+
+[data-theme="paper"] .rail-tile > svg,
+[data-theme="paper"] .rail-item > svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+}
+
+[data-theme="paper"] .rail-item .rail-label {
+    order: 1;
+}
+
+[data-theme="paper"] .rail-tile > [role="img"] {
+    position: static;
+    order: 2;
+    flex: none;
+}
+
+[data-theme="paper"] .rail-tile > [role="img"] + [role="img"] {
+    margin-left: -3px;
+}
+
+/* The open page: ink, with a bar that lands on the masthead rule. */
+[data-theme="paper"] .rail-item[aria-current="page"] {
+    background: transparent;
+    color: var(--foreground);
+    box-shadow: inset 0 -3px 0 var(--foreground);
+    text-shadow: 0.35px 0 0 currentColor, -0.35px 0 0 currentColor;
+}
+
+/* The bar clips what sticks out of it, so the focus ring is drawn inside the tab. */
+[data-theme="paper"] .rail-item:focus-visible {
+    outline-offset: -3px;
+}
+
+[data-theme="paper"] .app-nav-foot {
+    flex: none;
+    flex-direction: row;
+    align-items: stretch;
+    border-top: 0;
+    border-left: 1px solid var(--hairline);
+    padding: 0 4px 0 8px;
+}
+
+[data-theme="paper"] .rail-engine {
+    flex-direction: row;
+    align-items: center;
+    padding: 0 16px 0 10px;
+}
+
+[data-theme="paper"] .rail-engine .rail-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+/* Narrow windows (down to 960 px): names only, so every section stays in reach without scrolling. */
+@media (max-width: 1199px) {
+    [data-theme="paper"] .rail-tile > svg {
+        display: none;
+    }
+
+    [data-theme="paper"] .app-brand {
+        padding: 0 16px 0 24px;
+    }
+
+    [data-theme="paper"] .app-nav-groups {
+        padding: 0 6px;
+    }
+
+    [data-theme="paper"] .app-nav-group + .app-nav-group {
+        margin-left: 5px;
+        padding-left: 6px;
+    }
+}
+
+[data-theme="paper"] .app-main {
+    min-height: 0;
+}
+
+/* ── Pages: a serif headline over a rule. ── */
+[data-theme="paper"] .page-topbar {
+    border-bottom: 1px solid var(--hairline-strong);
+}
+
+[data-theme="paper"] .page-title {
+    font-size: 25px;
+    line-height: 32px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+/* ── Cards and sections: one crisp rule, no double line; captions are printed in small sans capitals. ── */
+[data-theme="paper"] [data-slot="card"] {
+    box-shadow: 0 0 0 1px var(--hairline-strong);
+}
+
+[data-theme="paper"] [data-slot="section"] {
+    border-color: var(--hairline-strong);
+}
+
+[data-theme="paper"] [data-slot="panel-header"] h2,
+[data-theme="paper"] [data-slot="card-title"],
+[data-theme="paper"] [data-slot="section"] > h2 > button > .uppercase {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: 0.09em;
+}
+
+/* ── Fields are the lightest paper on the page, so "write here" reads on ground and on panels alike. ── */
+[data-theme="paper"] [data-slot="input"]:not(:disabled):not(.bg-transparent),
+[data-theme="paper"] [data-slot="textarea"]:not(:disabled):not(.bg-transparent),
+[data-theme="paper"] [data-slot="select-trigger"]:not(:disabled):not(.bg-transparent) {
+    background-color: var(--raised);
+}
+
+[data-theme="paper"] [data-slot="input"]::placeholder,
+[data-theme="paper"] [data-slot="textarea"]::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.92;
+}
+
+/* The halo of a running / waiting light is drawn in this theme's hues (the shared class carries the neon ones). */
+[data-theme="paper"] [class*="shadow-[0_0_0_3px_rgb(63_224_245"] {
+    box-shadow: 0 0 0 3px rgb(14 101 112 / 0.22);
+}
+
+[data-theme="paper"] [class*="shadow-[0_0_0_3px_rgb(255_178_36"] {
+    box-shadow: 0 0 0 3px rgb(138 94 0 / 0.26);
+}
+
+/* Ticks and sliders with no colour of their own take the action colour, as the ones in Channels do. */
+[data-theme="paper"] input[type="checkbox"]:not([class*="accent-"]),
+[data-theme="paper"] input[type="radio"]:not([class*="accent-"]),
+[data-theme="paper"] input[type="range"]:not([class*="accent-"]) {
+    accent-color: var(--pink);
+}
+
+/* A question that cannot be undone is asked in the headline face, at headline size. */
+[data-theme="paper"] [data-slot="alert-dialog-content"] [data-slot="alert-dialog-title"] {
+    font-size: 19px;
+    line-height: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}

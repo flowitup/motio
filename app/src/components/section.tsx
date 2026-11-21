@@ -31,7 +31,7 @@ export function Section({
   const body = useId();
   const shown = !collapsible || open;
   return (
-    <section id={id} className={cn("scroll-mt-20 overflow-hidden rounded-lg border bg-panel", className)}>
+    <section id={id} data-slot="section" className={cn("scroll-mt-20 overflow-hidden rounded-lg border bg-panel", className)}>
       {collapsible ? (
         <h2>
           <button
