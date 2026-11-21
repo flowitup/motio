@@ -295,13 +295,14 @@ def test_put_clip_changes_the_clip_and_says_where_to_rerun(client):
 
 # ---------- bám mặt (facetrack): bộ nhận diện giả tìm ô trắng, FFmpeg thật ----------
 class _WhiteBox:
-    """Thay bộ nhận diện Haar: 'mặt' là ô trắng trong ảnh xám."""
+    """Thay bộ nhận diện mặt: 'mặt' là ô trắng trong ảnh."""
 
-    def detectMultiScale(self, frame, **kw):  # noqa: N802 (tên của OpenCV)
-        ys, xs = (frame > 200).nonzero()
+    def faces(self, frame):
+        ys, xs = (frame[:, :, 0] > 200).nonzero()
         if not len(xs):
             return []
-        return [[int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)]]
+        w = frame.shape[1]
+        return [(float(xs.min() + xs.max() + 1) / 2 / w, float((xs.max() - xs.min() + 1) * (ys.max() - ys.min() + 1)))]
 
 
 def _moving_box(tmp_path, size="1280x720", speed=100, dur=10):
@@ -328,7 +329,7 @@ def test_keys_from_follows_a_moving_face_and_keeps_a_still_one():
 
 @pytest.mark.skipif(not has_ffmpeg, reason="needs FFmpeg")
 def test_crop_for_follows_the_box_and_skips_portrait_or_empty_sources(monkeypatch, tmp_path):
-    monkeypatch.setattr(facetrack, "_cascade", lambda: _WhiteBox())
+    monkeypatch.setattr(facetrack, "_detector", lambda w, h: _WhiteBox())
     src = _moving_box(tmp_path)
     crop = facetrack.crop_for(src, 0.0, 8.0)
     assert crop["fit"] is False
@@ -337,9 +338,9 @@ def test_crop_for_follows_the_box_and_skips_portrait_or_empty_sources(monkeypatc
     assert xs == sorted(xs) and all(0.158 - 1e-6 <= x <= 1 - 0.158 + 1e-6 for _, x in xs)
     portrait = _moving_box(tmp_path, size="720x1280", speed=40)
     assert facetrack.crop_for(portrait, 0.0, 5.0) is None  # déjà vertical: rien à suivre
-    monkeypatch.setattr(facetrack, "_cascade", lambda: type("N", (), {"detectMultiScale": lambda s, f, **k: []})())
+    monkeypatch.setattr(facetrack, "_detector", lambda w, h: type("N", (), {"faces": lambda s, f: []})())
     assert facetrack.crop_for(src, 0.0, 8.0) is None  # aucun visage
-    monkeypatch.setattr(facetrack, "_cascade", lambda: None)
+    monkeypatch.setattr(facetrack, "_detector", lambda w, h: None)
     assert facetrack.crop_for(src, 0.0, 8.0) is None  # pas d'OpenCV
 
 
@@ -367,3 +368,29 @@ def test_analyze_and_the_track_routes_use_the_face_crop(client, fake, monkeypatc
     r = client.post(f"/api/projects/{pid}/clip/track", headers=H, json={"start": 10, "end": 30})
     assert r.status_code == 200 and r.json()["crop"]["x"] == [[0.0, 0.1]] and r.json()["found"]
     assert client.post("/api/projects/9999/clip/track", headers=H).status_code == 404
+
+
+def test_the_yunet_model_is_downloaded_once_checked_and_retried_later(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "DATA", tmp_path)
+    monkeypatch.setattr(facetrack, "_model_failed", 0.0)
+    good = b"onnx bytes"
+    monkeypatch.setattr(facetrack, "MODEL_SHA256", __import__("hashlib").sha256(good).hexdigest())
+    calls = []
+
+    class Reply:
+        def __init__(self, body):
+            self.content = body
+
+        def raise_for_status(self):
+            pass
+
+    def get(url, **kw):
+        calls.append(url)
+        return Reply(b"tampered" if len(calls) == 1 else good)
+
+    monkeypatch.setattr(facetrack.httpx, "get", get)
+    assert facetrack.ensure_model() is None and not facetrack.model_path().exists()  # sha256 khác: không giữ
+    assert facetrack.ensure_model() is None and len(calls) == 1  # chưa tới lúc thử lại
+    monkeypatch.setattr(facetrack, "_model_failed", 1.0)
+    assert facetrack.ensure_model() == facetrack.model_path() and facetrack.model_path().read_bytes() == good
+    assert facetrack.ensure_model() == facetrack.model_path() and len(calls) == 2  # có rồi: không tải nữa
