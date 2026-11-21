@@ -261,7 +261,6 @@ export type ClipView = {
   hook_auto: boolean;
   crop: ClipCrop;
   captions: ClipCaptions;
-  short: boolean; // cho phép clip ngắn (từ 15 giây)
   source: string | null; // đường dẫn /media của video gốc đã tải
   duration: number | null;
 };
@@ -271,7 +270,6 @@ export type ClipperJob = {
   id: string;
   link: string;
   count: number;
-  short: boolean;
   auto: boolean;
   status: "running" | "done" | "failed";
   message: string | null;
@@ -639,14 +637,14 @@ export function makeApi(url: string, token: string) {
     createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Clip: phân tích video dài ở nền (auto: Claude tự tạo luôn dự án cho từng khoảnh khắc). Đọc kết quả bằng clipperJob(). */
-    clipperAnalyze: (body: { link: string; count?: number; short?: boolean; auto?: boolean; channel?: number }) =>
+    clipperAnalyze: (body: { link: string; count?: number; auto?: boolean; channel?: number }) =>
       call<ClipperJob>("POST", "/api/clipper/analyze", body),
     clipperJob: (id: string) => call<ClipperJob>("GET", `/api/clipper/${encodeURIComponent(id)}`),
     /** Mỗi clip đã chọn thành một dự án (xếp hàng làm lần lượt). */
-    clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; short?: boolean; duration?: number | null; channel?: number }) =>
+    clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; duration?: number | null; channel?: number }) =>
       call<{ project_ids: number[] }>("POST", "/api/clipper/export", body),
     /** Đổi đoạn / hook / khung crop / phụ đề của dự án clip. rerun: bước nên chạy lại bằng retry(). */
-    setClip: (id: number, body: { start?: number; end?: number; hook?: string; crop?: ClipCrop; captions?: ClipCaptions; short?: boolean }) =>
+    setClip: (id: number, body: { start?: number; end?: number; hook?: string; crop?: ClipCrop; captions?: ClipCaptions }) =>
       call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/clip`, body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
     createAi: (body: {

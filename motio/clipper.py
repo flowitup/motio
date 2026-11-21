@@ -8,7 +8,7 @@ Hai cách chạy, cùng một engine:
 
 Một dự án clip = một đoạn [start, end] của nguồn: hình cắt 9:16 (khung crop trượt theo `crop.x`, hoặc cả khung hình trên
 nền mờ), TIẾNG GỐC giữ nguyên (không giọng đọc), phụ đề từ lời gốc (dịch sang tiếng Pháp nếu nguồn không nói tiếng
-Pháp) và một dòng chữ hook ở trên. Mỗi clip 62–90 s như mọi video; chủ dự án bật "clip ngắn" thì từ 15 s.
+Pháp) và một dòng chữ hook ở trên. Mỗi clip 15–90 s (chủ dự án, 2026-11-21); video ở các chế độ khác vẫn 62–90 s.
 Clip giữ hình và lời của người khác: như mọi video, nó chỉ tự gửi Postiz qua hồ sơ kênh có kênh Postiz và đã tắt cổng
 duyệt video. Không có gì ở đây để tránh bị nhận diện trùng lặp / Content ID.
 """
@@ -28,8 +28,7 @@ from .asr import has_audio
 from .i18n import tr, tr_n
 
 MODE = "clip"
-MIN_LONG = 62.0  # giây: độ dài tối thiểu của một video (pipeline.MIN_SECONDS)
-MIN_SHORT = 15.0  # giây: tối thiểu khi chủ dự án bật "clip ngắn"
+MIN_LEN = 15.0  # giây: clip dài từ 15 s (chủ dự án, 2026-11-21); chỉ chế độ Clip, video khác vẫn 62–90 s
 MAX_LEN = 90.0  # giây: trần cứng của Facebook Reels (pipeline.MAX_SECONDS)
 MAX_CLIPS = 12  # số clip tối đa một lần phân tích / xuất
 DEFAULT_CLIPS = 4
@@ -40,7 +39,7 @@ MAX_HOOK = 80  # ký tự của chữ hook
 KEEP_JOBS = 20
 CAPTIONS = ("off", "fr", "source")  # phụ đề: không có / tiếng Pháp (dịch nếu cần) / lời gốc
 CAP_BOTTOM = 250  # px từ đáy khung tới đáy dải phụ đề (chừa chỗ cho giao diện TikTok / Reels)
-EDGE = 0.05  # giây dư để độ dài sau khi làm tròn không rơi xuống dưới 62 s / vượt 90 s
+EDGE = 0.05  # giây dư để độ dài sau khi làm tròn không rơi xuống dưới 15 s / vượt 90 s
 OVERLAP = 0.3  # hai khoảnh khắc chồng nhau quá chừng này (tỉ lệ độ dài) thì bỏ cái điểm thấp
 
 PICK_SYSTEM = ("Tu es monteur pour une chaîne francophone de clips verticaux (TikTok, Reels, Shorts). "
@@ -81,10 +80,6 @@ def clock(sec: float) -> str:
 
 def is_clip(proj: dict) -> bool:
     return (proj or {}).get("mode") == MODE
-
-
-def min_len(short: bool) -> float:
-    return MIN_SHORT if short else MIN_LONG
 
 
 # ---------- choisir les khoảnh khắc ----------
@@ -202,7 +197,7 @@ def _set(job_id: str, **fields) -> None:
             _jobs[job_id].update(fields)
 
 
-def clean_params(link: str, count=DEFAULT_CLIPS, short: bool = False) -> tuple[str, int, bool]:
+def clean_params(link: str, count=DEFAULT_CLIPS) -> tuple[str, int]:
     links = search.clean_links([link])
     if len(links) != 1:
         raise ValueError(tr("Enter the link of the video to clip"))
@@ -212,12 +207,12 @@ def clean_params(link: str, count=DEFAULT_CLIPS, short: bool = False) -> tuple[s
         raise ValueError(tr("The number of clips must be between 1 and {max}", max=MAX_CLIPS)) from e
     if not 1 <= n <= MAX_CLIPS:
         raise ValueError(tr("The number of clips must be between 1 and {max}", max=MAX_CLIPS))
-    return links[0], n, bool(short)
+    return links[0], n
 
 
-def _analyze(job_id: str, link: str, n: int, short: bool, then) -> None:
+def _analyze(job_id: str, link: str, n: int, then) -> None:
     try:
-        lo = min_len(short)
+        lo = MIN_LEN
         _set(job_id, message=tr("Downloading {url}", url=link), pct=5)
         src = search.download(link, config.CACHE / "sources", cookies=True)
         _set(job_id, message=tr("Whisper: {name}", name=Path(src["path"]).name), pct=25,
@@ -227,7 +222,7 @@ def _analyze(job_id: str, link: str, n: int, short: bool, then) -> None:
         info = delogo.probe(Path(src["path"]))
         duration = float(src.get("duration") or info.get("duration") or 0)
         if duration < lo - 0.01:
-            raise ValueError(tr("This video lasts {n} s: shorter than the {lo} s a clip needs (turn on short clips)",
+            raise ValueError(tr("This video lasts {n} s: shorter than the {lo} s a clip needs",
                                 n=f"{duration:.0f}", lo=f"{lo:.0f}"))
         src = {**src, "duration": duration}
         _set(job_id, message=tr("Claude is choosing the best moments"), pct=55,
@@ -243,26 +238,26 @@ def _analyze(job_id: str, link: str, n: int, short: bool, then) -> None:
             raise ValueError(tr("No moment worth clipping was found in this video"))
         made: list[int] = []
         if then:
-            made = then(link, [{**c, "crop": default_crop()} for c in found], short)
+            made = then(link, [{**c, "crop": default_crop()} for c in found])
         _set(job_id, status="done", pct=100, message=None, finished_at=time.time(), projects=made)
     except Exception as e:  # shown in the app; the job ends, the engine goes on
         _set(job_id, status="failed", message=None, error=str(e)[:400], finished_at=time.time())
 
 
-def start(link: str, count=DEFAULT_CLIPS, short: bool = False, then=None) -> dict:
-    """Phân tích một video dài ở nền: tải, bóc lời, Claude đề xuất các khoảnh khắc. `then(link, clips, short)` (cách
+def start(link: str, count=DEFAULT_CLIPS, then=None) -> dict:
+    """Phân tích một video dài ở nền: tải, bóc lời, Claude đề xuất các khoảnh khắc. `then(link, clips)` (cách
     Claude tự chọn) chạy khi xong và trả các id dự án đã tạo. ValueError nếu dữ liệu sai."""
-    link, n, short = clean_params(link, count, short)
+    link, n = clean_params(link, count)
     job_id = uuid.uuid4().hex[:12]
     with _lock:
         for old in sorted(_jobs.values(), key=lambda j: j["created_at"])[:-(KEEP_JOBS - 1)]:
             if old["status"] != "running":
                 _jobs.pop(old["id"], None)
-        _jobs[job_id] = {"id": job_id, "link": link, "count": n, "short": short, "auto": then is not None,
+        _jobs[job_id] = {"id": job_id, "link": link, "count": n, "auto": then is not None,
                          "status": "running", "message": tr("Starting…"), "pct": 0, "source": None, "clips": [],
                          "cuts": [], "language": None, "speech": None, "projects": [], "error": None,
                          "created_at": time.time(), "finished_at": None}
-    threading.Thread(target=_analyze, args=(job_id, link, n, short, then), daemon=True, name="motio-clipper").start()
+    threading.Thread(target=_analyze, args=(job_id, link, n, then), daemon=True, name="motio-clipper").start()
     return job_view(job_id)
 
 
@@ -306,13 +301,13 @@ def clean_crop(raw, dur: float | None = None) -> dict:
     return {"fit": bool(raw.get("fit")), "x": keys}
 
 
-def clean_clip(raw: dict, duration: float | None, short: bool) -> dict:
+def clean_clip(raw: dict, duration: float | None) -> dict:
     """Một clip người dùng / Claude đặt → {start, end, hook, crop, captions}. ValueError nếu sai hoặc ngoài độ dài."""
     try:
         a, b = round(float(raw["start"]), 2), round(float(raw["end"]), 2)
     except (KeyError, TypeError, ValueError) as e:
         raise ValueError(tr("A clip needs a start and an end in seconds")) from e
-    lo = min_len(short)
+    lo = MIN_LEN
     if a < 0 or b <= a or (duration and b > duration + 0.5):
         raise ValueError(tr("The clip must lie inside the video"))
     if b - a > MAX_LEN + 0.01:
@@ -328,30 +323,30 @@ def clean_clip(raw: dict, duration: float | None, short: bool) -> dict:
 
 
 # ---------- tạo dự án ----------
-def create(link: str, clip: dict, short: bool = False, duration: float | None = None, title: str = "") -> int:
+def create(link: str, clip: dict, duration: float | None = None, title: str = "") -> int:
     """Dự án clip (chưa chạy) cho một đoạn của video. ValueError nếu thiếu / sai dữ liệu."""
     links = search.clean_links([link])
     if len(links) != 1:
         raise ValueError(tr("Enter the link of the video to clip"))
-    c = clean_clip(clip, duration, short)
+    c = clean_clip(clip, duration)
     site = localfile.title(links[0]) if localfile.parse(links[0]) else urlparse(links[0]).hostname or "video"
     title = _one(title or c["hook"])[:200] or tr("Clip: {site} {a}–{b}", site=site, a=clock(c["start"]),
                                                  b=clock(c["end"]))
     pid = db.create_project(None, title, mode=MODE)
     db.update_project(pid, log=tr("Clip: {url} · part {a}–{b}", url=links[0], a=clock(c["start"]), b=clock(c["end"])),
-                      meta={"links": links, "links_only": True, "clip": {**c, "short": bool(short)}})
+                      meta={"links": links, "links_only": True, "clip": c})
     return pid
 
 
-def export(link: str, clips: list[dict], short: bool = False, duration: float | None = None) -> list[int]:
+def export(link: str, clips: list[dict], duration: float | None = None) -> list[int]:
     """Một dự án cho mỗi clip. Sai một clip thì không tạo cái nào (ValueError)."""
     if not clips:
         raise ValueError(tr("Pick at least one moment to clip"))
     if len(clips) > MAX_CLIPS:
         raise ValueError(tr("At most {max} clips at a time", max=MAX_CLIPS))
     for c in clips:
-        clean_clip(c, duration, short)
-    return [create(link, c, short, duration) for c in clips]
+        clean_clip(c, duration)
+    return [create(link, c, duration) for c in clips]
 
 
 # ---------- kịch bản: phụ đề + tiêu đề ----------
@@ -497,7 +492,7 @@ def view(proj: dict) -> dict | None:
     return {"start": opts.get("start"), "end": opts.get("end"),
             "hook": hook if hook is not None else opts.get("hook_auto"), "hook_auto": hook is None,
             "crop": clean_crop(opts.get("crop")), "captions": opts.get("captions") or "fr",
-            "short": bool(opts.get("short")), "source": _media(src.get("path")) if src else None,
+            "source": _media(src.get("path")) if src else None,
             "duration": src.get("duration") if src else None}
 
 
@@ -508,11 +503,10 @@ def update(pid: int, data: dict) -> str | None:
     if not p or not is_clip(p):
         raise LookupError(tr("Clip project not found"))
     opts = dict(p["meta"].get("clip") or {})
-    new = {**opts, **{k: v for k, v in data.items() if k in ("start", "end", "hook", "crop", "captions", "short")}}
+    new = {**opts, **{k: v for k, v in data.items() if k in ("start", "end", "hook", "crop", "captions")}}
     src = (p["meta"].get("sources") or [None])[0]
-    clean = clean_clip(new, (src or {}).get("duration"), bool(new.get("short")))
+    clean = clean_clip(new, (src or {}).get("duration"))
     new.update(clean)
-    new["short"] = bool(new.get("short"))
     if "hook" not in data:
         new["hook"] = opts.get("hook")
     rerun = None

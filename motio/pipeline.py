@@ -676,7 +676,7 @@ def _clip_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step
 
     res = clipper.render_clip(plan, sources[0], opts, out, progress=prog)
     (out / "final_wide.mp4").unlink(missing_ok=True)
-    lo, hi = (clipper.min_len(bool(opts.get("short"))), MAX_SECONDS)
+    lo, hi = (clipper.MIN_LEN, MAX_SECONDS)
     verdict = qa.check_project(pid, Path(res["video"]), lo, hi)
     bad = [c["msg"] for c in verdict["checks"] if c["level"] != "ok"]
     step("Render", 97, tr("Quality check: {problems}", problems=" · ".join(bad)) if bad else tr("Quality check passed"),

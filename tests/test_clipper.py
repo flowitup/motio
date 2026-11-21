@@ -67,37 +67,36 @@ def test_x_expression_moves_linearly_between_keys():
     assert e.endswith(",0.6000))")
 
 
-def test_clip_length_follows_the_62_to_90_rule_unless_short_clips_are_on():
+def test_clip_length_is_15_to_90_seconds():
     ok = {"start": 10, "end": 80}
-    assert clipper.clean_clip(ok, 200.0, False)["end"] == 80.0
-    with pytest.raises(ValueError, match="at least 62 s"):
-        clipper.clean_clip({"start": 10, "end": 40}, 200.0, False)
-    assert clipper.clean_clip({"start": 10, "end": 40}, 200.0, True)["captions"] == "fr"
+    assert clipper.clean_clip(ok, 200.0)["end"] == 80.0
+    assert clipper.clean_clip({"start": 10, "end": 25}, 200.0)["end"] == 25.0  # owner 2026-11-21: from 15 s
+    assert clipper.clean_clip({"start": 10, "end": 40}, 200.0)["captions"] == "fr"
     with pytest.raises(ValueError, match="at least 15 s"):
-        clipper.clean_clip({"start": 10, "end": 20}, 200.0, True)
+        clipper.clean_clip({"start": 10, "end": 20}, 200.0)
     with pytest.raises(ValueError, match="at most 90 s"):
-        clipper.clean_clip({"start": 0, "end": 91}, 200.0, True)
+        clipper.clean_clip({"start": 0, "end": 91}, 200.0)
     with pytest.raises(ValueError, match="inside the video"):
-        clipper.clean_clip({"start": 150, "end": 230}, 200.0, False)
+        clipper.clean_clip({"start": 150, "end": 230}, 200.0)
     with pytest.raises(ValueError, match="Captions must be"):
-        clipper.clean_clip({**ok, "captions": "klingon"}, 200.0, False)
-    assert clipper.clean_clip({**ok, "hook": None}, 200.0, False)["hook"] is None  # None = Claude écrit le hook
-    assert clipper.clean_clip({**ok, "hook": ""}, 200.0, False)["hook"] == ""  # "" = pas de hook
+        clipper.clean_clip({**ok, "captions": "klingon"}, 200.0)
+    assert clipper.clean_clip({**ok, "hook": None}, 200.0)["hook"] is None  # None = Claude écrit le hook
+    assert clipper.clean_clip({**ok, "hook": ""}, 200.0)["hook"] == ""  # "" = pas de hook
 
 
 def test_export_makes_one_project_per_clip_or_none():
     clips = [{"start": 0, "end": 70}, {"start": 80, "end": 150, "hook": "Wow", "crop": {"fit": True, "x": 0.8}}]
-    ids = clipper.export("https://www.youtube.com/watch?v=abc", clips, False, 300.0)
+    ids = clipper.export("https://www.youtube.com/watch?v=abc", clips, 300.0)
     assert len(ids) == 2
     p = db.get_project(ids[1])
     assert p["mode"] == "clip" and p["title"] == "Wow"
     assert p["meta"]["clip"]["crop"] == {"fit": True, "x": [[0.0, 0.8]]} and p["meta"]["links_only"] is True
     before = len(db.list_projects(200))
     with pytest.raises(ValueError):
-        clipper.export("https://www.youtube.com/watch?v=abc", [clips[0], {"start": 0, "end": 5}], False, 300.0)
+        clipper.export("https://www.youtube.com/watch?v=abc", [clips[0], {"start": 0, "end": 5}], 300.0)
     assert len(db.list_projects(200)) == before
     with pytest.raises(ValueError, match="at least one"):
-        clipper.export("https://www.youtube.com/watch?v=abc", [], False)
+        clipper.export("https://www.youtube.com/watch?v=abc", [])
     with pytest.raises(ValueError, match="link"):
         clipper.create("", {"start": 0, "end": 70})
 
@@ -141,7 +140,7 @@ def _clip(**kw) -> dict:
 
 @pytest.mark.skipif(not has_ffmpeg, reason="needs FFmpeg")
 def test_full_clip_run_keeps_the_original_sound_and_makes_a_vertical_video(fake):
-    pid = clipper.create("https://www.youtube.com/watch?v=c1", _clip(), short=True, duration=40.0)
+    pid = clipper.create("https://www.youtube.com/watch?v=c1", _clip(), duration=40.0)
     pipeline.produce(pid)
     p = db.get_project(pid)
     assert p["status"] == "done", p["log"]
@@ -178,8 +177,7 @@ def test_clip_without_captions_or_hook_and_a_source_without_sound(fake, tmp_path
     orig = search.download
     monkeypatch.setattr(search, "download", lambda url, out_dir, cookies=False, **kw:
                         {**orig(url, out_dir), "path": str(silent), "duration": 30.0})
-    pid = clipper.create("https://www.youtube.com/watch?v=c1", {"start": 2, "end": 22, "captions": "off", "hook": ""},
-                         short=True)
+    pid = clipper.create("https://www.youtube.com/watch?v=c1", {"start": 2, "end": 22, "captions": "off", "hook": ""})
     pipeline.produce(pid)
     p = db.get_project(pid)
     assert p["status"] == "done", p["log"]
@@ -200,7 +198,7 @@ def test_a_clip_is_held_at_the_video_gate_like_any_video(fake, monkeypatch):
     if not has_ffmpeg:
         pytest.skip("needs FFmpeg")
     ch = channels.create({"name": "Clips", "gate_script": False, "gate_video": True})
-    pid = clipper.create("https://www.youtube.com/watch?v=c1", _clip(), short=True)
+    pid = clipper.create("https://www.youtube.com/watch?v=c1", _clip())
     channels.attach(pid, ch)
     pipeline.produce(pid)
     p = db.get_project(pid)
@@ -230,7 +228,7 @@ def test_analyze_gives_suggestions_the_user_can_export(client, fake, monkeypatch
     monkeypatch.setattr(delogo, "probe", lambda p: {"width": 1280, "height": 720, "duration": 40.0})
     monkeypatch.setattr(clipper.scenes, "detect", lambda p: [10.0, 20.0])
     r = client.post("/api/clipper/analyze", headers=H, json={"link": "https://www.youtube.com/watch?v=c1",
-                                                           "count": 3, "short": True})
+                                                           "count": 3})
     assert r.status_code == 202
     j = _wait(client, r.json()["id"])
     assert j["status"] == "done", j
@@ -238,11 +236,11 @@ def test_analyze_gives_suggestions_the_user_can_export(client, fake, monkeypatch
     assert [c["score"] for c in j["clips"]] == [9] and j["clips"][0]["hook"] == "ÇA VA TOUT CHANGER"
     assert j["clips"][0]["crop"] == {"fit": False, "x": [[0.0, 0.5]]} and j["projects"] == []
     assert client.queued == []  # chế độ tự chọn: chưa tạo dự án nào
-    e = client.post("/api/clipper/export", headers=H, json={"link": j["link"], "clips": [_clip()], "short": True,
+    e = client.post("/api/clipper/export", headers=H, json={"link": j["link"], "clips": [_clip()],
                                                             "duration": 40.0})
     assert e.status_code == 202 and client.queued == e.json()["project_ids"]
     bad = client.post("/api/clipper/export", headers=H, json={"link": j["link"], "clips": [{"start": 0, "end": 5}]})
-    assert bad.status_code == 400 and "at least 62 s" in bad.text
+    assert bad.status_code == 400 and "at least 15 s" in bad.text
     assert client.get("/api/clipper/nope", headers=H).status_code == 404
 
 
@@ -251,7 +249,7 @@ def test_claude_picks_by_itself_and_every_moment_becomes_a_queued_project(client
     monkeypatch.setattr(clipper.scenes, "detect", lambda p: [])
     ch = client.post("/api/channels", headers=H, json={"name": "Clips"}).json()
     r = client.post("/api/clipper/analyze", headers=H, json={"link": "https://www.youtube.com/watch?v=c1",
-                                                           "short": True, "auto": True, "channel": ch["id"]})
+                                                           "auto": True, "channel": ch["id"]})
     j = _wait(client, r.json()["id"])
     assert j["status"] == "done" and len(j["projects"]) == 1 and client.queued == j["projects"]
     p = db.get_project(j["projects"][0])
@@ -270,10 +268,13 @@ def test_analyze_refuses_a_bad_link_count_or_missing_key(client, monkeypatch):
 
 
 def test_a_video_shorter_than_a_clip_says_so(client, fake, monkeypatch):
-    monkeypatch.setattr(delogo, "probe", lambda p: {"width": 1280, "height": 720, "duration": 40.0})
+    orig = search.download
+    monkeypatch.setattr(search, "download",
+                        lambda url, out_dir, cookies=False, **kw: {**orig(url, out_dir), "duration": 10.0})
+    monkeypatch.setattr(delogo, "probe", lambda p: {"width": 1280, "height": 720, "duration": 10.0})
     r = client.post("/api/clipper/analyze", headers=H, json={"link": "https://www.youtube.com/watch?v=c1"})
     j = _wait(client, r.json()["id"])
-    assert j["status"] == "failed" and "shorter than the 62 s" in j["error"]
+    assert j["status"] == "failed" and "shorter than the 15 s" in j["error"]
 
 
 def test_put_clip_changes_the_clip_and_says_where_to_rerun(client):

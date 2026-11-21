@@ -14,15 +14,13 @@ import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const MAX_LEN = 90; // clipper.MAX_LEN: Facebook Reels limit
-const LONG_MIN = 62; // clipper.MIN_LONG
-const SHORT_MIN = 15; // clipper.MIN_SHORT
+const MIN_LEN = 15; // clipper.MIN_LEN
 const SNAP = 0.4; // seconds: a handle close to a scene cut jumps onto it
 const KEY_NEAR = 0.4; // seconds: dragging the frame near a position changes that position instead of adding one
 const COLORS = ["bg-cyan", "bg-pink", "bg-amber", "bg-mint", "bg-violet", "bg-orange"];
 
 type Moment = ClipMoment & { id: number; on: boolean };
 
-const minLen = (short: boolean) => (short ? SHORT_MIN : LONG_MIN);
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), hi);
 
@@ -58,7 +56,7 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
   const src = job.source!;
   const duration = src.duration ?? 0;
   const aspect = src.width && src.height ? src.width / src.height : 16 / 9;
-  const lo = minLen(job.short);
+  const lo = MIN_LEN;
   const nextId = useRef(job.clips.length);
   const [moments, setMoments] = useState<Moment[]>(() => job.clips.map((c, i) => ({ ...c, id: i, on: true })));
   const [sel, setSel] = useState(0);
@@ -87,7 +85,6 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
     mutationFn: () =>
       api.clipperExport({
         link: job.link,
-        short: job.short,
         duration,
         channel: choice.channel,
         clips: chosen.map((m) => ({ start: m.start, end: m.end, hook: m.hook, crop: m.crop, captions: m.captions ?? "fr" })),
@@ -437,16 +434,15 @@ function MomentCard({
   );
 }
 
-/** Clip Studio: Claude's suggested moments of a long video, for you to move, cut, crop, rename and send to production. `?link=…&count=…&short=1`. */
+/** Clip Studio: Claude's suggested moments of a long video, for you to move, cut, crop, rename and send to production. `?link=…&count=…`. */
 export default function ClipStudioPage() {
   const api = useApi()!;
   const [params] = useSearchParams();
   const link = params.get("link") ?? "";
   const count = Number(params.get("count") ?? 4) || 4;
-  const short = params.get("short") === "1";
   const [jobId, setJobId] = useState<string | null>(null);
   const started = useRef(false);
-  const start = useMutation({ mutationFn: () => api.clipperAnalyze({ link, count, short }), onSuccess: (j) => setJobId(j.id) });
+  const start = useMutation({ mutationFn: () => api.clipperAnalyze({ link, count }), onSuccess: (j) => setJobId(j.id) });
   useEffect(() => {
     if (link && !started.current) {
       started.current = true;

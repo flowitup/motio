@@ -662,23 +662,22 @@ function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
   const navigate = useNavigate();
   const [link, setLink] = useState(clip?.url ?? "");
   const [count, setCount] = useState("4");
-  const [short, setShort] = useState(false);
   const choice = useChannelChoice(api);
   const n = Number(count);
   const badCount = !Number.isInteger(n) || n < 1 || n > 12;
   const auto = useMutation({
-    mutationFn: () => api.clipperAnalyze({ link: link.trim(), count: n, short, auto: true, channel: choice.channel }),
+    mutationFn: () => api.clipperAnalyze({ link: link.trim(), count: n, auto: true, channel: choice.channel }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate("/projects");
     },
   });
-  const manual = () => navigate(`/clip-studio?${new URLSearchParams({ link: link.trim(), count: String(n), short: short ? "1" : "0" })}`);
+  const manual = () => navigate(`/clip-studio?${new URLSearchParams({ link: link.trim(), count: String(n) })}`);
   const disabled = !link.trim() || badCount || auto.isPending;
   return (
     <Console
       title={t.dub.kinds.clip}
-      summary={[link.trim().replace(/^https?:\/\/(www\.)?/, ""), badCount ? "" : t.clipper.countLine(n), short ? t.clipper.shortOn : "", channelName(choice)].filter(Boolean).join(" · ") || t.clipper.make(n)}
+      summary={[link.trim().replace(/^https?:\/\/(www\.)?/, ""), badCount ? "" : t.clipper.countLine(n), channelName(choice)].filter(Boolean).join(" · ") || t.clipper.make(n)}
       notice={auto.isSuccess ? t.clipper.autoStarted : undefined}
       error={auto.error?.message}
       action={
@@ -697,7 +696,7 @@ function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
         <>
           <Pipeline steps={t.clipper.steps} />
           <SidePanel title={t.studio.rules}>
-            <p className="p-4 text-[13px] leading-5 text-muted-foreground">{short ? t.clipper.ruleShort : t.clipper.rule}</p>
+            <p className="p-4 text-[13px] leading-5 text-muted-foreground">{t.clipper.rule}</p>
           </SidePanel>
         </>
       }
@@ -721,12 +720,6 @@ function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
       )}
       <Section icon={ListChecks} label={t.clipper.count} htmlFor="clip-count" hint={<span className={badCount ? "text-coral" : undefined}>{badCount ? t.clipper.badCount : t.clipper.countHint}</span>}>
         <Input id="clip-count" value={count} onChange={(e) => setCount(e.target.value)} inputMode="numeric" className="h-11 w-28 font-mono" />
-      </Section>
-      <Section icon={Clock} label={t.clipper.length} hint={short ? t.clipper.shortHint : undefined}>
-        <label className="flex min-h-10 items-center gap-3 text-[13px]">
-          <Switch checked={short} onCheckedChange={setShort} />
-          {t.clipper.short}
-        </label>
       </Section>
       {choice.channels.length > 0 && (
         <Section icon={Tv} label={t.channels.pick}>

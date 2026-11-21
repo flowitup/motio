@@ -383,8 +383,8 @@ VI = {
     "(no speech)": "(không có lời)",
     "caption": "phụ đề",
     "the loudest part of the video": "đoạn to tiếng nhất của video",
-    "This video lasts {n} s: shorter than the {lo} s a clip needs (turn on short clips)":
-        "Video này dài {n} giây: ngắn hơn {lo} giây một clip cần (hãy bật clip ngắn)",
+    "This video lasts {n} s: shorter than the {lo} s a clip needs":
+        "Video này dài {n} giây: ngắn hơn {lo} giây một clip cần",
     "No moment worth clipping was found in this video": "Không tìm thấy khoảnh khắc nào đáng cắt trong video này",
     "Enter the link of the video to dub": "Nhập link video cần lồng tiếng",
     "Dub project not found": "Không có dự án lồng tiếng này",

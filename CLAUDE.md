@@ -116,15 +116,14 @@ as authoritative for scope and milestones.
     (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions
   - `clipper.py` Clip mode (`mode = "clip"`, owner 2026-11-21, modelled on a "clip studio" video on X): a long video (VOD,
     trailer, reaction) → the best moments as vertical 9:16 clips that KEEP THE ORIGINAL SOUND (no voice-over, no ElevenLabs).
-    Two ways, one engine: "Claude picks for me" (`start(..., then=export)` / CLI `clip <link> [count] [short]`: download,
+    Two ways, one engine: "Claude picks for me" (`start(..., then=export)` / CLI `clip <link> [count]`: download,
     Whisper, Claude's moments, one project each, through the channel gates / Postiz) and "I'll pick" (Clip Studio screen,
     `/clip-studio`: the same analysis gives suggestions; the user drags the in / out marks on a timeline, drags the 9:16 crop
     frame with positions over time (`meta.clip.crop = {fit, x: [[sec, centre 0..1]]}`, `fit` = whole picture on a blurred
     background) and edits the hook, then `POST /api/clipper/export`). A clip project is one `[start, end]` of the source;
     captions come from the source speech (translated to French when it isn't French, `toolbox.translate`; `off` / `source`
-    also possible), the hook is the title band on top, the sound is only levelled (loudnorm). Each clip lasts 62–90 s like any
-    video; the "short clips" switch (`meta.clip.short`) allows 15–90 s for Clip only and is the owner's call to keep
-    (open question, 2026-11-21). The post text has no "Voix off générée par IA." (no AI voice: `write_post(voice=False)`).
+    also possible), the hook is the title band on top, the sound is only levelled (loudnorm). Each clip lasts 15–90 s (owner, 2026-11-21: "từ 15s đi";
+    `clipper.MIN_LEN`; every other mode keeps 62–90 s). The post text has no "Voix off générée par IA." (no AI voice: `write_post(voice=False)`).
     No face tracking yet: the crop positions are set by hand (phase 2 would add OpenCV face detection, a new dependency).
     `qa.py` runs on a clip too; a finished clip is auto-sent only through a channel with Postiz and its video gate off.
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to

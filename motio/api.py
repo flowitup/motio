@@ -105,7 +105,6 @@ class DubIn(BaseModel):
 class ClipAnalyzeIn(BaseModel):
     link: str  # video dài cần cắt highlight
     count: int = clipper.DEFAULT_CLIPS  # số khoảnh khắc Claude đề xuất
-    short: bool = False  # cho phép clip ngắn (từ 15 s) thay vì 62–90 s
     auto: bool = False  # Claude tự chọn: tạo luôn dự án cho mọi khoảnh khắc đề xuất
     channel: int | None = None  # như ProduceIn (chỉ khi auto)
 
@@ -113,7 +112,6 @@ class ClipAnalyzeIn(BaseModel):
 class ClipExportIn(BaseModel):
     link: str
     clips: list  # [{start, end, hook, crop: {fit, x: [[giây, tâm 0..1]]}, captions}], xem clipper.clean_clip
-    short: bool = False
     duration: float | None = None  # độ dài nguồn (để kiểm tra mốc cuối)
     channel: int | None = None
 
@@ -124,7 +122,6 @@ class ClipEditIn(BaseModel):
     hook: str | None = None  # "" = không chữ hook
     crop: dict | None = None
     captions: str | None = None  # off | fr | source
-    short: bool | None = None
 
 
 class SourceVolumeIn(BaseModel):
@@ -758,9 +755,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if not (config.env("ANTHROPIC_API_KEY") or "").strip():
             raise HTTPException(409, tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
 
-    def _export_clips(link: str, clips: list[dict], short: bool, ch: dict | None, duration: float | None = None):
+    def _export_clips(link: str, clips: list[dict], ch: dict | None, duration: float | None = None):
         """Một dự án cho mỗi clip, xếp hàng làm lần lượt (mỗi lúc một video)."""
-        ids = clipper.export(link, clips, short, duration)
+        ids = clipper.export(link, clips, duration)
         for pid in ids:
             channels.attach(pid, ch)
             jobs.submit(_run_job, pipeline.produce, pid)
@@ -772,9 +769,9 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         không thì app đọc kết quả (GET /api/clipper/{id}) để người dùng tự chọn trong Clip Studio."""
         ch = _channel_for(body.channel)
         _need_claude()
-        then = (lambda link, found, short: _export_clips(link, found, short, ch)) if body.auto else None
+        then = (lambda link, found: _export_clips(link, found, ch)) if body.auto else None
         try:
-            return clipper.start(body.link, body.count, body.short, then)
+            return clipper.start(body.link, body.count, then)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
@@ -787,11 +784,11 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
 
     @app.post("/api/clipper/export", status_code=202, dependencies=[Depends(auth)])
     def clipper_export(body: ClipExportIn):
-        """Các clip người dùng đã chọn thành dự án (62–90 s mỗi clip, hoặc từ 15 s khi bật clip ngắn)."""
+        """Các clip người dùng đã chọn thành dự án (mỗi clip 15–90 s)."""
         ch = _channel_for(body.channel)
         _need_claude()
         try:
-            return {"project_ids": _export_clips(body.link, body.clips, body.short, ch, body.duration)}
+            return {"project_ids": _export_clips(body.link, body.clips, ch, body.duration)}
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
