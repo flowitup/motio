@@ -65,7 +65,7 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
         run: |
           pkg=$(node -p "require('./app/package.json').version")
-          eng=$(sed -n 's/^__version__ *= *"\(.*\)"/\1/p' motio/__init__.py)
+          eng=$(sed -n 's/^__version__ *= *"\([^"]*\)".*/\1/p' motio/__init__.py)
           if [ "$pkg" != "$VERSION" ] || [ "$eng" != "$VERSION" ]; then
             echo "::error::Version mismatch: tauri.conf.json=$VERSION, app/package.json=$pkg, motio/__init__.py=$eng"
             exit 1
