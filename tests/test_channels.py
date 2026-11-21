@@ -78,3 +78,15 @@ def test_next_slot_skips_near_and_taken_times():
 def test_merge_tags_puts_channel_tags_first():
     ch = channels.clean({"name": "x", "hashtags": ["#Chine", "actu"]})
     assert channels.merge_tags(ch, ["#chine", "#tech"]) == ["#Chine", "#actu", "#tech"]
+
+
+def test_ai_note_is_on_by_default_and_can_be_left_out_of_the_post(tmp_path):
+    from motio import pipeline
+    assert channels.clean({"name": "x"})["ai_note"] is True
+    assert channels.clean({"name": "x", "ai_note": False})["ai_note"] is False
+    assert channels.full({"name": "old"})["ai_note"] is True  # profile saved before the option existed
+    plan = {"title_fr": "Titre", "description": "Texte.", "hashtags": ["#a"]}
+    assert "Voix off générée par IA." in pipeline.write_post(plan, [], tmp_path)
+    off = pipeline.write_post(plan, [], tmp_path, ai_images=True, ai_note=False)
+    assert "générée" not in off and off.startswith("Texte.") and off.endswith("#a")
+    assert "générée" not in (tmp_path / "post.txt").read_text(encoding="utf-8")

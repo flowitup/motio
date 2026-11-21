@@ -303,7 +303,9 @@ side-by-side compare; (2) one voice per speaker, voices chosen in the channel pr
 - **Rights gate (removed 2026-10-18)**: the owner asked to stop declaring source rights ("we don't mind if the video
   came from nowhere"), so there is no rights field in the UI or the API and no rights hold: a dub is auto-sent like any
   project, only through a channel profile that lists Postiz channels with its video gate off.
-- Posts keep "Voix off générée par IA." and the platforms' AI flags. Nothing here removes logos or dodges duplicate /
+- Posts keep "Voix off générée par IA." and the platforms' AI flags; since the owner's word of 2026-11-21 the post-text line
+  is a channel profile option (`ai_note`, on by default: Channels → Approval → Post text) and Settings → Posting has a
+  "Test the connection" button for Postiz (it lists the channels). The platform flags stay on regardless. Nothing here removes logos or dodges duplicate /
   Content ID detection.
 - Not verified in the build environment: real ElevenLabs / Claude / yt-dlp runs (faked in tests), Mac and Windows.
 

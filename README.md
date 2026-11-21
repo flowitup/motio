@@ -323,5 +323,5 @@ motio/web.py       legacy dashboard (to be removed)
 ## Built-in content rules
 
 An original French voice-over with context and analysis; source clips only illustrate it, 3–6 seconds each. The post
-says “Voix off générée par IA.” (there is no AI label on the video itself). Every project writes `sources.txt` with all
+says “Voix off générée par IA.” unless the channel profile turns **Add the AI note to the post** off (there is no AI label on the video itself, and the platforms' own AI flags such as TikTok's stay on either way). Every project writes `sources.txt` with all
 source links; the sources are not shown on the video or in the post.

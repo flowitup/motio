@@ -26,7 +26,7 @@ _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
             "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
             "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "auto_clips": "", "ai_clips": 0,
-            "series": "", "cast": ""}
+            "series": "", "cast": "", "ai_note": True}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -59,6 +59,7 @@ def clean(data: dict) -> dict:
     d["duration"] = int(d["duration"])
     d["hashtags"] = _tags(d["hashtags"])[:MAX_TAGS]
     d["gate_script"], d["gate_video"] = bool(d["gate_script"]), bool(d["gate_video"])
+    d["ai_note"] = bool(d["ai_note"])
     d["postiz"] = list(dict.fromkeys(str(i) for i in d["postiz"] if str(i).strip()))
     if d["send_mode"] not in SEND_MODES:
         raise ValueError(tr("Send mode must be one of {choices}", choices=", ".join(SEND_MODES)))
