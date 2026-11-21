@@ -475,6 +475,8 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
                     kuaishou_feed.FEATURED], "site": "kuaishou"},
                      {"key": "douyin_hot", "target": douyin_feed.HOT, "name": douyin_feed.NAMES[douyin_feed.HOT],
                       "site": "douyin"},
+                     {"key": "douyin_featured", "target": douyin_feed.FEATURED,
+                      "name": douyin_feed.NAMES[douyin_feed.FEATURED], "site": "douyin"},
                      {"key": "douyin_feed", "target": douyin_feed.FEED, "name": douyin_feed.NAMES[douyin_feed.FEED],
                       "site": "douyin"},
                      {"key": "weibo_hot", "target": weibo_feed.HOT, "name": weibo_feed.NAMES[weibo_feed.HOT],

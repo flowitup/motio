@@ -96,6 +96,25 @@ def test_follow_and_check_saves_the_videos(feed):
     assert "Could not connect to Douyin" in (db.get_watch(wid)["last_error"] or "")
 
 
+def test_featured_reads_its_own_feed_and_follows_like_the_home_feed(feed, monkeypatch):
+    asked = []
+
+    async def featured(index):
+        asked.append(index)
+        return {"aweme_list": [_post("7000000000000000031"), _post("7000000000000000032", video={"duration": 2700000})]}
+
+    monkeypatch.setattr(douyin_feed, "_featured_page", featured)
+    assert douyin_feed.parse("douyin:featured") == "featured"
+    assert douyin_feed.name("douyin:featured") == "Douyin featured"
+    rows = douyin_feed.fetch("douyin:featured")
+    assert [r["id"] for r in rows] == ["douyin:7000000000000000031", "douyin:7000000000000000032"]
+    assert asked == list(range(1, douyin_feed.PAGES + 1)) and feed["calls"] == []  # not the home feed's reader
+    assert rows[1]["duration"] == 2700
+    wid = watch.add("douyin:featured")
+    watch.check(db.get_watch(wid))
+    assert {r["id"] for r in db.list_clips("new", wid)} == {"douyin:7000000000000000031", "douyin:7000000000000000032"}
+
+
 def test_a_row_downloads_like_any_douyin_link():
     assert douyin.find_id("https://www.douyin.com/video/7000000000000000001") == "7000000000000000001"
 

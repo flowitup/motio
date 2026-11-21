@@ -34,6 +34,7 @@ const categoriesEn: Record<string, string> = {
   bilibili_weekly: "Bilibili · Weekly must-watch",
   bilibili_ranking_all: "Bilibili · Ranking, all categories",
   douyin_hot: "Douyin · Hot board",
+  douyin_featured: "Douyin · Featured",
   douyin_feed: "Douyin · Home feed",
   weibo_hot: "Weibo · Hot videos",
   acfun_rank: "AcFun · All sections",
@@ -61,6 +62,7 @@ const categoriesVi: Record<string, string> = {
   bilibili_weekly: "Bilibili · Nên xem mỗi tuần",
   bilibili_ranking_all: "Bilibili · Xếp hạng toàn bộ",
   douyin_hot: "Douyin · Bảng nóng",
+  douyin_featured: "Douyin · Tuyển chọn",
   douyin_feed: "Douyin · Trang chủ",
   weibo_hot: "Weibo · Video hot",
   acfun_rank: "AcFun · Mọi mục",
@@ -160,7 +162,7 @@ const en = {
     tagHint: "Motio follows the most played videos of the last 7 days that match it.",
     sources: "Fetch videos from",
     sourcesHint: "Click a source to pause or resume it: a paused source keeps its list but is not checked or shown.",
-    feedHint: "Kuaishou's featured list, Douyin's home feed and Weibo's hot videos are not rankings: each check shows a fresh selection of what the site recommends to a visitor. Douyin's hot board ranks topics: it shows the recent videos of the hottest ones, each marked with its topic (needs Google Chrome installed).",
+    feedHint: "Kuaishou's featured list, Douyin's home feed and Weibo's hot videos are not rankings: each check shows a fresh selection of what the site recommends to a visitor. Douyin's Featured tab is a fresh draw of mostly long videos. Douyin's hot board ranks topics: it shows the recent videos of the hottest ones, each marked with its topic (needs Google Chrome installed).",
     starterTitle: "Pick what to follow",
     starterBody:
       "Motio fetches what is trending in each category, scores it for a French video and shows it here. Start with the four below, add more any time.",
@@ -1418,7 +1420,7 @@ const vi: Messages = {
     tagHint: "Motio theo dõi các video được xem nhiều nhất trong 7 ngày qua khớp với từ khoá.",
     sources: "Lấy video từ",
     sourcesHint: "Bấm một nguồn để tạm dừng hoặc bật lại: nguồn tạm dừng giữ nguyên danh sách nhưng không được kiểm tra và không hiện.",
-    feedHint: "Danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo không phải bảng xếp hạng: mỗi lần kiểm tra là một lượt video mới mà trang gợi ý cho khách vãng lai. Bảng nóng Douyin xếp hạng chủ đề: app lấy các video mới của những chủ đề nóng nhất, mỗi video ghi rõ chủ đề (cần cài Google Chrome).",
+    feedHint: "Danh sách Nổi bật của Kuaishou, trang chủ Douyin và video hot của Weibo không phải bảng xếp hạng: mỗi lần kiểm tra là một lượt video mới mà trang gợi ý cho khách vãng lai. Tab Tuyển chọn (精选) của Douyin là một lượt video mới, phần lớn là video dài. Bảng nóng Douyin xếp hạng chủ đề: app lấy các video mới của những chủ đề nóng nhất, mỗi video ghi rõ chủ đề (cần cài Google Chrome).",
     starterTitle: "Chọn nội dung để theo dõi",
     starterBody:
       "Motio lấy video đang thịnh hành ở mỗi chuyên mục, chấm điểm xem có làm được video tiếng Pháp không rồi hiện ở đây. Bắt đầu với bốn mục bên dưới, thêm sau cũng được.",

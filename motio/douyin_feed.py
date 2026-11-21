@@ -1,4 +1,5 @@
-"""Douyin's home recommendation feed (`douyin:feed`) and keyword search (`search`) as rows for the app.
+"""Douyin's home recommendation feed (`douyin:feed`), its Featured tab (`douyin:featured`), its hot board
+(`douyin:hot`) and keyword search (`search`) as rows for the app.
 
 Douyin has no public category or ranking list a visitor can read. What it does show a visitor with no login is the
 home feed (`/aweme/v1/web/tab/feed/`): a fresh draw of recommended videos, ~10 per answer. f2 (see douyin.py) signs
@@ -15,6 +16,10 @@ the public search site `so.douyin.com` is used instead: it shows the same result
 `aweme_info` cards; `chrome.py` reads it in a headless Chrome with a real browser user agent, because a plain HTTP
 client gets the anti-spam answer and the default headless agent gets Douyin's captcha page. Nothing here logs in,
 solves a captcha or fakes a session: a browser check Douyin still asks for is reported.
+
+The Featured tab (`douyin:featured`, 精选 at douyin.com/jingxuan, the "all" tab) is another anonymous feed, a POST to
+`/aweme/v2/web/module/feed/` (module 3003101) with the query signed by f2 the same way: ~20 videos per answer, mostly
+long ones (several minutes up to ~45), a fresh draw each check.
 
 The hot board (`douyin:hot`, Douyin's own "热点榜", the list a visitor sees at douyin.com/hot) is a ranking of topics,
 not videos. Its list answers a visitor with no login (f2 signs it, the same way as the home feed), 50 topics with their
@@ -37,7 +42,8 @@ from .i18n import tr
 PREFIX = "douyin:"
 FEED = "douyin:feed"
 HOT = "douyin:hot"
-NAMES = {FEED: "Douyin feed", HOT: "Douyin hot board"}
+FEATURED = "douyin:featured"
+NAMES = {FEED: "Douyin feed", HOT: "Douyin hot board", FEATURED: "Douyin featured"}
 PAGES = 5  # answers read per check (about 10 videos each, some repeated)
 MIN_SECONDS = 15
 TAKE_MAX = 100  # a search reads at most this many rows
@@ -149,11 +155,13 @@ class FeedError(RuntimeError):
 
 
 def parse(target: str) -> str:
-    """"douyin:feed" → "feed", "douyin:hot" → "hot". ValueError otherwise."""
+    """"douyin:feed" → "feed", "douyin:hot" → "hot", "douyin:featured" → "featured". ValueError otherwise."""
     if target == FEED:
         return "feed"
     if target == HOT:
         return "hot"
+    if target == FEATURED:
+        return "featured"
     raise ValueError(tr("Unknown Douyin list: {target}", target=target[:80]))
 
 
@@ -179,6 +187,40 @@ async def _page(index: int) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
+FEATURED_PAGE = "/aweme/v2/web/module/feed/"  # the 精选 (Featured) tab's own feed, a POST with the query signed
+FEATURED_MODULE = "3003101"  # its module id (the "all" tab: no category tag)
+
+
+async def _featured_page(index: int) -> dict:
+    """One answer of the Featured tab's feed (f2 signs it, same anonymous session as `_page`). Tests fake this.
+
+    f2 has no model for this endpoint, so Motio gives f2's own signer the address (`bogus_manager.str_2_endpoint`,
+    nothing copied) and f2's `_fetch_post_json` makes the request.
+    """
+    crawler_cls, _, conf, tokens = douyin._f2()
+    try:
+        ms_token = tokens.gen_real_msToken()
+    except Exception:
+        ms_token = tokens.gen_false_msToken()
+    kwargs = {"headers": conf.headers(), "proxies": conf.proxies(), "cookie": f"ttwid={tokens.gen_ttwid()}",
+              "timeout": 10, "max_retries": 2}
+    params = {"device_platform": "webapp", "aid": "6383", "channel": "channel_pc_web", "module_id": FEATURED_MODULE,
+              "count": "20", "filterGids": "", "presented_ids": "", "refresh_index": str(index), "refer_id": "",
+              "refer_type": "10", "pull_type": "0", "Seo-Flag": "0", "tag_id": "", "active_id": "",
+              "use_lite_type": "1", "xigua_user": "0", "pc_client_type": "1", "update_version_code": "170400",
+              "support_h265": "0", "support_dash": "0", "version_code": "170400", "version_name": "17.4.0",
+              "cookie_enabled": "true", "browser_language": "zh-CN", "browser_platform": "MacIntel",
+              "browser_name": "Chrome", "browser_version": "125.0.0.0", "browser_online": "true",
+              "engine_name": "Blink", "engine_version": "125.0.0.0", "os_name": "Mac OS", "os_version": "10.15.7",
+              "platform": "PC", "msToken": ms_token}
+    async with crawler_cls(kwargs) as crawler:
+        endpoint = crawler.bogus_manager.str_2_endpoint(crawler.headers.get("User-Agent"),
+                                                        "https://www.douyin.com" + FEATURED_PAGE + "?"
+                                                        + urlencode(params))
+        raw = await crawler._fetch_post_json(endpoint, data={})
+    return raw if isinstance(raw, dict) else {}
+
+
 def _clip(post: dict, rank: int, min_seconds: float = MIN_SECONDS) -> dict | None:
     video = post.get("video") or {}
     seconds = (video.get("duration") or 0) / 1000
@@ -197,8 +239,10 @@ def _clip(post: dict, rank: int, min_seconds: float = MIN_SECONDS) -> dict | Non
 def fetch(target: str, take: int = 50) -> list[dict]:
     """The videos of a list as `clip` rows: the recommended feed, or the hot board's. FeedError when Douyin cannot be
     reached or answers nothing."""
-    if parse(target) == "hot":
+    kind = parse(target)
+    if kind == "hot":
         return _fetch_hot(take)
+    reader = _featured_page if kind == "featured" else _page
     found: dict[str, dict] = {}
     errors: list[Exception] = []
     answered = False
@@ -206,7 +250,7 @@ def fetch(target: str, take: int = 50) -> list[dict]:
         if i:
             time.sleep(_PAUSE)
         try:
-            raw = douyin._run(_page(i + 1))
+            raw = douyin._run(reader(i + 1))
         except Exception as e:  # f2 not loaded / offline / signature out of date: say so once, keep what was read
             errors.append(e)
             if douyin._is_network_error(e) or not answered:

@@ -230,3 +230,11 @@ is a recommendation draw, the hot board is the ranking people actually follow.
 - **Checked live** from a cloud sandbox (Chromium wrapper with `--no-sandbox` as `MOTIO_CHROME`): 20 topics read, 27 videos
   from 12 topics in 67 s, with titles, lengths, likes and upload days. Not checked: the owner's Mac, the packaged app,
   Windows.
+
+## Featured tab (2026-11-22)
+
+Trending → "Douyin · Featured" (`douyin:featured`) is the 精选 tab (`douyin.com/jingxuan`, "all" category). Its feed is a
+**POST** to `/aweme/v2/web/module/feed/` (module 3003101, 20 videos per answer, query signed); a GET answers 404, and the
+v1 path answers an empty body. `douyin._featured_page` gives f2's signer the address (`str_2_endpoint`) and lets f2's
+`_fetch_post_json` send it, anonymous like the home feed: checked live from a cloud sandbox, 5 answers gave 35 distinct
+videos of 77 s to 46 min (mostly long: series, films, compilations). Category tabs (`tag_id`) are not read.

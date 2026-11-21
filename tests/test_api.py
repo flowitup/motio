@@ -451,6 +451,8 @@ def test_categories_are_listed_as_followable_targets(client, monkeypatch):
             "site": "acfun"} in rows
     assert len({r["key"] for r in rows}) == len(rows)
     assert [r["key"] for r in rows][:5] == ["bilibili_popular", "bilibili_weekly", "bilibili_ranking_all", "tech", "ai"]
+    assert {"key": "douyin_featured", "target": "douyin:featured", "name": "Douyin featured",
+            "site": "douyin"} in rows
     assert {"key": "douyin_hot", "target": "douyin:hot", "name": "Douyin hot board", "site": "douyin"} in rows
     for r in rows:  # every one can be followed as it is
         body = {"target": r["target"], "site": r["site"]}
