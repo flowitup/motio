@@ -1,0 +1,68 @@
+name: Prune releases
+
+# Keeps only the newest 3 published GitHub Releases and deletes the older ones (owner, 2026-11-21).
+# Runs when a release is published, so the cleanup follows the owner's Publish click, and by hand
+# (Actions → Prune releases → Run workflow; "dry_run" is on by default and only lists what would go).
+# Only Release objects (notes + installers + latest.json) are deleted; git tags stay. Which release goes is decided
+# by tools/prune_releases.py: by version, published ones only, never the one GitHub serves as "latest"
+# (the in-app updater reads releases/latest/download/latest.json), and a draft older than the newest published
+# release is stale and goes too. A newer draft (a release waiting to be published) is never touched.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: Published releases to keep
+        default: "3"
+      dry_run:
+        description: Only list what would be deleted
+        type: boolean
+        default: true
+
+concurrency:
+  group: prune-releases
+  cancel-in-progress: false
+
+permissions:
+  contents: write # delete releases
+
+jobs:
+  prune:
+    name: Delete old releases
+    if: github.repository == 'flowitup/motio'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: tools
+      - name: Pick and delete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ inputs.keep || '3' }}
+          # A published release always deletes; a manual run deletes only when dry_run is switched off.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          if ! [[ "$KEEP" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::keep must be a number of 1 or more, got '$KEEP'"
+            exit 1
+          fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" > releases.json
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .id)
+          python3 tools/prune_releases.py --releases releases.json --keep "$KEEP" --latest-id "$latest" > plan.json
+          count=$(jq length plan.json)
+          {
+            echo "### Prune releases (keep $KEEP, dry run: $DRY_RUN)"
+            echo
+            if [ "$count" = 0 ]; then echo "Nothing to delete."; fi
+            jq -r '.[] | "- \(.tag)\(if .draft then " (draft)" else "" end): \(.reason)"' plan.json
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = true ]; then
+            echo "Dry run: nothing deleted."
+            exit 0
+          fi
+          # By release id: works for drafts too. The git tag is left where it is.
+          jq -r '.[] | "\(.id) \(.tag)"' plan.json | while read -r id tag; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" --silent
+            echo "Deleted release $tag"
+          done

@@ -217,6 +217,9 @@ debug build still runs the engine with `uv` from the repo). Packaged builds keep
   `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match that version). CI freezes the
   engine, builds the `.dmg` (macOS Apple Silicon) and the `.msi` / `.exe` (Windows), and creates a draft GitHub Release
   for you to check and Publish.
+- **Old releases** (`.github/workflows/prune-releases.yml`): when you publish a release, only the 3 newest published ones stay;
+  older Releases (and drafts older than the newest published one) are deleted. Git tags are kept. You can try it first from
+  Actions → Prune releases → Run workflow (a dry run by default).
 - The installers are not code-signed: on macOS, open the app the first time via System Settings → Privacy & Security →
   "Open Anyway"; on Windows, click "More info" → "Run anyway". The installers bundle the engine; to use an engine on
   another machine, go to Settings → "Remote engine".

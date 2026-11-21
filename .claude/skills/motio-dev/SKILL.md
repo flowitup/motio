@@ -313,6 +313,7 @@ Use this when not using `/ak:git`, `/ak:review-pr`, `/ak:ship` (§1).
 | **CI** (`ci.yml`) | every PR, push to `master` | Engine (ubuntu + windows): `uv sync --locked`, ruff, pytest. Desktop app (ubuntu): `pnpm build`, clippy `-D warnings` | nothing |
 | **Release** (`release.yml`) | tag `v*`; PRs touching it or `tools/{build_engine,engine_entry,fetch_ffmpeg}.py` (build only); manual | freezes the engine (`uv run --group build python tools/build_engine.py`), `.dmg` + `.app.tar.gz` (macOS arm64), `.msi` + `.exe` (Windows), signed update bundles, draft Release, then `latest.json` from `tools/updater_manifest.py` | secrets `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`); tag = app version |
 | **Tag release** (`tag-release.yml`) | push to master that changes `version` in `app/src-tauri/tauri.conf.json`; manual (tags the current version if it has no tag) | creates tag `vX.Y.Z` on that commit unless it exists, then `gh workflow run release.yml --ref vX.Y.Z` | none (`GITHUB_TOKEN`: `contents: write`, `actions: write`) |
+| **Prune releases** (`prune-releases.yml`) | a release is published; manual (`dry_run` on by default, `keep` = 3) | keeps the 3 newest published GitHub Releases, deletes older ones and drafts older than the newest published (`tools/prune_releases.py`, tests in `tests/test_prune_releases.py`); never the "latest" one; git tags stay | none (`GITHUB_TOKEN`: `contents: write`) |
 | **Deploy (Hetzner)** (`deploy.yml`) | manual; push to `master` touching engine / `deploy/` only if var `AUTO_DEPLOY=true` | builds `ghcr.io/flowitup/motio-engine:sha-<commit>`, copies `deploy/` files to `/opt/motio`, `docker compose pull && up -d --wait` | secrets `HETZNER_HOST/USER/SSH_KEY/KNOWN_HOSTS`; var `MOTIO_PLATFORM` for ARM |
 
 Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <id> --exit-status`.
@@ -343,7 +344,12 @@ Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <
 6. Release notes: the title is `Motio vX.Y.Z` and the notes live in `docs/releases/vX.Y.Z.md` (Changes, Verification,
    Downloads, Full Changelog). After a release exists, the manual **Release notes** workflow (`release-notes.yml`, run it
    from Actions) applies every file there to its GitHub Release; it changes text only, never tags or assets.
-7. Signing key (one time, owner): `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`,
+7. Old releases: only the 3 newest published Releases stay (owner, 2026-11-21). **Prune releases** (`prune-releases.yml`) runs when
+   a release is published and deletes the older Release objects (notes, installers, `latest.json`) and any draft older than
+   the newest published one; a newer draft is left alone. Git tags are kept, and `docs/releases/*.md` too (the **Release
+   notes** workflow skips a tag with no Release). Deleting is permanent: try it first with Actions → Prune releases → Run
+   workflow (dry run is the default).
+8. Signing key (one time, owner): `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`,
    `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key`, set the password secret; the
    public key sits in `plugins.updater.pubkey`. Losing the private key means installed apps can't update.
 

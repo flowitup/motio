@@ -1,7 +1,8 @@
 name: Release notes
 
 # Manual: sets each GitHub Release's title and notes from docs/releases/<tag>.md.
-# Only text changes; tags, installers and latest.json are not touched.
+# Only text changes; tags, installers and latest.json are not touched. A tag with no Release (pruned by
+# prune-releases.yml, or not built yet) is skipped.
 on:
   workflow_dispatch:
 
@@ -17,7 +18,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' > existing.txt
           for f in docs/releases/v*.md; do
             tag="$(basename "$f" .md)"
+            if ! grep -qx "$tag" existing.txt; then
+              echo "No release for $tag: skipped."
+              continue
+            fi
             gh release edit "$tag" --title "Motio $tag" --notes-file "$f"
           done
