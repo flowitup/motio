@@ -198,7 +198,7 @@ export type ProjectQuery = { limit?: number; before?: number; channel?: number; 
 export type Project = {
   id: number;
   trend_id: string | null;
-  mode: "news" | "topic" | "dub" | "ai";
+  mode: "news" | "topic" | "dub" | "ai" | "clip";
   title: string;
   status: ProjectStatus;
   step: string | null;
@@ -248,6 +248,39 @@ export type DubView = {
   blur_auto: boolean; // khung do Motio tự tìm
   source: string | null; // đường dẫn /media của video gốc đã tải
   speakers: DubSpeaker[]; // người nói có lời, theo thứ tự xuất hiện
+};
+
+/** Khung 9:16 của một clip: fit = cả khung hình trên nền mờ; x = tâm khung crop (0..1) theo giây trong clip. */
+export type ClipCrop = { fit: boolean; x: [number, number][] };
+export type ClipCaptions = "off" | "fr" | "source";
+/** Clip (mode clip): một đoạn của video nguồn, giữ tiếng gốc. hook null / hook_auto: Claude viết chữ hook. */
+export type ClipView = {
+  start: number;
+  end: number;
+  hook: string | null;
+  hook_auto: boolean;
+  crop: ClipCrop;
+  captions: ClipCaptions;
+  source: string | null; // đường dẫn /media của video gốc đã tải
+  duration: number | null;
+};
+/** Một khoảnh khắc Claude đề xuất / người dùng đặt trong Clip Studio. */
+export type ClipMoment = { start: number; end: number; score?: number; hook: string; why?: string; crop: ClipCrop; captions?: ClipCaptions };
+export type ClipperJob = {
+  id: string;
+  link: string;
+  count: number;
+  auto: boolean;
+  status: "running" | "done" | "failed";
+  message: string | null;
+  pct: number;
+  error: string | null;
+  source: { path: string | null; title: string; duration: number | null; platform: string; uploader: string; width?: number; height?: number } | null;
+  language: string | null;
+  speech: boolean | null;
+  cuts: number[]; // cú cắt cảnh (giây), để mốc bám vào
+  clips: ClipMoment[];
+  projects: number[]; // tự chọn: các dự án đã tạo
 };
 
 export type ImageProvider = "fal" | "modal" | "placeholder";
@@ -312,6 +345,7 @@ export type ProjectDetail = Project & {
   retry: { auto: RetryStep; steps: RetryStep[] };
   has_script: boolean;
   dub: DubView | null;
+  clip: ClipView | null; // clip cắt từ video dài (mode clip), null = dự án khác
   ai: AiView | null;
   masks: SourceMask[] | null; // khung làm mờ theo từng nguồn (thứ tự meta.sources); null = video không có nguồn (video AI)
   effects: ProjectEffects | null; // hiệu ứng theo từng nguồn; null = chưa có nguồn
@@ -602,6 +636,22 @@ export function makeApi(url: string, token: string) {
     /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn; whole = cả video, mọi độ dài. */
     createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; channel?: number }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
+    /** Clip: phân tích video dài ở nền (auto: Claude tự tạo luôn dự án cho từng khoảnh khắc). Đọc kết quả bằng clipperJob(). */
+    clipperAnalyze: (body: { link: string; count?: number; auto?: boolean; channel?: number }) =>
+      call<ClipperJob>("POST", "/api/clipper/analyze", body),
+    clipperJob: (id: string) => call<ClipperJob>("GET", `/api/clipper/${encodeURIComponent(id)}`),
+    /** Mỗi clip đã chọn thành một dự án (xếp hàng làm lần lượt). */
+    clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; duration?: number | null; channel?: number }) =>
+      call<{ project_ids: number[] }>("POST", "/api/clipper/export", body),
+    /** Khung crop bám mặt cho một đoạn của video đã phân tích (Clip Studio); found = false: không thấy mặt, khung giữa hình. */
+    clipperTrack: (jobId: string, body: { start: number; end: number }) =>
+      call<{ crop: ClipCrop; found: boolean }>("POST", `/api/clipper/${encodeURIComponent(jobId)}/track`, body),
+    /** Như trên cho dự án clip (đoạn đã lưu, hoặc start / end chưa lưu). Không lưu gì. */
+    clipTrack: (id: number, body?: { start?: number; end?: number }) =>
+      call<{ crop: ClipCrop; found: boolean }>("POST", `/api/projects/${id}/clip/track`, body ?? {}),
+    /** Đổi đoạn / hook / khung crop / phụ đề của dự án clip. rerun: bước nên chạy lại bằng retry(). */
+    setClip: (id: number, body: { start?: number; end?: number; hook?: string; crop?: ClipCrop; captions?: ClipCaptions }) =>
+      call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/clip`, body),
     /** Video làm hoàn toàn bằng ảnh AI từ một chủ đề. */
     createAi: (body: {
       topic: string;

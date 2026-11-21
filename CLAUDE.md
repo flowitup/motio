@@ -114,6 +114,26 @@ as authoritative for scope and milestones.
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
     (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions
+  - `clipper.py` Clip mode (`mode = "clip"`, owner 2026-11-21, modelled on a "clip studio" video on X): a long video (VOD,
+    trailer, reaction) → the best moments as vertical 9:16 clips that KEEP THE ORIGINAL SOUND (no voice-over, no ElevenLabs).
+    Two ways, one engine: "Claude picks for me" (`start(..., then=export)` / CLI `clip <link> [count]`: download,
+    Whisper, Claude's moments, one project each, through the channel gates / Postiz) and "I'll pick" (Clip Studio screen,
+    `/clip-studio`: the same analysis gives suggestions; the user drags the in / out marks on a timeline, drags the 9:16 crop
+    frame with positions over time (`meta.clip.crop = {fit, x: [[sec, centre 0..1]]}`, `fit` = whole picture on a blurred
+    background) and edits the hook, then `POST /api/clipper/export`). A clip project is one `[start, end]` of the source;
+    captions come from the source speech (translated to French when it isn't French, `toolbox.translate`; `off` / `source`
+    also possible), the hook is the title band on top, the sound is only levelled (loudnorm). Each clip lasts 15–90 s (owner, 2026-11-21: "từ 15s đi";
+    `clipper.MIN_LEN`; every other mode keeps 62–90 s). The post text has no "Voix off générée par IA." (no AI voice: `write_post(voice=False)`).
+    Face tracking (`facetrack.py`, OpenCV, added on the owner's OK of 2026-11-21: `opencv-python-headless` 4.x, pinned <5 because
+    OpenCV 5 dropped the Haar cascade): every clip's crop positions start from the face (FFmpeg frames at 2 fps, the biggest
+    face, gaps filled, median filter, simplified to a few positions); no face / a portrait source / no OpenCV → the frame
+    stays centred. The detector is YuNet (`cv2.FaceDetectorYN`, `face_detection_yunet_2023mar.onnx`, opencv_zoo, MIT, 230 KB,
+    downloaded once from Hugging Face to `data/models/` with a sha256 check; GitHub's raw host is blocked in the cloud sandbox,
+    Hugging Face is not); on a test it found faces of 5 % of the frame width that the Haar cascade missed. While the model
+    cannot be downloaded (retried after 10 min) the Haar cascade shipped in the wheel is used. It only finds where a face
+    is, never who; the positions stay editable (`POST /api/clipper/{job}/track`, `POST /api/projects/{id}/clip/track`,
+    "Follow the face" button).
+    `qa.py` runs on a clip too; a finished clip is auto-sent only through a channel with Postiz and its video gate off.
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos"); an account's page (`/clips/:id`,
