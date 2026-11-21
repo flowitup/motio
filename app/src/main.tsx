@@ -8,8 +8,8 @@ import { EngineProvider } from "./lib/engine";
 import { UpdaterProvider } from "./lib/updater";
 import "./index.css";
 
-// Giao diện "Studio" chỉ có chế độ tối (index.css đặt màu ở :root; lớp .dark giữ cho các biến thể dark: của shadcn).
-document.documentElement.classList.add("dark");
+// The look (data-theme + .dark on <html>) is set when lib/theme loads, before the first paint.
+import "./lib/theme";
 
 /** Switching language rebuilds the screens so every string is read again. */
 function Root() {

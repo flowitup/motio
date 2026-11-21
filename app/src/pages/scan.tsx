@@ -329,7 +329,7 @@ export default function ScanPage() {
               {shown.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t.scan.noRows}</p>
               ) : (
-                <div className="max-h-[70vh] overflow-auto rounded-md border">
+                <div data-slot="table-wrap" className="max-h-[70vh] overflow-auto rounded-md border">
                   <table className="w-full min-w-[56rem] border-collapse text-left text-[13px]">
                     <thead className="sticky top-0 z-10 bg-panel text-xs text-muted-foreground">
                       <tr>

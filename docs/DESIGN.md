@@ -15,10 +15,12 @@ wordmark is the Motio logo (waveform bars) with "Motio" in mono.
 
 ## Type
 
-- Fonts: Space Grotesk for text, JetBrains Mono for numbers, ids, timecode and captions. Both are bundled (the app
+- Fonts: Be Vietnam Pro for text and IBM Plex Mono for numbers, ids, timecode and captions over every look (owner,
+  2026-11-21). Settings → Appearance → Font switches to the look's own fonts, Inter, Plus Jakarta Sans, Lexend or
+  Archivo (`FONTS`, `DEFAULT_FONT` in `lib/theme.ts`, `:root[data-font]` in `themes.css`). All are bundled (the app
   works offline). Chinese text uses the system font.
 - Scale: body 13 / 20 px, `text-xs` 12 px, `text-sm` 14 px, page title `text-xl`, big numbers `text-2xl`.
-- **Nothing is smaller than 12 px.** The only 11 px text is the count badge on the left rail (a 16 px circle). Do not
+- **Nothing is smaller than 12 px.** The only 11 px text is the count badge on the icon rail (a 16 px circle). Do not
   add `text-[10px]` or `text-[11px]`.
 - Captions (panel and card titles, table heads, tile labels) are mono, 12 px, uppercase, `tracking-[0.06em]`, in
   `text-muted-foreground`. `Kicker` and `PanelHeader` in `studio.tsx` and `CardTitle` in `ui/card.tsx` already do it.
@@ -36,7 +38,12 @@ wordmark is the Motio logo (waveform bars) with "Motio" in mono.
 
 - The window is 1280 x 820 by default and never smaller than 960 x 640 (`tauri.conf.json`). Check every screen at
   1440 x 900, 1280 x 820 and 960 x 640. There is no tablet or phone layout.
-- Left rail 92 px (hue-tinted icon tiles), top bar 56 px. Page content starts at the same 24 px as the page title (never a centred column, or the title
+- A slim icon rail on the left, 64 px (hue-tinted tiles, the label is the tooltip, "+" for a new video on top), then the
+  page's own top bar, 56 px. Projects opens as a board (one column per stage: waiting, making, script check, video
+  check, failed, done, with the posting week from Postiz below; `components/pipeline-board.tsx`) or the poster grid. The
+  project page is an editing desk like CapCut: a one-row title bar (back, title, step chips, approve), the project's
+  material in tabs on the left (script, sources, post, check), the player in the middle (sized by the window height),
+  the video's settings on the right with the cost, and the timeline across the bottom. Page content starts at the same 24 px as the page title (never a centred column, or the title
   and the content do not line up): `max-w-3xl` for the settings form, `max-w-4xl` (channels, tools, stats), `max-w-5xl` (new
   videos); remove logo and the docked pages (Trending, Projects) use the full width.
 - Long forms (Settings, Channels) are `Section`s (`components/section.tsx`): a mono caption strip over a bordered body, folded

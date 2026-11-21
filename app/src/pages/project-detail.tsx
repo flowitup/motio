@@ -33,9 +33,8 @@ import { ShotsCard } from "@/components/shots-card";
 import { SourceEffectsCard } from "@/components/source-effects-card";
 import { SourceMasksCard } from "@/components/source-masks-card";
 import { SourceSoundCard } from "@/components/source-sound-card";
-import { StatusChip } from "@/components/status-chip";
-import { Kicker, Led, PageTitle, Panel } from "@/components/studio";
-import { TimelineStrip, lineAt, mmss, useNarration, type Mark } from "@/components/timeline";
+import { Kicker, Led, PageTitle, Panel, Segmented } from "@/components/studio";
+import { TimelineStrip, lineAt, useNarration, type Mark } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +45,9 @@ import { inTauri, openFolder, useEngine } from "@/lib/engine";
 import { imageProviderLabel } from "@/lib/image-models";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+
+type Pane = "script" | "sources" | "post" | "check";
+const PANES: Pane[] = ["script", "sources", "post", "check"];
 
 // Chạy lại từ các bước này thì Claude viết kịch bản mới, thay bản hiện tại.
 const REDO_SCRIPT: RetryStep[] = ["search", "download", "transcribe", "script"];
@@ -164,12 +166,14 @@ function ReviewBar({
   channel,
   gate,
   onDone,
+  compact,
 }: {
   api: Api;
   p: ProjectDetail;
   channel: Channel | undefined;
   gate: ScriptGate | null;
   onDone: () => void;
+  compact?: boolean; // only the buttons, for the editor's title bar (the hint becomes their tooltip)
 }) {
   const video = p.meta.review === "video";
   const targets = channel?.postiz.length ?? 0;
@@ -194,8 +198,63 @@ function ReviewBar({
   const blocked = !video && !!gate?.dirty && !gate.valid;
   const pending = approve.isPending;
   const channelNames = (channel?.postiz ?? []).map((id) => names.data?.find((c) => c.id === id)?.name ?? id);
+  const hint = [
+    video ? t.review.videoHint : t.review.scriptHint,
+    video && targets > 0 ? t.review.sendPlan(targets, mode) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const size = compact ? "sm" : "lg";
+  const confirm = (
+    <ConfirmAction
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t.publish.nowTitle}
+        body={t.publish.nowBody(channelNames)}
+        confirm={t.publish.nowConfirm}
+        icon={<Send />}
+        busy={pending}
+        onConfirm={() => approve.mutate(true)}
+      />
+  );
+  const actions = (
+    <>
+          {video ? (
+            <>
+              {targets > 0 && (
+                <Button variant="secondary" size={size} onClick={() => approve.mutate(false)} disabled={pending}>
+                  {pending && !approve.variables ? <Loader2 className="animate-spin" /> : <Check />}
+                  {t.review.approveNoSend}
+                </Button>
+              )}
+              <Button
+                size={size}
+                onClick={() => (publicNow ? setConfirming(true) : approve.mutate(true))}
+                disabled={pending}
+              >
+                {pending && approve.variables ? <Loader2 className="animate-spin" /> : targets ? <Send /> : <CheckCheck />}
+                {targets ? t.review.approveSend : t.review.approve}
+              </Button>
+            </>
+          ) : (
+            <Button size={size} onClick={() => approve.mutate(true)} disabled={pending || blocked}>
+              {pending ? <Loader2 className="animate-spin" /> : <Play />}
+              {gate?.dirty ? t.review.saveApproveScript : t.review.approveScript}
+            </Button>
+          )}
+    </>
+  );
+  if (compact)
+    return (
+      <div role="group" aria-label={t.studio.review} title={hint} className="flex items-center gap-2">
+        {blocked && <span className="text-xs text-amber">{t.review.fixScript}</span>}
+        {approve.error && <span className="max-w-56 truncate text-xs text-coral" title={approve.error.message}>{approve.error.message}</span>}
+        {actions}
+        {confirm}
+      </div>
+    );
   return (
-    <section aria-label={t.studio.review} className="shrink-0 border-b border-amber bg-amber/8">
+    <section aria-label={t.studio.review} data-slot="notice" className="shrink-0 border-b border-amber bg-amber/8">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3">
         <div className="flex min-w-0 flex-1 basis-[22rem] items-start gap-3">
           <Led status="review" className="mt-2" />
@@ -211,41 +270,10 @@ function ReviewBar({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {video ? (
-            <>
-              {targets > 0 && (
-                <Button variant="secondary" size="lg" onClick={() => approve.mutate(false)} disabled={pending}>
-                  {pending && !approve.variables ? <Loader2 className="animate-spin" /> : <Check />}
-                  {t.review.approveNoSend}
-                </Button>
-              )}
-              <Button
-                size="lg"
-                onClick={() => (publicNow ? setConfirming(true) : approve.mutate(true))}
-                disabled={pending}
-              >
-                {pending && approve.variables ? <Loader2 className="animate-spin" /> : targets ? <Send /> : <CheckCheck />}
-                {targets ? t.review.approveSend : t.review.approve}
-              </Button>
-            </>
-          ) : (
-            <Button size="lg" onClick={() => approve.mutate(true)} disabled={pending || blocked}>
-              {pending ? <Loader2 className="animate-spin" /> : <Play />}
-              {gate?.dirty ? t.review.saveApproveScript : t.review.approveScript}
-            </Button>
-          )}
+          {actions}
         </div>
       </div>
-      <ConfirmAction
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={t.publish.nowTitle}
-        body={t.publish.nowBody(channelNames)}
-        confirm={t.publish.nowConfirm}
-        icon={<Send />}
-        busy={pending}
-        onConfirm={() => approve.mutate(true)}
-      />
+      {confirm}
     </section>
   );
 }
@@ -335,6 +363,7 @@ export default function ProjectDetailPage() {
   const [time, setTime] = useState(0); // player position and length (seconds)
   const [length, setLength] = useState(0);
   const logRef = useRef<HTMLPreElement>(null);
+  const [paneChoice, setPane] = useState<Pane | null>(null); // null = the pane that fits the project's state
   const dubVideo = useRef<HTMLVideoElement>(null); // video lồng tiếng: "Phát cả hai" điều khiển nó cùng video gốc
 
   const { data: p, error, refetch } = useQuery({ queryKey: ["project", id], queryFn: () => api.project(id) });
@@ -387,100 +416,83 @@ export default function ProjectDetailPage() {
   const seek = (sec: number) => {
     if (dubVideo.current) dubVideo.current.currentTime = sec;
   };
+  const hasSettings = !!(p.dub || p.source_sound || ((p.masks || p.effects) && !p.clip));
+  const pane: Pane =
+    paneChoice ?? (status === "failed" ? "check" : p.has_script || p.clip || (p.status === "review" && p.meta.review === "shots") ? "script" : active ? "check" : "sources");
   const playable = !!p.meta.video && (status === "done" || (status === "review" && p.meta.review === "video")) && !deleting;
   const refreshAll = () => {
     refetch();
     qc.invalidateQueries({ queryKey: ["projects"] });
   };
+  const usage = p.usage;
   const metaLine = [
+    `#${p.id}`,
     t.projects.modes[p.mode] ?? p.mode,
     channel && t.projects.channel(channel.name),
     p.meta.auto && t.projects.auto,
     t.age(p.updated_at),
-    p.usage?.tts_chars > 0 && t.projects.voiceCost(p.usage.tts_chars, p.usage.usd - (p.usage.clip_usd ?? 0) - (p.usage.llm_usd ?? 0) - (p.usage.picture_usd ?? 0)),
   ].filter(Boolean);
+  const reviewing = status === "review" && p.status === "review" && (p.meta.review === "script" || p.meta.review === "video");
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b bg-ground">
-        <header className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b px-6 py-2">
-          <Link to="/projects" className="inline-flex h-10 items-center gap-2 text-[13px] font-medium">
+      {/* One row, like an editor's title bar: where you are, the steps of the line, and the one way on. */}
+      <header className="desk-header flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b bg-ground px-4 py-2">
+        <div className="flex min-w-0 flex-1 basis-64 items-center gap-2">
+          <Link to="/projects" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" />
             {t.projects.back}
           </Link>
-          <span aria-hidden className="font-mono text-[13px] text-muted-foreground">
+          <span aria-hidden className="text-muted-foreground">
             /
           </span>
-          <PageTitle>{p.meta.title || p.title}</PageTitle>
-          {status && <StatusChip status={status} className="text-[13px]" />}
-          <div className="ml-auto flex items-center gap-2">
-            <Select value={from ?? p.retry.auto} onValueChange={(v) => v != null && setFrom(v as RetryStep)}>
-              <SelectTrigger className="w-[200px]" aria-label={t.projects.rerunFrom} disabled={active}>
-                <SelectValue>{(v: string) => t.projects.steps[v] ?? v}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {p.retry.steps.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {t.projects.steps[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant={status === "failed" ? "default" : "secondary"}
-              onClick={() => retry.mutate(from)}
-              disabled={active || retry.isPending}
-            >
-              {retry.isPending ? <Loader2 className="animate-spin" /> : status === "failed" && !from ? <Play /> : <RotateCcw />}
-              {status === "failed" && !from ? t.projects.resume : t.projects.rerun}
-            </Button>
-            {inTauri && info.mode === "local" && (
-              <Button variant="secondary" onClick={() => openFolder(p.folder)}>
-                <FolderOpen />
-                {t.projects.openFolder}
-              </Button>
-            )}
-            <Button
-              variant="destructive"
-              onClick={() => setDeleting(true)}
-              disabled={active}
-              title={active ? t.projects.deleteBusy : undefined}
-            >
-              <Trash2 />
-              {t.projects.delete}
-            </Button>
-          </div>
-        </header>
-        <div className="truncate px-6 font-mono text-xs leading-[35px] text-muted-foreground">
-          <span className="text-foreground">#{p.id}</span> · {metaLine.join(" · ")}
+          <PageTitle title={`${p.meta.title || p.title}\n${metaLine.join(" · ")}`} className="text-base leading-6">
+            {p.meta.title || p.title}
+          </PageTitle>
         </div>
-      </div>
+        <StepChips p={p} status={status ?? p.status} step={step ?? null} />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {inTauri && info.mode === "local" && (
+            <Button variant="ghost" size="icon-sm" onClick={() => openFolder(p.folder)} title={t.projects.openFolder} aria-label={t.projects.openFolder}>
+              <FolderOpen />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setDeleting(true)}
+            disabled={active}
+            title={active ? t.projects.deleteBusy : t.projects.delete}
+            aria-label={t.projects.delete}
+            className="text-coral hover:text-coral"
+          >
+            <Trash2 />
+          </Button>
+          {reviewing && <ReviewBar compact api={api} p={p} channel={channel} gate={gate} onDone={refreshAll} />}
+          {p.status === "failed" && !active && (
+            <Button size="sm" onClick={() => retry.mutate(null)} disabled={retry.isPending}>
+              {retry.isPending ? <Loader2 className="animate-spin" /> : <Play />}
+              {t.failure.resume(t.projects.steps[p.retry.auto] ?? p.retry.auto)}
+            </Button>
+          )}
+        </div>
+      </header>
 
-      {status === "review" && p.status === "review" && (p.meta.review === "script" || p.meta.review === "video") && (
-        <ReviewBar api={api} p={p} channel={channel} gate={gate} onDone={refreshAll} />
-      )}
-      {p.status === "failed" && !active && <FailureBanner p={p} log={p.log} busy={retry.isPending} onResume={() => retry.mutate(null)} />}
-      {retry.error && <p className="shrink-0 border-b px-6 py-2 text-[13px] text-coral">{retry.error.message}</p>}
-      {!active && p.has_script && from !== null && REDO_SCRIPT.includes(from) && (
-        <p className="flex shrink-0 items-center gap-2 border-b px-6 py-2 text-[13px] text-amber">
-          <TriangleAlert className="size-4 shrink-0" />
-          {t.projects.redoReplacesScript}
-        </p>
-      )}
-      {p.meta.send_error && (
-        <p className="flex shrink-0 items-center gap-2 border-b px-6 py-2 text-[13px] text-amber">
-          <TriangleAlert className="size-4 shrink-0" />
-          {t.review.sendError}: {p.meta.send_error}
-        </p>
-      )}
       {active && (
-        <div className="flex shrink-0 items-center gap-4 border-b px-6 py-2.5">
-          <span className="text-[13px] text-cyan">{step}</span>
-          <div className="h-1 min-w-0 flex-1 rounded-xs bg-white/12">
+        <div className="flex shrink-0 items-center gap-4 border-b px-4 py-1.5">
+          <span className="text-xs text-cyan">{t.projects.steps[step ?? ""] ?? step}</span>
+          <div className="h-1 min-w-0 flex-1 rounded-xs bg-tint/12">
             <div className="h-full rounded-xs bg-cyan transition-all" style={{ width: `${pct}%` }} />
           </div>
           <span className="font-mono text-xs text-muted-foreground tabular-nums">{pct}%</span>
         </div>
+      )}
+      {retry.error && <p className="shrink-0 border-b px-4 py-2 text-[13px] text-coral">{retry.error.message}</p>}
+      {p.meta.send_error && (
+        <p className="flex shrink-0 items-center gap-2 border-b px-4 py-2 text-[13px] text-amber">
+          <TriangleAlert className="size-4 shrink-0" />
+          {t.review.sendError}: {p.meta.send_error}
+        </p>
       )}
       <DeleteProjectDialog
         api={api}
@@ -491,201 +503,324 @@ export default function ProjectDetailPage() {
         onDeleted={() => navigate("/projects")}
       />
 
-      {/* Three docked columns (monitor and sources · script, timeline, log · review and the post); a single page below 1180 px. */}
-      <div className="grid min-h-0 flex-1 overflow-y-auto min-[1180px]:grid-cols-[400px_minmax(0,1fr)_340px] min-[1180px]:grid-rows-[minmax(0,1fr)] min-[1180px]:overflow-hidden">
-        <div className="order-1 min-w-0 border-r min-[1180px]:overflow-y-auto">
-          <Monitor
-            api={api}
-            p={p}
-            playable={playable}
-            active={active}
-            view={view}
-            onView={setView}
-            videoRef={dubVideo}
-            time={time}
-            duration={length}
-            onTime={(tm, d) => {
-              setTime(tm);
-              setLength(d);
-            }}
-          />
-          {p.dub && (
-            <>
-              <DubCompareCard api={api} p={p} dubVideo={dubVideo} active={active} onQueued={() => refetch()} />
-              <DubVoicesCard
-                key={p.dub.speakers.map((s) => `${s.label}:${s.voice_id}`).join("|")}
+      {/* The editing desk, laid out like a video editor: the project's material in tabs on the left, the player in the
+          middle, the video's settings on the right and the timeline across the bottom; a single page below 1180 px. */}
+      <div className="desk grid min-h-0 flex-1 overflow-y-auto min-[1180px]:grid-cols-[440px_minmax(0,1fr)_320px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto] min-[1180px]:overflow-hidden">
+        <div className="desk-media order-2 flex min-w-0 flex-col border-r min-[1180px]:order-1 min-[1180px]:overflow-hidden">
+          <div className="flex h-11 shrink-0 items-center gap-1 border-b px-2">
+            <Segmented
+              tabs
+              label={t.editor.panes}
+              value={pane}
+              onChange={setPane}
+              options={PANES.map((v) => ({ value: v, label: t.editor.tabs[v] }))}
+              className="h-8 w-full [&>button]:flex-1"
+            />
+          </div>
+          <div className="min-h-0 flex-1 min-[1180px]:overflow-y-auto">
+            {pane === "script" && (
+              <>
+                {p.status === "review" && p.meta.review === "shots" && <ShotsCard api={api} id={p.id} onQueued={refreshAll} />}
+                {/* A clip has no narration: its cut (in / out marks) and hook take the script's place. */}
+                {p.clip ? (
+                  <ClipEditCard key={`${p.clip.start}:${p.clip.end}:${p.clip.hook}:${p.updated_at}`} api={api} p={p} active={active} onQueued={() => refetch()} />
+                ) : p.has_script ? (
+                  <ScriptCard
+                    api={api}
+                    id={p.id}
+                    active={active}
+                    canRender={p.retry.steps.includes("render")}
+                    measured={marks}
+                    playhead={playable ? time : 0}
+                    onSeek={playable ? seek : undefined}
+                    reviewing={p.status === "review" ? (p.meta.review ?? null) : null}
+                    onGate={setGate}
+                  />
+                ) : (
+                  !(p.status === "review" && p.meta.review === "shots") && <p className="p-4 text-[13px] text-muted-foreground">{t.editor.noScript}</p>
+                )}
+              </>
+            )}
+            {pane === "sources" && (
+              <>
+                {p.mode !== "ai" && <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />}
+                {p.ai && (
+                  <Panel title={t.ai.card} bodyClassName="space-y-1 text-[13px] leading-5">
+                    {p.ai.topic && <div>{p.ai.episode ? `${t.ai.episode(p.ai.episode)} · ${p.ai.topic}` : p.ai.topic}</div>}
+                    {p.ai.recap && (
+                      <div className="text-xs leading-[18px] text-muted-foreground">
+                        {t.ai.recap}: {p.ai.recap}
+                      </div>
+                    )}
+                    <div className="text-muted-foreground">
+                      {t.ai.provider}: {imageProviderLabel(p.ai.provider)}
+                      {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
+                      {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}${p.ai.clip_provider ? ` (${t.ai.clipProviders[p.ai.clip_provider] ?? p.ai.clip_provider})` : ""}`}
+                      {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}
+                    </div>
+                    {p.ai.needs_review && (
+                      <div className="text-amber">{p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}</div>
+                    )}
+                  </Panel>
+                )}
+                {p.mode === "topic" && (p.meta.topic || p.meta.subject) && (
+                  <Panel title={t.projects.topic} bodyClassName="space-y-1 text-[13px] leading-5">
+                    {p.meta.topic && <div>{p.meta.topic}</div>}
+                    {p.meta.subject?.angle && <div className="text-muted-foreground">{p.meta.subject.angle}</div>}
+                  </Panel>
+                )}
+                {p.trend && (
+                  <Panel title={t.projects.source} bodyClassName="space-y-2 text-[13px] leading-5">
+                    <div lang="zh" className="font-medium">
+                      {p.trend.title_zh}
+                    </div>
+                    {p.trend.angle && (
+                      <div className="space-y-1">
+                        <Kicker>{t.studio.angle}</Kicker>
+                        <div>{p.trend.angle}</div>
+                      </div>
+                    )}
+                    {p.trend.url && (
+                      <ExternalA href={p.trend.url} className="inline-flex items-center gap-2 font-medium">
+                        <ExternalLink className="size-3.5" />
+                        {t.studio.openStory}
+                      </ExternalA>
+                    )}
+                  </Panel>
+                )}
+              </>
+            )}
+            {pane === "post" && (
+              <>
+                {post ? (
+                  <Panel
+                    title={t.projects.post}
+                    aside={
+                      <button
+                        type="button"
+                        onClick={copy}
+                        className="-mr-4 inline-flex h-10 items-center gap-1.5 border-l px-3.5 font-sans text-xs font-semibold text-foreground hover:bg-raised"
+                      >
+                        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                        {copied ? t.projects.copied : t.projects.copy}
+                      </button>
+                    }
+                  >
+                    <PostText text={post} />
+                  </Panel>
+                ) : (
+                  <p className="p-4 text-[13px] text-muted-foreground">{t.editor.noPost}</p>
+                )}
+                {playable && <FilesCard api={api} p={p} />}
+                {status === "done" && p.meta.video && (
+                  <PublishCard
+                    api={api}
+                    projectId={p.id}
+                    channel={channel}
+                    history={p.meta.postiz ?? []}
+                    hasWide={!!p.meta.wide}
+                    sendError={p.meta.send_error ?? null}
+                    onSent={() => refetch()}
+                  />
+                )}
+              </>
+            )}
+            {pane === "check" && (
+              <>
+                {p.status === "failed" && !active && <FailureBanner p={p} log={p.log} busy={retry.isPending} onResume={() => retry.mutate(null)} />}
+                {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} held={p.status === "review" && p.meta.review === "video"} />}
+                <Panel title={t.projects.rerunFrom} bodyClassName="grid gap-2">
+                  <div className="flex gap-2">
+                    <Select value={from ?? p.retry.auto} onValueChange={(v) => v != null && setFrom(v as RetryStep)}>
+                      <SelectTrigger className="min-w-0 flex-1" aria-label={t.projects.rerunFrom} disabled={active}>
+                        <SelectValue>{(v: string) => t.projects.steps[v] ?? v}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {p.retry.steps.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {t.projects.steps[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="secondary" onClick={() => retry.mutate(from)} disabled={active || retry.isPending}>
+                      {retry.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+                      {t.projects.rerun}
+                    </Button>
+                  </div>
+                  {!active && p.has_script && from !== null && REDO_SCRIPT.includes(from) && (
+                    <p className="flex items-center gap-2 text-xs leading-[18px] text-amber">
+                      <TriangleAlert className="size-4 shrink-0" />
+                      {t.projects.redoReplacesScript}
+                    </p>
+                  )}
+                </Panel>
+                <Panel title={t.projects.log} flush>
+                  <pre ref={logRef} className="max-h-96 overflow-auto p-4 font-mono text-xs leading-[18px] whitespace-pre-wrap">
+                    {log.split("\n").map((ln, i) => {
+                      const m = /^(\d\d:\d\d:\d\d) (.*)$/.exec(ln);
+                      return m ? (
+                        <div key={i} className={/^(ERROR|LỖI):/.test(m[2]) ? "font-medium text-coral" : /Waiting for|Chờ/.test(m[2]) ? "text-amber" : undefined}>
+                          <span className="text-muted-foreground">{m[1]}</span> {m[2]}
+                        </div>
+                      ) : (
+                        <div key={i}>{ln}</div>
+                      );
+                    })}
+                  </pre>
+                </Panel>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="desk-stage order-1 flex min-w-0 flex-col items-center border-r bg-monitor min-[1180px]:order-2 min-[1180px]:overflow-y-auto">
+          <div className="w-full max-w-[560px]">
+            <Monitor
+              api={api}
+              p={p}
+              playable={playable}
+              active={active}
+              view={view}
+              onView={setView}
+              videoRef={dubVideo}
+              time={time}
+              duration={length}
+              onTime={(tm, d) => {
+                setTime(tm);
+                setLength(d);
+              }}
+            />
+            {p.dub && <DubCompareCard api={api} p={p} dubVideo={dubVideo} active={active} onQueued={() => refetch()} />}
+          </div>
+        </div>
+
+        <div className="desk-inspector order-3 flex min-w-0 flex-col min-[1180px]:overflow-hidden">
+          <div className="flex h-11 shrink-0 items-center border-b px-4 font-mono text-xs font-medium tracking-[0.06em] text-muted-foreground uppercase">{t.editor.inspector}</div>
+          <div className="min-h-0 flex-1 min-[1180px]:overflow-y-auto">
+            {p.dub && (
+              <>
+                <DubVoicesCard
+                  key={p.dub.speakers.map((s) => `${s.label}:${s.voice_id}`).join("|")}
+                  api={api}
+                  p={p}
+                  active={active}
+                  onQueued={() => refetch()}
+                />
+                <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
+              </>
+            )}
+            {p.source_sound && <SourceSoundCard key={`${p.source_sound.volume}`} api={api} p={p} active={active} onQueued={() => refetch()} />}
+            {p.masks && !p.clip && (
+              <SourceMasksCard key={(p.meta.sources ?? []).map((s) => s.url).join("|")} api={api} p={p} active={active} onQueued={() => refetch()} />
+            )}
+            {p.effects && !p.clip && (
+              <SourceEffectsCard
+                key={`${p.mode}:${(p.meta.sources ?? []).map((s) => s.url).join("|")}`}
                 api={api}
                 p={p}
                 active={active}
                 onQueued={() => refetch()}
               />
-              <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
-            </>
-          )}
-          {p.clip && <ClipEditCard key={`${p.clip.start}:${p.clip.end}:${p.clip.hook}:${p.updated_at}`} api={api} p={p} active={active} onQueued={() => refetch()} />}
-          {p.source_sound && (
-            <SourceSoundCard
-              key={`${p.source_sound.volume}`}
-              api={api}
-              p={p}
-              active={active}
-              onQueued={() => refetch()}
-            />
-          )}
-          {p.masks && !p.clip && (
-            <SourceMasksCard
-              key={(p.meta.sources ?? []).map((s) => s.url).join("|")}
-              api={api}
-              p={p}
-              active={active}
-              onQueued={() => refetch()}
-            />
-          )}
-          {p.effects && !p.clip && (
-            <SourceEffectsCard
-              key={`${p.mode}:${(p.meta.sources ?? []).map((s) => s.url).join("|")}`}
-              api={api}
-              p={p}
-              active={active}
-              onQueued={() => refetch()}
-            />
-          )}
-          {p.mode !== "ai" && <SourcesCard api={api} p={p} active={active} onQueued={() => refetch()} />}
+            )}
+            {!hasSettings && <p className="p-4 text-[13px] text-muted-foreground">{t.editor.nothing}</p>}
+          </div>
+          <div className="desk-cost m-3 shrink-0 rounded-lg border bg-strip px-3 py-2.5 text-xs leading-[18px]">
+            <div className="text-muted-foreground">{t.editor.cost}</div>
+            <div>
+              <span className="font-mono text-[13px] font-semibold tabular-nums">${(usage?.usd ?? 0).toFixed(2)}</span>
+              {!!usage?.usd && (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {t.editor.costParts(
+                    usage.usd - (usage.clip_usd ?? 0) - (usage.llm_usd ?? 0) - (usage.picture_usd ?? 0),
+                    usage.llm_usd ?? 0,
+                    (usage.picture_usd ?? 0) + (usage.clip_usd ?? 0),
+                  )}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 truncate font-mono text-muted-foreground">{metaLine.join(" · ")}</div>
+          </div>
         </div>
 
-        <div className="order-3 min-w-0 border-r min-[1180px]:order-2 min-[1180px]:overflow-y-auto">
-          {p.status === "review" && p.meta.review === "shots" && <ShotsCard api={api} id={p.id} onQueued={refreshAll} />}
-          {p.has_script && !p.clip && (
-            <ScriptCard
-              api={api}
-              id={p.id}
-              active={active}
-              canRender={p.retry.steps.includes("render")}
-              measured={marks}
+        <div className="desk-timeline order-4 min-w-0 border-t bg-panel min-[1180px]:col-span-3 min-[1180px]:h-[180px] min-[1180px]:overflow-y-auto">
+          {marks && lines && nar ? (
+            <TimelineStrip
+              marks={marks}
+              texts={lines.map((l) => l.text)}
+              words={nar.words}
+              total={Math.max(length, nar.duration)}
               playhead={playable ? time : 0}
-              onSeek={playable ? seek : undefined}
-              reviewing={p.status === "review" ? (p.meta.review ?? null) : null}
-              onGate={setGate}
+              active={playable && time > 0 ? lineAt(marks, time) : -1}
+              labels={t.editor.tracks}
+              onSeek={playable ? seek : () => undefined}
+              frame={p.meta.video ? (sec) => api.frameUrl(p.id, sec, p.updated_at) : undefined}
+              sourceLevel={p.source_sound ? p.source_sound.volume : null}
             />
-          )}
-          {marks && lines && nar && (
-            <Panel title={t.studio.timeline} aside={mmss(Math.max(length, nar.duration))} flush>
-              <TimelineStrip
-                marks={marks}
-                texts={lines.map((l) => l.text)}
-                words={nar.words}
-                total={Math.max(length, nar.duration)}
-                playhead={playable ? time : 0}
-                active={playable && time > 0 ? lineAt(marks, time) : -1}
-                labels={{ shots: t.studio.shots, voice: t.studio.voice, captions: t.studio.captions }}
-                onSeek={playable ? seek : () => undefined}
-              />
-            </Panel>
-          )}
-          <Panel title={t.projects.log} flush>
-            <pre
-              ref={logRef}
-              className="max-h-80 overflow-auto p-4 font-mono text-xs leading-[18px] whitespace-pre-wrap"
-            >
-              {log.split("\n").map((ln, i) => {
-                const m = /^(\d\d:\d\d:\d\d) (.*)$/.exec(ln);
-                return m ? (
-                  <div key={i} className={/^(ERROR|LỖI):/.test(m[2]) ? "font-medium text-coral" : /Waiting for|Chờ/.test(m[2]) ? "text-amber" : undefined}>
-                    <span className="text-muted-foreground">{m[1]}</span> {m[2]}
-                  </div>
-                ) : (
-                  <div key={i}>{ln}</div>
-                );
-              })}
-            </pre>
-          </Panel>
-        </div>
-
-        <div className="order-2 min-w-0 min-[1180px]:order-3 min-[1180px]:overflow-y-auto">
-          {p.meta.qa && p.meta.video && <QualityCard qa={p.meta.qa} held={p.status === "review" && p.meta.review === "video"} />}
-
-          {post && (
-            <Panel
-              title={t.projects.post}
-              aside={
-                <button
-                  type="button"
-                  onClick={copy}
-                  className="-mr-4 inline-flex h-10 items-center gap-1.5 border-l px-3.5 font-sans text-xs font-semibold text-foreground hover:bg-raised"
-                >
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  {copied ? t.projects.copied : t.projects.copy}
-                </button>
-              }
-            >
-              <PostText text={post} />
-            </Panel>
-          )}
-
-          {playable && <FilesCard api={api} p={p} />}
-
-          {status === "done" && p.meta.video && (
-            <PublishCard
-              api={api}
-              projectId={p.id}
-              channel={channel}
-              history={p.meta.postiz ?? []}
-              hasWide={!!p.meta.wide}
-              sendError={p.meta.send_error ?? null}
-              onSent={() => refetch()}
-            />
-          )}
-
-          {p.ai && (
-            <Panel title={t.ai.card} bodyClassName="space-y-1 text-[13px] leading-5">
-              {p.ai.topic && <div>{p.ai.episode ? `${t.ai.episode(p.ai.episode)} · ${p.ai.topic}` : p.ai.topic}</div>}
-              {p.ai.recap && (
-                <div className="text-xs leading-[18px] text-muted-foreground">
-                  {t.ai.recap}: {p.ai.recap}
-                </div>
-              )}
-              <div className="text-muted-foreground">
-                {t.ai.provider}: {imageProviderLabel(p.ai.provider)}
-                {p.ai.scenes != null && ` · ${t.ai.scenes(p.ai.scenes)}`}
-                {!!p.ai.clips && ` · ${t.ai.clipsMade(p.ai.clips)}${p.ai.clip_provider ? ` (${t.ai.clipProviders[p.ai.clip_provider] ?? p.ai.clip_provider})` : ""}`}
-                {!!p.ai.cost && ` · ${t.ai.cost(p.ai.cost, !!p.ai.clips)}`}
-              </div>
-              {p.ai.needs_review && (
-                <div className="text-amber">
-                  {p.ai.provider === "fal" && p.ai.clip_provider === "heygen" ? t.ai.clipReviewNote : t.ai.reviewNote}
-                </div>
-              )}
-            </Panel>
-          )}
-
-          {p.mode === "topic" && (p.meta.topic || p.meta.subject) && (
-            <Panel title={t.projects.topic} bodyClassName="space-y-1 text-[13px] leading-5">
-              {p.meta.topic && <div>{p.meta.topic}</div>}
-              {p.meta.subject?.angle && <div className="text-muted-foreground">{p.meta.subject.angle}</div>}
-            </Panel>
-          )}
-
-          {p.trend && (
-            <Panel title={t.projects.source} bodyClassName="space-y-2 text-[13px] leading-5">
-              <div lang="zh" className="font-medium">
-                {p.trend.title_zh}
-              </div>
-              {p.trend.angle && (
-                <div className="space-y-1">
-                  <Kicker>{t.studio.angle}</Kicker>
-                  <div>{p.trend.angle}</div>
-                </div>
-              )}
-              {p.trend.url && (
-                <ExternalA href={p.trend.url} className="inline-flex items-center gap-2 font-medium">
-                  <ExternalLink className="size-3.5" />
-                  {t.studio.openStory}
-                </ExternalA>
-              )}
-            </Panel>
+          ) : (
+            <p className="px-4 py-5 text-[13px] text-muted-foreground">{t.editor.noTimeline}</p>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** The line a project runs through, as chips: the steps done ticked, the one it is on lit, the gate it waits at named. */
+function StepChips({ p, status, step }: { p: ProjectDetail; status: string; step: string | null }) {
+  const steps = p.mode === "ai" ? ["script", "voice", "render"] : ["search", "download", "transcribe", "script", "voice", "render"];
+  const gate = p.status === "review" ? p.meta.review : null;
+  // Where the line is: the step running or failed, the step after the gate it waits at, or past the end.
+  const at =
+    status === "done" || gate === "video"
+      ? steps.length
+      : gate === "script"
+        ? steps.indexOf("script")
+        : gate === "shots"
+          ? steps.indexOf("voice")
+          : status === "queued"
+            ? 0
+            : Math.max(0, steps.indexOf(step ?? ""));
+  return (
+    <ol aria-label={t.board.stage} className="flex flex-wrap items-center gap-1">
+      {steps.map((s, i) => {
+        const now = i === at && status !== "done";
+        const label = t.editor.steps[s] ?? s;
+        return (
+          <li
+            key={s}
+            aria-current={now ? "step" : undefined}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs leading-4 font-medium whitespace-nowrap",
+              now && status === "failed"
+                ? "bg-coral font-semibold text-on-hue"
+                : now && gate
+                  ? "bg-amber font-semibold text-on-amber"
+                  : now && status === "running"
+                    ? "bg-cyan font-semibold text-on-hue"
+                    : i < at
+                      ? "text-mint"
+                      : "text-muted-foreground",
+            )}
+          >
+            {i < at && <Check className="size-3" />}
+            {now && status === "running" && <Loader2 className="size-3 animate-spin" />}
+            {now && gate ? t.editor.waiting(label) : label}
+          </li>
+        );
+      })}
+      {(status === "done" || gate === "video") && (
+        <li
+          aria-current="step"
+          className={cn(
+            "inline-flex h-7 items-center rounded-full px-2.5 text-xs leading-4 font-semibold whitespace-nowrap",
+            gate === "video" ? "bg-amber text-on-amber" : "bg-mint text-on-hue",
+          )}
+        >
+          {gate === "video" ? t.editor.videoWaiting : t.editor.finished}
+        </li>
+      )}
+    </ol>
   );
 }

@@ -1,0 +1,229 @@
+/* Theme 4 · Aurora: night glass over northern lights, two floating slabs (rail + page). Tokens first, then the shapes this theme changes (see ../themes.css). */
+/* ───────────────────────── 4 · Aurora: night glass over northern lights ───────────────────────── */
+:root[data-theme="aurora"] {
+    color-scheme: dark;
+    --ui-font: 'Plus Jakarta Sans Variable';
+    --display-font: 'Plus Jakarta Sans Variable';
+    --code-font: 'JetBrains Mono';
+    --ground: #070B1D;
+    /* The fill ladder is white glass: each step lets the glow through. Anything that floats over moving content
+       (top bar, sticky bars, table heads, menus, dialogs) gets a near-opaque fill further down, never one of these. */
+    --panel: rgb(255 255 255 / 0.05);
+    --strip: rgb(255 255 255 / 0.06);
+    --raised: rgb(255 255 255 / 0.09);
+    --lift: rgb(255 255 255 / 0.14);
+    --pressed: rgb(255 255 255 / 0.19);
+    --monitor: rgb(4 7 20 / 0.62);
+    --hairline: rgb(255 255 255 / 0.1);
+    --hairline-strong: rgb(255 255 255 / 0.2);
+    --field: #7C86B0;
+    --tint: #FFFFFF;
+    --on-hue: #061022;
+    --amber: #FFCB6B;
+    --on-amber: #241600;
+    --pink: #8E7DFF;
+    --primary-hover: #A99CFF;
+    --primary-pressed: #7564F0;
+    --on-pink: #0B0726;
+    /* Running is a true cyan (not teal) so it never reads as the green of "done"; the section violet is an orchid so it
+       never reads as the violet of the main action. */
+    --cyan: #5FE1F2;
+    --cyan-hover: #A8F1FA;
+    --mint: #4ADE80;
+    --coral: #FB7185;
+    --lime: #BEF264;
+    --violet: #F0ABFC;
+    --orange: #FFA36B;
+    --blue: #7DB4FF;
+    --popover: #151B3B;
+    --foreground: #EEF2FF;
+    --card-foreground: #EEF2FF;
+    --popover-foreground: #EEF2FF;
+    --secondary-foreground: #EEF2FF;
+    --accent-foreground: #EEF2FF;
+    --sidebar-foreground: #EEF2FF;
+    --sidebar-accent-foreground: #EEF2FF;
+    --muted-foreground: #B0B9DC;
+    --radius: 0.875rem;
+    /* Theme-only helpers. */
+    --aurora-frost: rgb(10 14 36 / 0.74);
+    --aurora-action: linear-gradient(120deg, #8E7DFF, #5EC8F0 120%);
+    --aurora-action-hover: linear-gradient(120deg, #A99CFF, #7DE0F5 120%);
+    --aurora-action-pressed: linear-gradient(120deg, #7564F0, #46B4E0 120%);
+}
+
+[data-theme="aurora"] ::selection {
+    background: rgb(142 125 255 / 0.4);
+}
+
+/* The sky: teal from the top left, violet from the top right, rose rising from the bottom. It never scrolls. */
+[data-theme="aurora"] .app-shell {
+    background:
+        radial-gradient(780px 540px at 0% 0%, rgb(45 212 191 / 0.3), transparent 68%),
+        radial-gradient(860px 580px at 100% 0%, rgb(139 122 255 / 0.38), transparent 66%),
+        radial-gradient(980px 520px at 64% 112%, rgb(244 114 182 / 0.24), transparent 66%),
+        radial-gradient(620px 460px at 26% 78%, rgb(56 120 255 / 0.12), transparent 70%),
+        #070B1D;
+    padding: 12px;
+    gap: 12px;
+}
+
+/* Two slabs float over it: the rail and the page. The page is washed with a little night so text keeps its contrast. */
+[data-theme="aurora"] .app-nav {
+    border: 1px solid var(--hairline);
+    border-radius: 22px;
+    background: rgb(255 255 255 / 0.055);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 18px 40px -24px rgb(0 0 0 / 0.7);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    backdrop-filter: blur(18px) saturate(1.3);
+    overflow: hidden;
+}
+
+[data-theme="aurora"] .app-main {
+    border: 1px solid var(--hairline);
+    border-radius: 22px;
+    background: rgb(7 11 29 / 0.3);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+[data-theme="aurora"] .app-nav .border-t,
+[data-theme="aurora"] .app-brand {
+    border-color: var(--hairline);
+}
+
+/* The rail is 24 px shorter than the window here, so it is packed tighter: every section (Stats too) shows at 820 px. */
+[data-theme="aurora"] .app-brand {
+    height: 56px;
+}
+
+[data-theme="aurora"] .app-nav-groups {
+    padding-top: 6px;
+}
+
+[data-theme="aurora"] .app-nav-group + .app-nav-group {
+    margin-top: 5px;
+    padding-top: 5px;
+}
+
+[data-theme="aurora"] .rail-item {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    border-radius: 16px;
+}
+
+[data-theme="aurora"] .rail-item[aria-current="page"] {
+    background: rgb(255 255 255 / 0.1);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+[data-theme="aurora"] .rail-tile {
+    border-radius: 13px;
+}
+
+[data-theme="aurora"] .rail-item[aria-current="page"] .rail-tile {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 6px 14px -8px rgb(0 0 0 / 0.8);
+}
+
+[data-theme="aurora"] .rail-item[aria-current="page"] .rail-label {
+    font-weight: 700;
+}
+
+[data-theme="aurora"] .rail-engine {
+    padding-top: 8px;
+    padding-bottom: 10px;
+    gap: 5px;
+}
+
+/* Frost: whatever stays put while the page scrolls under it is nearly opaque and blurs what passes. */
+[data-theme="aurora"] .page-topbar,
+[data-theme="aurora"] .app-main .sticky.bg-ground {
+    background: var(--aurora-frost);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+}
+
+[data-theme="aurora"] .page-topbar {
+    border-radius: 21px 21px 0 0;
+}
+
+[data-theme="aurora"] .app-main thead.sticky {
+    background: #151B3B;
+}
+
+[data-theme="aurora"] .page-title {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* Glass cards: a lit top edge and a soft drop shadow. No backdrop blur here: the sky behind them does not move, and a
+   blur on every card of a long list only costs frames. */
+[data-theme="aurora"] [data-slot="card"],
+[data-theme="aurora"] [data-slot="section"] {
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 96px);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 0 0 1px var(--hairline), 0 14px 40px -20px rgb(0 0 0 / 0.65);
+}
+
+/* Menus and dialogs sit over text: solid night glass. */
+[data-theme="aurora"] [data-slot="select-content"],
+[data-theme="aurora"] [data-slot="alert-dialog-content"] {
+    background: rgb(21 27 59 / 0.96);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    backdrop-filter: blur(20px) saturate(1.3);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px var(--hairline-strong), 0 20px 50px -12px rgb(0 0 0 / 0.75);
+}
+
+[data-theme="aurora"] [data-slot="alert-dialog-content"] {
+    border-radius: 20px;
+}
+
+[data-theme="aurora"] .focus-visible\:bg-raised:focus-visible {
+    background: #151B3B;
+}
+
+/* Fields are dark wells cut into the glass. */
+[data-theme="aurora"] [data-slot="input"].bg-background,
+[data-theme="aurora"] [data-slot="textarea"].bg-background,
+[data-theme="aurora"] [data-slot="select-trigger"].bg-background {
+    background-color: rgb(3 6 18 / 0.5);
+}
+
+/* The main action: violet to cyan, with a little light under it. A disabled one is plain (no gradient, no glow). */
+[data-theme="aurora"] .bg-primary {
+    background-image: var(--aurora-action);
+}
+
+[data-theme="aurora"] [data-slot="button"].bg-primary {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 8px 22px -10px rgb(124 108 255 / 0.9);
+}
+
+[data-theme="aurora"] [data-slot="button"].bg-primary:hover,
+[data-theme="aurora"] a.bg-primary:hover {
+    background-image: var(--aurora-action-hover);
+}
+
+[data-theme="aurora"] [data-slot="button"].bg-primary:active {
+    background-image: var(--aurora-action-pressed);
+}
+
+[data-theme="aurora"] [data-slot="button"].bg-primary:disabled {
+    background-image: none;
+    box-shadow: none;
+}
+
+/* The main switch of a page (New video: Explainer / AI video / French dub) wears the same gradient as the main action. */
+[data-theme="aurora"] [role="tab"][aria-selected="true"].bg-pink,
+[data-theme="aurora"] [role="radio"][aria-checked="true"].bg-pink {
+    background-image: var(--aurora-action);
+}
+
+/* Labels and buttons that sit on a picture (the "Queued" sticker, the delete button of a poster) need their own night. */
+[data-theme="aurora"] .rounded-full.bg-lift.font-bold {
+    background: rgb(10 14 36 / 0.78);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+[data-theme="aurora"] [data-slot="button"].absolute.bg-monitor {
+    background-color: rgb(10 14 36 / 0.86);
+}

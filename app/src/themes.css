@@ -1,0 +1,59 @@
+/* Motio looks (Settings → Appearance). lib/theme.ts sets data-theme on <html>; "neon" (Neon Studio) is the tokens in
+   index.css. Each theme below changes the tokens (fills, hues, fonts, corners) and, where it says so, the shape of the
+   menu and of cards / buttons. The token roles never change: `pink` = the main action, `amber` = needs you, `cyan` =
+   running / links / focus, `mint` = done, `coral` = failed; the others only tell sections apart. Every theme keeps text at
+   4.5:1 and controls at 3:1 against its own fills. Only the fonts a theme uses are listed here; all are bundled. */
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/fraunces/wght.css";
+@import "@fontsource/be-vietnam-pro/400.css";
+@import "@fontsource/be-vietnam-pro/500.css";
+@import "@fontsource/be-vietnam-pro/600.css";
+@import "@fontsource/be-vietnam-pro/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+@import "@fontsource-variable/archivo/wght.css";
+@import "@fontsource-variable/lexend/wght.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
+@import "@fontsource/jetbrains-mono/latin-600.css";
+@import "@fontsource/jetbrains-mono/latin-ext-600.css";
+@import "@fontsource/jetbrains-mono/vietnamese-600.css";
+
+@import "./themes/daylight.css";
+@import "./themes/paper.css";
+@import "./themes/terminal.css";
+@import "./themes/aurora.css";
+@import "./themes/pop.css";
+
+/* Font pairings (Settings → Appearance → Font): text + numbers over any look. Two attributes on <html> beat a look's
+   one, so the choice wins over the look's own fonts. */
+:root[data-font="inter"] {
+    --ui-font: 'Inter Variable';
+    --display-font: 'Inter Variable';
+    --code-font: 'JetBrains Mono';
+}
+
+:root[data-font="jakarta"] {
+    --ui-font: 'Plus Jakarta Sans Variable';
+    --display-font: 'Plus Jakarta Sans Variable';
+    --code-font: 'IBM Plex Mono';
+}
+
+:root[data-font="vietnam"] {
+    --ui-font: 'Be Vietnam Pro';
+    --display-font: 'Be Vietnam Pro';
+    --code-font: 'IBM Plex Mono';
+}
+
+:root[data-font="lexend"] {
+    --ui-font: 'Lexend Variable';
+    --display-font: 'Lexend Variable';
+    --code-font: 'JetBrains Mono';
+}
+
+:root[data-font="archivo"] {
+    --ui-font: 'Archivo Variable';
+    --display-font: 'Archivo Variable';
+    --code-font: 'Space Mono';
+}

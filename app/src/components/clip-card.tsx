@@ -53,7 +53,7 @@ export function ClipCard({ api, clip }: { api: Api; clip: Clip }) {
           <div className="flex items-start gap-3">
             {clip.score != null && <ScoreBadge score={clip.score} />}
             <div className="min-w-0 space-y-1">
-              <div className="font-medium leading-snug">{title}</div>
+              <div className="card-headline font-medium leading-snug">{title}</div>
               {clip.title_fr && clip.title && <div className="text-sm text-muted-foreground">{clip.title}</div>}
               {clip.reason && <div className="text-sm">{clip.reason}</div>}
             </div>

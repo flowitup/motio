@@ -102,7 +102,8 @@ export function Monitor({
           aria-keyshortcuts={playable && src ? "Space ArrowLeft ArrowRight F M" : undefined}
           title={playable && src ? t.studio.shortcuts : undefined}
           onKeyDown={onKey}
-          className={cn("relative overflow-hidden rounded-xs bg-black focus-visible:-outline-offset-2", wide ? "aspect-video" : "aspect-[9/16]")}
+          data-shape={wide ? "wide" : "tall"}
+          className={cn("monitor-frame relative overflow-hidden rounded-xs bg-black focus-visible:-outline-offset-2", wide ? "aspect-video" : "aspect-[9/16]")}
         >
           {playable && src ? (
             <>

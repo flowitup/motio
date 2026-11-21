@@ -1,0 +1,406 @@
+/* Theme 5 · Pop: ink borders, hard shadows, bright fills (neo-brutalist). Tokens first, then the shapes this theme
+   changes (see ../themes.css). The ink edge is kept for what frames the screen (menu, top bar, cards, panels, controls);
+   the rules inside a list or a table stay faint, or every row shouts. */
+:root[data-theme="pop"] {
+    color-scheme: light;
+    --ui-font: 'Archivo Variable';
+    --display-font: 'Archivo Variable';
+    --code-font: 'Space Mono';
+    --ink: #141414;
+    --ground: #FFF3D1;
+    --panel: #FFFFFF;
+    --strip: #FFE27A;
+    --raised: #FFFFFF;
+    --lift: #FFF0B8;
+    --pressed: #FFE27A;
+    --monitor: #FFFFFF;
+    --hairline: rgb(20 20 20 / 0.2); /* rules between rows; frames are set in ink below */
+    --hairline-strong: #141414;
+    --field: #141414;
+    --tint: #141414;
+    --on-hue: #FFFFFF;
+    --amber: #9A5200; /* as text and dots; a solid amber fill is brighter (--amber-fill) */
+    --amber-fill: #FFB300;
+    --on-amber: #FFFFFF;
+    --pink: #FF5A36;
+    --pink-text: #C2300D; /* the action colour as text (a hot score): 4.5:1 on white and on the ground */
+    --primary-hover: #FF7553;
+    --primary-pressed: #E8431F;
+    --on-pink: #141414;
+    --cyan: #005F9E;
+    --cyan-hover: #00456F;
+    --mint: #00774A;
+    --coral: #C8102E; /* crimson, so "failed" is not mistaken for the orange-red action */
+    --lime: #456B00;
+    --violet: #6B3FD4;
+    --orange: #B04300;
+    --blue: #1F4FD8;
+    --foreground: #141414;
+    --card-foreground: #141414;
+    --popover-foreground: #141414;
+    --secondary-foreground: #141414;
+    --accent-foreground: #141414;
+    --sidebar-foreground: #141414;
+    --sidebar-accent-foreground: #141414;
+    --muted-foreground: #454545;
+    --radius: 0.75rem;
+}
+
+[data-theme="pop"] * {
+    scrollbar-color: rgb(20 20 20 / 0.4) transparent;
+}
+
+[data-theme="pop"] ::selection {
+    background: rgb(255 90 54 / 0.3);
+}
+
+/* The action colour as text is darker than the fill, or a score reads at 3:1. */
+[data-theme="pop"] .text-pink {
+    color: var(--pink-text);
+}
+
+/* A solid "needs you" fill (poster sticker, open rail tile) is bright amber with ink text, not brown. */
+[data-theme="pop"] .bg-amber.text-on-amber {
+    background-color: var(--amber-fill);
+    color: var(--ink);
+}
+
+/* ── Menu ─────────────────────────────────────────────────────────────── */
+[data-theme="pop"] .app-nav {
+    border-right: 3px solid var(--ink);
+    background: #FFFFFF;
+}
+
+[data-theme="pop"] .app-brand {
+    border-bottom: 3px solid var(--ink);
+    background: var(--strip);
+}
+
+[data-theme="pop"] .app-wordmark {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* Tighter rows so the last item (Stats) is not cut by the footer at 1280 × 820. */
+[data-theme="pop"] .app-nav-groups {
+    padding-top: 6px;
+}
+
+[data-theme="pop"] .app-nav-group + .app-nav-group {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 2px solid var(--ink);
+}
+
+[data-theme="pop"] .app-nav-foot {
+    border-top: 3px solid var(--ink);
+    padding-top: 4px;
+}
+
+[data-theme="pop"] .rail-item {
+    padding-block: 5px;
+    background: transparent;
+}
+
+[data-theme="pop"] .rail-engine {
+    padding-top: 6px;
+    padding-bottom: 10px;
+    gap: 4px;
+}
+
+[data-theme="pop"] .rail-tile {
+    border: 2px solid var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+    border-radius: 10px;
+    transition: transform 80ms, box-shadow 80ms;
+}
+
+[data-theme="pop"] .rail-item:hover .rail-tile {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--ink);
+}
+
+[data-theme="pop"] .rail-item:active .rail-tile {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 var(--ink);
+}
+
+[data-theme="pop"] .rail-item[aria-current="page"] .rail-tile {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+[data-theme="pop"] .rail-item[aria-current="page"] .rail-label {
+    font-weight: 800;
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+}
+
+/* The counts on a tile are stickers too. */
+[data-theme="pop"] .rail-tile > [role="img"] {
+    box-shadow: 0 0 0 1.5px var(--ink);
+}
+
+/* ── Page head ────────────────────────────────────────────────────────── */
+[data-theme="pop"] .page-topbar,
+[data-theme="pop"] .app-main header:has(> .page-title) {
+    border-bottom: 3px solid var(--ink);
+}
+
+[data-theme="pop"] .page-title {
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: -0.015em;
+    text-transform: uppercase;
+}
+
+/* A project's own name is long: smaller, so the actions stay on the title's line. */
+[data-theme="pop"] header:not(.page-topbar) > .page-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────── */
+[data-theme="pop"] [data-slot="card"],
+[data-theme="pop"] [data-slot="section"] {
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+[data-theme="pop"] [data-slot="card-header"],
+[data-theme="pop"] [data-slot="section"] > h2 > button[aria-expanded="true"] {
+    border-bottom: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [data-slot="card-footer"] {
+    border-top: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [data-slot="panel"] {
+    border-bottom: 2px solid var(--ink);
+}
+
+/* Caption strips: ink on yellow (a hue as text is under 4.5:1 there); the hue stays in the dot. */
+[data-theme="pop"] [data-slot="panel-header"] {
+    border-bottom: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [data-slot="panel-header"] > h2,
+[data-theme="pop"] [data-slot="section"] > h2 > button > span:first-of-type,
+[data-theme="pop"] [data-slot="card-header"] [data-slot="card-title"] {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+[data-theme="pop"] [data-slot="panel-header"] > div,
+[data-theme="pop"] [data-slot="section"] > h2 > button > span + span,
+[data-theme="pop"] [data-slot="section"] > h2 > button > svg {
+    color: var(--ink);
+}
+
+[data-theme="pop"] [data-slot="panel-header"] > h2 > span[aria-hidden] {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [data-slot="section"] > h2 > button:hover {
+    background: var(--amber-fill);
+}
+
+/* A table is a strip over faint rules, framed in ink. */
+[data-theme="pop"] .app-main div:has(> table) {
+    border: 2px solid var(--ink);
+    background: var(--panel);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+/* Docked columns (a project's three columns, the side of New video) are divided in ink like their strips. */
+[data-theme="pop"] .app-main div.border-r:has(> [data-slot="panel"]) {
+    border-right: 2px solid var(--ink);
+}
+
+[data-theme="pop"] .app-main aside.border-l {
+    border-left: 2px solid var(--ink);
+}
+
+[data-theme="pop"] .app-main thead {
+    background: var(--strip);
+    color: var(--ink);
+    box-shadow: 0 2px 0 var(--ink);
+}
+
+/* The project poster: the picture fills an ink frame with a hard shadow (no white mat around it); the shadow says
+   what needs you or failed. */
+[data-theme="pop"] .app-main li.group > a > div:first-child {
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    box-shadow: 4px 4px 0 var(--ink);
+    transition: transform 80ms, box-shadow 80ms;
+}
+
+[data-theme="pop"] .app-main li.group > a > div:first-child > div {
+    border-radius: 0;
+}
+
+[data-theme="pop"] .app-main li.group > a > div.border-amber:first-child {
+    box-shadow: 5px 5px 0 var(--amber-fill), 5px 5px 0 2px var(--ink);
+}
+
+[data-theme="pop"] .app-main li.group > a:hover > div:first-child {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--ink);
+}
+
+[data-theme="pop"] .app-main li.group > a:hover > div.border-amber:first-child {
+    box-shadow: 7px 7px 0 var(--amber-fill), 7px 7px 0 2px var(--ink);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+/* (a dialog's Cancel is a Button whose slot name is replaced, hence the :is) */
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]) {
+    border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
+    font-weight: 700;
+    transition: transform 80ms, box-shadow 80ms, background-color 150ms;
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--ink);
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):disabled {
+    border-style: dashed;
+    border-color: rgb(20 20 20 / 0.5);
+    box-shadow: none;
+}
+
+/* Quiet buttons (ghost, link) carry no box: three levels — filled, white, bare. The bare one gets its edge on hover. */
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):not(.bg-primary):not(.border-hairline-strong):not([class*="border-coral"]) {
+    border-color: transparent;
+    box-shadow: none;
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):not(.bg-primary):not(.border-hairline-strong):not([class*="border-coral"]):not(.text-cyan):hover:not(:disabled) {
+    border-color: var(--ink);
+    background: var(--lift);
+    transform: none;
+    box-shadow: none;
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):not(.bg-primary):not(.border-hairline-strong):not([class*="border-coral"]):not(.text-cyan)[aria-pressed="true"],
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]):not(.bg-primary):not(.border-hairline-strong):not([class*="border-coral"]):not(.text-cyan)[aria-expanded="true"] {
+    border-color: var(--ink);
+    background: var(--strip);
+}
+
+[data-theme="pop"] :is([data-slot="button"], [data-slot="alert-dialog-cancel"]).text-cyan:hover:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+}
+
+[data-theme="pop"] [data-slot="input"],
+[data-theme="pop"] [data-slot="textarea"],
+[data-theme="pop"] [data-slot="select-trigger"] {
+    border: 2px solid var(--ink);
+    background: #FFFFFF;
+}
+
+[data-theme="pop"] [data-slot="input"]:disabled,
+[data-theme="pop"] [data-slot="textarea"]:disabled,
+[data-theme="pop"] [data-slot="select-trigger"]:disabled,
+[data-theme="pop"] [data-slot="select-trigger"][data-disabled] {
+    border-style: dashed;
+    border-color: rgb(20 20 20 / 0.5);
+    background: transparent;
+}
+
+[data-theme="pop"] [data-slot="input"][aria-invalid="true"],
+[data-theme="pop"] [data-slot="textarea"][aria-invalid="true"],
+[data-theme="pop"] [data-slot="select-trigger"][aria-invalid="true"] {
+    border-color: var(--coral);
+}
+
+/* A script line is bare until you point at it or type in it, as in every theme. */
+[data-theme="pop"] [data-slot="textarea"].border-transparent:not(:hover):not(:focus-visible) {
+    border-color: transparent;
+    background: transparent;
+}
+
+[data-theme="pop"] [data-slot="select-content"],
+[data-theme="pop"] [data-slot="alert-dialog-content"] {
+    border: 2px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+}
+
+[data-theme="pop"] [data-slot="switch"] {
+    --amber: var(--amber-fill);
+    --on-amber: var(--ink);
+    border: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [data-slot="switch"][data-unchecked] {
+    background: #FFFFFF;
+}
+
+[data-theme="pop"] [data-slot="switch"] [data-slot="switch-thumb"] {
+    margin-left: 3px;
+}
+
+/* Chips and one-of-n choices: an ink outline, solid ink when chosen. */
+[data-theme="pop"] .app-main button[aria-pressed].rounded-full,
+[data-theme="pop"] .app-main [role="group"] > button[aria-pressed] {
+    border: 2px solid var(--ink);
+}
+
+[data-theme="pop"] .app-main [role="group"] > button[aria-pressed="false"] {
+    background: #FFFFFF;
+    color: var(--ink);
+}
+
+[data-theme="pop"] .app-main button[aria-pressed="false"].rounded-full:hover,
+[data-theme="pop"] .app-main [role="group"] > button[aria-pressed="false"]:hover {
+    background: var(--lift);
+}
+
+[data-theme="pop"] .app-main [role="group"] > button[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--ground);
+    font-weight: 700;
+}
+
+[data-theme="pop"] [role="tablist"],
+[data-theme="pop"] [role="radiogroup"] {
+    border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
+    background: #FFFFFF;
+}
+
+[data-theme="pop"] [role="tablist"] > button + button,
+[data-theme="pop"] [role="radiogroup"] > button + button {
+    border-left: 2px solid var(--ink);
+}
+
+[data-theme="pop"] [role="tablist"] > button[aria-selected="false"],
+[data-theme="pop"] [role="radiogroup"] > button[aria-checked="false"] {
+    color: var(--ink);
+}
+
+[data-theme="pop"] [role="tablist"] > button[aria-selected="false"]:hover,
+[data-theme="pop"] [role="radiogroup"] > button[aria-checked="false"]:hover {
+    background: var(--lift);
+}

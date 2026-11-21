@@ -54,13 +54,13 @@ export const HUE_TILE: Record<Hue, string> = {
 export const HUE_SOLID: Record<Hue, string> = {
   pink: "bg-pink text-on-pink",
   amber: "bg-amber text-on-amber",
-  cyan: "bg-cyan text-ground",
-  mint: "bg-mint text-ground",
-  coral: "bg-coral text-ground",
-  lime: "bg-lime text-ground",
-  violet: "bg-violet text-ground",
-  orange: "bg-orange text-ground",
-  blue: "bg-blue text-ground",
+  cyan: "bg-cyan text-on-hue",
+  mint: "bg-mint text-on-hue",
+  coral: "bg-coral text-on-hue",
+  lime: "bg-lime text-on-hue",
+  violet: "bg-violet text-on-hue",
+  orange: "bg-orange text-on-hue",
+  blue: "bg-blue text-on-hue",
 };
 const HUE_ORDER: Hue[] = ["cyan", "violet", "lime", "pink", "amber", "mint", "orange", "coral"];
 /** A panel with no hue of its own gets a steady one from its title, so the same panel is always the same colour. */
@@ -72,8 +72,8 @@ export function hueFor(key: string): Hue {
 
 const LED: Record<ProjectStatus, string> = {
   queued: "box-border border-2 border-muted-foreground",
-  running: "bg-cyan shadow-[0_0_0_3px_rgb(63_224_245/0.22)]",
-  review: "bg-amber shadow-[0_0_0_3px_rgb(255_178_36/0.22)]",
+  running: "bg-cyan shadow-[0_0_0_3px_color-mix(in_srgb,var(--cyan)_22%,transparent)]",
+  review: "bg-amber shadow-[0_0_0_3px_color-mix(in_srgb,var(--amber)_22%,transparent)]",
   done: "bg-mint",
   failed: "bg-coral",
 };
@@ -107,15 +107,15 @@ export function LedLabel({ status, children, className }: { status: ProjectStatu
 
 const STICKER: Record<ProjectStatus, string> = {
   queued: "bg-lift text-foreground",
-  running: "bg-cyan text-ground",
+  running: "bg-cyan text-on-hue",
   review: "bg-amber text-on-amber",
-  done: "bg-mint text-ground",
-  failed: "bg-coral text-ground",
+  done: "bg-mint text-on-hue",
+  failed: "bg-coral text-on-hue",
 };
 /** A solid, coloured status label for use on top of a picture (the project poster). */
 export function StatusSticker({ status, children, className }: { status: ProjectStatus; children: ReactNode; className?: string }) {
   return (
-    <span className={cn("inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-xs leading-4 font-bold whitespace-nowrap", STICKER[status], className)}>
+    <span data-slot="sticker" data-status={status} className={cn("inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-xs leading-4 font-bold whitespace-nowrap", STICKER[status], className)}>
       <span aria-hidden className="size-2 shrink-0 rounded-full bg-current" />
       {children}
     </span>
@@ -130,7 +130,7 @@ const TONE_FILL: Record<Tone, string> = { hot: "bg-pink", warm: "bg-cyan", cool:
 /** A thin bar filled to `value` %, with a 1 px gap at 50 and 75 (the tone thresholds). `gap` = the colour behind it. */
 export function Meter({ value, tone, height = 4, gap = "bg-panel", className }: { value: number; tone: Tone; height?: 4 | 8; gap?: string; className?: string }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-xs bg-white/12", height === 8 ? "h-2" : "h-1", className)}>
+    <div className={cn("relative overflow-hidden rounded-xs bg-tint/12", height === 8 ? "h-2" : "h-1", className)}>
       <div className={cn("h-full", TONE_FILL[tone])} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       <div className={cn("absolute top-0 left-1/2 h-full w-px", gap)} />
       <div className={cn("absolute top-0 left-3/4 h-full w-px", gap)} />
@@ -172,11 +172,11 @@ export function Kicker({ children, className }: { children: ReactNode; className
 /** The 56 px bar at the top of a page: title (or breadcrumb) on the left, actions on the right. */
 export function TopBar({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <header className={cn("sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-ground px-6", className)}>{children}</header>
+    <header className={cn("page-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-ground px-6", className)}>{children}</header>
   );
 }
-export function PageTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h1 className={cn("min-w-0 truncate text-xl leading-7 font-semibold tracking-[-0.01em] whitespace-nowrap", className)}>{children}</h1>;
+export function PageTitle({ children, className, title }: { children: ReactNode; className?: string; title?: string }) {
+  return <h1 title={title} className={cn("page-title min-w-0 truncate font-heading text-xl leading-7 font-semibold tracking-[-0.01em] whitespace-nowrap", className)}>{children}</h1>;
 }
 
 /** A docked panel: 40 px header strip with a mono caption (and an optional readout / action), then the body. No gaps, no shadows. */
@@ -198,7 +198,7 @@ export function Panel({
   hue?: Hue;
 }) {
   return (
-    <section className={cn("flex flex-col border-b bg-panel", className)}>
+    <section data-slot="panel" className={cn("flex flex-col border-b bg-panel", className)}>
       <PanelHeader aside={aside} hue={hue}>
         {title}
       </PanelHeader>
@@ -209,7 +209,7 @@ export function Panel({
 export function PanelHeader({ children, aside, className, hue }: { children: ReactNode; aside?: ReactNode; className?: string; hue?: Hue }) {
   const h = hue ?? (typeof children === "string" ? hueFor(children) : "cyan");
   return (
-    <header className={cn("flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4", className)}>
+    <header data-slot="panel-header" className={cn("flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-strip px-4", className)}>
       <h2 className={cn("flex items-center gap-2.5 font-mono text-xs leading-4 font-medium tracking-[0.06em] uppercase", HUE_TEXT[h])}>
         <span aria-hidden className={cn("size-2 shrink-0 rounded-full", HUE_DOT[h])} />
         {children}
@@ -270,7 +270,7 @@ export function Segmented<T extends string>({
             className={cn(
               "relative inline-flex min-w-0 flex-1 items-center justify-center gap-2 px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors focus-visible:-outline-offset-2",
               i > 0 && "border-l border-hairline-strong",
-              on ? (accent === "pink" ? "bg-pink font-bold text-on-pink" : "bg-cyan font-bold text-ground") : "text-muted-foreground hover:bg-raised hover:text-foreground",
+              on ? (accent === "pink" ? "bg-pink font-bold text-on-pink" : "bg-cyan font-bold text-on-hue") : "text-muted-foreground hover:bg-raised hover:text-foreground",
             )}
           >
             {o.label}
@@ -300,6 +300,7 @@ export function FilterChip({
   return (
     <button
       type="button"
+      data-slot="chip"
       aria-pressed={on}
       onClick={onClick}
       className={cn(

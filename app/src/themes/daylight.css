@@ -1,0 +1,290 @@
+/* Theme 1 · Daylight: light, calm, a named sidebar. Tokens first, then the shapes this theme changes (see ../themes.css). */
+:root[data-theme="daylight"] {
+    color-scheme: light;
+    --ui-font: 'Inter Variable';
+    --display-font: 'Inter Variable';
+    --code-font: 'JetBrains Mono';
+    --ground: #F6F7F9;
+    --panel: #FFFFFF;
+    --strip: #FAFAFB;
+    --raised: #FFFFFF;
+    --lift: #F0F1F4;
+    --pressed: #E4E6EB;
+    --monitor: #FFFFFF;
+    --hairline: rgb(17 24 39 / 0.09);
+    --hairline-strong: rgb(17 24 39 / 0.18);
+    --field: #848C9A; /* 3.4:1 on white, 3.2:1 on the ground */
+    --tint: #111827;
+    --on-hue: #FFFFFF;
+    /* Roles. Indigo = the main action, amber = needs you, sky = running / links / focus, green = done, red = failed. */
+    --pink: #4F46E5;
+    --primary-hover: #4338CA;
+    --primary-pressed: #3730A3;
+    --on-pink: #FFFFFF;
+    --amber: #B45309;
+    --on-amber: #FFFFFF;
+    --cyan: #0369A1;
+    --cyan-hover: #075985;
+    --mint: #047857;
+    --coral: #DC2626;
+    /* Section hues only. Violet and orange sit away from the indigo action and the amber "needs you" (purple, raspberry). */
+    --lime: #4D7C0F;
+    --violet: #9124C7;
+    --orange: #BE185D;
+    --blue: #2563EB;
+    --foreground: #111827;
+    --card-foreground: #111827;
+    --popover-foreground: #111827;
+    --secondary-foreground: #111827;
+    --accent-foreground: #111827;
+    --sidebar-foreground: #111827;
+    --sidebar-accent-foreground: #111827;
+    --muted-foreground: #4B5563;
+    --radius: 0.5rem;
+}
+
+/* Light theme: dark scrollbar thumb, indigo selection, native ticks in the action colour. */
+[data-theme="daylight"] * {
+    scrollbar-color: rgb(17 24 39 / 0.25) transparent;
+}
+
+[data-theme="daylight"] ::selection {
+    background: rgb(79 70 229 / 0.2);
+}
+
+[data-theme="daylight"] input[type="checkbox"],
+[data-theme="daylight"] input[type="radio"] {
+    accent-color: var(--pink);
+}
+
+/* Sidebar: a quiet grey column; the open page is a white pill with a hairline. */
+[data-theme="daylight"] .app-nav {
+    background: #FAFAFB;
+}
+
+[data-theme="daylight"] .app-wordmark {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+[data-theme="daylight"] .rail-item[aria-current="page"] {
+    background: #FFFFFF;
+    box-shadow: 0 0 0 1px var(--hairline), 0 1px 2px rgb(16 24 40 / 0.06);
+}
+
+/* From the default window width up (1280 px): a 232 px sidebar, icon + name on one row. A narrower window keeps the
+   92 px rail, so the three columns of a project and the tables keep their room. */
+@media (min-width: 1280px) {
+    [data-theme="daylight"] .app-nav {
+        width: 232px;
+    }
+
+    /* Same height as the page's top bar, so the two hairlines meet. */
+    [data-theme="daylight"] .app-brand {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        height: 56px;
+        padding: 0 20px;
+    }
+
+    [data-theme="daylight"] .app-wordmark {
+        font-size: 16px;
+        line-height: 20px;
+    }
+
+    /* Groups are told apart by space, not by a rule. */
+    [data-theme="daylight"] .app-nav-groups {
+        padding-top: 10px;
+    }
+
+    [data-theme="daylight"] .app-nav-group {
+        margin-top: 0;
+        padding-top: 0;
+        border-top-width: 0;
+    }
+
+    [data-theme="daylight"] .app-nav-group + .app-nav-group {
+        margin-top: 14px;
+    }
+
+    [data-theme="daylight"] .app-nav-foot {
+        padding-top: 8px;
+    }
+
+    [data-theme="daylight"] .rail-item {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        margin: 1px 10px;
+        padding: 5px 8px;
+        font-size: 13px;
+        line-height: 18px;
+        border-radius: var(--radius);
+    }
+
+    [data-theme="daylight"] .rail-item[aria-current="page"] {
+        font-weight: 600;
+    }
+
+    /* The counts sit at the end of the row (they are placed against the row, not the tile). */
+    [data-theme="daylight"] .rail-tile {
+        position: static;
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+    }
+
+    [data-theme="daylight"] .rail-tile svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    [data-theme="daylight"] .rail-badge {
+        top: 50%;
+        right: 10px;
+        bottom: auto;
+        left: auto;
+        transform: translateY(-50%);
+    }
+
+    [data-theme="daylight"] .rail-badge svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    [data-theme="daylight"] .rail-badge ~ .rail-badge {
+        right: 36px;
+    }
+
+    /* A row with a bare icon (the update notice) keeps the tiles' column. */
+    [data-theme="daylight"] .rail-item > svg {
+        width: 16px;
+        height: 16px;
+        margin: 0 5px;
+    }
+
+    /* The engine light lines up with the icon tiles, its words with the names. */
+    [data-theme="daylight"] .rail-engine {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 19px;
+        padding: 10px 12px 14px 27px;
+    }
+
+    [data-theme="daylight"] .rail-engine .rail-label {
+        width: auto;
+        text-align: left;
+    }
+}
+
+/* Top bar: the ground, frosted, with a slightly smaller, tighter title. */
+[data-theme="daylight"] .page-topbar {
+    background: rgb(246 247 249 / 0.85);
+    backdrop-filter: blur(10px);
+}
+
+[data-theme="daylight"] .page-title {
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+}
+
+/* Surfaces: a hairline and a soft lift instead of rings. */
+[data-theme="daylight"] [data-slot="card"],
+[data-theme="daylight"] [data-slot="section"] {
+    box-shadow: 0 0 0 1px var(--hairline), 0 1px 2px rgb(16 24 40 / 0.05);
+    border-color: transparent;
+}
+
+[data-theme="daylight"] [data-slot="select-content"],
+[data-theme="daylight"] [data-slot="alert-dialog-content"] {
+    box-shadow: 0 0 0 1px var(--hairline), 0 12px 32px rgb(16 24 40 / 0.14);
+}
+
+/* Captions: the same small capitals, in Inter and in ink; the dot alone carries the section's hue. */
+[data-theme="daylight"] [data-slot="panel-header"] h2,
+[data-theme="daylight"] [data-slot="section"] > h2 > button > span[class~="uppercase"],
+[data-theme="daylight"] [data-slot="card-title"] {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #374151;
+}
+
+/* The smaller captions (table heads, the narration strip, source badges) follow, so one caption face is on screen;
+   mono stays for numbers, ids and timecode. */
+[data-theme="daylight"] .app-main [class~="font-mono"][class~="uppercase"] {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+[data-theme="daylight"] .app-main [class~="font-mono"][class~="uppercase"] [class~="normal-case"] {
+    font-weight: 400;
+}
+
+/* Fields are white wells on every fill (the ground is grey here, so a ground-filled field reads as disabled). A field
+   that shows no border until it is used (a narration line) stays flat. */
+[data-theme="daylight"] [data-slot="input"]:not([class~="border-transparent"]),
+[data-theme="daylight"] [data-slot="textarea"]:not([class~="border-transparent"]),
+[data-theme="daylight"] [data-slot="select-trigger"] {
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+}
+
+[data-theme="daylight"] [data-slot="input"]:disabled,
+[data-theme="daylight"] [data-slot="textarea"]:disabled,
+[data-theme="daylight"] [data-slot="select-trigger"][data-disabled] {
+    background: var(--ground);
+    box-shadow: none;
+}
+
+/* Tables: white rows under a tinted head (the head alone was white, on grey rows). */
+[data-theme="daylight"] .app-main table {
+    background: var(--panel);
+}
+
+[data-theme="daylight"] .app-main thead {
+    background: var(--strip);
+    box-shadow: 0 1px 0 var(--hairline);
+}
+
+/* Buttons: a touch of lift on the filled and the outlined ones. */
+[data-theme="daylight"] [data-slot="button"][class~="bg-primary"]:not(:disabled) {
+    box-shadow: 0 1px 2px rgb(55 48 163 / 0.3);
+}
+
+[data-theme="daylight"] [data-slot="button"][class~="bg-raised"]:not(:disabled) {
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+}
+
+/* A switch that is on is the action colour; amber stays "needs you". */
+[data-theme="daylight"] [data-slot="switch"][data-checked] {
+    background: var(--pink);
+    border-color: var(--pink);
+}
+
+/* Notices: clean washes on the grey ground (an 8 % tint of a dark hue turns muddy there). The class tokens catch the
+   notices that have no data-slot yet; a box drawn over a video (absolute) keeps its see-through tint. */
+[data-theme="daylight"] [data-slot="notice"],
+[data-theme="daylight"] [class~="bg-amber/8"],
+[data-theme="daylight"] [class~="bg-amber/10"] {
+    background: #FFF8EB;
+    border-color: rgb(180 83 9 / 0.35);
+}
+
+[data-theme="daylight"] [class~="bg-coral/10"]:not([class~="absolute"]) {
+    background: #FEF2F2;
+    border-color: rgb(220 38 38 / 0.35);
+}
+
+/* The halo of a running / waiting light, in this theme's own sky and amber. */
+[data-theme="daylight"] [class~="bg-cyan"][class*="shadow-[0_0_0_3px"] {
+    box-shadow: 0 0 0 3px rgb(3 105 161 / 0.18);
+}
+
+[data-theme="daylight"] [class~="bg-amber"][class*="shadow-[0_0_0_3px"] {
+    box-shadow: 0 0 0 3px rgb(180 83 9 / 0.2);
+}

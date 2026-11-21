@@ -1,11 +1,12 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, Clock, Film, Inbox, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { CircleAlert, Clock, Film, Inbox, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice } from "@/components/form";
 import { SetupCard } from "@/components/setup-notices";
-import { FilterChip, Led, PageTitle, STATUS_HUE, StatusSticker, TopBar } from "@/components/studio";
+import { PipelineBoard } from "@/components/pipeline-board";
+import { FilterChip, Led, PageTitle, STATUS_HUE, Segmented, StatusSticker, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,15 @@ type Filter = "all" | ProjectStatus;
 const FILTERS: Filter[] = ["all", "review", "running", "queued", "failed", "done"];
 const PAGE = 50; // projects per page; "Load more" asks for the next page
 const ANY = ""; // the "all channels" / "all kinds" choice
+type View = "board" | "grid";
+const VIEW_STORE = "motio.projectsView";
+function savedView(): View {
+  try {
+    return localStorage.getItem(VIEW_STORE) === "grid" ? "grid" : "board";
+  } catch {
+    return "board";
+  }
+}
 
 /** What the poster shows while there is no picture yet: the step that is running, the gate, or where it stopped. */
 function PosterPlaceholder({ p }: { p: Project }) {
@@ -75,6 +85,8 @@ function ProjectCard({
         className="block rounded-lg text-foreground hover:text-foreground"
       >
         <div
+          data-slot="poster"
+          data-status={p.status}
           className={cn(
             "rounded-xl border bg-monitor p-2",
             p.status === "review" ? "border-2 border-amber" : p.status === "failed" ? "border-coral/50" : "border-hairline-strong",
@@ -90,14 +102,14 @@ function ProjectCard({
               {t.projects.status[p.status] ?? p.status}
             </StatusSticker>
             {busy && (
-              <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/12">
+              <div className="absolute inset-x-0 bottom-0 h-[3px] bg-tint/12">
                 <div className="h-full bg-cyan" style={{ width: `${p.pct}%` }} />
               </div>
             )}
           </div>
         </div>
         <div className="space-y-1 pt-3">
-          <div className="line-clamp-2 min-h-9 text-[13px] leading-[18px] font-semibold">{title}</div>
+          <div className="card-headline line-clamp-2 min-h-9 text-[13px] leading-[18px] font-semibold">{title}</div>
           {busy && <div className="truncate text-xs leading-4 text-cyan">{p.step}</div>}
           {p.status === "failed" && p.error && <div className="line-clamp-2 text-xs leading-4 text-coral">{p.error}</div>}
           <div className="truncate font-mono text-xs leading-4 text-muted-foreground">
@@ -127,6 +139,15 @@ export default function ProjectsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setViewState] = useState<View>(savedView);
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_STORE, v);
+    } catch {
+      // storage blocked: the choice lasts until the page closes
+    }
+  };
   const [channel, setChannel] = useState(ANY);
   const [mode, setMode] = useState(ANY);
   const [text, setText] = useState("");
@@ -158,6 +179,7 @@ export default function ProjectsPage() {
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => (last.length === PAGE ? last[last.length - 1].id : undefined),
     refetchInterval: working ? BUSY_MS : false,
+    enabled: view === "grid",
   });
   // Something started, finished or was approved elsewhere: the counts changed, so the list is stale.
   const signature = counts.data ? [counts.data.queued, counts.data.running, counts.data.review, counts.data.done, counts.data.failed].join() : "";
@@ -175,23 +197,27 @@ export default function ProjectsPage() {
   const countOf = (f: Filter) => (f === "all" ? total : (counts.data?.[f] ?? 0));
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className={cn("flex flex-col", view === "board" ? "h-full min-h-0" : "min-h-full")}>
       <TopBar>
         <PageTitle>{t.projects.title}</PageTitle>
+        <Segmented
+          label={t.board.view}
+          value={view}
+          onChange={setView}
+          options={(["board", "grid"] as View[]).map((v) => ({ value: v, label: t.board.views[v] }))}
+          className="ml-4 h-9"
+        />
+        {/* New video is the "+" at the top of the rail; the queue of what waits for you stays here. */}
         {!!counts.data?.review && (
           <Button variant="secondary" size="lg" className="ml-auto border-amber/60 text-amber" onClick={() => navigate("/review")}>
             <Inbox />
             {t.queue.openQueue(counts.data.review)}
           </Button>
         )}
-        <Button size="lg" className={counts.data?.review ? undefined : "ml-auto"} onClick={() => navigate("/projects/new")}>
-          <Plus />
-          {t.projects.create}
-        </Button>
       </TopBar>
       <SetupCard />
       <div className="sticky top-14 z-10 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b bg-ground px-6 py-2">
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className={cn("flex items-center gap-2 overflow-x-auto", view === "board" && "hidden")}>
           {FILTERS.map((f) => (
             <FilterChip key={f} on={filter === f} onClick={() => setFilter(f)} count={countOf(f)} hue={f === "all" ? undefined : STATUS_HUE[f]} led={f !== "all" && <Led status={f} />}>
               {f === "all" ? t.studio.filterAll : f === "review" ? t.studio.filterNeedsYou : t.projects.status[f]}
@@ -219,7 +245,19 @@ export default function ProjectsPage() {
           />
         </div>
       </div>
-      <div className={cn("flex-1 p-6", !shown.length && !isLoading && "flex items-center justify-center")}>
+      {view === "board" && (
+        <PipelineBoard
+          api={api}
+          filters={{ channel: channel === ANY ? undefined : Number(channel), mode: mode || undefined, q: q || undefined }}
+          counts={counts.data}
+          channelName={channelName}
+          onSeeAll={(status) => {
+            setFilter(status);
+            setView("grid");
+          }}
+        />
+      )}
+      <div className={cn("flex-1 p-6", !shown.length && !isLoading && "flex items-center justify-center", view === "board" && "hidden")}>
         {error && <p className="mb-4 text-[13px] text-coral">{error.message}</p>}
         {data && !shown.length && !narrowed && filter === "all" && <p className="text-muted-foreground">{t.projects.empty}</p>}
         {data && !shown.length && (narrowed || filter !== "all") && <p className="text-muted-foreground">{t.studio.filterEmpty}</p>}

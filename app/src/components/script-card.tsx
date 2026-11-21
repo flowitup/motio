@@ -282,7 +282,7 @@ function ScriptForm({
             <li
               key={r.key}
               onFocus={() => setEditing(i)}
-              className={cn("relative grid grid-cols-[28px_52px_minmax(0,1fr)_auto] items-start gap-x-3 border-b px-4 py-3", on ? "bg-raised" : "bg-panel")}
+              className={cn("script-row relative grid grid-cols-[28px_52px_minmax(0,1fr)_auto] items-start gap-x-3 border-b px-4 py-3", on ? "bg-raised" : "bg-panel")}
             >
               {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-amber" />}
               <span className={cn("pt-2 font-mono text-xs tabular-nums", on ? "text-amber" : "text-muted-foreground")}>{String(i + 1).padStart(2, "0")}</span>
