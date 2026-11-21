@@ -206,3 +206,35 @@ set Douyin cookies.
 A Settings switch to turn f2 off; a "Test Douyin" button that fetches one fixed public video and shows the last result; a
 check that a Dub source is at least 38 s before downloading it; following Douyin accounts in "New videos" (f2 can list an
 author's posts anonymously); a run from the Hetzner server and the Windows PC.
+
+## Hot board (2026-11-22, a cloud sandbox with no Douyin account)
+
+Trending → "Douyin · Hot board" (`douyin:hot`, `douyin_feed.fetch`) is Douyin's own 热点榜, the list a visitor sees at
+`douyin.com/hot`. The owner asked for trends to come from Douyin's "top picks" (2026-11-21); the home feed (`douyin:feed`)
+is a recommendation draw, the hot board is the ranking people actually follow.
+
+- **The list** (`aweme/v1/web/hot/search/list/`, `detail_list=1`) answers an anonymous session through f2's signer
+  (`crawler.bogus_manager.str_2_endpoint`, then `_fetch_get_json`, the same two calls as the keyword search; nothing
+  copied): 51 topics with `word`, `hot_value`, `sentence_id`, `video_count`. The first one is a pinned state-media topic with
+  no heat. `douyin._board` is the function tests fake.
+- **A topic's videos are not on that list.** `group_id` is a hot-event id, not an `aweme_id`, and `douyin.com/hot/<sentence_id>`
+  redirects to the topic's lead video only after Douyin's JavaScript browser check, so a plain client gets a challenge page.
+  The `hot/search/video/list` endpoint answers an empty body to f2's signing, and `channel/hotspot` (the feed beside the
+  board) too, so neither is used. What works with no account is the public search site: one headless Chrome (`chrome.py`) on
+  `so.douyin.com` runs the page's own search request once per topic word (`HOT_SCRIPT`, shared card reader with the keyword
+  search), 20 topics, 0.5 s apart.
+- **Rows**: per topic in the board's order, up to 3 videos of the last 7 days that last at least 15 s (older videos that only
+  match the words are leftovers), no video twice; `category` = the topic (shown after the title in the app), `views` = the
+  topic's heat because a search card carries no play count. A refusal on a later topic keeps what was read; a browser check
+  with nothing read is reported, never solved.
+- **Checked live** from a cloud sandbox (Chromium wrapper with `--no-sandbox` as `MOTIO_CHROME`): 20 topics read, 27 videos
+  from 12 topics in 67 s, with titles, lengths, likes and upload days. Not checked: the owner's Mac, the packaged app,
+  Windows.
+
+## Featured tab (2026-11-22)
+
+Trending → "Douyin · Featured" (`douyin:featured`) is the 精选 tab (`douyin.com/jingxuan`, "all" category). Its feed is a
+**POST** to `/aweme/v2/web/module/feed/` (module 3003101, 20 videos per answer, query signed); a GET answers 404, and the
+v1 path answers an empty body. `douyin._featured_page` gives f2's signer the address (`str_2_endpoint`) and lets f2's
+`_fetch_post_json` send it, anonymous like the home feed: checked live from a cloud sandbox, 5 answers gave 35 distinct
+videos of 77 s to 46 min (mostly long: series, films, compilations). Category tabs (`tag_id`) are not read.

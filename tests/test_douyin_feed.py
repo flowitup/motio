@@ -1,4 +1,6 @@
 """Douyin's home feed (motio/douyin_feed.py) as a watch source. f2 is switched off in tests: `_page` is faked."""
+import time
+
 import httpx
 import pytest
 
@@ -94,5 +96,170 @@ def test_follow_and_check_saves_the_videos(feed):
     assert "Could not connect to Douyin" in (db.get_watch(wid)["last_error"] or "")
 
 
+def test_featured_reads_its_own_feed_and_follows_like_the_home_feed(feed, monkeypatch):
+    asked = []
+
+    async def featured(index):
+        asked.append(index)
+        return {"aweme_list": [_post("7000000000000000031"), _post("7000000000000000032", video={"duration": 2700000})]}
+
+    monkeypatch.setattr(douyin_feed, "_featured_page", featured)
+    assert douyin_feed.parse("douyin:featured") == "featured"
+    assert douyin_feed.name("douyin:featured") == "Douyin featured"
+    rows = douyin_feed.fetch("douyin:featured")
+    assert [r["id"] for r in rows] == ["douyin:7000000000000000031", "douyin:7000000000000000032"]
+    assert asked == list(range(1, douyin_feed.PAGES + 1)) and feed["calls"] == []  # not the home feed's reader
+    assert rows[1]["duration"] == 2700
+    wid = watch.add("douyin:featured")
+    watch.check(db.get_watch(wid))
+    assert {r["id"] for r in db.list_clips("new", wid)} == {"douyin:7000000000000000031", "douyin:7000000000000000032"}
+
+
 def test_a_row_downloads_like_any_douyin_link():
     assert douyin.find_id("https://www.douyin.com/video/7000000000000000001") == "7000000000000000001"
+
+
+# ---------- the hot board ----------
+NOW = 1_790_100_000
+
+
+def _word(word, hot, sid):
+    return {"word": word, "hot_value": hot, "sentence_id": sid, "group_id": "7600000000000000000"}
+
+
+def _board(*words):
+    return {"data": {"word_list": list(words)}}
+
+
+@pytest.fixture
+def hot(monkeypatch, feed):
+    """The hot board and the browser, faked. `state`: the board's answer, the browser's answer, what it was asked."""
+    from motio import chrome
+    state = {"board": _board(_word("话题一", 900, "1"), _word("话题二", 800, "2"), _word("话题三", 700, "3")),
+             "answer": None, "asked": [], "raise": None, "board_raise": None}
+
+    async def board():
+        if state["board_raise"]:
+            raise state["board_raise"]
+        return state["board"]
+
+    def evaluate(url, script, timeout=60):
+        state["asked"].append((url, script))
+        if state["raise"]:
+            raise state["raise"]
+        return state["answer"]
+
+    monkeypatch.setattr(douyin_feed, "_board", board)
+    monkeypatch.setattr(chrome, "evaluate", evaluate)
+    monkeypatch.setattr(time, "time", lambda: NOW)
+    return state
+
+
+def _topic(word, *posts):
+    return {"word": word, "rows": list(posts)}
+
+
+def _fresh(pid, **kw):
+    return _post(pid, create_time=NOW - 86400, **kw)
+
+
+def test_hot_target_parses_and_is_named():
+    assert douyin_feed.parse("douyin:hot") == "hot"
+    assert douyin_feed.name("douyin:hot") == "Douyin hot board"
+
+
+def test_hot_rows_follow_the_boards_order_and_carry_their_topic(hot):
+    hot["answer"] = {"error": None, "topics": [
+        _topic("话题一", _fresh("7000000000000000001"), _fresh("7000000000000000002")),
+        _topic("话题二", _fresh("7000000000000000003"))]}
+    rows = douyin_feed.fetch("douyin:hot")
+    assert [r["id"] for r in rows] == ["douyin:7000000000000000001", "douyin:7000000000000000002",
+                                       "douyin:7000000000000000003"]
+    assert [r["rank"] for r in rows] == [1, 2, 3]
+    assert [r["category"] for r in rows] == ["话题一", "话题一", "话题二"]
+    assert rows[0]["views"] == 900  # the topic's heat, since a search card carries no play count
+    url, script = hot["asked"][0]
+    assert "so.douyin.com" in url and "%E8%AF%9D%E9%A2%98%E4%B8%80" in url  # the page opens on the first topic
+    assert '["话题一", "话题二", "话题三"]' in script
+
+
+def test_hot_keeps_only_recent_short_free_videos_a_few_per_topic(hot):
+    old = _post("7000000000000000009", create_time=NOW - 30 * 86400)
+    short = _fresh("7000000000000000008", video={"duration": 9000})
+    photo = _fresh("7000000000000000007", images=[{"x": 1}])
+    many = [_fresh(f"70000000000000001{i}") for i in range(6)]
+    hot["answer"] = {"error": None, "topics": [
+        _topic("话题一", old, short, photo, *many),
+        _topic("话题二", many[0], _fresh("7000000000000000020"))]}
+    rows = douyin_feed.fetch("douyin:hot")
+    assert [r["id"] for r in rows if r["category"] == "话题一"] == [f"douyin:70000000000000001{i}" for i in range(3)]
+    assert [r["id"] for r in rows if r["category"] == "话题二"] == ["douyin:7000000000000000020"]  # no repeat
+
+
+def test_hot_take_limits_the_rows(hot):
+    hot["answer"] = {"error": None, "topics": [_topic("话题一", *[_fresh(f"700000000000000010{i}") for i in range(3)])]}
+    assert len(douyin_feed.fetch("douyin:hot", 2)) == 2
+
+
+def test_hot_topics_are_capped_and_empty_or_repeated_words_skipped(hot):
+    hot["board"] = _board(*[_word(f"话题{i}", 100 - i, str(i)) for i in range(40)], _word("", 1, "x"),
+                          _word("话题0", 1, "y"))
+    hot["answer"] = {"error": None, "topics": [_topic("话题0", _fresh("7000000000000000001"))]}
+    douyin_feed.fetch("douyin:hot")
+    assert hot["asked"][0][1].count("话题") == douyin_feed.HOT_TOPICS
+
+
+def test_a_refusal_after_the_first_topics_keeps_what_was_read(hot):
+    hot["answer"] = {"error": "antispam_check", "topics": [_topic("话题一", _fresh("7000000000000000001"))]}
+    assert [r["id"] for r in douyin_feed.fetch("douyin:hot")] == ["douyin:7000000000000000001"]
+
+
+def test_a_browser_check_with_nothing_read_is_reported(hot):
+    hot["answer"] = {"error": "verify_check", "topics": []}
+    with pytest.raises(douyin_feed.FeedError, match="browser verification"):
+        douyin_feed.fetch("douyin:hot")
+
+
+def test_no_recent_video_says_so(hot):
+    stale = _post("7000000000000000001", create_time=NOW - 99 * 86400)
+    hot["answer"] = {"error": None, "topics": [_topic("话题一", stale)]}
+    with pytest.raises(douyin_feed.FeedError, match="no recent videos"):
+        douyin_feed.fetch("douyin:hot")
+
+
+def test_the_board_failing_is_said_once(hot):
+    hot["board_raise"] = httpx.ConnectError("no route")
+    with pytest.raises(douyin_feed.FeedError, match="Could not connect to Douyin"):
+        douyin_feed.fetch("douyin:hot")
+    hot["board_raise"] = RuntimeError("signature out of date")
+    with pytest.raises(douyin_feed.FeedError, match="Douyin returned an error: signature out of date"):
+        douyin_feed.fetch("douyin:hot")
+    hot["board_raise"] = None
+    hot["board"] = _board()
+    with pytest.raises(douyin_feed.FeedError, match="hot board gave no topics"):
+        douyin_feed.fetch("douyin:hot")
+    assert hot["asked"] == []  # no browser for an empty board
+
+
+def test_no_chrome_says_to_install_it_and_a_chrome_failure_says_why(hot):
+    from motio import chrome
+    hot["raise"] = chrome.Missing("nope")
+    with pytest.raises(douyin_feed.FeedError, match="needs Google Chrome"):
+        douyin_feed.fetch("douyin:hot")
+    hot["raise"] = chrome.ChromeError("no port")
+    with pytest.raises(douyin_feed.FeedError, match="Could not run Google Chrome for the Douyin hot board: no port"):
+        douyin_feed.fetch("douyin:hot")
+
+
+def test_follow_and_check_the_hot_board_saves_the_videos(hot):
+    hot["answer"] = {"error": None, "topics": [_topic("话题一", _fresh("7000000000000000001"))]}
+    wid = watch.add("douyin:hot")
+    assert (db.get_watch(wid)["site"], db.get_watch(wid)["name"]) == ("douyin", "Douyin hot board")
+    watch.check(db.get_watch(wid))
+    rows = db.list_clips("new", wid)
+    assert [(r["id"], r["category"]) for r in rows] == [("douyin:7000000000000000001", "话题一")]
+
+
+def test_the_search_script_still_has_its_shared_card_reader():
+    assert "rowOf(card)" in douyin_feed.WEB_SCRIPT and "rowOf(card)" in douyin_feed.HOT_SCRIPT
+    assert "__COMMON__" not in douyin_feed.WEB_SCRIPT + douyin_feed.HOT_SCRIPT

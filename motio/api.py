@@ -465,10 +465,20 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
     @app.get("/api/categories", dependencies=[Depends(auth)])
     def categories():
         """Chuyên mục video thịnh hành có thể theo dõi (Trending): khoá, target của nguồn, tên tiếng Anh."""
-        return [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"], "site": "bilibili"}
-                for k, c in trending.CATEGORIES.items()
-                ] + [{"key": "kuaishou_featured", "target": kuaishou_feed.FEATURED, "name": kuaishou_feed.NAMES[
+        return [{"key": "bilibili_popular", "target": f"{trending.PREFIX}{trending.POPULAR}",
+                 "name": "Bilibili · Popular", "site": "bilibili"},
+                {"key": "bilibili_weekly", "target": f"{trending.PREFIX}{trending.WEEKLY}",
+                 "name": "Bilibili · Weekly must-watch", "site": "bilibili"},
+                {"key": "bilibili_ranking_all", "target": f"{trending.PREFIX}ranking:0",
+                 "name": "Bilibili · Ranking, all categories", "site": "bilibili"},
+                ] + [{"key": k, "target": f"{trending.PREFIX}category:{k}", "name": c["name"], "site": "bilibili"}
+                     for k, c in trending.CATEGORIES.items()
+                     ] + [{"key": "kuaishou_featured", "target": kuaishou_feed.FEATURED, "name": kuaishou_feed.NAMES[
                     kuaishou_feed.FEATURED], "site": "kuaishou"},
+                     {"key": "douyin_hot", "target": douyin_feed.HOT, "name": douyin_feed.NAMES[douyin_feed.HOT],
+                      "site": "douyin"},
+                     {"key": "douyin_featured", "target": douyin_feed.FEATURED,
+                      "name": douyin_feed.NAMES[douyin_feed.FEATURED], "site": "douyin"},
                      {"key": "douyin_feed", "target": douyin_feed.FEED, "name": douyin_feed.NAMES[douyin_feed.FEED],
                       "site": "douyin"},
                      {"key": "weibo_hot", "target": weibo_feed.HOT, "name": weibo_feed.NAMES[weibo_feed.HOT],
