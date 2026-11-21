@@ -138,7 +138,7 @@ cd app && pnpm install && cd ..              # only if touching the app
 | UI primitives | `app/src/components/ui/*` (shadcn), Tailwind 4 |
 | Tauri permissions / config | `app/src-tauri/capabilities/default.json`, `app/src-tauri/tauri.conf.json` |
 | Server stack | `Dockerfile`, `deploy/` (compose, Caddyfile, env.example, bootstrap.sh), `docs/DEPLOY.md` |
-| GitHub Actions | `.github/workflows/{ci,release,deploy}.yml` (§8) |
+| GitHub Actions | `.github/workflows/{ci,release,tag-release,deploy}.yml` (§8) |
 
 Project output folder `data/projects/<id>/`: `script.json`, `audio/`, `final.mp4`, `thumb.jpg`,
 `post.txt`, `sources.txt`, `captions.srt`, `captions.ass`, and `delogo/<i>/clean.mp4` when a source had its logo
@@ -311,6 +311,7 @@ Use this when not using `/ak:git`, `/ak:review-pr`, `/ak:ship` (§1).
 |---|---|---|---|
 | **CI** (`ci.yml`) | every PR, push to `master` | Engine (ubuntu + windows): `uv sync --locked`, ruff, pytest. Desktop app (ubuntu): `pnpm build`, clippy `-D warnings` | nothing |
 | **Release** (`release.yml`) | tag `v*`; PRs touching it or `tools/{build_engine,engine_entry,fetch_ffmpeg}.py` (build only); manual | freezes the engine (`uv run --group build python tools/build_engine.py`), `.dmg` + `.app.tar.gz` (macOS arm64), `.msi` + `.exe` (Windows), signed update bundles, draft Release, then `latest.json` from `tools/updater_manifest.py` | secrets `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`); tag = app version |
+| **Tag release** (`tag-release.yml`) | push to master that changes `version` in `app/src-tauri/tauri.conf.json`; manual (tags the current version if it has no tag) | creates tag `vX.Y.Z` on that commit unless it exists, then `gh workflow run release.yml --ref vX.Y.Z` | none (`GITHUB_TOKEN`: `contents: write`, `actions: write`) |
 | **Deploy (Hetzner)** (`deploy.yml`) | manual; push to `master` touching engine / `deploy/` only if var `AUTO_DEPLOY=true` | builds `ghcr.io/flowitup/motio-engine:sha-<commit>`, copies `deploy/` files to `/opt/motio`, `docker compose pull && up -d --wait` | secrets `HETZNER_HOST/USER/SSH_KEY/KNOWN_HOSTS`; var `MOTIO_PLATFORM` for ARM |
 
 Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <id> --exit-status`.
@@ -322,8 +323,13 @@ Watch any run with `gh run list --workflow <file> --limit 3` and `gh run watch <
    which is how an out-of-date remote engine shows; `tests/test_version.py` fails when they differ), add
    `docs/releases/vX.Y.Z.md`, PR, merge. The in-app update replaces only the engine inside the app: a remote engine
    (Hetzner, the Windows PC) is updated separately, and the notes say so.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z` (owner's go). The tag must equal that version; a tag build
-   without the signing secret fails on purpose.
+2. Merging the bump PR to master tags it: **Tag release** (`tag-release.yml`) sees `app/src-tauri/tauri.conf.json` change
+   version, checks `app/package.json` and `motio/__init__.py` agree, creates `vX.Y.Z` on the merge commit (skips an existing
+   tag) and starts **Release** on it with `workflow_dispatch` (a tag made with `GITHUB_TOKEN` does not trigger the tag-push
+   build; a dispatch does, so no secret). Cloud sessions can't push tags, so this replaces the by-hand step; a tag the owner
+   pushes by hand (`git tag vX.Y.Z && git push origin vX.Y.Z`) still works and the workflow then skips it. The tag must equal
+   that version; a tag build without the signing secret fails on purpose. A bump that must not release is not a thing: don't
+   change the app version on master unless it is a release.
 3. The workflow leaves a **draft** Release with installers and `latest.json`. Installed apps only see an
    update once the owner **publishes** the draft.
 4. Installers are unsigned (Gatekeeper "Open Anyway" / SmartScreen "Run anyway") and **bundle the engine**

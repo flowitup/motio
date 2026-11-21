@@ -212,7 +212,9 @@ debug build still runs the engine with `uv` from the repo). Packaged builds keep
 - **CI** (`.github/workflows/ci.yml`, on every PR and every push to `master`): the engine runs `ruff check` + `pytest`
   on Ubuntu and Windows; the app runs `pnpm build` (tsc + vite) and `cargo clippy`.
 - **Releases** (`.github/workflows/release.yml`): bump `version` in `app/src-tauri/tauri.conf.json` and
-  `app/package.json`, then `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match that version). CI freezes the
+  `app/package.json` (and `motio/__init__.py`), then merge the PR to `master`: `.github/workflows/tag-release.yml` creates the
+  tag `vX.Y.Z` on the merge commit (skipped if it exists) and starts the build. You can still push the tag by hand with
+  `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match that version). CI freezes the
   engine, builds the `.dmg` (macOS Apple Silicon) and the `.msi` / `.exe` (Windows), and creates a draft GitHub Release
   for you to check and Publish.
 - The installers are not code-signed: on macOS, open the app the first time via System Settings → Privacy & Security →
