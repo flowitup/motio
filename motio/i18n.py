@@ -378,6 +378,8 @@ VI = {
     "Claude is translating {n} into French": "Claude đang dịch {n} sang tiếng Pháp",
     "Claude is reading part {i} of {n}": "Claude đang đọc phần {i} / {n}",
     "Claude is choosing the best moments": "Claude đang chọn các khoảnh khắc hay nhất",
+    "Following the faces": "Đang bám theo khuôn mặt",
+    "The video is not downloaded yet": "Video chưa được tải về",
     "{n} · hook: {hook}": "{n} · hook: {hook}",
     "none": "không có",
     "(no speech)": "(không có lời)",

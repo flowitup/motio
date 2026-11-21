@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Film, Loader2, Pause, Play, Plus, Scissors, Trash2, X } from "lucide-react";
+import { ArrowLeft, Film, Loader2, Pause, Play, Plus, Scissors, ScanFace, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
@@ -134,6 +134,10 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
   };
 
   const keys = cur?.crop.x ?? [];
+  const follow = useMutation({
+    mutationFn: (m: Moment) => api.clipperTrack(job.id, { start: m.start, end: m.end }).then((r) => ({ ...r, id: m.id })),
+    onSuccess: (r) => r.found && patch(r.id, { crop: r.crop }),
+  });
   return (
     <>
       <div className="grid min-h-0 flex-1 overflow-y-auto min-[1100px]:grid-cols-[minmax(0,1fr)_400px] min-[1100px]:overflow-hidden">
@@ -268,7 +272,11 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
                         </li>
                       ))}
                     </ul>
-                    <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="secondary" title={t.clipper.followHint} onClick={() => follow.mutate(cur)} disabled={follow.isPending}>
+                        {follow.isPending ? <Loader2 className="animate-spin" /> : <ScanFace />}
+                        {t.clipper.followFace}
+                      </Button>
                       <Button
                         size="sm"
                         variant="secondary"
@@ -279,6 +287,8 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
                         {t.clipper.addPosition}
                       </Button>
                     </div>
+                    {follow.data && follow.data.id === cur.id && !follow.data.found && <p className="text-xs text-muted-foreground">{t.clipper.noFace}</p>}
+                    {follow.error && <p className="text-xs text-coral">{follow.error.message}</p>}
                   </>
                 )}
               </div>

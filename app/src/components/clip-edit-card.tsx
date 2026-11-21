@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2, RotateCcw, ScanFace } from "lucide-react";
 import { useState } from "react";
 import { clock, parseClock } from "@/components/dub-cards";
 import { Choice, Field } from "@/components/form";
@@ -29,6 +29,10 @@ export function ClipEditCard({ api, p, active, onQueued }: { api: Api; p: Projec
       return r;
     },
     onSuccess: onQueued,
+  });
+  const follow = useMutation({
+    mutationFn: () => api.clipTrack(p.id, { start: start!, end: end! }),
+    onSuccess: (r) => r.found && setCrop(r.crop),
   });
   const dirty = !bad && (start !== c.start || end !== c.end || hook !== (c.hook ?? "") || captions !== c.captions || JSON.stringify(crop) !== JSON.stringify(c.crop));
   return (
@@ -81,6 +85,16 @@ export function ClipEditCard({ api, p, active, onQueued }: { api: Api; p: Projec
               </Button>
             </div>
           ))}
+        {!crop.fit && (
+          <div className="flex flex-wrap items-center gap-3" title={t.clipper.followHint}>
+            <Button size="sm" variant="secondary" onClick={() => follow.mutate()} disabled={bad || follow.isPending}>
+              {follow.isPending ? <Loader2 className="animate-spin" /> : <ScanFace />}
+              {t.clipper.followFace}
+            </Button>
+            {follow.data && !follow.data.found && <span className="text-xs text-muted-foreground">{t.clipper.noFace}</span>}
+            {follow.error && <span className="text-xs text-coral">{follow.error.message}</span>}
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <Button onClick={() => save.mutate()} disabled={active || !dirty || save.isPending}>
             {save.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />}

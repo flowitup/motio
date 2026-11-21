@@ -6,7 +6,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from motio import api, asr, channels, clipper, config, db, delogo, llm, pipeline, qa, search
+from motio import api, asr, channels, clipper, config, db, delogo, facetrack, llm, pipeline, qa, search
 
 has_ffmpeg = bool(config.find("ffmpeg") and config.find("ffprobe"))
 TOKEN = "test-token"
@@ -106,6 +106,8 @@ def test_export_makes_one_project_per_clip_or_none():
 def fake(monkeypatch, tmp_path):
     seen = {"prompts": []}
     src = tmp_path / "YouTube_c1.mp4"
+    seen["src"] = src
+    monkeypatch.setattr(facetrack, "crop_for", lambda path, a, b: None)  # bám mặt thật chỉ thử ở test riêng
     if has_ffmpeg:
         subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i",
                         "testsrc2=size=1280x720:rate=25:duration=40", "-f", "lavfi", "-i",
@@ -289,3 +291,79 @@ def test_put_clip_changes_the_clip_and_says_where_to_rerun(client):
     other = db.create_project(None, "news")
     db.update_project(other, status="done")
     assert client.put(f"/api/projects/{other}/clip", headers=H, json={"hook": "x"}).status_code == 404
+
+
+# ---------- bám mặt (facetrack): bộ nhận diện giả tìm ô trắng, FFmpeg thật ----------
+class _WhiteBox:
+    """Thay bộ nhận diện Haar: 'mặt' là ô trắng trong ảnh xám."""
+
+    def detectMultiScale(self, frame, **kw):  # noqa: N802 (tên của OpenCV)
+        ys, xs = (frame > 200).nonzero()
+        if not len(xs):
+            return []
+        return [[int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)]]
+
+
+def _moving_box(tmp_path, size="1280x720", speed=100, dur=10):
+    out = tmp_path / "box.mp4"
+    w, h = size.split("x")
+    subprocess.run([config.ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", f"color=black:s={size}:d={dur}:r=10",
+                    "-f", "lavfi", "-i", f"color=white:s=120x120:d={dur}:r=10", "-filter_complex",
+                    f"[0][1]overlay=x='t*{speed}':y=300", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt",
+                    "yuv420p", str(out)], check=True)
+    return out
+
+
+def test_keys_from_follows_a_moving_face_and_keeps_a_still_one():
+    half = 0.158
+    moving = [0.2 + 0.05 * i for i in range(10)]
+    keys = facetrack.keys_from(moving, half)
+    assert keys[0][0] == 0.0 and len(keys) <= 3 and keys[-1][1] > keys[0][1] + 0.3  # une droite, pas 10 points
+    assert all(a[0] < b[0] for a, b in zip(keys, keys[1:], strict=False))
+    assert facetrack.keys_from([0.5, 0.51, None, 0.49, 0.5], half) == [[0.0, 0.5]]  # presque immobile: une position
+    assert facetrack.keys_from([None, None, None, None, 0.5], half) is None  # trop peu de visages
+    assert facetrack.keys_from([], half) is None
+    assert facetrack.keys_from([0.01] * 6, half) == [[0.0, half]]  # le cadre reste dans l'image
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs FFmpeg")
+def test_crop_for_follows_the_box_and_skips_portrait_or_empty_sources(monkeypatch, tmp_path):
+    monkeypatch.setattr(facetrack, "_cascade", lambda: _WhiteBox())
+    src = _moving_box(tmp_path)
+    crop = facetrack.crop_for(src, 0.0, 8.0)
+    assert crop["fit"] is False
+    xs = crop["x"]
+    assert xs[0][0] == 0.0 and xs[-1][1] > xs[0][1] + 0.25 and xs[-1][1] <= 1 - 0.158 + 1e-6
+    assert xs == sorted(xs) and all(0.158 - 1e-6 <= x <= 1 - 0.158 + 1e-6 for _, x in xs)
+    portrait = _moving_box(tmp_path, size="720x1280", speed=40)
+    assert facetrack.crop_for(portrait, 0.0, 5.0) is None  # déjà vertical: rien à suivre
+    monkeypatch.setattr(facetrack, "_cascade", lambda: type("N", (), {"detectMultiScale": lambda s, f, **k: []})())
+    assert facetrack.crop_for(src, 0.0, 8.0) is None  # aucun visage
+    monkeypatch.setattr(facetrack, "_cascade", lambda: None)
+    assert facetrack.crop_for(src, 0.0, 8.0) is None  # pas d'OpenCV
+
+
+@pytest.mark.skipif(not has_ffmpeg, reason="needs FFmpeg")
+def test_analyze_and_the_track_routes_use_the_face_crop(client, fake, monkeypatch):
+    monkeypatch.setattr(delogo, "probe", lambda p: {"width": 1280, "height": 720, "duration": 40.0})
+    monkeypatch.setattr(clipper.scenes, "detect", lambda p: [])
+    face = {"fit": False, "x": [[0.0, 0.3], [10.0, 0.6]]}
+    monkeypatch.setattr(clipper.facetrack, "crop_for", lambda path, a, b: face)
+    j = _wait(client, client.post("/api/clipper/analyze", headers=H, json={"link": "https://www.youtube.com/watch?v=c1"}
+                                  ).json()["id"])
+    assert j["status"] == "done" and j["clips"][0]["crop"] == face and "_path" not in j
+    r = client.post(f"/api/clipper/{j['id']}/track", headers=H, json={"start": 5, "end": 29})
+    assert r.status_code == 200 and r.json() == {"crop": face, "found": True}
+    monkeypatch.setattr(clipper.facetrack, "crop_for", lambda path, a, b: None)
+    assert client.post(f"/api/clipper/{j['id']}/track", headers=H, json={"start": 5, "end": 29}).json() == {
+        "crop": clipper.default_crop(), "found": False}
+    assert client.post(f"/api/clipper/{j['id']}/track", headers=H, json={"start": 5, "end": 500}).status_code == 400
+    assert client.post("/api/clipper/nope/track", headers=H, json={"start": 0, "end": 20}).status_code == 404
+    # un dossier clip
+    pid = clipper.create("https://www.youtube.com/watch?v=c1", {"start": 5, "end": 29.5})
+    assert client.post(f"/api/projects/{pid}/clip/track", headers=H).status_code == 400  # source pas encore téléchargée
+    monkeypatch.setattr(clipper.facetrack, "crop_for", lambda path, a, b: {"fit": False, "x": [[0.0, a / 100]]})
+    db.update_project(pid, meta={"sources": [{"path": str(fake["src"]), "url": "u", "duration": 40.0}]})
+    r = client.post(f"/api/projects/{pid}/clip/track", headers=H, json={"start": 10, "end": 30})
+    assert r.status_code == 200 and r.json()["crop"]["x"] == [[0.0, 0.1]] and r.json()["found"]
+    assert client.post("/api/projects/9999/clip/track", headers=H).status_code == 404

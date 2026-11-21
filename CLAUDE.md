@@ -124,7 +124,13 @@ as authoritative for scope and milestones.
     captions come from the source speech (translated to French when it isn't French, `toolbox.translate`; `off` / `source`
     also possible), the hook is the title band on top, the sound is only levelled (loudnorm). Each clip lasts 15–90 s (owner, 2026-11-21: "từ 15s đi";
     `clipper.MIN_LEN`; every other mode keeps 62–90 s). The post text has no "Voix off générée par IA." (no AI voice: `write_post(voice=False)`).
-    No face tracking yet: the crop positions are set by hand (phase 2 would add OpenCV face detection, a new dependency).
+    Face tracking (`facetrack.py`, OpenCV, added on the owner's OK of 2026-11-21: `opencv-python-headless` 4.x, pinned <5 because
+    OpenCV 5 dropped the Haar cascade): every clip's crop positions start from the face (FFmpeg gray frames at 2 fps, the
+    Haar detector that ships inside the wheel (no model download), the biggest face, gaps filled, median filter,
+    simplified to a few positions); no face / a portrait source / no OpenCV → the frame stays centred. It only finds where a face
+    is, never who; the positions stay editable (`POST /api/clipper/{job}/track`, `POST /api/projects/{id}/clip/track`,
+    "Follow the face" button). Haar sees frontal faces only (a YuNet ONNX model would be better but its download was
+    blocked in the cloud sandbox, so it was not tried).
     `qa.py` runs on a clip too; a finished clip is auto-sent only through a channel with Postiz and its video gate off.
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)

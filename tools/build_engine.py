@@ -80,6 +80,7 @@ def main() -> None:
             "--collect-submodules", "motio", "--collect-submodules", "yt_dlp",
             "--collect-submodules", "uvicorn", "--collect-all", "yt_dlp_ejs",
             "--collect-all", "f2",  # f2 reads its yaml config and locale files from disk
+            "--collect-data", "cv2",  # OpenCV's face detector (Haar xml) for the Clip mode face tracking
             "--exclude-module", "tkinter", "--exclude-module", "motio.web"]
     if platform.system() == "Darwin":
         # torch chỉ dùng trong mlx_whisper.torch_whisper (chuyển đổi model), không cần khi bóc lời

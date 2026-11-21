@@ -643,6 +643,12 @@ export function makeApi(url: string, token: string) {
     /** Mỗi clip đã chọn thành một dự án (xếp hàng làm lần lượt). */
     clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; duration?: number | null; channel?: number }) =>
       call<{ project_ids: number[] }>("POST", "/api/clipper/export", body),
+    /** Khung crop bám mặt cho một đoạn của video đã phân tích (Clip Studio); found = false: không thấy mặt, khung giữa hình. */
+    clipperTrack: (jobId: string, body: { start: number; end: number }) =>
+      call<{ crop: ClipCrop; found: boolean }>("POST", `/api/clipper/${encodeURIComponent(jobId)}/track`, body),
+    /** Như trên cho dự án clip (đoạn đã lưu, hoặc start / end chưa lưu). Không lưu gì. */
+    clipTrack: (id: number, body?: { start?: number; end?: number }) =>
+      call<{ crop: ClipCrop; found: boolean }>("POST", `/api/projects/${id}/clip/track`, body ?? {}),
     /** Đổi đoạn / hook / khung crop / phụ đề của dự án clip. rerun: bước nên chạy lại bằng retry(). */
     setClip: (id: number, body: { start?: number; end?: number; hook?: string; crop?: ClipCrop; captions?: ClipCaptions }) =>
       call<{ project: ProjectDetail; rerun: RetryStep | null }>("PUT", `/api/projects/${id}/clip`, body),

@@ -22,7 +22,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import asr, channels, config, db, delogo, llm, localfile, render, scenes, search, toolbox, usage
+from . import asr, channels, config, db, delogo, facetrack, llm, localfile, render, scenes, search, toolbox, usage
 from . import captions as cap
 from .asr import has_audio
 from .i18n import tr, tr_n
@@ -215,7 +215,7 @@ def _analyze(job_id: str, link: str, n: int, then) -> None:
         lo = MIN_LEN
         _set(job_id, message=tr("Downloading {url}", url=link), pct=5)
         src = search.download(link, config.CACHE / "sources", cookies=True)
-        _set(job_id, message=tr("Whisper: {name}", name=Path(src["path"]).name), pct=25,
+        _set(job_id, _path=str(src["path"]), message=tr("Whisper: {name}", name=Path(src["path"]).name), pct=25,
              source={"path": _media(src["path"]), "title": src.get("title") or "", "duration": src.get("duration"),
                      "platform": src.get("platform") or "", "uploader": src.get("uploader") or ""})
         transcript = asr.transcribe(Path(src["path"]))
@@ -232,13 +232,16 @@ def _analyze(job_id: str, link: str, n: int, then) -> None:
         with usage.context(project_id=None, channel_id=None):
             found = moments(src, transcript, lo, MAX_LEN, n)
         cuts = scenes.detect(Path(src["path"]))
+        if found:
+            _set(job_id, message=tr("Following the faces"), pct=80)
+        clips = [{**c, "crop": follow_face(Path(src["path"]), c["start"], c["end"])} for c in found]
         _set(job_id, pct=95, language=transcript.get("language"), cuts=cuts, speech=bool(transcript.get("segments")),
-             clips=[{**c, "crop": default_crop()} for c in found])
+             clips=clips)
         if not found:
             raise ValueError(tr("No moment worth clipping was found in this video"))
         made: list[int] = []
         if then:
-            made = then(link, [{**c, "crop": default_crop()} for c in found])
+            made = then(link, clips)
         _set(job_id, status="done", pct=100, message=None, finished_at=time.time(), projects=made)
     except Exception as e:  # shown in the app; the job ends, the engine goes on
         _set(job_id, status="failed", message=None, error=str(e)[:400], finished_at=time.time())
@@ -266,14 +269,61 @@ def job_view(job_id: str) -> dict:
         job = _jobs.get(job_id)
         if not job:
             raise KeyError(job_id)
-        return {**job, "clips": [dict(c) for c in job["clips"]], "cuts": list(job["cuts"]),
-                "projects": list(job["projects"])}
+        return {**{k: v for k, v in job.items() if not k.startswith("_")},
+                "clips": [dict(c) for c in job["clips"]], "cuts": list(job["cuts"]), "projects": list(job["projects"])}
 
 
 # ---------- khung crop ----------
 def default_crop() -> dict:
     """Khung 9:16 giữa hình, cắt kín khung (fit = cả khung hình đặt trên nền mờ)."""
     return {"fit": False, "x": [[0.0, 0.5]]}
+
+
+def find_face_crop(path: Path, start: float, end: float) -> dict | None:
+    """Khung crop bám mặt của đoạn [start, end] (facetrack), None khi không thấy mặt, nguồn đã đứng hoặc bám lỗi."""
+    try:
+        return facetrack.crop_for(path, start, end)
+    except Exception:  # bám mặt chỉ là gợi ý: lỗi thì không bám, clip vẫn làm được
+        return None
+
+
+def follow_face(path: Path, start: float, end: float) -> dict:
+    return find_face_crop(path, start, end) or default_crop()
+
+
+def _range(start, end) -> tuple[float, float]:
+    try:
+        a, b = float(start), float(end)
+    except (TypeError, ValueError) as e:
+        raise ValueError(tr("A clip needs a start and an end in seconds")) from e
+    if a < 0 or b <= a or b - a > MAX_LEN + 0.01:
+        raise ValueError(tr("The clip must lie inside the video"))
+    return a, b
+
+
+def track_job(job_id: str, start, end) -> dict:
+    """Bám mặt cho một đoạn của video đã phân tích (Clip Studio). {crop, found}. KeyError nếu không có phân tích đó."""
+    with _lock:
+        path = Path(_jobs[job_id].get("_path") or "")
+    if not path.is_file():
+        raise ValueError(tr("The video is not downloaded yet"))
+    a, b = _range(start, end)
+    crop = find_face_crop(path, a, b)
+    return {"crop": crop or default_crop(), "found": crop is not None}
+
+
+def track_project(pid: int, start=None, end=None) -> dict:
+    """Bám mặt cho đoạn hiện tại (hoặc [start, end] chưa lưu) của một dự án clip đã tải nguồn. {crop, found}."""
+    p = db.get_project(pid)
+    if not p or not is_clip(p):
+        raise LookupError(tr("Clip project not found"))
+    opts = p["meta"].get("clip") or {}
+    src = (p["meta"].get("sources") or [None])[0]
+    if not src or not src.get("path") or not Path(src["path"]).exists():
+        raise ValueError(tr("The video is not downloaded yet"))
+    a, b = _range(opts.get("start") if start is None else start, opts.get("end") if end is None else end)
+    crop = find_face_crop(Path(src["path"]), a, b)
+    return {"crop": crop or default_crop(), "found": crop is not None}
 
 
 def clean_crop(raw, dur: float | None = None) -> dict:

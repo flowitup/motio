@@ -116,6 +116,11 @@ class ClipExportIn(BaseModel):
     channel: int | None = None
 
 
+class ClipTrackIn(BaseModel):
+    start: float | None = None
+    end: float | None = None
+
+
 class ClipEditIn(BaseModel):
     start: float | None = None
     end: float | None = None
@@ -782,6 +787,16 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         except KeyError:
             raise HTTPException(404, tr("Clip analysis not found")) from None
 
+    @app.post("/api/clipper/{job_id}/track", dependencies=[Depends(auth)])
+    def clipper_track(job_id: str, body: ClipTrackIn):
+        """Khung crop bám mặt cho một đoạn của video đã phân tích: {crop, found}. Không lưu gì."""
+        try:
+            return clipper.track_job(job_id, body.start, body.end)
+        except KeyError:
+            raise HTTPException(404, tr("Clip analysis not found")) from None
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
     @app.post("/api/clipper/export", status_code=202, dependencies=[Depends(auth)])
     def clipper_export(body: ClipExportIn):
         """Các clip người dùng đã chọn thành dự án (mỗi clip 15–90 s)."""
@@ -789,6 +804,17 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         _need_claude()
         try:
             return {"project_ids": _export_clips(body.link, body.clips, ch, body.duration)}
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.post("/api/projects/{pid}/clip/track", dependencies=[Depends(auth)])
+    def track_clip(pid: int, body: ClipTrackIn | None = None):
+        """Khung crop bám mặt cho đoạn của dự án clip (đoạn đã lưu, hoặc start / end chưa lưu): {crop, found}."""
+        body = body or ClipTrackIn()
+        try:
+            return clipper.track_project(pid, body.start, body.end)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
