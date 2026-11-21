@@ -27,6 +27,7 @@ from . import (
     asr,
     automake,
     channels,
+    clipper,
     config,
     creator,
     db,
@@ -99,6 +100,31 @@ class DubIn(BaseModel):
     end: float | None = None
     whole: bool = False  # lồng cả video: bỏ qua start / end, không giới hạn 62–90 s
     channel: int | None = None  # như ProduceIn
+
+
+class ClipAnalyzeIn(BaseModel):
+    link: str  # video dài cần cắt highlight
+    count: int = clipper.DEFAULT_CLIPS  # số khoảnh khắc Claude đề xuất
+    short: bool = False  # cho phép clip ngắn (từ 15 s) thay vì 62–90 s
+    auto: bool = False  # Claude tự chọn: tạo luôn dự án cho mọi khoảnh khắc đề xuất
+    channel: int | None = None  # như ProduceIn (chỉ khi auto)
+
+
+class ClipExportIn(BaseModel):
+    link: str
+    clips: list  # [{start, end, hook, crop: {fit, x: [[giây, tâm 0..1]]}, captions}], xem clipper.clean_clip
+    short: bool = False
+    duration: float | None = None  # độ dài nguồn (để kiểm tra mốc cuối)
+    channel: int | None = None
+
+
+class ClipEditIn(BaseModel):
+    start: float | None = None
+    end: float | None = None
+    hook: str | None = None  # "" = không chữ hook
+    crop: dict | None = None
+    captions: str | None = None  # off | fr | source
+    short: bool | None = None
 
 
 class SourceVolumeIn(BaseModel):
@@ -268,6 +294,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["retry"] = {"auto": pipeline.resume_point(p["id"]), "steps": pipeline.available_steps(p["id"])}
         out["has_script"] = (config.PROJECTS / str(p["id"]) / "script.json").exists()
         out["dub"] = dub.view(p)
+        out["clip"] = clipper.view(p)
         out["ai"] = creator.view(p)
         out["source_sound"] = pipeline.source_sound(p)
         out["masks"] = masks.view(p)
@@ -719,6 +746,63 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(409, tr("Project is running"))
         try:
             rerun = dub.update(pid, body.model_dump(exclude_unset=True))
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        if rerun and rerun not in pipeline.available_steps(pid):
+            rerun = pipeline.resume_point(pid)
+        return {"project": _project_out(_get(pid), full=True), "rerun": rerun}
+
+    def _need_claude() -> None:
+        if not (config.env("ANTHROPIC_API_KEY") or "").strip():
+            raise HTTPException(409, tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
+
+    def _export_clips(link: str, clips: list[dict], short: bool, ch: dict | None, duration: float | None = None):
+        """Một dự án cho mỗi clip, xếp hàng làm lần lượt (mỗi lúc một video)."""
+        ids = clipper.export(link, clips, short, duration)
+        for pid in ids:
+            channels.attach(pid, ch)
+            jobs.submit(_run_job, pipeline.produce, pid)
+        return ids
+
+    @app.post("/api/clipper/analyze", status_code=202, dependencies=[Depends(auth)])
+    def clipper_analyze(body: ClipAnalyzeIn):
+        """Phân tích một video dài (tải, bóc lời, Claude đề xuất khoảnh khắc). auto: tạo luôn dự án cho từng cái;
+        không thì app đọc kết quả (GET /api/clipper/{id}) để người dùng tự chọn trong Clip Studio."""
+        ch = _channel_for(body.channel)
+        _need_claude()
+        then = (lambda link, found, short: _export_clips(link, found, short, ch)) if body.auto else None
+        try:
+            return clipper.start(body.link, body.count, body.short, then)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/clipper/{job_id}", dependencies=[Depends(auth)])
+    def clipper_get(job_id: str):
+        try:
+            return clipper.job_view(job_id)
+        except KeyError:
+            raise HTTPException(404, tr("Clip analysis not found")) from None
+
+    @app.post("/api/clipper/export", status_code=202, dependencies=[Depends(auth)])
+    def clipper_export(body: ClipExportIn):
+        """Các clip người dùng đã chọn thành dự án (62–90 s mỗi clip, hoặc từ 15 s khi bật clip ngắn)."""
+        ch = _channel_for(body.channel)
+        _need_claude()
+        try:
+            return {"project_ids": _export_clips(body.link, body.clips, body.short, ch, body.duration)}
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.put("/api/projects/{pid}/clip", dependencies=[Depends(auth)])
+    def put_clip(pid: int, body: ClipEditIn):
+        """Đổi đoạn / hook / khung crop / phụ đề của dự án clip. rerun: bước nên chạy lại (script / voice = dựng)."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        try:
+            rerun = clipper.update(pid, body.model_dump(exclude_unset=True))
         except LookupError as e:
             raise HTTPException(404, str(e)) from e
         except ValueError as e:

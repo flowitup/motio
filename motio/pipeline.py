@@ -1,5 +1,6 @@
 """Pipeline: một tin NewsNow (mode news), một chủ đề / link video (mode topic), một video cần lồng tiếng (mode dub,
-xem dub.py) hoặc một chủ đề làm hoàn toàn bằng ảnh AI (mode ai, xem creator.py) → một video 9:16 tiếng Pháp."""
+xem dub.py), một đoạn highlight cắt từ video dài giữ tiếng gốc (mode clip, xem clipper.py) hoặc một chủ đề làm
+hoàn toàn bằng ảnh AI (mode ai, xem creator.py) → một video 9:16 tiếng Pháp."""
 import json
 import time
 import traceback
@@ -9,6 +10,7 @@ from . import (
     aiclips,
     asr,
     channels,
+    clipper,
     config,
     creator,
     db,
@@ -231,6 +233,12 @@ def _step_search(proj: dict, step, max_sources: int) -> list[dict]:
             raise RuntimeError(tr("No video link to dub"))
         step("Find sources", 12, tr("Video to dub: {url}", url=pinned[0]["url"]), chosen=pinned)
         return pinned
+    if proj.get("mode") == clipper.MODE:  # clip: đúng một video, đoạn đã chọn nằm trong meta.clip
+        pinned = [search.link_candidate(u) for u in meta.get("links") or []][:1]
+        if not pinned:
+            raise RuntimeError(tr("No video link to clip"))
+        step("Find sources", 12, tr("Video to clip: {url}", url=pinned[0]["url"]), chosen=pinned)
+        return pinned
     subj = _subject(proj)
     is_topic = subj["mode"] == topic.MODE
     if is_topic and subj["topic"] and not subj.get("keywords"):
@@ -425,7 +433,7 @@ def clamp_source_volume(v) -> float:
 def source_sound(proj: dict) -> dict | None:
     """For the project page: the source's sound level in use and the default, or None when the video has no source
     sound to turn (a dub mixes its own background, an AI video has no source)."""
-    if proj.get("mode") == dub.MODE or creator.is_ai(proj):
+    if proj.get("mode") in (dub.MODE, clipper.MODE) or creator.is_ai(proj):  # a clip keeps its own sound as it is
         return None
     vol = source_volume(proj)
     return {"volume": render.SRC_VOLUME if vol is None else vol, "default": render.SRC_VOLUME,
@@ -548,6 +556,9 @@ def _produce(pid: int, duration_sec: int, max_sources: int, start: str) -> None:
             elif proj.get("mode") == dub.MODE:
                 transcripts = _step_transcribe(sources[:1], step, cuts=False)
                 plan = dub.script(proj, sources[0], transcripts[0], out, step)
+            elif clipper.is_clip(proj):
+                transcripts = _step_transcribe(sources[:1], step, cuts=False)
+                plan = clipper.script(proj, sources[0], transcripts[0], out, step)
             else:
                 transcripts = _step_transcribe(sources, step)
                 plan = _step_script(proj, sources, transcripts, out, step, duration_sec)
@@ -636,22 +647,55 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
     return plan, nar
 
 
-def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False) -> str:
+def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False,
+               voice: bool = True) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
     (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
     lines = [f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources]
     (out / "sources.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
     desc = plan.get("description", "").strip()
-    label = "Voix off générée par IA." + (" Images et vidéos générées par IA." if ai_images and ai_clips
-                                          else " Images générées par IA." if ai_images else "")
-    desc += f"\n\n{label}\n{' '.join(plan.get('hashtags', [])[:6])}"
+    label = ("Voix off générée par IA." if voice else "") + (" Images et vidéos générées par IA."
+                                                           if ai_images and ai_clips
+                                                           else " Images générées par IA." if ai_images else "")
+    desc += f"\n\n{label}\n" if label else "\n\n"
+    desc += " ".join(plan.get("hashtags", [])[:6])
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n", encoding="utf-8")
     return desc
+
+
+def _clip_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float) -> None:
+    """Clip (clipper.py): không có giọng đọc, tiếng gốc của đoạn được giữ; dựng, kiểm tra chất lượng, ghi bài đăng,
+    rồi cổng duyệt / Postiz theo hồ sơ kênh như mọi video."""
+    proj = db.get_project(pid)
+    ch = channels.for_project(proj)
+    opts = proj["meta"].get("clip") or {}
+    step("Render", 70, tr("Cutting {a}–{b} into 9:16", a=clipper.clock(opts["start"]), b=clipper.clock(opts["end"])))
+
+    def prog(done, total):
+        step("Render", 70 + int(26 * done / total), None)
+
+    res = clipper.render_clip(plan, sources[0], opts, out, progress=prog)
+    (out / "final_wide.mp4").unlink(missing_ok=True)
+    lo, hi = (clipper.min_len(bool(opts.get("short"))), MAX_SECONDS)
+    verdict = qa.check_project(pid, Path(res["video"]), lo, hi)
+    bad = [c["msg"] for c in verdict["checks"] if c["level"] != "ok"]
+    step("Render", 97, tr("Quality check: {problems}", problems=" · ".join(bad)) if bad else tr("Quality check passed"),
+         qa=verdict)
+    desc = write_post(plan, sources, out, voice=False)
+    db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
+                                  clips=tr_n(res["captions"], "caption"), rest=f"{res['duration']:.1f} s video"),
+                      meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg", "wide": None,
+                            "title": plan["title_fr"], "description": desc, "hashtags": plan.get("hashtags", []),
+                            "tts": None, "voice": None, "elapsed": round(time.time() - t_begin),
+                            "seconds": round(res["duration"], 1)})
+    _deliver(pid, ch)
 
 
 def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step, t_begin: float,
                        duration_sec: int = DEFAULT_SECONDS, nar: dict | None = None) -> None:
     proj = db.get_project(pid)
+    if clipper.is_clip(proj):
+        return _clip_render_post(pid, plan, sources, out, step, t_begin)
     ch = channels.for_project(proj)
     is_dub = proj.get("mode") == dub.MODE
     is_ai = creator.is_ai(proj)

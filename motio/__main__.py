@@ -1,11 +1,14 @@
 """CLI: uv run python -m motio [refresh | automake | trends | produce <trend_id> | topic "<topic>" [link ...] |
-ai "<topic>" [seconds] [ai clips] | clipcheck <picture> ["<scene>"] [fal | heygen] | dub <link> [start end] |
+ai "<topic>" [seconds] [ai clips] | clip <link> [count] [short] |
+clipcheck <picture> ["<scene>"] [fal | heygen] | dub <link> [start end] |
 rerender <id> | retry <id> [step] | approve <id> [nosend] |
 delete <id> | watch "<channel link | keywords>" [bilibili] | check | clips | serve | engine ...]
 
 produce / topic / ai / dub use the default channel (if any): with an approval gate, the project waits for `approve`.
 ai: a video made only of AI pictures (Settings → Image provider; `IMAGE_PROVIDER=placeholder` to try it for free).
 dub: French dub of one video (start / end in seconds; left out = whole video if short, else Claude picks 62–85 s).
+clip: Claude picks the best moments of a long video (default 4) and makes one vertical clip of each, original sound
+kept (62–90 s; `short` allows clips from 15 s). To pick the moments yourself use the Clip Studio in the app.
 automake makes, one after another, the trends that reach a channel's auto-make score (the engine does it by itself
 after each scheduled refresh)."""
 import argparse
@@ -100,6 +103,23 @@ def main(argv: list[str]) -> None:
         print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
         pipeline.produce(pid)
         print(json.dumps(db.get_project(pid)["meta"], ensure_ascii=False, indent=1))
+    elif cmd == "clip":  # clip <link> [số clip] [short]: Claude chọn khoảnh khắc hay của video dài, mỗi cái một clip
+        from . import channels, clipper, pipeline
+        count = next((a for a in argv[2:] if a.isdigit()), clipper.DEFAULT_CLIPS)
+        short = "short" in argv[2:]
+        try:
+            job = clipper.start(argv[1] if len(argv) > 1 else "", count, short)
+        except ValueError as e:
+            sys.exit(str(e))
+        while job["status"] == "running":
+            time.sleep(2)
+            job = clipper.job_view(job["id"])
+        if job["status"] != "done":
+            sys.exit(job["error"] or "Analysis failed")
+        for pid in clipper.export(job["link"], job["clips"], short, (job["source"] or {}).get("duration")):
+            channels.attach(pid, channels.pick(None))
+            print(f"Project #{pid} → {config.PROJECTS / str(pid)}")
+            pipeline.produce(pid)
     elif cmd == "watch":  # watch "<link kênh / playlist | từ khoá>" [youtube | bilibili]: thêm nguồn rồi kiểm tra
         from . import watch
         try:

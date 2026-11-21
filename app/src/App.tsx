@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
 import AccountPage from "@/pages/account";
 import ChannelsPage from "@/pages/channels";
+import ClipStudioPage from "@/pages/clip-studio";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
 import ProjectDetailPage from "@/pages/project-detail";
@@ -262,6 +263,7 @@ export default function App() {
           <Route path="/clips/:id" element={<EngineGate><AccountPage /></EngineGate>} />
           <Route path="/projects" element={<EngineGate><ProjectsPage /></EngineGate>} />
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
+          <Route path="/clip-studio" element={<EngineGate><ClipStudioPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
           <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />

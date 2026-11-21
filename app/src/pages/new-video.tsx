@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
+import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Scissors, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
@@ -19,11 +19,12 @@ import { imageProviderLabel, providerName, videoPicturesUsd } from "@/lib/image-
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
-type Kind = "topic" | "ai" | "dub";
+type Kind = "topic" | "ai" | "dub" | "clip";
 const KINDS: { value: Kind; icon: typeof Search }[] = [
   { value: "topic", icon: Search },
   { value: "ai", icon: Sparkles },
   { value: "dub", icon: Languages },
+  { value: "clip", icon: Scissors },
 ];
 const MIN_S = 62; // every video lasts 62–90 s (pipeline.MIN_SECONDS / MAX_SECONDS)
 const MAX_S = 90;
@@ -655,6 +656,87 @@ function AiConsole({ api }: { api: Api }) {
   );
 }
 
+/** Clip: Claude picks the best moments of a long video by itself, or you pick them in Clip Studio. The same engine either way. */
+function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [link, setLink] = useState(clip?.url ?? "");
+  const [count, setCount] = useState("4");
+  const [short, setShort] = useState(false);
+  const choice = useChannelChoice(api);
+  const n = Number(count);
+  const badCount = !Number.isInteger(n) || n < 1 || n > 12;
+  const auto = useMutation({
+    mutationFn: () => api.clipperAnalyze({ link: link.trim(), count: n, short, auto: true, channel: choice.channel }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      navigate("/projects");
+    },
+  });
+  const manual = () => navigate(`/clip-studio?${new URLSearchParams({ link: link.trim(), count: String(n), short: short ? "1" : "0" })}`);
+  const disabled = !link.trim() || badCount || auto.isPending;
+  return (
+    <Console
+      title={t.dub.kinds.clip}
+      summary={[link.trim().replace(/^https?:\/\/(www\.)?/, ""), badCount ? "" : t.clipper.countLine(n), short ? t.clipper.shortOn : "", channelName(choice)].filter(Boolean).join(" · ") || t.clipper.make(n)}
+      notice={auto.isSuccess ? t.clipper.autoStarted : undefined}
+      error={auto.error?.message}
+      action={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Button size="lg" variant="secondary" onClick={manual} disabled={disabled}>
+            <Scissors />
+            {t.clipper.manual}
+          </Button>
+          <Button size="lg" onClick={() => auto.mutate()} disabled={disabled}>
+            {auto.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            {t.clipper.auto}
+          </Button>
+        </div>
+      }
+      side={
+        <>
+          <Pipeline steps={t.clipper.steps} />
+          <SidePanel title={t.studio.rules}>
+            <p className="p-4 text-[13px] leading-5 text-muted-foreground">{short ? t.clipper.ruleShort : t.clipper.rule}</p>
+          </SidePanel>
+        </>
+      }
+    >
+      {clip ? (
+        <ClipSection clip={clip} />
+      ) : (
+        <Section icon={Link2} label={t.clipper.link} htmlFor="clip-link" hint={t.clipper.linkHint}>
+          <div className="flex flex-wrap items-start gap-3">
+            <Input
+              id="clip-link"
+              autoFocus
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder={t.clipper.linkPlaceholder}
+              className="h-11 min-w-0 flex-1 font-mono"
+            />
+            <AddVideoFile api={api} onAdded={setLink} size="lg" />
+          </div>
+        </Section>
+      )}
+      <Section icon={ListChecks} label={t.clipper.count} htmlFor="clip-count" hint={<span className={badCount ? "text-coral" : undefined}>{badCount ? t.clipper.badCount : t.clipper.countHint}</span>}>
+        <Input id="clip-count" value={count} onChange={(e) => setCount(e.target.value)} inputMode="numeric" className="h-11 w-28 font-mono" />
+      </Section>
+      <Section icon={Clock} label={t.clipper.length} hint={short ? t.clipper.shortHint : undefined}>
+        <label className="flex min-h-10 items-center gap-3 text-[13px]">
+          <Switch checked={short} onCheckedChange={setShort} />
+          {t.clipper.short}
+        </label>
+      </Section>
+      {choice.channels.length > 0 && (
+        <Section icon={Tv} label={t.channels.pick}>
+          <ChannelRow choice={choice} />
+        </Section>
+      )}
+    </Console>
+  );
+}
+
 /** Video mới: giải thích một chủ đề / link video, video AI, hoặc lồng tiếng Pháp một video. `?clip=<id>`: làm từ một video đã chọn ở Trending / Theo dõi. */
 export default function NewVideoPage() {
   const api = useApi()!;
@@ -673,7 +755,7 @@ export default function NewVideoPage() {
           value={kind}
           onChange={setKind}
           accent="pink"
-          className="w-[460px] max-w-full"
+          className="w-[560px] max-w-full"
           options={kinds.map(({ value, icon: Icon }) => ({
             value,
             label: (
@@ -699,6 +781,8 @@ export default function NewVideoPage() {
         <TopicConsole api={api} clip={clip.data} />
       ) : kind === "ai" ? (
         <AiConsole api={api} />
+      ) : kind === "clip" ? (
+        <ClipConsole api={api} clip={clip.data} />
       ) : (
         <DubConsole api={api} clip={clip.data} />
       )}

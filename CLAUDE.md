@@ -114,6 +114,19 @@ as authoritative for scope and milestones.
     time (tu/vous, channel glossary, speakers + gender) → one voice per speaker (channel voice + `dub_voices`, or the
     user's pick) placed line by line → original music/sounds kept
     (`separate.py`) → old burned subtitles blurred (auto band or the user's box) → karaoke captions
+  - `clipper.py` Clip mode (`mode = "clip"`, owner 2026-11-21, modelled on a "clip studio" video on X): a long video (VOD,
+    trailer, reaction) → the best moments as vertical 9:16 clips that KEEP THE ORIGINAL SOUND (no voice-over, no ElevenLabs).
+    Two ways, one engine: "Claude picks for me" (`start(..., then=export)` / CLI `clip <link> [count] [short]`: download,
+    Whisper, Claude's moments, one project each, through the channel gates / Postiz) and "I'll pick" (Clip Studio screen,
+    `/clip-studio`: the same analysis gives suggestions; the user drags the in / out marks on a timeline, drags the 9:16 crop
+    frame with positions over time (`meta.clip.crop = {fit, x: [[sec, centre 0..1]]}`, `fit` = whole picture on a blurred
+    background) and edits the hook, then `POST /api/clipper/export`). A clip project is one `[start, end]` of the source;
+    captions come from the source speech (translated to French when it isn't French, `toolbox.translate`; `off` / `source`
+    also possible), the hook is the title band on top, the sound is only levelled (loudnorm). Each clip lasts 62–90 s like any
+    video; the "short clips" switch (`meta.clip.short`) allows 15–90 s for Clip only and is the owner's call to keep
+    (open question, 2026-11-21). The post text has no "Voix off générée par IA." (no AI voice: `write_post(voice=False)`).
+    No face tracking yet: the crop positions are set by hand (phase 2 would add OpenCV face detection, a new dependency).
+    `qa.py` runs on a clip too; a finished clip is auto-sent only through a channel with Postiz and its video gate off.
   - `separate.py` voice / music separation for the dub (UVR MDX-Net Inst_HQ_3 ONNX on onnxruntime, model downloaded once to
     `data/models/`, sha256 checked, CPU)
   - `watch.py` followed YouTube channels/playlists, Bilibili spaces, saved searches → `clip` rows ("New videos"); an account's page (`/clips/:id`,

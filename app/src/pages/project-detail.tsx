@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
 import { ConfirmAction } from "@/components/confirm-action";
 import { DeleteProjectDialog } from "@/components/delete-project";
+import { ClipEditCard } from "@/components/clip-edit-card";
 import { DubBlurCard, DubCompareCard, DubVoicesCard } from "@/components/dub-cards";
 import { ExternalA } from "@/components/external-link";
 import { Monitor } from "@/components/monitor";
@@ -521,6 +522,7 @@ export default function ProjectDetailPage() {
               <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
             </>
           )}
+          {p.clip && <ClipEditCard key={`${p.clip.start}:${p.clip.end}:${p.clip.hook}:${p.updated_at}`} api={api} p={p} active={active} onQueued={() => refetch()} />}
           {p.source_sound && (
             <SourceSoundCard
               key={`${p.source_sound.volume}`}
@@ -530,7 +532,7 @@ export default function ProjectDetailPage() {
               onQueued={() => refetch()}
             />
           )}
-          {p.masks && (
+          {p.masks && !p.clip && (
             <SourceMasksCard
               key={(p.meta.sources ?? []).map((s) => s.url).join("|")}
               api={api}
@@ -539,7 +541,7 @@ export default function ProjectDetailPage() {
               onQueued={() => refetch()}
             />
           )}
-          {p.effects && (
+          {p.effects && !p.clip && (
             <SourceEffectsCard
               key={`${p.mode}:${(p.meta.sources ?? []).map((s) => s.url).join("|")}`}
               api={api}
@@ -553,7 +555,7 @@ export default function ProjectDetailPage() {
 
         <div className="order-3 min-w-0 border-r min-[1180px]:order-2 min-[1180px]:overflow-y-auto">
           {p.status === "review" && p.meta.review === "shots" && <ShotsCard api={api} id={p.id} onQueued={refreshAll} />}
-          {p.has_script && (
+          {p.has_script && !p.clip && (
             <ScriptCard
               api={api}
               id={p.id}
