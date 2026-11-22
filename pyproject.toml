@@ -12,7 +12,7 @@ dependencies = [
   "python-dotenv>=1.0",
   "yt-dlp[default]>=2026.8.19",
   "f2 @ git+https://github.com/Johnserf-Seed/f2@f6be8c0ffba9a127075bbeafe4838716650b6325",
-  "pillow>=10.4",
+  "pillow>=13.0",
   "numpy>=2.0",
   "onnxruntime>=1.20",
   "anthropic>=1.8",

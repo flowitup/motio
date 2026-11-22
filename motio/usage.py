@@ -16,7 +16,7 @@ from . import channels, db, settings
 
 DEFAULT_PRICE = 0.22  # USD cho 1000 ký tự (đơn giá gói Creator của ElevenLabs)
 DEFAULT_CLIP_PRICE = 0.08  # USD mỗi giây clip AI ở 768P (fal, MiniMax H3 Max)
-# HeyGen Video 1 (768p): 0.01 đến hết tháng 10/2026, giá thường 0.02: tính theo giá thường cho khỏi hụt ngân sách
+# HeyGen Video 1 (768p): giá niêm yết 0.02 (khuyến mại 0.01 đã hết cuối tháng 10/2026)
 DEFAULT_CLIP_PRICES = {"fal": DEFAULT_CLIP_PRICE, "heygen": 0.02}
 # Claude API, USD per million tokens (input, output) by model-id prefix; the first match wins. Prices cached 2026-10.
 PRICES = (("claude-fable", (10.0, 50.0)), ("claude-mythos", (10.0, 50.0)), ("claude-opus-5-5", (4.0, 20.0)),
