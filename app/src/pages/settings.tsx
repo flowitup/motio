@@ -440,6 +440,11 @@ function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
 function AiTab({ api, kit }: { api: Api; kit: Kit }) {
   const { val, set, text, num, secret, src, saved } = kit;
   const hasElKey = saved("ELEVENLABS_API_KEY");
+  const ttsProviders: [string, string][] = [
+    ["", t.settings.ttsProviderAuto],
+    ["elevenlabs", "ElevenLabs"],
+    ["gemini", "Gemini"],
+  ];
   return (
     <>
       <Section id="llm" title={t.settings.llm} aside={<KeyStatus on={saved("ANTHROPIC_API_KEY")} />} bodyClassName={GRID}>
@@ -457,17 +462,42 @@ function AiTab({ api, kit }: { api: Api; kit: Kit }) {
         </Field>
       </Section>
 
-      <Section id="voice" title={t.settings.voice} aside={<KeyStatus on={hasElKey} />} bodyClassName={GRID}>
+      <Section id="voice" title={t.settings.voice} aside={<KeyStatus on={hasElKey || saved("GEMINI_API_KEY")} />} bodyClassName={GRID}>
         <div className="sm:col-span-2">
-          <Field label={t.settings.apiKey} hint={src("ELEVENLABS_API_KEY")}>
-            {secret("ELEVENLABS_API_KEY")}
+          <Field label={t.settings.ttsProvider} hint={src("TTS_PROVIDER") ?? t.settings.ttsProviderHint}>
+            <Choice value={val("TTS_PROVIDER")} onChange={(v) => set("TTS_PROVIDER", v)} options={ttsProviders} className="w-64" />
           </Field>
         </div>
+        <Field label="ELEVENLABS_API_KEY" hint={src("ELEVENLABS_API_KEY")}>
+          {secret("ELEVENLABS_API_KEY")}
+        </Field>
         <Field label={t.settings.voiceLabel}>
-          <VoicePicker api={api} hasKey={hasElKey} value={val("ELEVENLABS_VOICE_ID")} onChange={(v) => set("ELEVENLABS_VOICE_ID", v)} />
+          <VoicePicker
+            api={api}
+            hasKey={hasElKey}
+            provider="elevenlabs"
+            value={val("ELEVENLABS_VOICE_ID")}
+            onChange={(v) => set("ELEVENLABS_VOICE_ID", v)}
+          />
         </Field>
         <Field label={t.settings.ttsModel} hint={src("ELEVENLABS_MODEL")}>
           {text("ELEVENLABS_MODEL", "eleven_multilingual_v2")}
+        </Field>
+        <Field label="GEMINI_API_KEY" hint={src("GEMINI_API_KEY") ?? t.settings.geminiKeyHint}>
+          {secret("GEMINI_API_KEY")}
+        </Field>
+        <Field label={t.settings.geminiVoice}>
+          <VoicePicker
+            api={api}
+            hasKey
+            provider="gemini"
+            autoLabel={t.settings.geminiVoiceAuto}
+            value={val("GEMINI_VOICE")}
+            onChange={(v) => set("GEMINI_VOICE", v)}
+          />
+        </Field>
+        <Field label={t.settings.geminiModel} hint={src("GEMINI_TTS_MODEL") ?? t.settings.geminiModelHint}>
+          {text("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")}
         </Field>
       </Section>
 
@@ -490,6 +520,9 @@ function AiTab({ api, kit }: { api: Api; kit: Kit }) {
         </Field>
         <Field label={t.settings.voicePrice} hint={t.settings.voicePriceHint}>
           {num("ELEVENLABS_USD_PER_1K_CHARS", "0.22", "0.01")}
+        </Field>
+        <Field label={t.settings.geminiPrice} hint={t.settings.geminiPriceHint}>
+          {num("GEMINI_TTS_USD_PER_MIN", "0.03", "0.01")}
         </Field>
         <Field label={t.settings.clipPrice} hint={t.settings.clipPriceHint}>
           {num("AI_CLIP_USD_PER_SEC", val("CLIP_PROVIDER") === "heygen" ? "0.02" : "0.08", "0.01")}

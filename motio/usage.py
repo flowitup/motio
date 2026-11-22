@@ -53,6 +53,12 @@ def price_per_1k() -> float:
     return _number("ELEVENLABS_USD_PER_1K_CHARS", DEFAULT_PRICE)
 
 
+def gemini_price_per_min() -> float:
+    """USD mỗi phút giọng Gemini TTS (GEMINI_TTS_USD_PER_MIN); mặc định theo giá âm thanh ra của model mặc định."""
+    from .tts import GEMINI_USD_PER_MIN  # nhập muộn: tts nhập usage khi đọc giọng
+    return _number("GEMINI_TTS_USD_PER_MIN", GEMINI_USD_PER_MIN)
+
+
 def clip_price(provider: str | None = None) -> float:
     """USD mỗi giây clip AI (AI_CLIP_USD_PER_SEC); chưa đặt thì giá niêm yết của nhà cung cấp (mặc định: đang chọn)."""
     provider = (provider or settings.get("CLIP_PROVIDER") or "fal").strip().lower()
@@ -64,15 +70,28 @@ def budget() -> float:
     return _number("MONTHLY_BUDGET_USD", 0.0)
 
 
+CHARS_PER_SEC = 15  # French narration, as in app/src/lib/estimate.ts
+
+
+def price_per_1k_now() -> float:
+    """Price of 1000 characters for the cost estimates in the app: ElevenLabs' own, or what the same text costs on
+    Gemini (about 66 s of audio)."""
+    from .tts import provider
+    if provider() == "gemini":
+        return round(gemini_price_per_min() * 1000 / CHARS_PER_SEC / 60, 4)
+    return price_per_1k()
+
+
 def cost(chars: int, model: str = "") -> float:
     return chars * (0.5 if any(k in model for k in HALF_PRICE) else 1.0) * price_per_1k() / 1000
 
 
-def record_tts(chars: int, model: str, voice: str) -> None:
-    """Ghi một lần gọi ElevenLabs thành công. Không ghi được (DB bận…) thì bỏ qua, đừng làm hỏng việc đang làm."""
+def record_tts(chars: int, model: str, voice: str, usd: float | None = None) -> None:
+    """Ghi một lần đọc giọng thành công. ElevenLabs tính tiền theo ký tự (usd=None); Gemini truyền số tiền đã ước lượng
+    theo độ dài âm thanh. Không ghi được (DB bận…) thì bỏ qua, đừng làm hỏng việc đang làm."""
     if chars <= 0:
         return
-    _add("tts", chars, cost(chars, model), model, voice)
+    _add("tts", chars, cost(chars, model) if usd is None else usd, model, voice)
 
 
 def record_clip(seconds: float, model: str, provider: str | None = None) -> None:
@@ -185,7 +204,7 @@ def summary(now: float | None = None) -> dict:
     cap = budget()
     ratio = usd_month / cap if cap else 0.0
     return {
-        "price_per_1k": price_per_1k(),
+        "price_per_1k": price_per_1k_now(),
         "month": {"since": _day(since_month), "chars": chars_month, "usd": round(usd_month, 4),
                   "videos": videos_month},
         "budget": {"usd": cap, "ratio": round(ratio, 4),

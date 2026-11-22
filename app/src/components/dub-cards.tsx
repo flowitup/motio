@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/studio";
 import { Input } from "@/components/ui/input";
 import { VoicePicker } from "@/components/voice-picker";
-import type { Api, BlurBox, ProjectDetail } from "@/lib/api";
+import { hasVoiceProvider, type Api, type BlurBox, type ProjectDetail } from "@/lib/api";
 import { t } from "@/i18n";
 
 /** "1:05" hoặc "65" → giây; "" → null; sai → NaN. */
@@ -275,7 +275,7 @@ export function DubVoicesCard({
 }) {
   const speakers = p.dub?.speakers ?? [];
   const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => api.health(), staleTime: 30_000 });
-  const hasKey = health?.providers.tts === "elevenlabs";
+  const hasKey = hasVoiceProvider(health);
   const saved = Object.fromEntries(speakers.map((s) => [s.label, s.voice_id]));
   const [picks, setPicks] = useState<Record<string, string>>(saved);
   const changed = speakers.some((s) => (picks[s.label] ?? "") !== s.voice_id);
