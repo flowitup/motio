@@ -1,1 +1,1 @@
-__version__ = "0.7.28"  # the release number; tests/test_version.py keeps it equal to the app version
+__version__ = "0.7.29"  # the release number; tests/test_version.py keeps it equal to the app version
