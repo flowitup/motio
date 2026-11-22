@@ -10,11 +10,10 @@ type Tab = { to: string; label: keyof Messages["nav"] };
 
 export const SECTIONS: Record<SectionKey, { home: string; tabs: Tab[] }> = {
   discover: {
-    home: "/trends",
+    home: "/clips",
     tabs: [
-      { to: "/trends", label: "trends" },
-      { to: "/news", label: "news" }, // only while NEWS_TOPICS is on
       { to: "/clips", label: "clips" },
+      { to: "/news", label: "news" }, // only while NEWS_TOPICS is on
       { to: "/scan", label: "scan" },
     ],
   },

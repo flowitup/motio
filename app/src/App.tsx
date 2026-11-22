@@ -26,14 +26,13 @@ import StatsPage from "@/pages/stats";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
-import TrendVideosPage from "@/pages/trend-videos";
 
 type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Compass; hue?: Hue; section?: SectionKey };
 /** The slim icon rail on the left, in groups split by a thin rule: find + make, channels, tools, numbers. Settings sits at the bottom.
  * A `section` entry holds several pages as tabs (Discover: Trending, News topics, Followed, Scan; Tools: Quick jobs, Remove logo). */
 const NAV: NavItem[][] = [
   [
-    { to: "/trends", label: "discover", icon: Compass, hue: "amber", section: "discover" },
+    { to: "/clips", label: "discover", icon: Compass, hue: "amber", section: "discover" },
     { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
   [{ to: "/channels", label: "channels", icon: Tv, hue: "pink" }],
@@ -209,7 +208,7 @@ export default function App() {
       </button>
       {/* A slim icon rail, like a video editor's: the page gets the whole height. Each icon names itself on hover. */}
       <nav aria-label={t.studio.mainNav} className="dock flex w-16 shrink-0 flex-col items-center border-r bg-monitor py-3">
-        <NavLink to="/trends" title={t.appName} aria-label={t.appName} className="dock-brand mb-3 flex size-10 items-center justify-center">
+        <NavLink to="/clips" title={t.appName} aria-label={t.appName} className="dock-brand mb-3 flex size-10 items-center justify-center">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
           <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">
             <g stroke="var(--amber)">
@@ -248,8 +247,8 @@ export default function App() {
       </nav>
       <main ref={main} tabIndex={-1} className="app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none">
         <Routes>
-          <Route path="/" element={<Navigate to="/trends" replace />} />
-          <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />
+          <Route path="/" element={<Navigate to="/clips" replace />} />
+          <Route path="/trends" element={<Navigate to="/clips" replace />} /> {/* Trending lists are part of the Feed now */}
           <Route path="/news" element={<EngineGate><TrendsPage /></EngineGate>} />
           <Route path="/scan" element={<EngineGate><ScanPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
