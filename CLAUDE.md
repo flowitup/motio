@@ -106,6 +106,10 @@ as authoritative for scope and milestones.
     owner's own cookies; a guest is answered with the slider captcha), Weibo (its own search, the guest session, no login) and
     Douyin (its own search, f2-signed with a douyin.com login, or read on its public `so.douyin.com` search page in a
     headless Chrome with no account at all))
+  - `bilibili_dl.py` a Bilibili video through the site's own JSON API (guest, `wbi/view` + `wbi/playurl`, one mp4 up to 720p with its
+    sound; `BV…`, old `av<n>`, `?p=`, `b23.tv`): yt-dlp's Bilibili extractor no longer reads the video page (2026-10-23, also on the newest
+    release), so `search.download` tries yt-dlp first (a cookie session may still work) and falls back to this; a series, a film or a
+    live link keeps yt-dlp's own answer
   - `localfile.py` a video file added by hand (`POST /api/uploads`) stored as `cache/sources/File_<id>.mp4` and used as the
     link `file:<id>/<name>` wherever links go (`search.clean_links` / `search.download` understand it)
   - `dub.py` French dub mode: one video → excerpt (62–90 s), or the whole video with the "Whole video" option
