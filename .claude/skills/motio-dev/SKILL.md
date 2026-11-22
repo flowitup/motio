@@ -21,7 +21,7 @@ everything pushed as public. Default branch **`master`** (renamed from `main` on
    B watchlist ✓ → C French dub (GĐ2 parts 1 + 2 ✓), Windows home server (runbook + script + cookie file + disk space) ✓, Video length 62–90 s ✓, GĐ1 channel profiles + gates + auto-send ✓, GĐ1 16:9 copy +
    auto-make ✓, Slack alerts ✓, GĐ3 part 1 AI video (AI pictures + Ken Burns) ✓, GĐ3 part 2 AI clips (fal H3 Max) ✓, M4 automation later). Anything not in it is a new ask: confirm scope with the owner before
    building it. The owner builds the rest of the blueprint one phase at a time, each brainstormed first.
-3. `docs/DEPLOY.md` for the server, README for release / updater steps.
+3. `docs/DEPLOY.md` for the server, `docs/RELEASING.md` for release / updater steps, `docs/FEATURES.md` for what each feature does.
 4. Project memory (feature list with status, publishing rules, infra). It goes stale: re-check the code
    before calling anything done.
 5. The 25/09 "Xưởng Video" blueprint is the long-term vision only; APP_PLAN wins where they conflict.
@@ -48,7 +48,7 @@ Every Motio task follows the owner's `ak` skills, in this order, the same way as
 | Stage + conventional commit, push, open the PR | `/ak:git` | §7.1–7.3 |
 | Review the PR in place, apply findings, merge, watch CI to green | `/ak:review-pr <N>` (`--fix`, `--merge`) | §7.4–7.6 |
 | Whole chain: tests → review → commit → push → PR (→ reviewed merge) | `/ak:ship` | §6 + §7 |
-| Docs touched by the change (README, APP_PLAN, DEPLOY, CLAUDE.md) | `/ak:docs` | §7.1 checklist |
+| Docs touched by the change (README, docs/FEATURES.md, docs/RELEASING.md, APP_PLAN, DEPLOY, CLAUDE.md) | `/ak:docs` | §7.1 checklist |
 
 Use the ak skills whenever they are installed. The fallback in this file is for sessions without them
 (cloud sessions: do the brainstorm and cook steps by hand in the same order, then §7 with the GitHub MCP
