@@ -6,7 +6,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
 import { Section } from "@/components/section";
 import { Badge } from "@/components/ui/badge";
-import { PageTitle, Segmented, TopBar } from "@/components/studio";
+import { Segmented } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -114,7 +114,7 @@ function PostizPicker({
     return error instanceof ApiError && error.status === 409 ? (
       <p className="text-sm text-muted-foreground">
         {t.publish.notConfigured}{" "}
-        <Link to="/settings" className="underline">
+        <Link to="/settings?tab=publishing" className="underline">
           {t.nav.settings}
         </Link>
       </p>
@@ -379,7 +379,7 @@ function ChannelForm({
             <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
             <span>
               {t.channels.autoNoRefresh}{" "}
-              <Link to="/settings" className="underline">
+              <Link to="/settings?tab=general" className="underline">
                 {t.channels.autoNoRefreshLink}
               </Link>
             </span>
@@ -512,7 +512,8 @@ function Summary({ c: raw }: { c: Channel }) {
   return <div className="text-[13px] text-muted-foreground">{bits.join(" · ")}</div>;
 }
 
-export default function ChannelsPage() {
+/** The channel profiles, as a tab of Settings. */
+export function ChannelsPanel() {
   const api = useApi()!;
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Channel | null>(null);
@@ -529,32 +530,29 @@ export default function ChannelsPage() {
 
   return (
     <>
-      <TopBar>
-        <PageTitle>{t.channels.title}</PageTitle>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          <span role="status" className="flex items-center gap-1 text-[13px] text-muted-foreground">
-            {saved && (
-              <>
-                <Check className="size-4 text-mint" />
-                {t.channels.saved}
-              </>
-            )}
-          </span>
-          {editing === null && (
-            <Button
-              onClick={() => {
-                setCopyOf(null);
-                setEditing("new");
-              }}
-            >
-              <Plus />
-              {t.channels.add}
-            </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">{t.channels.intro}</p>
+        <span role="status" className="flex items-center gap-1 text-[13px] text-muted-foreground">
+          {saved && (
+            <>
+              <Check className="size-4 text-mint" />
+              {t.channels.saved}
+            </>
           )}
-        </div>
-      </TopBar>
-      <div className="max-w-4xl space-y-5 p-6">
-        <p className="text-[13px] text-muted-foreground">{t.channels.intro}</p>
+        </span>
+        {editing === null && (
+          <Button
+            onClick={() => {
+              setCopyOf(null);
+              setEditing("new");
+            }}
+          >
+            <Plus />
+            {t.channels.add}
+          </Button>
+        )}
+      </div>
+      <div className="space-y-5">
         {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
         {editing === "new" && <ChannelForm key={copyOf?.id ?? "new"} api={api} initial={null} copyOf={copyOf ?? undefined} hasKey={hasKey} first={!data?.length} onDone={done} />}
         {isLoading && <Skeleton className="h-24 w-full rounded-xl" />}

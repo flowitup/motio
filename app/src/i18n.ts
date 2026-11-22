@@ -1146,7 +1146,7 @@ const en = {
     advanced: "Advanced",
     advancedHint: "Technical options, the defaults work for most setups",
     sections: "Settings sections",
-    tabs: { general: "General", ai: "AI services", publishing: "Publishing", storage: "Storage", app: "App & engine", advanced: "Advanced" } as Record<string, string>,
+    tabs: { general: "General", ai: "AI services", publishing: "Publishing", channels: "Channels", storage: "Storage", stats: "Stats", app: "App & engine", advanced: "Advanced" } as Record<string, string>,
     tabHints: {
       general: "Language, automatic checks and the look of the app.",
       ai: "The services that write, voice and draw your videos, and what you spend on them.",
@@ -2486,7 +2486,7 @@ const vi: Messages = {
     advanced: "Nâng cao",
     advancedHint: "Tuỳ chọn kỹ thuật, mặc định đã phù hợp với đa số",
     sections: "Các mục cài đặt",
-    tabs: { general: "Chung", ai: "Dịch vụ AI", publishing: "Đăng bài", storage: "Lưu trữ", app: "App & engine", advanced: "Nâng cao" } as Record<string, string>,
+    tabs: { general: "Chung", ai: "Dịch vụ AI", publishing: "Đăng bài", channels: "Kênh", storage: "Lưu trữ", stats: "Thống kê", app: "App & engine", advanced: "Nâng cao" } as Record<string, string>,
     tabHints: {
       general: "Ngôn ngữ, các lần tự kiểm tra và giao diện của app.",
       ai: "Các dịch vụ viết lời, đọc giọng và vẽ ảnh cho video, cùng chi phí của chúng.",

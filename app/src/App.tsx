@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Compass, Download, FolderKanban, Loader2, Plus, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { Compass, Download, FolderKanban, Loader2, Plus, Settings as SettingsIcon, TriangleAlert, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { inSection, type SectionKey } from "@/components/section-tabs";
@@ -13,7 +13,6 @@ import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
 import AccountPage from "@/pages/account";
-import ChannelsPage from "@/pages/channels";
 import ClipStudioPage from "@/pages/clip-studio";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
@@ -22,22 +21,19 @@ import ProjectsPage from "@/pages/projects";
 import ReviewPage from "@/pages/review";
 import ScanPage from "@/pages/scan";
 import SettingsPage from "@/pages/settings";
-import StatsPage from "@/pages/stats";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 
 type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Compass; hue?: Hue; section?: SectionKey };
-/** The slim icon rail on the left, in groups split by a thin rule: find + make, channels, tools, numbers. Settings sits at the bottom.
- * A `section` entry holds several pages as tabs (Discover: Trending, News topics, Followed, Scan; Tools: Quick jobs, Remove logo). */
+/** The slim icon rail on the left, in groups split by a thin rule: find + make, tools. Settings sits at the bottom and holds Channels and Stats as tabs.
+ * A `section` entry holds several pages as tabs (Discover: Feed, News topics, Scan; Tools: Quick jobs, Remove logo). */
 const NAV: NavItem[][] = [
   [
     { to: "/clips", label: "discover", icon: Compass, hue: "amber", section: "discover" },
     { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
-  [{ to: "/channels", label: "channels", icon: Tv, hue: "pink" }],
   [{ to: "/tools", label: "tools", icon: Wrench, hue: "lime", section: "tools" }],
-  [{ to: "/stats", label: "stats", icon: ChartColumn, hue: "mint" }],
 ];
 
 /** A count in the menu: pink = waiting for you (approvals), coral = failed lately. */
@@ -258,10 +254,10 @@ export default function App() {
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/clip-studio" element={<EngineGate><ClipStudioPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
-          <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
+          <Route path="/channels" element={<Navigate to="/settings?tab=channels" replace />} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />
           <Route path="/tools" element={<EngineGate><ToolsPage /></EngineGate>} />
-          <Route path="/stats" element={<EngineGate><StatsPage /></EngineGate>} />
+          <Route path="/stats" element={<Navigate to="/settings?tab=stats" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

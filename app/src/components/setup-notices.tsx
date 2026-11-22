@@ -56,7 +56,7 @@ export function BudgetNotice({ className }: { className?: string }) {
       <Icon className={cn("size-4 shrink-0", over ? "text-coral" : "text-amber")} aria-hidden />
       <span className="font-medium">{over ? t.stats.budgetOver(b.usd) : t.stats.budgetWarn(Math.round(b.ratio * 100), b.usd)}</span>
       {over && <span className="text-muted-foreground">{t.setup.overNote}</span>}
-      <Link to="/stats" className="ml-auto font-medium">
+      <Link to="/settings?tab=stats" className="ml-auto font-medium">
         {t.nav.stats}
       </Link>
     </section>
