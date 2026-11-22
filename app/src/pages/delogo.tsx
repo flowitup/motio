@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice } from "@/components/form";
+import { SectionTabs } from "@/components/section-tabs";
 import { Kicker, PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -618,7 +619,8 @@ export default function DelogoPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.delogo.title}</PageTitle>
+        <PageTitle>{t.nav.tools}</PageTitle>
+        <SectionTabs section="tools" />
       </TopBar>
       <div className="space-y-5 p-6">
         <p className="text-[13px] text-muted-foreground">{t.delogo.hint}</p>

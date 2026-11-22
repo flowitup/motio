@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ClipCard } from "@/components/clip-card";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
+import { SectionTabs } from "@/components/section-tabs";
 import { FilterChip, hueFor, PageTitle, SITE_HUE, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,7 +127,8 @@ export default function TrendVideosPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.trendVideos.title}</PageTitle>
+        <PageTitle>{t.nav.discover}</PageTitle>
+        <SectionTabs section="discover" />
         <div className="ml-auto flex items-center gap-3">
           <Button onClick={() => check.mutate()} disabled={watching || check.isPending || followed.length === 0}>
             {watching ? <Loader2 className="animate-spin" /> : <RefreshCw />}

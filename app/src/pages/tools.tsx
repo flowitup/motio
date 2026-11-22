@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
 import { VoicePicker } from "@/components/voice-picker";
 import { Badge } from "@/components/ui/badge";
+import { SectionTabs } from "@/components/section-tabs";
 import { PageTitle, Segmented, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -381,7 +382,8 @@ export default function ToolsPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.tools.title}</PageTitle>
+        <PageTitle>{t.nav.tools}</PageTitle>
+        <SectionTabs section="tools" />
       </TopBar>
       <div className="max-w-4xl space-y-5 p-6">
         <p className="text-[13px] text-muted-foreground">{t.tools.hint}</p>

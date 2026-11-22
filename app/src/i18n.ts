@@ -93,6 +93,7 @@ const categoryLists = (names: Record<string, string>, prefix: string) =>
 const en = {
   appName: "Motio",
   nav: {
+    discover: "Discover",
     trends: "Trending",
     news: "News topics",
     scan: "Scan",
@@ -101,6 +102,7 @@ const en = {
     channels: "Channels",
     delogo: "Remove logo",
     tools: "Tools",
+    quickJobs: "Quick jobs",
     stats: "Stats",
     settings: "Settings",
   },
@@ -1432,6 +1434,7 @@ const NATIVE_VI: [string, string][] = [
 const vi: Messages = {
   appName: "Motio",
   nav: {
+    discover: "Khám phá",
     trends: "Xu hướng",
     news: "Tin hot",
     scan: "Quét",
@@ -1440,6 +1443,7 @@ const vi: Messages = {
     channels: "Kênh",
     delogo: "Xoá logo",
     tools: "Công cụ",
+    quickJobs: "Việc nhanh",
     stats: "Thống kê",
     settings: "Cài đặt",
   },

@@ -6,6 +6,7 @@ import { ClipCard } from "@/components/clip-card";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
 import { Badge } from "@/components/ui/badge";
+import { SectionTabs } from "@/components/section-tabs";
 import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -235,7 +236,8 @@ export default function ClipsPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.clips.title}</PageTitle>
+        <PageTitle>{t.nav.discover}</PageTitle>
+        <SectionTabs section="discover" />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <Select value={watchId} onValueChange={(v) => setWatchId(v ?? ALL)}>
             <SelectTrigger className="w-52">

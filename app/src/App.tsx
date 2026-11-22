@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Plus, Rss, ScanSearch, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { ChartColumn, Compass, Download, FolderKanban, Loader2, Plus, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { inSection, type SectionKey } from "@/components/section-tabs";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { HUE_SOLID, HUE_TILE, Led, type Hue } from "@/components/studio";
@@ -27,21 +28,16 @@ import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 import TrendVideosPage from "@/pages/trend-videos";
 
-type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame; hue?: Hue };
-/** The slim icon rail on the left, in groups split by a thin rule: find, make, channels, tools, numbers. Settings sits at the bottom. */
+type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Compass; hue?: Hue; section?: SectionKey };
+/** The slim icon rail on the left, in groups split by a thin rule: find + make, channels, tools, numbers. Settings sits at the bottom.
+ * A `section` entry holds several pages as tabs (Discover: Trending, News topics, Followed, Scan; Tools: Quick jobs, Remove logo). */
 const NAV: NavItem[][] = [
   [
-    { to: "/trends", label: "trends", icon: Flame, hue: "amber" },
-    { to: "/news", label: "news", icon: Newspaper, hue: "orange" }, // only while NEWS_TOPICS is on
-    { to: "/scan", label: "scan", icon: ScanSearch, hue: "blue" },
-    { to: "/clips", label: "clips", icon: Rss, hue: "cyan" },
+    { to: "/trends", label: "discover", icon: Compass, hue: "amber", section: "discover" },
     { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
   [{ to: "/channels", label: "channels", icon: Tv, hue: "pink" }],
-  [
-    { to: "/delogo", label: "delogo", icon: Eraser, hue: "coral" },
-    { to: "/tools", label: "tools", icon: Wrench, hue: "lime" },
-  ],
+  [{ to: "/tools", label: "tools", icon: Wrench, hue: "lime", section: "tools" }],
   [{ to: "/stats", label: "stats", icon: ChartColumn, hue: "mint" }],
 ];
 
@@ -67,33 +63,33 @@ function NavBadge({ count, label, tone }: { count: number; label: string; tone: 
 const railItem =
   "dock-item relative flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors";
 
-function RailItem({ to, label, icon: Icon, hue, count, failed }: { to: string; label: string; icon: typeof Flame; hue?: Hue; count?: number; failed?: number }) {
+function RailItem({ to, label, icon: Icon, hue, count, failed, section }: { to: string; label: string; icon: typeof Compass; hue?: Hue; count?: number; failed?: number; section?: SectionKey }) {
+  const { pathname } = useLocation();
+  // A section entry is lit on every page of its tabs, not only on its own route.
+  const isActive = section ? inSection(section, pathname) : pathname === to || pathname.startsWith(`${to}/`);
   return (
-    <NavLink
+    <Link
       to={to}
       title={label}
       aria-label={label}
-      className={({ isActive }) => cn(railItem, isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(railItem, isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
     >
-      {({ isActive }) => (
-        <>
-          {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
-          <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
-            <Icon className="size-[18px]" />
-          </span>
-          {!!count && (
-            <span className="absolute -top-0.5 -right-0.5">
-              <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
-            </span>
-          )}
-          {!!failed && (
-            <span className="absolute -bottom-0.5 -right-0.5">
-              <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
-            </span>
-          )}
-        </>
+      {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
+      <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
+        <Icon className="size-[18px]" />
+      </span>
+      {!!count && (
+        <span className="absolute -top-0.5 -right-0.5">
+          <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
+        </span>
       )}
-    </NavLink>
+      {!!failed && (
+        <span className="absolute -bottom-0.5 -right-0.5">
+          <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -198,8 +194,6 @@ export default function App() {
     enabled: !!api,
     refetchInterval: (q) => (q.state.data && q.state.data.queued + q.state.data.running > 0 ? BUSY_MS : 15_000),
   });
-  const { data: refresh } = useQuery({ queryKey: ["state"], queryFn: () => api!.state(), enabled: !!api, refetchInterval: 30_000 });
-  const newsTopics = !!refresh?.news_topics;
   useDocumentTitle(counts?.review ?? 0);
   const main = useRef<HTMLElement>(null);
 
@@ -238,8 +232,8 @@ export default function App() {
         <div className="dock-groups flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto">
           {NAV.map((group, i) => (
             <div key={i} className={cn("dock-group flex flex-col items-center gap-1", i > 0 ? "mt-2 w-10 border-t pt-2" : "pt-1")}>
-              {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon, hue }) => (
-                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} count={to === "/projects" ? counts?.review : undefined}
+              {group.map(({ to, label, icon, hue, section }) => (
+                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} section={section} count={to === "/projects" ? counts?.review : undefined}
                   failed={to === "/projects" ? counts?.failed_recent : undefined}
                 />
               ))}
