@@ -1,327 +1,123 @@
-# Motio · hot-news MVP
+# Motio
 
-Motio turns trending Chinese news (NewsNow hot lists) into French 9:16 videos. A Python engine does the work and a
-desktop app (macOS, Windows) drives it: it finds source clips on YouTube and Bilibili, transcribes them with Whisper,
-has Claude write a French voice-over script and pick the clip segments, voices it with ElevenLabs, and renders it with
-FFmpeg (blurred background, captions, optional source labels, AI-voice disclosure). The app UI is in English or
-Vietnamese (Settings → Language); the videos are in French.
+A personal desktop app (macOS, Windows) that turns trending Chinese videos and news, or any topic or video link,
+into French 9:16 videos. A Python engine does the work; the app drives it.
 
-## Run on a Mac (legacy web dashboard)
+**Pipeline:** find a source (yt-dlp, Douyin through f2) → transcribe (Whisper) → French script (Claude) → voice
+(ElevenLabs) → render (Pillow overlays + FFmpeg) → optional approval gates → send to [Postiz](https://postiz.com).
 
-```bash
-cd ~/Works/motio
-uv sync                             # first time only
-brew install deno                   # yt-dlp needs a JavaScript runtime to download YouTube videos
-uv run python -m motio serve        # open http://127.0.0.1:8765
-```
+The app UI is English or Vietnamese (Settings → Language). The videos are always French.
 
-1. Click **Refresh**: fetches the Douyin, Weibo, Baidu, Bilibili, Toutiao and The Paper
-   lists; Claude translates the titles into French and scores them for a French audience.
-2. Pick a topic and click **Make video**. The project page shows progress, the log, the video and the post
-   text (title, description, sources, hashtags).
+## Quick start
 
-Beyond hot news: in the app, **Projects → New video** takes any topic, in any language, and/or
-video links (Douyin, Bilibili, Facebook, YouTube…) and makes a 70 / 80 / 90-second French explainer.
-Every video (news or topic) lasts 62–90 s: at least 1 min 2 s, at most the 90 s Facebook Reels takes through its API.
-
-**Followed** (the rail's second item) follows YouTube channels and playlists, Bilibili user spaces and saved searches on YouTube or
-Bilibili. Motio checks them on the `REFRESH_EVERY_MIN` schedule or with "Check now"; a new source shows
-its latest 10 videos (a Bilibili list, its top 20), then only videos it hasn't seen. Claude gives each one a French title
-and a score, and "Make video" makes a French explainer from it. Bilibili's own trending lists can be followed too
-(**Bilibili trending** on that page: the ranking of each of 16 categories or of all of them, Popular, and the weekly must-watch, then
-**Follow list**): no login, original uploads
-only (reposts and paid videos are left out). Douyin and Facebook accounts can't be followed (yt-dlp only
-downloads single videos there): paste those links into "New video". Bilibili spaces often need the browser-cookie setting.
-
-**Douyin**: a pasted Douyin link is fetched with [f2](https://github.com/Johnserf-Seed/f2) (Apache 2.0), which needs no
-login and no cookies. Any form works: `douyin.com/video/…` (also `/note/`, `/slides/`, `?modal_id=…`, `?vid=…`),
-`iesdouyin.com/share/video/…`, the short `v.douyin.com/…` link, or the whole sentence the Douyin app copies when you tap
-Share (Motio picks the link out of it). You get the video, its title, author and length as H.264, the largest size Douyin
-offers up to 1080 p (Tools → Download uses the quality you pick, 720 p by default; Motio asks again when the list of sizes
-it gets back is thinner than usual). A removed, private or photo-only post is reported as such. If f2 cannot (Douyin changed
-its request signing and f2 is not updated yet, or you are offline) Motio tries yt-dlp on the plain `douyin.com/video/<id>`
-link (the id comes from the pasted link, or from following a short `v.douyin.com` link once: yt-dlp does not know the short
-form itself); yt-dlp needs fresh browser cookies, not necessarily from a logged-in account (`YTDLP_COOKIES_FROM_BROWSER` or
-`YTDLP_COOKIES_FILE`). With no connection to Douyin at all (offline, VPN or proxy down) the download says so ("Could not
-connect to Douyin") instead of asking for cookies; Motio waits at most 15 s for f2 to start on a connection that swallows
-packets (details in `docs/DOUYIN_F2.md`). Last resort: download the video yourself and use **Add a video file** (below). Keyword search and an author's video list are
-not supported. How it works, what was tested and how to update f2: [docs/DOUYIN_F2.md](docs/DOUYIN_F2.md).
-
-**Add a video file** (next to every place that takes links: New video, a project's sources, a trending topic's links)
-sends a video you already have, from Douyin or anywhere else, to the engine and uses it like a link: dubbed, or used as
-a source for a topic explainer. It is kept with the downloaded sources, so Remove logo and re-renders find it. MP4, MOV,
-M4V, MKV, WebM, AVI, TS or FLV, up to 2 GB; anything but MP4 is converted.
-
-**Channels** holds one profile per channel you post to: the red badge on the video ("ACTU CHINE", "INSOLITE",
-or none), style notes Claude follows when it writes the script, the ElevenLabs voice, the default length for hot-news
-videos, hashtags that always go first, and two approval gates. With the script gate on, a project stops at **Awaiting
-script approval** until you read it, edit it if needed, and press **Approve and continue**; with the video gate on, a
-finished video stops at **Awaiting video approval** until you press **Approve and send**. A profile can also send
-the approved video to its Postiz channels by itself, as a draft, at the channel's next free posting time, or right
-away (once per project; later re-renders don't post again). Tick **16:9** next to a Postiz channel (a YouTube channel
-for regular videos, say) and Motio also renders a 16:9 copy of each video with the same cut, voice and captions, and
-sends that copy to those channels. Turn on **Make videos automatically** and, after each scheduled refresh, Motio
-makes a video for that channel from every new trending topic at or above the minimum score, up to the videos per day
-you set (the daily limit in Settings still applies); these videos stop at the channel's approval gates like any other
-and are marked "Made automatically". Pick the channel when you make a video (Trending, New
-videos, New video); the default channel is preselected, and videos without a channel run straight through as before.
-Without a channel, hot-news videos carry the "ACTU CHINE" badge and topic explainers carry none.
-
-**French dub** (Projects → New video → *French dub*, or **Dub in French** on a video in Followed) turns one video
-(Douyin, Bilibili, YouTube…) into a French version that keeps its pictures, music and sound effects. Motio transcribes
-it, takes one 62–90 s part (the whole video when it is short enough, otherwise Claude picks a part that starts and ends
-on a sentence, or you type from–to; choose **Whole video** to dub the video from start to end whatever its length, and
-such a dub longer than 90 s is never sent to Postiz on its own), and Claude translates every line so it fits the time of the line it replaces: *tu*
-or *vous* depending on who talks to whom, the channel's glossary (Channels → Glossary) for names and terms, and the
-speaker and gender of each line. ElevenLabs reads the lines, each one placed where the original line started, with
-one French voice per speaker: the channel's voice first, then the extra voices of the channel profile (Channels →
-Other voices for dubs, up to 3), matched to the speaker's gender when the voice says which it is; you can pick each
-speaker's voice on the project page (**Voices**, then **Save and re-voice**). An AI
-model (UVR MDX-Net, MIT, run on the CPU) separates the original voice from the music and sounds, and the music and
-sounds stay under the French voice; the first dub downloads this model once (67 MB) into `data/models/`, and if it
-cannot run the original sound is kept quietly instead. A video shorter than 62 s gets a French intro and outro on a
-still frame. The old subtitles burned into the picture are blurred: Motio finds the subtitle band, and you can draw
-the box yourself on a frame of the project page. Only that band is blurred, never a logo (**Remove logo** stays a
-separate, manual tool). French karaoke captions go on top as in every video, and the project page plays the original
-part next to the dub (**Play both**), lets you change the part and edit each French line. The post keeps "Voix off
-générée par IA." and the AI flags. A dub reuses someone else's pictures and words; like every video, it is sent to
-Postiz by itself only through a channel profile that lists Postiz channels with its video gate off (the source-rights
-question was removed on the owner's ask, 2026-10-18).
-
-**AI video** (Projects → New video → *AI video*) makes a French explainer from a topic with no source footage at all:
-Claude writes the voice-over as scenes (the spoken line, an English picture prompt and a slow camera move: zoom in,
-zoom out, pan left, pan right), an image model draws one 9:16 picture per scene, and the usual voice and render steps
-put each picture under its line with a Ken Burns move, karaoke captions and the channel's badge. The pictures come
-from the provider picked in Settings → AI pictures: **fal** (Seedream 5 Pro by default, about $0.07 per picture,
-so about $0.80 per video; other models in Settings; needs a fal key and credit) is the default; no fal model is cleared for a monetized
-channel yet, so its videos stop at **Awaiting video approval** too; **Modal** (your own `qwen21-uc` app, about $0.01 per picture) runs under the Qwen Research Licence, so its videos
-always stop at **Awaiting video approval**, and it needs the `modal` Python package and a Modal login, so it works from
-the dev engine or the server, not the packaged app; **Placeholder** draws gradient cards that show the prompt (free,
-no network, to try the flow, also stops at the approval gate). The script gate stops before any picture is paid for.
-On the project page each scene shows its picture, prompt and camera move: edit a prompt or a move and only that
-scene's picture is made again, press **New picture** to draw the same scene again, then re-render (the voice is kept
-when only pictures changed). The post keeps "Voix off générée par IA." and adds "Images générées par IA."; the
-estimated cost of the pictures is in the project log and on the project page. Stats does not include it yet.
-
-**AI clips** turn some scenes of an AI video into short video clips instead of a camera move on the picture. Each clip is
-made by fal's **H3 Max** (MiniMax H3, image to video, 768p, 5 s, about $0.40) or, if you pick it in Settings → AI
-pictures → *Clip provider*, by **HeyGen Video 1** (image to video, 768p, 5 s, $0.01–0.02 per second, so about $0.05–0.10 a
-clip; needs `HEYGEN_API_KEY`): the scene's picture is its first frame, so the look you approved is kept, and the model's
-own sound is dropped. HeyGen is newer and its commercial terms aren't confirmed, so a video with HeyGen clips always
-stops at **Awaiting video approval**; try it on one clip first with `uv run python -m motio clipcheck <picture> "<scene>"
-heygen` (about $0.10, saved in `data/clipcheck/`) and compare with `... fal`. Set how many scenes become clips per channel
-(Channels → *AI clips per video*, 0 = off, up to 6) or for one video (New video → AI video → *AI clips*, empty = the
-channel's number). The scenes are spread over the video and the first one (the hook) is always included. Clips are made
-after the voice, once the script is final, and only new ones are paid for (they are cached, so a re-render costs
-nothing); the cost goes into the project log, the project page and the Stats page, at the price per second in
-Settings → AI pictures (default $0.08 for fal, $0.02 for HeyGen), and the monthly budget stops new clips. A clip fal can't make, or one that would go over the
-budget, leaves its scene with the picture and camera move. The post then says "Images et vidéos générées par IA."; the
-platforms' AI flags stay on. Needs the fal key (or the HeyGen key) as well as the one for the pictures.
-
-**Series and recurring characters** (Channels → *Series* and *Cast*, AI videos only). *Cast* is one character per line,
-`Name: how they look` (English, fictional people only, up to 8). The look is saved with each script, and every scene whose
-picture prompt names a character gets that exact description put in front of its prompt, so the image model always reads
-the same words (Claude writes only the name, never re-describes the person). It makes the characters alike, it does not
-guarantee the same face: a reference-image step would be the next level. A changed look makes the pictures of those scenes
-again, the others stay cached. *Series* is the premise and rules of a story: each new AI video of the channel is written as
-the next episode, knowing the short recap Claude kept for the last six, and the project page shows its episode number and
-recap. Leave both empty for stand-alone videos.
-
-**Quality check** runs after every render (FFmpeg and ffprobe, nothing is sent anywhere): the length is 62–90 s, the
-picture is 1080×1920 H.264, there is a sound track at about -14 LUFS without clipping, no silence longer than 1.5 s
-inside the video, and the first picture is not black (the cover would be). The project page shows the result; a
-**problem** (no sound or almost only silence, wrong length, a black start, a file that cannot be read) stops the video at **Awaiting video
-approval** instead of sending it to Postiz by itself, and you can still approve it. A **warning** is only shown. It
-also points out a video whose source, title or script is almost the same as one made in the last 30 days (a warning, to
-avoid posting the same thing twice). The thresholds are Motio's own, not a platform rule.
-
-On a project's page you can also edit the script (the title shown on the video, each voice-over line, the post
-description and hashtags) and re-voice + re-render from your edit, rerun from any step, or delete the project.
-
-**Hide text or watermark** (project page, news / topic / dub videos) hides burned-in text or a watermark that stays in
-one place on a source video. Pick the source, move the slider to a frame, choose a tool and drag on the picture:
-**Blur** adds a blurred box, **Cover with logo** adds a blurred box with one of your logos drawn on it (add logos in
-**Settings → Logos**; a PNG with a transparent background works best), **Area to keep (zoom)** keeps only the part you
-draw, so what is outside leaves the frame. Up to 6 boxes per source. **Save and re-render** renders the video again with
-the voice it already has. It all applies to the whole source and sits under the title and French captions; nothing is
-detected or hidden on its own. A logo that moves needs **Remove logo**.
-
-**Remove logo** cleans a static logo or watermark off one of your own videos: pick a project's source clip
-or upload a file, draw a box around the logo on a frame (or press **Auto-detect** to find logos that stay in place), then
-press **Remove logo**. The LaMa AI model redraws what was behind the logo on every frame.
-The first run downloads the model once (92 MB, [LaMa](https://github.com/advimman/lama) exported by
-[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/inpainting_lama), Apache 2.0) into `data/models/`.
-It runs on the CPU: still shots go fast (the fill is reused while the picture behind the logo doesn't change), moving
-shots take a few minutes per minute of video. So on a project's clip it cleans only the parts the final video uses
-(plus a few seconds either side), which turns hours into minutes on a long news clip; an uploaded file can be cleaned
-whole (**Whole video**) or in one part (**One part**, from–to). The page shows the time left and a Stop button. A project
-clip is replaced by its clean copy and **Re-render video (keep voice)** renders the video again with the voice it
-already has (no new ElevenLabs call); if a later render uses a part that wasn't cleaned, the project log and the page
-say so. The original is kept and can be restored. An uploaded file gives you a cleaned copy. It never runs by itself
-in the pipelines.
-
-**Tools** are one-off jobs that need no project, each run on its own: **Download video** (any link yt-dlp can fetch,
-480 / 720 / 1080p, an MP4), **Transcribe** (Whisper → `.srt` + plain text, from a video or audio file), **Translate
-subtitles** (Claude, `.srt` or `.vtt` → French, English or Vietnamese, timings kept, optionally with a channel's
-glossary and style; French gets French typography), **Read text aloud** (ElevenLabs, up to 5,000 characters, any of
-your voices) and **Burn subtitles** (draws an `.srt` / `.vtt` at the bottom of a video with the same Pillow overlay as the
-videos Motio makes, so it needs no FFmpeg libass; Chinese / Japanese / Korean subtitles use a CJK font). Each input is
-an uploaded file or the result of a finished job, so download → transcribe → translate → burn chains without leaving
-the page; every job shows its progress, can be stopped and keeps its files under `data/tools/jobs/<id>/out/` until you
-delete it.
-
-**Stats** shows what the videos cost: each successful ElevenLabs call is recorded (characters, an estimated price,
-and the project, channel or tool job it belonged to), so the page adds up this month's voice cost and videos, the last
-30 days day by day, and every channel's videos, sends, failures and cost per video. Each project also shows its own
-voice cost. The price per 1,000 characters (default $0.22, the Creator plan; Flash / Turbo models count half) and an
-optional monthly budget are in Settings: at 80% the page warns, at 100% the videos made automatically pause until next
-month (videos you start yourself still run). Claude runs on your Claude plan and isn't counted, and views or earnings
-per platform aren't tracked (they need each platform's account).
-
-Command line: `uv run python -m motio refresh`, `... trends`, `... produce douyin:2644652`,
-`... topic "giant pandas" [link …]`, `... ai "giant pandas" [seconds] [ai clips]` (a video made only of AI pictures, 70 / 80 / 90 s or any length from 30 s to 1800 s, with some scenes as AI clips), `... dub <link> [start end | whole]` (French dub of one video, times in seconds; `whole` = the whole video, any length), `... watch "<channel link | search words>" [bilibili]`, `... check`, `... clips`,
-`... rerender <project>`, `... retry <project> [step]` (continue from the failed
-step, or redo from `search` / `download` / `transcribe` / `script` / `voice` / `render`), `... approve <project> [nosend]`
-(approve a script or video waiting at a channel's gate), `... automake` (make the trends that meet a channel's
-auto-make score now), `... delete <project>`. `produce` and `topic` use the default
-channel.
-
-## Desktop app (Tauri)
+**Desktop app (dev):**
 
 ```bash
+uv sync                       # engine deps, first time only
+brew install deno             # yt-dlp needs a JavaScript runtime for YouTube
 cd app && pnpm install
-pnpm tauri dev        # opens the app; it starts the engine with uv from the repo root
+pnpm tauri dev                # needs Rust; the app starts the engine with uv
 ```
 
-Needs Rust (`rustup`). The app looks for `uv` on PATH, in `~/.local/bin`, `~/.cargo/bin` and Homebrew; set `MOTIO_UV`
-if it lives elsewhere. Settings → "Remote engine" uses an engine on another machine (URL +
-token); the app then doesn't start its own engine.
+The app finds `uv` on PATH, `~/.local/bin`, `~/.cargo/bin` and Homebrew (`MOTIO_UV` overrides). Settings → *Remote
+engine* points the app at an engine on another machine (URL + token).
 
-## Packaging, CI and releases
+**Installed app:** download the `.dmg` / `.msi` from GitHub Releases. Enter your `ANTHROPIC_API_KEY` (and ElevenLabs
+key) in Settings. The installers are not code-signed: on macOS use System Settings → Privacy & Security → *Open
+Anyway*; on Windows, *More info* → *Run anyway*. The app updates itself from published releases.
+
+**Legacy web dashboard:** `uv run python -m motio serve`, then open http://127.0.0.1:8765.
+
+## What it makes
+
+Every video lasts 62–90 s. A few modes have another length (noted below).
+
+| Mode | Where | What you get |
+|---|---|---|
+| Explainer | Projects → New video, or *Make video* on a Trending / Followed video | A French explainer from a topic and/or video links (70 / 80 / 90 s) |
+| French dub | New video → *French dub* | One video dubbed in French; pictures, music and sounds kept. *Whole video* keeps the full length |
+| AI video | New video → *AI video* | Scenes drawn by an image model (no source footage); any length 30 s–30 min |
+| Clip | New video → *Clip*, or Clip Studio | The best moments of a long video as vertical clips with the original sound (15–90 s) |
+| News | News topics (off by default, `NEWS_TOPICS`) | A French video from a NewsNow hot topic |
+
+Around them:
+
+- **Trending / Followed / Scan**: find videos by category, tag, account or keyword on Bilibili, Douyin, Kuaishou,
+  Weibo, AcFun, Pear Video and YouTube; follow channels and searches.
+- **Channels**: one profile per channel you post to (badge, script style, voice, hashtags, approval gates, Postiz
+  auto-send, automatic making).
+- **Project page**: edit the script, hide burned-in text or a watermark, mirror / colour filter, original sound
+  level, re-render, delete.
+- **Tools**: download, transcribe, translate subtitles, read aloud, burn subtitles, remove a logo.
+- **Stats** and **Slack alerts**: costs per project / channel against a monthly budget; a message when a video
+  waits, is done or fails.
+- **Google Drive** as main storage for finished projects and idle sources.
+
+Details of every feature: [docs/FEATURES.md](docs/FEATURES.md).
+
+## Command line
 
 ```bash
-uv run --group build python tools/build_engine.py   # PyInstaller engine + ffmpeg, deno → app/src-tauri/resources/
-cd app && pnpm tauri build                          # Motio.app + .dmg (macOS) or .msi (Windows)
+uv run python -m motio refresh | trends | check | clips | automake
+uv run python -m motio produce <trend_id>
+uv run python -m motio topic "<topic>" [link ...]
+uv run python -m motio ai "<topic>" [seconds] [ai clips]
+uv run python -m motio dub <link> [start end | whole]
+uv run python -m motio clip <link> [count]
+uv run python -m motio watch "<channel link | search words>" [bilibili]
+uv run python -m motio rerender <project>
+uv run python -m motio retry <project> [step]       # step: search|download|transcribe|script|voice|render
+uv run python -m motio approve <project> [nosend]
+uv run python -m motio delete <project>
 ```
 
-`tauri build` / `tauri dev` need the folder `app/src-tauri/resources/motio-engine/` (it can stay empty for dev: the
-debug build still runs the engine with `uv` from the repo). Packaged builds keep their data in
-`~/Library/Application Support/Motio` (macOS) or `%APPDATA%\Motio` (Windows). Claude is called through the Anthropic API only: enter `ANTHROPIC_API_KEY` in Settings
-(no Claude Code install needed).
+## Configuration
 
-- **CI** (`.github/workflows/ci.yml`, on every PR and every push to `master`): the engine runs `ruff check` + `pytest`
-  on Ubuntu and Windows; the app runs `pnpm build` (tsc + vite) and `cargo clippy`.
-- **Releases** (`.github/workflows/release.yml`): bump `version` in `app/src-tauri/tauri.conf.json` and
-  `app/package.json` (and `motio/__init__.py`), then merge the PR to `master`: `.github/workflows/tag-release.yml` creates the
-  tag `vX.Y.Z` on the merge commit (skipped if it exists) and starts the build. You can still push the tag by hand with
-  `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match that version). CI freezes the
-  engine, builds the `.dmg` (macOS Apple Silicon) and the `.msi` / `.exe` (Windows), and creates a draft GitHub Release
-  for you to check and Publish.
-- **Old releases** (`.github/workflows/prune-releases.yml`): when you publish a release, only the 3 newest published ones stay;
-  older Releases (and drafts older than the newest published one) are deleted. Git tags are kept. You can try it first from
-  Actions → Prune releases → Run workflow (a dry run by default).
-- The installers are not code-signed: on macOS, open the app the first time via System Settings → Privacy & Security →
-  "Open Anyway"; on Windows, click "More info" → "Run anyway". The installers bundle the engine; to use an engine on
-  another machine, go to Settings → "Remote engine".
-- **Auto-update** (Settings → "Update app"): the app checks GitHub Releases on launch and when you click
-  "Check for updates", downloads the new version, verifies its signature and restarts itself. Only
-  published releases are offered. The repo is public, so no GitHub token is needed: the app reads
-  `releases/latest/download/latest.json`.
-- Update signing key, one time: `cd app && pnpm tauri signer generate -w ~/.tauri/motio-updater.key`, then
-  `gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/motio-updater.key` and
-  `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key (`~/.tauri/motio-updater.key.pub`) goes in
-  `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`. Without the secret a release tag fails; if the private
-  key is lost, installed apps can no longer update themselves (they have to be reinstalled by hand).
-
-## Engine API (for the desktop app)
-
-```bash
-uv run python -m motio engine --port 0 --token <t>   # prints {"event":"ready","port":N,...} then serves
-```
-
-Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and `/api/projects/{id}/events` (SSE) also accept
-`?token=`. `--host 0.0.0.0` (remote use) requires `--token`. `--exit-with-stdin` exits when the parent app closes.
-
-## Running on a server (Hetzner + Postiz)
-
-`deploy/` holds the Docker Compose stack for the engine + [Postiz](https://postiz.com) (automatic posting) behind
-Caddy (HTTPS); the "Deploy (Hetzner)" workflow builds the image and updates the server. Steps:
-[docs/DEPLOY.md](docs/DEPLOY.md) (in Vietnamese). On the server the engine reads its token from `MOTIO_TOKEN` and
-uses the same Claude API key. Channel posting times use the server's `TZ` (default `Europe/Paris`).
-
-## Running on a Windows PC at home
-
-The engine can also run 24/7 on a Windows PC with a big drive, with the Mac (or any desktop app) pointing at it over
-Tailscale (Settings → "Remote engine"): downloads, projects and finished videos stay on the Windows PC and the app only
-streams what you open. `tools/windows/motio-server.ps1` installs the installed engine as a background Task Scheduler
-task bound to the Tailscale address; Settings → "Engine status" shows the disk space left there. Steps:
-[docs/WINDOWS_SERVER.md](docs/WINDOWS_SERVER.md) (in Vietnamese).
-
-## Configuration (.env)
-
-Settings changed in the app are saved to `data/settings.json`, override `.env` and take effect immediately.
+Settings changed in the app go to `data/settings.json` and override `.env`; they apply at once. The main ones:
 
 | Variable | Meaning |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API key (required: every script, translation and score is an API call, billed per token) |
-| `LLM_MODEL` | Main model for scripts, translations and AI scenes (default `claude-opus-5-5`; `sonnet` / `opus` / `haiku` still mean the current Claude 5.5 model) |
-| `LLM_MODEL_FAST` | Fast model for scoring trends / new videos and picking sources (default `claude-haiku-5-5`) |
-| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to let the app pick a French voice from the account |
-| `ELEVENLABS_MODEL` | Default `eleven_multilingual_v2` |
+| `ANTHROPIC_API_KEY` | Claude API key (required; every script, translation and score is an API call) |
+| `LLM_MODEL` / `LLM_MODEL_FAST` | Main model (default `claude-opus-5-5`) / fast model for scoring (default `claude-haiku-5-5`) |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | French voice; leave the voice empty to pick one from the account |
 | `WHISPER_MODEL` | Default `mlx-community/whisper-large-v3-turbo` |
-| `NEWSNOW_URL` | Self-hosted NewsNow (`http://newsnow:4444`, part of the server stack); empty = the public instance |
-| `NEWS_TOPICS` | `true` brings back China's hot news (NewsNow) next to the Trending videos: a *News topics* page and the refresh of it. Default off |
-| `REFRESH_EVERY_MIN` | The engine refreshes hot topics and checks followed sources every N minutes (0 = manual only; 30 on the server) |
-| `UI_LANG` | `en` (default) / `vi`: language of the engine's steps, log lines and errors; the app sets it from Settings → Language |
-| `YTDLP_COOKIES_FROM_BROWSER` | `chrome` / `safari` / `firefox` / `edge` / `brave`: download pasted links (X, and Douyin when f2 cannot) with that browser's login |
-| `YTDLP_COOKIES_FILE` | Path (on the engine's machine) of a `cookies.txt` exported from a browser, for an engine without a browser (server, Windows PC): used for pasted links and for Bilibili (search, downloads, followed spaces); wins over the browser; checked when saved, never served by `/media` |
-| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz for posting: API root (`https://postiz.<domain>/api`) + Public API key |
-| `DRIVE_ON`, `DRIVE_CLIENT_ID`, `DRIVE_CLIENT_SECRET`, `DRIVE_FOLDER` (default `Motio`), `DRIVE_KEEP_LOCAL` | Google Drive as main storage: finished projects and idle source videos move to your Drive and leave this machine (runbook `docs/GOOGLE_DRIVE.md`). `DRIVE_REFRESH_TOKEN` is written by the sign-in in Settings, never by hand |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook (`https://hooks.slack.com/…`): a message when a script or video waits for approval, a video is ready (and whether Postiz took it) or one fails; empty = off |
-| `AI_CLIP_USD_PER_SEC` | Price of one second of AI clip for the cost estimate and the monthly budget (default 0.08 for fal H3 Max, 0.02 for HeyGen, both 768p; every clip is 5 s) |
-| `CLIP_PROVIDER`, `HEYGEN_API_KEY` | Who makes AI clips: `fal` (default, uses `FAL_KEY`) or `heygen` (HeyGen Video 1, uses `HEYGEN_API_KEY`) |
-| `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default, needs `FAL_KEY`) / `modal` / `placeholder`; the fal model: `seedream` (default, Seedream 5 Pro) / `nano-banana-2` / `nano-banana-2.1` / `nano-banana-pro` / `gpt-image-2` / `flux-3` (no fal model is cleared for monetized channels yet, so they all stop at the video gate); the style sentence added to every picture prompt (default "photorealistic, natural light, …") |
-| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO` | Binary paths if they are not on PATH |
+| `REFRESH_EVERY_MIN` | Refresh trends and check followed sources every N minutes (0 = manual; 30 on the server) |
+| `UI_LANG` | `en` (default) / `vi`: language of the engine's messages |
+| `YTDLP_COOKIES_FILE` / `YTDLP_COOKIES_FROM_BROWSER` | Cookies for sites that need them: a `cookies.txt` (for an engine without a browser) or `chrome` / `safari` / `firefox` / `edge` / `brave` |
+| `POSTIZ_URL`, `POSTIZ_API_KEY` | Postiz API root + key, for posting |
+| `IMAGE_PROVIDER`, `FAL_KEY`, `FAL_IMAGE_MODEL`, `IMAGE_STYLE` | Pictures for AI videos: `fal` (default) / `modal` / `placeholder` |
+| `CLIP_PROVIDER`, `HEYGEN_API_KEY`, `AI_CLIP_USD_PER_SEC` | AI clips: `fal` (default) or `heygen`; price used for the cost estimate |
+| `DRIVE_ON`, `DRIVE_CLIENT_ID`, `DRIVE_CLIENT_SECRET`, `DRIVE_FOLDER`, `DRIVE_KEEP_LOCAL` | Google Drive storage ([docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md)) |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook for alerts; empty = off |
+| `NEWSNOW_URL`, `NEWS_TOPICS` | Self-hosted NewsNow; `true` brings back hot news next to Trending (default off) |
+| `MOTIO_FFMPEG`, `MOTIO_FFPROBE`, `MOTIO_DENO`, `MOTIO_CHROME` | Binary paths if not on PATH |
 
-Data (SQLite, source videos, projects) lives in `data/`.
+Data (SQLite, sources, projects) lives in `data/`; packaged builds use `~/Library/Application Support/Motio`
+(macOS) or `%APPDATA%\Motio` (Windows).
 
-## Layout
+## Engine API
 
-```
-motio/newsnow.py   fetch hot topics + translate + score
-motio/search.py    yt-dlp search (YouTube, Bilibili) / download of sources, pasted links included (keeps platform, channel, license)
-motio/asr.py       Whisper (mlx on the Mac, faster-whisper elsewhere)
-motio/llm.py       Claude API (Anthropic SDK), cost recorded per call
-motio/tts.py       ElevenLabs with timestamps (macOS voice when there is no key)
-motio/render.py    9:16 render (+ 16:9 copy): Pillow draws the text, FFmpeg composes
-motio/captions.py  French karaoke captions (≤ 42 characters per line), exports captions.srt / captions.ass
-motio/scenes.py    scene cuts with FFmpeg's scene filter
-motio/pipeline.py  the steps of one project; a failed project continues from the step that broke
-motio/topic.py     topic mode: explainer from any topic or video links
-motio/creator.py   AI video mode: scenes (line + picture prompt + camera move) from a topic, one moving piece per scene
-motio/images.py    AI pictures: fal / Modal / placeholder behind one adapter, cached per scene, cost estimate
-motio/aiclips.py   AI clips: fal H3 Max or HeyGen Video 1 image-to-video for some scenes of an AI video, cached per scene, cost estimate
-motio/series.py    AI video series: a channel's cast (fixed looks put in front of picture prompts) and episode recaps
-motio/qa.py        quality check after each render (length, picture, loudness, silence, black start) + repeat warnings
-motio/trending.py  Bilibili ranking / popular / weekly lists, categories and tags as followed sources
-motio/localfile.py a video file added by hand, used as a source like a link
-motio/dub.py       French dub: excerpt, translation to fit each line, voice placement, subtitle blur, mix
-motio/separate.py  original voice / music separation for the dub (MDX-Net ONNX, onnxruntime, model downloaded on first use)
-motio/watch.py     followed channels, playlists and searches → "New videos", French titles + scores
-motio/settings.py  data/settings.json over .env
-motio/api.py       JSON engine API for the desktop app
-motio/postiz.py    send videos to Postiz (draft / scheduled / post now)
-motio/channels.py  channel profiles: badge, script style, voice, hashtags, approval gates, Postiz auto-send, posting times
-motio/automake.py  make videos by themselves for trends above a channel's score, after each scheduled refresh
-motio/delogo.py    "Remove logo": remove a static logo from a video you own (drawn or auto-found boxes)
-motio/inpaint.py   LaMa AI fill for "Remove logo" (onnxruntime, frame by frame, model downloaded on first use)
-motio/toolbox.py   Tools: download, transcribe, translate subtitles, read text aloud, burn subtitles (jobs chain)
-motio/usage.py     Stats: ElevenLabs characters and estimated cost per project / channel / tool, monthly budget
-motio/web.py       legacy dashboard (to be removed)
+```bash
+uv run python -m motio engine --port 0 --token <t>   # prints {"event":"ready","port":N,...}, then serves
 ```
 
-## Built-in content rules
+Every `/api/*` route needs `Authorization: Bearer <t>`; `/media/*` and the SSE route also accept `?token=`.
+`--host 0.0.0.0` requires `--token`. `--exit-with-stdin` exits when the parent app closes.
 
-An original French voice-over with context and analysis; source clips only illustrate it, 3–6 seconds each. The post
-says “Voix off générée par IA.” unless the channel profile turns **Add the AI note to the post** off (there is no AI label on the video itself, and the platforms' own AI flags such as TikTok's stay on either way). Every project writes `sources.txt` with all
-source links; the sources are not shown on the video or in the post.
+## More docs
+
+| Doc | Topic |
+|---|---|
+| [docs/FEATURES.md](docs/FEATURES.md) | What each feature does and how to use it |
+| [docs/RELEASING.md](docs/RELEASING.md) | Build, CI, releases, auto-update, signing key |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Hetzner server with Postiz (Vietnamese) |
+| [docs/WINDOWS_SERVER.md](docs/WINDOWS_SERVER.md) | Engine on a Windows PC at home (Vietnamese) |
+| [docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md) | Google Drive storage |
+| [docs/CN_PLATFORMS.md](docs/CN_PLATFORMS.md), [docs/DOUYIN_F2.md](docs/DOUYIN_F2.md) | Chinese platforms, Douyin through f2 |
+| [docs/APP_PLAN.md](docs/APP_PLAN.md), [docs/DESIGN.md](docs/DESIGN.md) | Plan and milestones, UI look |
+
+## Content rules
+
+An original French voice-over with context; source clips only illustrate it. The post says "Voix off générée par
+IA." (AI videos add "Images générées par IA."), and the platforms' AI flags stay on. There is no AI label on the
+video itself. Every project writes `sources.txt`; sources are not shown on the video or in the post.
