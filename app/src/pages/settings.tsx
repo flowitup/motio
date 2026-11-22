@@ -360,6 +360,7 @@ const TOC_LABEL: Record<SectionId, () => string> = {
 
 function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Settings; draft: Draft; setDraft: (f: (d: Draft) => Draft) => void; changed: string[] }) {
   const testSlack = useMutation({ mutationFn: () => api.testSlack() });
+  const testPostiz = useMutation({ mutationFn: () => api.postizChannels() });
   const val = (k: string) => (k in draft ? String(draft[k]) : (s[k]?.value ?? ""));
   const bool = (k: string, dflt = false) =>
     k in draft ? draft[k] === true : val(k) === "" ? dflt : ["1", "true", "yes", "on"].includes(val(k).toLowerCase());
@@ -468,6 +469,27 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
           {secret("POSTIZ_API_KEY")}
         </Field>
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testPostiz.mutate()}
+            disabled={dirty || !s.POSTIZ_URL?.value || !s.POSTIZ_API_KEY?.value || testPostiz.isPending}
+          >
+            {testPostiz.isPending && <Loader2 className="animate-spin" />}
+            {t.settings.postizTest}
+          </Button>
+          {dirty && <span className="text-xs text-muted-foreground">{t.settings.postizSaveFirst}</span>}
+          <span role="status" className="contents">
+            {testPostiz.isSuccess && !dirty && (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Check className="size-4" />
+                {t.settings.postizConnected(testPostiz.data.length)}
+              </span>
+            )}
+          </span>
+          {testPostiz.error && <span role="alert" className="text-sm text-destructive">{testPostiz.error.message}</span>}
+        </div>
         <div className="grid gap-3 sm:col-span-2">
           <Field label={`${t.settings.slack} · SLACK_WEBHOOK_URL`} hint={src("SLACK_WEBHOOK_URL") ?? t.settings.slackHint}>
             {secret("SLACK_WEBHOOK_URL")}

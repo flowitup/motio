@@ -163,6 +163,7 @@ export type ChannelInput = {
   ai_clips: number; // video AI: số cảnh thành clip AI mỗi video (0–10); 0 = chỉ ảnh chuyển động
   series: string; // video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
   cast: string; // video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu)
+  ai_note?: boolean; // bài đăng có dòng "Voix off générée par IA." (engine cũ không có = bật); cờ AI của nền tảng luôn bật
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };

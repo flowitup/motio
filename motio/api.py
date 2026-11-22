@@ -245,6 +245,7 @@ class ChannelIn(BaseModel):
     ai_clips: int = 0  # video AI: số cảnh thành clip AI (fal H3 Max) mỗi video; 0 = chỉ ảnh chuyển động
     series: str = ""  # video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
     cast: str = ""  # video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, nhân vật hư cấu)
+    ai_note: bool = True  # bài đăng có dòng "Voix off générée par IA." (cờ AI của nền tảng luôn bật)
     default: bool = False
 
 

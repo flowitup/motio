@@ -39,6 +39,7 @@ const BLANK: ChannelInput = {
   ai_clips: 0,
   series: "",
   cast: "",
+  ai_note: true,
   default: false,
 };
 const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
@@ -316,6 +317,11 @@ function ChannelForm({
           <div className="text-[13px] font-medium">{t.channels.gates}</div>
           <Toggle checked={d.gate_script} onChange={(v) => set("gate_script", v)} label={t.channels.gateScript} hint={t.channels.gateScriptHint} />
           <Toggle checked={d.gate_video} onChange={(v) => set("gate_video", v)} label={t.channels.gateVideo} hint={t.channels.gateVideoHint} />
+        </div>
+
+        <div className="grid gap-3 border-t pt-4">
+          <div className="text-[13px] font-medium">{t.channels.postText}</div>
+          <Toggle checked={d.ai_note !== false} onChange={(v) => set("ai_note", v)} label={t.channels.aiNote} hint={t.channels.aiNoteHint} />
         </div>
 
         <div className="grid gap-3 border-t pt-4">

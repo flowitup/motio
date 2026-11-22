@@ -649,15 +649,17 @@ def _voice(plan: dict, out: Path, step, duration_sec: int, voice: str | None = N
 
 
 def write_post(plan: dict, sources: list[dict], out: Path, ai_images: bool = False, ai_clips: bool = False,
-               voice: bool = True) -> str:
+               voice: bool = True, ai_note: bool = True) -> str:
     """Ghi sources.txt (luôn, nội bộ) và post.txt (UTF-8: tên kênh chữ Hán, emoji). Trả phần mô tả bài đăng
-    (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag)."""
+    (kèm nhãn giọng AI, nhãn ảnh / clip AI cho video AI, và hashtag). ai_note=False (tuỳ chọn của hồ sơ kênh): bỏ các
+    dòng nhãn đó khỏi chữ bài đăng; cờ AI của nền tảng (vd. TikTok) do postiz.settings_for đặt và luôn bật."""
     lines = [f"• {s['platform']} · {s['uploader']} — {s['url']}" for s in sources]
     (out / "sources.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")  # nội bộ, không đăng
     desc = plan.get("description", "").strip()
     label = ("Voix off générée par IA." if voice else "") + (" Images et vidéos générées par IA."
                                                            if ai_images and ai_clips
                                                            else " Images générées par IA." if ai_images else "")
+    label = label.strip() if ai_note else ""
     desc += f"\n\n{label}\n" if label else "\n\n"
     desc += " ".join(plan.get("hashtags", [])[:6])
     (out / "post.txt").write_text(f"{plan['title_fr']}\n\n{desc}\n", encoding="utf-8")
@@ -682,7 +684,7 @@ def _clip_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step
     bad = [c["msg"] for c in verdict["checks"] if c["level"] != "ok"]
     step("Render", 97, tr("Quality check: {problems}", problems=" · ".join(bad)) if bad else tr("Quality check passed"),
          qa=verdict)
-    desc = write_post(plan, sources, out, voice=False)
+    desc = write_post(plan, sources, out, voice=False, ai_note=ch["ai_note"] if ch else True)
     db.update_project(pid, log=tr("Rendered in {seconds} s · {clips} · {rest}", seconds=f"{time.time() - t_begin:.0f}",
                                   clips=tr_n(res["captions"], "caption"), rest=f"{res['duration']:.1f} s video"),
                       meta={"video": f"projects/{pid}/final.mp4", "thumb": f"projects/{pid}/thumb.jpg", "wide": None,
@@ -788,7 +790,8 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
 
     # 7. Mô tả bài đăng
     desc = write_post(plan, [] if is_ai else sources, out, ai_images=is_ai,
-                      ai_clips=is_ai and aiclips.used(db.get_project(pid)["meta"]))
+                      ai_clips=is_ai and aiclips.used(db.get_project(pid)["meta"]),
+                      ai_note=ch["ai_note"] if ch else True)
     bg = nar.get("background") if is_dub else None
     how = (tr(" · original music and sound kept") if bg == "separated"
            else tr(" · original sound turned down") if bg == "original" else "")
