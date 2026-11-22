@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
 import { LogosCard } from "@/components/logos-card";
 import { Section } from "@/components/section";
-import { PageTitle, TopBar } from "@/components/studio";
+import { PageTitle, Segmented, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -47,7 +48,7 @@ function LanguageField({ unsaved }: { unsaved: number }) {
 function ThemeField() {
   const theme = useTheme();
   return (
-    <Field label={t.settings.theme} hint={t.settings.themeHints[theme]}>
+    <Field label={t.settings.themeLabel} hint={t.settings.themeHints[theme]}>
       <Choice value={theme} onChange={(v) => setTheme(v as Theme)} options={THEMES.map((k) => [k, t.settings.themes[k]] as [string, string])} className="w-56" />
     </Field>
   );
@@ -341,26 +342,31 @@ function HealthCard({ api }: { api: Api }) {
   );
 }
 
+/** The tabs of the page, in order. Each one holds what a person looks for together; the technical options sit last. */
+const TABS = ["general", "ai", "publishing", "storage", "app", "advanced"] as const;
+type TabId = (typeof TABS)[number];
 
-/** One entry of the section list on the left (and the order of the sections on the page). */
-const SECTIONS = ["general", "llm", "voice", "costs", "images", "posting", "storage", "logos", "engine", "advanced"] as const;
-type SectionId = (typeof SECTIONS)[number];
-const TOC_LABEL: Record<SectionId, () => string> = {
-  general: () => t.settings.general,
-  llm: () => t.settings.llm,
-  voice: () => t.settings.voice,
-  costs: () => t.settings.costs,
-  images: () => t.settings.imagesClips,
-  posting: () => t.settings.posting,
-  storage: () => t.settings.storage,
-  logos: () => t.settings.logos,
-  engine: () => t.settings.engine,
-  advanced: () => t.settings.advanced,
-};
+/** Which tab a setting lives on (to mark a tab that holds unsaved changes). */
+function tabOf(key: string): TabId {
+  if (/^(REFRESH_EVERY_MIN|NEWS_TOPICS)$/.test(key)) return "general";
+  if (/^(LLM_|ANTHROPIC_|ELEVENLABS_|MONTHLY_BUDGET_USD|AI_CLIP_USD_PER_SEC|FAL_KEY|IMAGE_STYLE)/.test(key)) return "ai";
+  if (/^(POSTIZ_|SLACK_)/.test(key)) return "publishing";
+  if (/^DRIVE_/.test(key)) return "storage";
+  return "advanced";
+}
 
-function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Settings; draft: Draft; setDraft: (f: (d: Draft) => Draft) => void; changed: string[] }) {
-  const testSlack = useMutation({ mutationFn: () => api.testSlack() });
-  const testPostiz = useMutation({ mutationFn: () => api.postizChannels() });
+/** A small "set up / not set up" readout for the header of a service card. */
+function KeyStatus({ on }: { on: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className={on ? "size-2 rounded-full bg-mint" : "size-2 rounded-full border border-muted-foreground"} />
+      {on ? t.settings.keyOn : t.settings.keyOff}
+    </span>
+  );
+}
+
+/** The controls every tab shares: they read and write the one draft of the page. */
+function useKit(s: Settings, draft: Draft, setDraft: (f: (d: Draft) => Draft) => void) {
   const val = (k: string) => (k in draft ? String(draft[k]) : (s[k]?.value ?? ""));
   const bool = (k: string, dflt = false) =>
     k in draft ? draft[k] === true : val(k) === "" ? dflt : ["1", "true", "yes", "on"].includes(val(k).toLowerCase());
@@ -385,54 +391,73 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
     <Input
       type="password"
       value={k in draft ? String(draft[k]) : ""}
-      placeholder={s[k]?.value || t.settings.keyPlaceholder}
+      placeholder={s[k]?.value || t.settings.keyEmpty}
       onChange={(e) => set(k, e.target.value)}
     />
   );
   const src = (k: string) =>
     s[k]?.source === "settings" ? t.settings.fromSettings : s[k]?.source === "env" ? t.settings.fromEnv : undefined;
-  const hasElKey = !!s.ELEVENLABS_API_KEY?.value && draft.ELEVENLABS_API_KEY !== "";
-  const dirty = changed.length > 0;
-  const grid = "grid gap-4 sm:grid-cols-2";
-  const switchRow = (k: string, label: string, dflt = false) => (
-    <label className="flex items-center justify-between gap-4">
-      <span className="text-[13px]">{label}</span>
-      <Switch checked={bool(k, dflt)} onCheckedChange={(v) => set(k, v)} />
-    </label>
+  const saved = (k: string) => !!s[k]?.value;
+  const switchRow = (k: string, label: string, hint?: string, dflt = false) => (
+    <div className="grid content-start gap-1">
+      <label className="flex items-center justify-between gap-4">
+        <span className="text-[13px]">{label}</span>
+        <Switch checked={bool(k, dflt)} onCheckedChange={(v) => set(k, v)} />
+      </label>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
   );
+  return { val, bool, set, text, num, secret, src, saved, switchRow };
+}
+type Kit = ReturnType<typeof useKit>;
 
+const GRID = "grid items-start gap-4 sm:grid-cols-2";
+
+function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
+  const { src, num, switchRow } = kit;
   return (
     <>
-      <Section id="general" title={t.settings.general} bodyClassName={grid}>
-        <LanguageField unsaved={changed.length} />
-        <ThemeField />
-        <FontField />
+      <Section id="general" title={t.settings.general} bodyClassName={GRID}>
+        <LanguageField unsaved={unsaved} />
         <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN") ?? t.settings.refreshHint}>
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>
-        <div className="grid content-start gap-1 sm:col-span-2">
-          {switchRow("NEWS_TOPICS", t.settings.newsTopics)}
-          <p className="text-xs text-muted-foreground">{t.settings.newsTopicsHint}</p>
-        </div>
+        <div className="sm:col-span-2">{switchRow("NEWS_TOPICS", t.settings.newsTopics, t.settings.newsTopicsHint)}</div>
       </Section>
+      <Section id="appearance" title={t.settings.theme} bodyClassName={GRID}>
+        <ThemeField />
+        <FontField />
+      </Section>
+    </>
+  );
+}
 
-      <Section id="llm" title={t.settings.llm} bodyClassName={grid}>
+function AiTab({ api, kit }: { api: Api; kit: Kit }) {
+  const { val, set, text, num, secret, src, saved } = kit;
+  const hasElKey = saved("ELEVENLABS_API_KEY");
+  return (
+    <>
+      <Section id="llm" title={t.settings.llm} aside={<KeyStatus on={saved("ANTHROPIC_API_KEY")} />} bodyClassName={GRID}>
+        <p className="text-sm text-muted-foreground sm:col-span-2">{t.settings.modelHint}</p>
+        <div className="sm:col-span-2">
+          <Field label={t.settings.apiKey} hint={src("ANTHROPIC_API_KEY")}>
+            {secret("ANTHROPIC_API_KEY")}
+          </Field>
+        </div>
         <Field label={t.settings.model} hint={src("LLM_MODEL")}>
           {text("LLM_MODEL", "claude-opus-5-5")}
         </Field>
         <Field label={t.settings.modelFast} hint={src("LLM_MODEL_FAST")}>
           {text("LLM_MODEL_FAST", "claude-haiku-5-5")}
         </Field>
-        <Field label="ANTHROPIC_API_KEY" hint={src("ANTHROPIC_API_KEY")}>
-          {secret("ANTHROPIC_API_KEY")}
-        </Field>
-        <p className="text-sm text-muted-foreground sm:col-span-2">{t.settings.modelHint}</p>
       </Section>
 
-      <Section id="voice" title={t.settings.voice} bodyClassName={grid}>
-        <Field label="ELEVENLABS_API_KEY" hint={src("ELEVENLABS_API_KEY")}>
-          {secret("ELEVENLABS_API_KEY")}
-        </Field>
+      <Section id="voice" title={t.settings.voice} aside={<KeyStatus on={hasElKey} />} bodyClassName={GRID}>
+        <div className="sm:col-span-2">
+          <Field label={t.settings.apiKey} hint={src("ELEVENLABS_API_KEY")}>
+            {secret("ELEVENLABS_API_KEY")}
+          </Field>
+        </div>
         <Field label={t.settings.voiceLabel}>
           <VoicePicker api={api} hasKey={hasElKey} value={val("ELEVENLABS_VOICE_ID")} onChange={(v) => set("ELEVENLABS_VOICE_ID", v)} />
         </Field>
@@ -441,7 +466,20 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
         </Field>
       </Section>
 
-      <Section id="costs" title={t.settings.costs} bodyClassName={grid}>
+      <Section id="images" title={t.settings.imagesClips} aside={<KeyStatus on={saved("FAL_KEY")} />} bodyClassName={GRID}>
+        <div className="sm:col-span-2">
+          <Field label={t.settings.apiKey} hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
+            {secret("FAL_KEY")}
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
+            {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
+          </Field>
+        </div>
+      </Section>
+
+      <Section id="costs" title={t.settings.costs} bodyClassName={GRID}>
         <Field label={t.settings.monthlyBudget} hint={t.settings.monthlyBudgetHint}>
           {num("MONTHLY_BUDGET_USD", "0", "1")}
         </Field>
@@ -452,21 +490,21 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
           {num("AI_CLIP_USD_PER_SEC", val("CLIP_PROVIDER") === "heygen" ? "0.02" : "0.08", "0.01")}
         </Field>
       </Section>
+    </>
+  );
+}
 
-      <Section id="images" title={t.settings.imagesClips} bodyClassName={grid}>
-        <Field label="FAL_KEY" hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
-          {secret("FAL_KEY")}
-        </Field>
-        <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
-          {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
-        </Field>
-      </Section>
-
-      <Section id="posting" title={t.settings.posting} bodyClassName={grid}>
+function PublishingTab({ api, s, kit, dirty }: { api: Api; s: Settings; kit: Kit; dirty: boolean }) {
+  const { text, secret, src, saved } = kit;
+  const testSlack = useMutation({ mutationFn: () => api.testSlack() });
+  const testPostiz = useMutation({ mutationFn: () => api.postizChannels() });
+  return (
+    <>
+      <Section id="posting" title={t.settings.postiz} aside={<KeyStatus on={saved("POSTIZ_URL") && saved("POSTIZ_API_KEY")} />} bodyClassName={GRID}>
         <Field label={t.settings.postizUrl} hint={src("POSTIZ_URL") ?? t.settings.postizHint}>
           {text("POSTIZ_URL", "https://postiz.example.com/api")}
         </Field>
-        <Field label="POSTIZ_API_KEY" hint={src("POSTIZ_API_KEY")}>
+        <Field label={t.settings.apiKey} hint={src("POSTIZ_API_KEY")}>
           {secret("POSTIZ_API_KEY")}
         </Field>
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
@@ -490,129 +528,135 @@ function SettingsForm({ api, s, draft, setDraft, changed }: { api: Api; s: Setti
           </span>
           {testPostiz.error && <span role="alert" className="text-sm text-destructive">{testPostiz.error.message}</span>}
         </div>
-        <div className="grid gap-3 sm:col-span-2">
-          <Field label={`${t.settings.slack} · SLACK_WEBHOOK_URL`} hint={src("SLACK_WEBHOOK_URL") ?? t.settings.slackHint}>
-            {secret("SLACK_WEBHOOK_URL")}
-          </Field>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => testSlack.mutate()}
-              disabled={dirty || !s.SLACK_WEBHOOK_URL?.value || testSlack.isPending}
-            >
-              {testSlack.isPending && <Loader2 className="animate-spin" />}
-              {t.settings.slackTest}
-            </Button>
-            {dirty && <span className="text-xs text-muted-foreground">{t.settings.slackSaveFirst}</span>}
-            <span role="status" className="contents">
-              {testSlack.isSuccess && !dirty && (
-                <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Check className="size-4" />
-                  {t.settings.slackSent}
-                </span>
-              )}
-            </span>
-            {testSlack.error && <span role="alert" className="text-sm text-destructive">{testSlack.error.message}</span>}
-          </div>
-        </div>
       </Section>
 
-      <Section id="storage" title={t.settings.storage} bodyClassName={grid}>
-        <div className="grid content-start gap-1 sm:col-span-2">
-          {switchRow("DRIVE_ON", t.settings.driveOn)}
-          <p className="text-xs text-muted-foreground">{t.settings.driveOnHint}</p>
-        </div>
-        <Field label={`${t.settings.driveClientId} · DRIVE_CLIENT_ID`} hint={src("DRIVE_CLIENT_ID") ?? t.settings.driveClientHint}>
-          {text("DRIVE_CLIENT_ID")}
+      <Section id="slack" title={t.settings.slack} aside={<KeyStatus on={saved("SLACK_WEBHOOK_URL")} />} bodyClassName="grid gap-4">
+        <Field label={t.settings.slackLink} hint={src("SLACK_WEBHOOK_URL") ?? t.settings.slackHint}>
+          {secret("SLACK_WEBHOOK_URL")}
         </Field>
-        <Field label="DRIVE_CLIENT_SECRET" hint={src("DRIVE_CLIENT_SECRET") ?? t.settings.driveSecretHint}>
-          {secret("DRIVE_CLIENT_SECRET")}
-        </Field>
-        <Field label={t.settings.driveFolder} hint={src("DRIVE_FOLDER") ?? t.settings.driveFolderHint}>
-          {text("DRIVE_FOLDER", "Motio")}
-        </Field>
-        <div className="grid content-start gap-1">
-          {switchRow("DRIVE_KEEP_LOCAL", t.settings.driveKeep)}
-          <p className="text-xs text-muted-foreground">{t.settings.driveKeepHint}</p>
-        </div>
-        <div className="sm:col-span-2">
-          <DriveActions api={api} dirty={dirty} />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testSlack.mutate()}
+            disabled={dirty || !s.SLACK_WEBHOOK_URL?.value || testSlack.isPending}
+          >
+            {testSlack.isPending && <Loader2 className="animate-spin" />}
+            {t.settings.slackTest}
+          </Button>
+          {dirty && <span className="text-xs text-muted-foreground">{t.settings.slackSaveFirst}</span>}
+          <span role="status" className="contents">
+            {testSlack.isSuccess && !dirty && (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Check className="size-4" />
+                {t.settings.slackSent}
+              </span>
+            )}
+          </span>
+          {testSlack.error && <span role="alert" className="text-sm text-destructive">{testSlack.error.message}</span>}
         </div>
       </Section>
     </>
   );
 }
 
-/** Technical options: the defaults work for most setups, so they sit folded at the bottom. */
-function AdvancedSection({ s, draft, setDraft }: { s: Settings; draft: Draft; setDraft: (f: (d: Draft) => Draft) => void }) {
-  const val = (k: string) => (k in draft ? String(draft[k]) : (s[k]?.value ?? ""));
-  const set = (k: string, v: string) => setDraft((d) => ({ ...d, [k]: v }));
-  const text = (k: string, placeholder?: string) => <Input value={val(k)} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} />;
-  const secret = (k: string) => (
-    <Input
-      type="password"
-      value={k in draft ? String(draft[k]) : ""}
-      placeholder={s[k]?.value || t.settings.keyPlaceholder}
-      onChange={(e) => set(k, e.target.value)}
-    />
-  );
-  const src = (k: string) =>
-    s[k]?.source === "settings" ? t.settings.fromSettings : s[k]?.source === "env" ? t.settings.fromEnv : undefined;
+function StorageTab({ api, kit, dirty }: { api: Api; kit: Kit; dirty: boolean }) {
+  const { text, secret, src, switchRow } = kit;
   return (
-    <Section id="advanced" title={t.settings.advanced} aside={t.settings.advancedHint} collapsible defaultOpen={false} bodyClassName="grid gap-4 sm:grid-cols-2">
-      <Field label={t.settings.whisper} hint={src("WHISPER_MODEL")}>
-        {text("WHISPER_MODEL")}
-      </Field>
-      <Field label={t.settings.newsnowUrl} hint={src("NEWSNOW_URL") ?? t.settings.newsnowHint}>
-        {text("NEWSNOW_URL", "https://newsnow.busiyi.world")}
-      </Field>
-      <Field label={t.settings.imageProvider} hint={src("IMAGE_PROVIDER")}>
-        <Choice
-          value={val("IMAGE_PROVIDER") || "fal"}
-          onChange={(v) => set("IMAGE_PROVIDER", v)}
-          options={(["fal", "modal", "placeholder"] as const).map((k) => [k, t.ai.providers[k]])}
-        />
-      </Field>
-      {(val("IMAGE_PROVIDER") || "fal") === "fal" && (
-        <Field label={t.settings.falModel} hint={src("FAL_IMAGE_MODEL") ?? t.settings.falModelHint}>
+    <>
+      <Section id="storage" title={t.settings.storage} bodyClassName={GRID}>
+        <div className="sm:col-span-2">{switchRow("DRIVE_ON", t.settings.driveOn, t.settings.driveOnHint)}</div>
+        <Field label={t.settings.driveClientId} hint={src("DRIVE_CLIENT_ID") ?? t.settings.driveClientHint}>
+          {text("DRIVE_CLIENT_ID")}
+        </Field>
+        <Field label={t.settings.driveClientSecret} hint={src("DRIVE_CLIENT_SECRET") ?? t.settings.driveSecretHint}>
+          {secret("DRIVE_CLIENT_SECRET")}
+        </Field>
+        <Field label={t.settings.driveFolder} hint={src("DRIVE_FOLDER") ?? t.settings.driveFolderHint}>
+          {text("DRIVE_FOLDER", "Motio")}
+        </Field>
+        {switchRow("DRIVE_KEEP_LOCAL", t.settings.driveKeep, t.settings.driveKeepHint)}
+        <div className="sm:col-span-2">
+          <DriveActions api={api} dirty={dirty} />
+        </div>
+      </Section>
+      <LogosCard api={api} />
+    </>
+  );
+}
+
+function AppTab({ api }: { api: Api }) {
+  return (
+    <>
+      <EngineCard />
+      <UpdateCard />
+      <HealthCard api={api} />
+    </>
+  );
+}
+
+/** Technical options: the defaults work for most setups, so they have a tab of their own, last. */
+function AdvancedTab({ kit }: { kit: Kit }) {
+  const { val, set, text, secret, src } = kit;
+  return (
+    <>
+      <Section id="providers" title={t.settings.aiProviders} bodyClassName={GRID}>
+        <Field label={t.settings.imageProvider} hint={src("IMAGE_PROVIDER")}>
           <Choice
-            value={val("FAL_IMAGE_MODEL") || DEFAULT_FAL_MODEL}
-            onChange={(v) => set("FAL_IMAGE_MODEL", v)}
-            options={FAL_MODELS.map((k) => [k, `${t.ai.falModels[k]} · ~$${FAL_PICTURE_USD[k].toFixed(3)}`])}
+            value={val("IMAGE_PROVIDER") || "fal"}
+            onChange={(v) => set("IMAGE_PROVIDER", v)}
+            options={(["fal", "modal", "placeholder"] as const).map((k) => [k, t.ai.providers[k]])}
           />
         </Field>
-      )}
-      <Field label={t.settings.clipProvider} hint={src("CLIP_PROVIDER") ?? t.settings.clipProviderHint}>
-        <Choice
-          value={val("CLIP_PROVIDER") || "fal"}
-          onChange={(v) => set("CLIP_PROVIDER", v)}
-          options={(["fal", "heygen"] as const).map((k) => [k, t.ai.clipProviders[k]])}
-        />
-      </Field>
-      <Field label="HEYGEN_API_KEY" hint={src("HEYGEN_API_KEY") ?? t.settings.heygenKeyHint}>
-        {secret("HEYGEN_API_KEY")}
-      </Field>
-      <p className="text-xs text-muted-foreground sm:col-span-2">{t.settings.imageProviderHint}</p>
-      <Field label={t.settings.cookies} hint={t.settings.cookiesHint}>
-        <Choice
-          value={val("YTDLP_COOKIES_FROM_BROWSER") || "none"}
-          onChange={(v) => set("YTDLP_COOKIES_FROM_BROWSER", v === "none" ? "" : v)}
-          options={[
-            ["none", t.settings.cookiesNone],
-            ["chrome", "Chrome"],
-            ["safari", "Safari"],
-            ["firefox", "Firefox"],
-            ["edge", "Edge"],
-            ["brave", "Brave"],
-          ]}
-          className="w-48"
-        />
-      </Field>
-      <Field label={t.settings.cookiesFile} hint={t.settings.cookiesFileHint}>
-        {text("YTDLP_COOKIES_FILE", cookieExample())}
-      </Field>
-    </Section>
+        {(val("IMAGE_PROVIDER") || "fal") === "fal" && (
+          <Field label={t.settings.falModel} hint={src("FAL_IMAGE_MODEL") ?? t.settings.falModelHint}>
+            <Choice
+              value={val("FAL_IMAGE_MODEL") || DEFAULT_FAL_MODEL}
+              onChange={(v) => set("FAL_IMAGE_MODEL", v)}
+              options={FAL_MODELS.map((k) => [k, `${t.ai.falModels[k]} · ~$${FAL_PICTURE_USD[k].toFixed(3)}`])}
+            />
+          </Field>
+        )}
+        <p className="text-xs text-muted-foreground sm:col-span-2">{t.settings.imageProviderHint}</p>
+        <Field label={t.settings.clipProvider} hint={src("CLIP_PROVIDER") ?? t.settings.clipProviderHint}>
+          <Choice
+            value={val("CLIP_PROVIDER") || "fal"}
+            onChange={(v) => set("CLIP_PROVIDER", v)}
+            options={(["fal", "heygen"] as const).map((k) => [k, t.ai.clipProviders[k]])}
+          />
+        </Field>
+        <Field label={t.settings.heygenKey} hint={src("HEYGEN_API_KEY") ?? t.settings.heygenKeyHint}>
+          {secret("HEYGEN_API_KEY")}
+        </Field>
+      </Section>
+
+      <Section id="sources" title={t.settings.sourcesAdv} bodyClassName={GRID}>
+        <Field label={t.settings.cookies} hint={t.settings.cookiesHint}>
+          <Choice
+            value={val("YTDLP_COOKIES_FROM_BROWSER") || "none"}
+            onChange={(v) => set("YTDLP_COOKIES_FROM_BROWSER", v === "none" ? "" : v)}
+            options={[
+              ["none", t.settings.cookiesNone],
+              ["chrome", "Chrome"],
+              ["safari", "Safari"],
+              ["firefox", "Firefox"],
+              ["edge", "Edge"],
+              ["brave", "Brave"],
+            ]}
+            className="w-48"
+          />
+        </Field>
+        <Field label={t.settings.cookiesFile} hint={t.settings.cookiesFileHint}>
+          {text("YTDLP_COOKIES_FILE", cookieExample())}
+        </Field>
+        <Field label={t.settings.newsnowUrl} hint={src("NEWSNOW_URL") ?? t.settings.newsnowHint}>
+          {text("NEWSNOW_URL", "https://newsnow.busiyi.world")}
+        </Field>
+        <Field label={t.settings.whisper} hint={src("WHISPER_MODEL")}>
+          {text("WHISPER_MODEL")}
+        </Field>
+      </Section>
+    </>
   );
 }
 
@@ -625,6 +669,9 @@ export default function SettingsPage() {
   const { data: s, error } = useQuery({ queryKey: ["settings"], queryFn: () => api!.settings(), enabled: !!api });
   const [draft, setDraft] = useState<Draft>({});
   const [saved, setSaved] = useState(false);
+  // The tab lives in state, not in the address: the unsaved-changes guard blocks any address change. `?tab=` only opens one.
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<TabId>(() => ((TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as TabId) : "general"));
 
   // What really differs from the saved value: typing a value and typing it back is not a change.
   const original = (k: string): string | boolean => (typeof draft[k] === "boolean" ? ["1", "true", "yes", "on"].includes((s?.[k]?.value ?? "").toLowerCase()) : (s?.[k]?.value ?? ""));
@@ -632,6 +679,7 @@ export default function SettingsPage() {
   const changed = Object.keys(draft).filter((k) => (secrets.has(k) ? draft[k] !== "" || !!s?.[k]?.value : draft[k] !== original(k)));
   const dirty = changed.length > 0;
   const guard = useUnsavedGuard(dirty);
+  const kit = useKit(s ?? {}, draft, setDraft);
 
   const save = useMutation({
     mutationFn: () => api!.saveSettings(Object.fromEntries(changed.map((k) => [k, draft[k]]))),
@@ -645,37 +693,42 @@ export default function SettingsPage() {
     },
   });
 
-  const toc = (id: SectionId) => document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
+  const dirtyTabs = new Set(changed.map(tabOf));
 
   return (
     <>
       <TopBar>
         <PageTitle>{t.settings.title}</PageTitle>
       </TopBar>
-      <div className="flex items-start gap-8 px-6 pt-6">
-        <nav aria-label={t.settings.sections} className="settings-toc sticky top-20 hidden w-40 shrink-0 min-[1180px]:grid">
-          {SECTIONS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => toc(id)}
-              className="h-9 rounded-lg px-3 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:bg-raised hover:text-foreground"
-            >
-              {TOC_LABEL[id]()}
-            </button>
-          ))}
-        </nav>
-        <div className="min-w-0 max-w-3xl flex-1 space-y-5 pb-6">
+      <div className="mx-auto w-full max-w-3xl px-6 pt-6">
+        <Segmented
+          tabs
+          className="w-full"
+          label={t.settings.sections}
+          value={tab}
+          onChange={setTab}
+          options={TABS.map((id) => ({
+            value: id,
+            label: (
+              <>
+                {t.settings.tabs[id]}
+                {dirtyTabs.has(id) && <span role="img" aria-label={t.settings.tabUnsaved} className="size-2 shrink-0 rounded-full bg-amber" />}
+              </>
+            ),
+          }))}
+        />
+        <p className="mt-3 text-sm text-muted-foreground">{t.settings.tabHints[tab]}</p>
+        <div className="space-y-5 pt-5 pb-6">
           {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
           {api && s && (
-            <>
-              <SettingsForm api={api} s={s} draft={draft} setDraft={setDraft} changed={changed} />
-              <LogosCard api={api} />
-              <EngineCard />
-              <UpdateCard />
-              <HealthCard api={api} />
-              <AdvancedSection s={s} draft={draft} setDraft={setDraft} />
-            </>
+            <div role="tabpanel" className="space-y-5">
+              {tab === "general" && <GeneralTab kit={kit} unsaved={changed.length} />}
+              {tab === "ai" && <AiTab api={api} kit={kit} />}
+              {tab === "publishing" && <PublishingTab api={api} s={s} kit={kit} dirty={dirty} />}
+              {tab === "storage" && <StorageTab api={api} kit={kit} dirty={dirty} />}
+              {tab === "app" && <AppTab api={api} />}
+              {tab === "advanced" && <AdvancedTab kit={kit} />}
+            </div>
           )}
         </div>
       </div>
