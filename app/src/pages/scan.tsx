@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { ExternalA } from "@/components/external-link";
 import { Choice, Field } from "@/components/form";
+import { SectionTabs } from "@/components/section-tabs";
 import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -179,7 +180,8 @@ export default function ScanPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.scan.title}</PageTitle>
+        <PageTitle>{t.nav.discover}</PageTitle>
+        <SectionTabs section="discover" />
         {rows.length > 0 && (
           <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
             {t.scan.totalViews(totalViews.toLocaleString())}

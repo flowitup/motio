@@ -12,11 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { VoicePicker } from "@/components/voice-picker";
+import { ChannelsPanel } from "@/pages/channels";
+import { StatsPanel } from "@/pages/stats";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useApi, type Api, type Settings } from "@/lib/api";
 import { inTauri, openExternal, useEngine, type EngineConfig } from "@/lib/engine";
 import { DEFAULT_FAL_MODEL, FAL_MODELS, FAL_PICTURE_USD } from "@/lib/image-models";
 import { useUpdater } from "@/lib/updater";
+import { cn } from "@/lib/utils";
 import { LANGS, setLang, t, useLang, type Lang } from "@/i18n";
 import { setTheme, THEMES, useTheme, type Theme, FONTS, setFont, useFont, type Font } from "@/lib/theme";
 
@@ -343,7 +346,9 @@ function HealthCard({ api }: { api: Api }) {
 }
 
 /** The tabs of the page, in order. Each one holds what a person looks for together; the technical options sit last. */
-const TABS = ["general", "ai", "publishing", "storage", "app", "advanced"] as const;
+const TABS = ["general", "ai", "publishing", "channels", "storage", "stats", "app", "advanced"] as const;
+/** Tabs that save by themselves (their own forms), so the page-wide Save bar stays out of their way. */
+const OWN_SAVE: readonly TabId[] = ["channels", "stats"];
 type TabId = (typeof TABS)[number];
 
 /** Which tab a setting lives on (to mark a tab that holds unsaved changes). */
@@ -671,7 +676,12 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   // The tab lives in state, not in the address: the unsaved-changes guard blocks any address change. `?tab=` only opens one.
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<TabId>(() => ((TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as TabId) : "general"));
+  const asked = (TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as TabId) : null;
+  const [tab, setTab] = useState<TabId>(asked ?? "general");
+  // A link to another tab while the page is open (Channels → "Auto refresh" is in General).
+  useEffect(() => {
+    if (asked) setTab(asked);
+  }, [asked]);
 
   // What really differs from the saved value: typing a value and typing it back is not a change.
   const original = (k: string): string | boolean => (typeof draft[k] === "boolean" ? ["1", "true", "yes", "on"].includes((s?.[k]?.value ?? "").toLowerCase()) : (s?.[k]?.value ?? ""));
@@ -700,7 +710,7 @@ export default function SettingsPage() {
       <TopBar>
         <PageTitle>{t.settings.title}</PageTitle>
       </TopBar>
-      <div className="mx-auto w-full max-w-3xl px-6 pt-6">
+      <div className={cn("mx-auto w-full px-6 pt-6", OWN_SAVE.includes(tab) ? "max-w-4xl" : "max-w-3xl")}>
         <Segmented
           tabs
           className="w-full"
@@ -717,7 +727,8 @@ export default function SettingsPage() {
             ),
           }))}
         />
-        <p className="mt-3 text-sm text-muted-foreground">{t.settings.tabHints[tab]}</p>
+        {/* Channels and Stats explain themselves below */}
+        {!OWN_SAVE.includes(tab) && <p className="mt-3 text-sm text-muted-foreground">{t.settings.tabHints[tab]}</p>}
         <div className="space-y-5 pt-5 pb-6">
           {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
           {api && s && (
@@ -725,6 +736,8 @@ export default function SettingsPage() {
               {tab === "general" && <GeneralTab kit={kit} unsaved={changed.length} />}
               {tab === "ai" && <AiTab api={api} kit={kit} />}
               {tab === "publishing" && <PublishingTab api={api} s={s} kit={kit} dirty={dirty} />}
+              {tab === "channels" && <ChannelsPanel />}
+              {tab === "stats" && <StatsPanel />}
               {tab === "storage" && <StorageTab api={api} kit={kit} dirty={dirty} />}
               {tab === "app" && <AppTab api={api} />}
               {tab === "advanced" && <AdvancedTab kit={kit} />}
@@ -732,7 +745,7 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-      <div className="sticky bottom-0 z-10 flex items-center gap-3 border-t bg-ground px-6 py-3">
+      <div className={cn("sticky bottom-0 z-10 flex items-center gap-3 border-t bg-ground px-6 py-3", OWN_SAVE.includes(tab) && !dirty && "hidden")}>
         <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !api}>
           {save.isPending && <Loader2 className="animate-spin" />}
           {t.settings.save}

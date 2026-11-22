@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChartColumn, Download, Eraser, FolderKanban, Flame, Loader2, Newspaper, Plus, Rss, ScanSearch, Settings as SettingsIcon, TriangleAlert, Tv, Wrench } from "lucide-react";
+import { Compass, Download, FolderKanban, Loader2, Plus, Settings as SettingsIcon, TriangleAlert, Wrench } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { inSection, type SectionKey } from "@/components/section-tabs";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { HUE_SOLID, HUE_TILE, Led, type Hue } from "@/components/studio";
@@ -12,7 +13,6 @@ import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
 import AccountPage from "@/pages/account";
-import ChannelsPage from "@/pages/channels";
 import ClipStudioPage from "@/pages/clip-studio";
 import ClipsPage from "@/pages/clips";
 import DelogoPage from "@/pages/delogo";
@@ -21,28 +21,19 @@ import ProjectsPage from "@/pages/projects";
 import ReviewPage from "@/pages/review";
 import ScanPage from "@/pages/scan";
 import SettingsPage from "@/pages/settings";
-import StatsPage from "@/pages/stats";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
-import TrendVideosPage from "@/pages/trend-videos";
 
-type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Flame; hue?: Hue };
-/** The slim icon rail on the left, in groups split by a thin rule: find, make, channels, tools, numbers. Settings sits at the bottom. */
+type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Compass; hue?: Hue; section?: SectionKey };
+/** The slim icon rail on the left, in groups split by a thin rule: find + make, tools. Settings sits at the bottom and holds Channels and Stats as tabs.
+ * A `section` entry holds several pages as tabs (Discover: Feed, News topics, Scan; Tools: Quick jobs, Remove logo). */
 const NAV: NavItem[][] = [
   [
-    { to: "/trends", label: "trends", icon: Flame, hue: "amber" },
-    { to: "/news", label: "news", icon: Newspaper, hue: "orange" }, // only while NEWS_TOPICS is on
-    { to: "/scan", label: "scan", icon: ScanSearch, hue: "blue" },
-    { to: "/clips", label: "clips", icon: Rss, hue: "cyan" },
+    { to: "/clips", label: "discover", icon: Compass, hue: "amber", section: "discover" },
     { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
   ],
-  [{ to: "/channels", label: "channels", icon: Tv, hue: "pink" }],
-  [
-    { to: "/delogo", label: "delogo", icon: Eraser, hue: "coral" },
-    { to: "/tools", label: "tools", icon: Wrench, hue: "lime" },
-  ],
-  [{ to: "/stats", label: "stats", icon: ChartColumn, hue: "mint" }],
+  [{ to: "/tools", label: "tools", icon: Wrench, hue: "lime", section: "tools" }],
 ];
 
 /** A count in the menu: pink = waiting for you (approvals), coral = failed lately. */
@@ -67,33 +58,33 @@ function NavBadge({ count, label, tone }: { count: number; label: string; tone: 
 const railItem =
   "dock-item relative flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors";
 
-function RailItem({ to, label, icon: Icon, hue, count, failed }: { to: string; label: string; icon: typeof Flame; hue?: Hue; count?: number; failed?: number }) {
+function RailItem({ to, label, icon: Icon, hue, count, failed, section }: { to: string; label: string; icon: typeof Compass; hue?: Hue; count?: number; failed?: number; section?: SectionKey }) {
+  const { pathname } = useLocation();
+  // A section entry is lit on every page of its tabs, not only on its own route.
+  const isActive = section ? inSection(section, pathname) : pathname === to || pathname.startsWith(`${to}/`);
   return (
-    <NavLink
+    <Link
       to={to}
       title={label}
       aria-label={label}
-      className={({ isActive }) => cn(railItem, isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(railItem, isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
     >
-      {({ isActive }) => (
-        <>
-          {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
-          <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
-            <Icon className="size-[18px]" />
-          </span>
-          {!!count && (
-            <span className="absolute -top-0.5 -right-0.5">
-              <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
-            </span>
-          )}
-          {!!failed && (
-            <span className="absolute -bottom-0.5 -right-0.5">
-              <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
-            </span>
-          )}
-        </>
+      {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
+      <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
+        <Icon className="size-[18px]" />
+      </span>
+      {!!count && (
+        <span className="absolute -top-0.5 -right-0.5">
+          <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
+        </span>
       )}
-    </NavLink>
+      {!!failed && (
+        <span className="absolute -bottom-0.5 -right-0.5">
+          <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -198,8 +189,6 @@ export default function App() {
     enabled: !!api,
     refetchInterval: (q) => (q.state.data && q.state.data.queued + q.state.data.running > 0 ? BUSY_MS : 15_000),
   });
-  const { data: refresh } = useQuery({ queryKey: ["state"], queryFn: () => api!.state(), enabled: !!api, refetchInterval: 30_000 });
-  const newsTopics = !!refresh?.news_topics;
   useDocumentTitle(counts?.review ?? 0);
   const main = useRef<HTMLElement>(null);
 
@@ -215,7 +204,7 @@ export default function App() {
       </button>
       {/* A slim icon rail, like a video editor's: the page gets the whole height. Each icon names itself on hover. */}
       <nav aria-label={t.studio.mainNav} className="dock flex w-16 shrink-0 flex-col items-center border-r bg-monitor py-3">
-        <NavLink to="/trends" title={t.appName} aria-label={t.appName} className="dock-brand mb-3 flex size-10 items-center justify-center">
+        <NavLink to="/clips" title={t.appName} aria-label={t.appName} className="dock-brand mb-3 flex size-10 items-center justify-center">
           {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
           <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true">
             <g stroke="var(--amber)">
@@ -238,8 +227,8 @@ export default function App() {
         <div className="dock-groups flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto">
           {NAV.map((group, i) => (
             <div key={i} className={cn("dock-group flex flex-col items-center gap-1", i > 0 ? "mt-2 w-10 border-t pt-2" : "pt-1")}>
-              {group.filter(({ to }) => to !== "/news" || newsTopics).map(({ to, label, icon, hue }) => (
-                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} count={to === "/projects" ? counts?.review : undefined}
+              {group.map(({ to, label, icon, hue, section }) => (
+                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} section={section} count={to === "/projects" ? counts?.review : undefined}
                   failed={to === "/projects" ? counts?.failed_recent : undefined}
                 />
               ))}
@@ -254,8 +243,8 @@ export default function App() {
       </nav>
       <main ref={main} tabIndex={-1} className="app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none">
         <Routes>
-          <Route path="/" element={<Navigate to="/trends" replace />} />
-          <Route path="/trends" element={<EngineGate><TrendVideosPage /></EngineGate>} />
+          <Route path="/" element={<Navigate to="/clips" replace />} />
+          <Route path="/trends" element={<Navigate to="/clips" replace />} /> {/* Trending lists are part of the Feed now */}
           <Route path="/news" element={<EngineGate><TrendsPage /></EngineGate>} />
           <Route path="/scan" element={<EngineGate><ScanPage /></EngineGate>} />
           <Route path="/clips" element={<EngineGate><ClipsPage /></EngineGate>} />
@@ -265,10 +254,10 @@ export default function App() {
           <Route path="/projects/new" element={<EngineGate><NewVideoPage /></EngineGate>} />
           <Route path="/clip-studio" element={<EngineGate><ClipStudioPage /></EngineGate>} />
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
-          <Route path="/channels" element={<EngineGate><ChannelsPage /></EngineGate>} />
+          <Route path="/channels" element={<Navigate to="/settings?tab=channels" replace />} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />
           <Route path="/tools" element={<EngineGate><ToolsPage /></EngineGate>} />
-          <Route path="/stats" element={<EngineGate><StatsPage /></EngineGate>} />
+          <Route path="/stats" element={<Navigate to="/settings?tab=stats" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Kicker, PageTitle, TopBar } from "@/components/studio";
+import { Kicker } from "@/components/studio";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, type Stats } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -120,17 +120,15 @@ function ChannelTable({ rows }: { rows: Stats["channels"] }) {
   );
 }
 
-export default function StatsPage() {
+/** The spending report, as a tab of Settings. */
+export function StatsPanel() {
   const api = useApi()!;
   const { data, isLoading, error } = useQuery({ queryKey: ["stats"], queryFn: () => api.stats() });
   const perVideo = data && data.month.videos > 0 ? t.stats.perVideo(data.month.usd / data.month.videos) : undefined;
 
   return (
     <>
-      <TopBar>
-        <PageTitle>{t.stats.title}</PageTitle>
-      </TopBar>
-      <div className="max-w-4xl space-y-5 p-6">
+      <div className="space-y-5">
         <p className="text-[13px] text-muted-foreground">{t.stats.hint}</p>
         {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
         {isLoading && <Skeleton className="h-40 w-full rounded-xl" />}

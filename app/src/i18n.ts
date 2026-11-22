@@ -93,14 +93,16 @@ const categoryLists = (names: Record<string, string>, prefix: string) =>
 const en = {
   appName: "Motio",
   nav: {
+    discover: "Discover",
     trends: "Trending",
     news: "News topics",
     scan: "Scan",
-    clips: "Followed",
+    clips: "Feed",
     projects: "Projects",
     channels: "Channels",
     delogo: "Remove logo",
     tools: "Tools",
+    quickJobs: "Quick jobs",
     stats: "Stats",
     settings: "Settings",
   },
@@ -173,7 +175,8 @@ const en = {
     errorFor: (name: string, error: string) => `${name}: ${error}`,
   },
   clips: {
-    title: "Followed",
+    title: "Feed",
+    trendingSources: "Trending lists",
     check: "Check now",
     checking: "Checking…",
     lastCheck: "Last check",
@@ -287,7 +290,7 @@ const en = {
     openSource: "Open the account",
   },
   watches: {
-    title: "Followed sources",
+    title: "Sources",
     target: "Channel link, playlist or keywords",
     placeholder: "https://www.youtube.com/@… · https://space.bilibili.com/… · street food Chengdu",
     hint: "A YouTube channel or playlist, a Bilibili space (space.bilibili.com/…), a Kuaishou, Douyin or Weibo account page, or search keywords. Facebook and other sites: paste each video link in Projects → New video.",
@@ -1143,7 +1146,7 @@ const en = {
     advanced: "Advanced",
     advancedHint: "Technical options, the defaults work for most setups",
     sections: "Settings sections",
-    tabs: { general: "General", ai: "AI services", publishing: "Publishing", storage: "Storage", app: "App & engine", advanced: "Advanced" } as Record<string, string>,
+    tabs: { general: "General", ai: "AI services", publishing: "Publishing", channels: "Channels", storage: "Storage", stats: "Stats", app: "App & engine", advanced: "Advanced" } as Record<string, string>,
     tabHints: {
       general: "Language, automatic checks and the look of the app.",
       ai: "The services that write, voice and draw your videos, and what you spend on them.",
@@ -1432,14 +1435,16 @@ const NATIVE_VI: [string, string][] = [
 const vi: Messages = {
   appName: "Motio",
   nav: {
+    discover: "Khám phá",
     trends: "Xu hướng",
     news: "Tin hot",
     scan: "Quét",
-    clips: "Theo dõi",
+    clips: "Bảng tin",
     projects: "Dự án",
     channels: "Kênh",
     delogo: "Xoá logo",
     tools: "Công cụ",
+    quickJobs: "Việc nhanh",
     stats: "Thống kê",
     settings: "Cài đặt",
   },
@@ -1512,7 +1517,8 @@ const vi: Messages = {
     errorFor: (name: string, error: string) => `${name}: ${error}`,
   },
   clips: {
-    title: "Theo dõi",
+    title: "Bảng tin",
+    trendingSources: "Danh sách xu hướng",
     check: "Kiểm tra ngay",
     checking: "Đang kiểm tra…",
     lastCheck: "Kiểm tra lần cuối",
@@ -1625,7 +1631,7 @@ const vi: Messages = {
     openSource: "Mở tài khoản",
   },
   watches: {
-    title: "Nguồn theo dõi",
+    title: "Nguồn",
     target: "Link kênh, playlist hoặc từ khoá",
     placeholder: "https://www.youtube.com/@… · https://space.bilibili.com/… · street food Chengdu",
     hint: "Kênh hoặc playlist YouTube, không gian Bilibili (space.bilibili.com/…), trang tài khoản Kuaishou, Douyin hoặc Weibo, hoặc từ khoá tìm. Facebook và trang khác: dán link từng video vào Dự án → Tạo video.",
@@ -2480,7 +2486,7 @@ const vi: Messages = {
     advanced: "Nâng cao",
     advancedHint: "Tuỳ chọn kỹ thuật, mặc định đã phù hợp với đa số",
     sections: "Các mục cài đặt",
-    tabs: { general: "Chung", ai: "Dịch vụ AI", publishing: "Đăng bài", storage: "Lưu trữ", app: "App & engine", advanced: "Nâng cao" } as Record<string, string>,
+    tabs: { general: "Chung", ai: "Dịch vụ AI", publishing: "Đăng bài", channels: "Kênh", storage: "Lưu trữ", stats: "Thống kê", app: "App & engine", advanced: "Nâng cao" } as Record<string, string>,
     tabHints: {
       general: "Ngôn ngữ, các lần tự kiểm tra và giao diện của app.",
       ai: "Các dịch vụ viết lời, đọc giọng và vẽ ảnh cho video, cùng chi phí của chúng.",

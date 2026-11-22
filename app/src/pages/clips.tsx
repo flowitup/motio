@@ -6,10 +6,12 @@ import { ClipCard } from "@/components/clip-card";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
 import { Badge } from "@/components/ui/badge";
+import { SectionTabs } from "@/components/section-tabs";
 import { PageTitle, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TrendingSources } from "@/components/trending-sources";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -29,7 +31,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
   const qc = useQueryClient();
   const [target, setTarget] = useState("");
   const [site, setSite] = useState<Site>("youtube");
-  const [list, setList] = useState("bilibili:ranking:181");
   const [removing, setRemoving] = useState<Watch | null>(null);
   const isLink = /^https?:\/\//i.test(target.trim());
   const changed = () => {
@@ -44,14 +45,13 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
       changed();
     },
   });
-  const addList = useMutation({ mutationFn: () => api.addWatch({ target: list, site: "bilibili" }), onSuccess: changed });
   const patch = useMutation({
     mutationFn: ({ id, ...body }: { id: number; enabled?: boolean }) => api.patchWatch(id, body),
     onSuccess: changed,
   });
   const remove = useMutation({ mutationFn: (id: number) => api.deleteWatch(id), onSuccess: changed });
   // the error of the action tried last: an older failure of another form must not hide it, nor outlive a later success
-  const latest = [add, addList, patch, remove].reduce((a, b) => (b.submittedAt > a.submittedAt ? b : a));
+  const latest = [add, patch, remove].reduce((a, b) => (b.submittedAt > a.submittedAt ? b : a));
   const error = latest.error;
 
   return (
@@ -83,15 +83,6 @@ function WatchesCard({ api, watches }: { api: Api; watches: Watch[] }) {
           </Button>
         </div>
       </form>
-      <div className="flex flex-wrap items-end gap-3 border-t pt-3">
-        <Field label={t.watches.trending} hint={t.watches.trendingHint}>
-          <Choice value={list} onChange={setList} options={Object.entries(t.watches.lists)} className="w-64" />
-        </Field>
-        <Button variant="outline" className="ml-auto" onClick={() => addList.mutate()} disabled={addList.isPending}>
-          {addList.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-          {t.watches.trendingAdd}
-        </Button>
-      </div>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       {watches.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t.clips.noWatches}</p>
@@ -235,7 +226,8 @@ export default function ClipsPage() {
   return (
     <>
       <TopBar>
-        <PageTitle>{t.clips.title}</PageTitle>
+        <PageTitle>{t.nav.discover}</PageTitle>
+        <SectionTabs section="discover" />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <Select value={watchId} onValueChange={(v) => setWatchId(v ?? ALL)}>
             <SelectTrigger className="w-52">
@@ -291,7 +283,12 @@ export default function ClipsPage() {
               </Button>
             </CardAction>
           </CardHeader>
-          {open && <WatchesCard api={api} watches={list} />}
+          {open && (
+            <>
+              <TrendingSources api={api} watches={list} />
+              <WatchesCard api={api} watches={list} />
+            </>
+          )}
         </Card>
 
         <div className="flex gap-1 border-b">

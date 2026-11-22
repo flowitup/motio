@@ -7,6 +7,7 @@ import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ExternalA } from "@/components/external-link";
 import { BudgetNotice, SetupCard } from "@/components/setup-notices";
+import { SectionTabs } from "@/components/section-tabs";
 import { Kicker, Meter, PageTitle, ScoreBadge, Segmented, SourceBadge, TopBar, toneOf, toneText } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -203,7 +204,8 @@ export default function TrendsPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar>
-        <PageTitle>{t.trends.title}</PageTitle>
+        <PageTitle>{t.nav.discover}</PageTitle>
+        <SectionTabs section="discover" />
         <div className="ml-auto flex min-w-0 items-center gap-4">
           {statusLine}
           <Button size="lg" className="shrink-0" onClick={() => navigate("/projects/new")}>
