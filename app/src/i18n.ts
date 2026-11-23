@@ -175,6 +175,9 @@ const en = {
     errorFor: (name: string, error: string) => `${name}: ${error}`,
   },
   clips: {
+    layout: "Layout",
+    layouts: { list: "List", grid: "Grid", focus: "Focus" } as Record<string, string>,
+    focusKeys: "Enter: make video · H: hide · ← →: browse",
     title: "Feed",
     trendingSources: "Trending lists",
     check: "Check now",
@@ -1283,7 +1286,7 @@ const en = {
     batchConfirm: "Approve all",
   },
   board: {
-    views: { board: "Board", grid: "Grid" } as Record<string, string>,
+    views: { board: "Board", grid: "Grid", list: "Table", inbox: "Inbox" } as Record<string, string>,
     view: "View",
     cols: { queued: "Waiting", running: "Making", script: "Script check", video: "Video check", failed: "Failed", done: "Done" } as Record<string, string>,
     empty: "Nothing here",
@@ -1531,6 +1534,9 @@ const vi: Messages = {
     errorFor: (name: string, error: string) => `${name}: ${error}`,
   },
   clips: {
+    layout: "Bố cục",
+    layouts: { list: "Danh sách", grid: "Lưới", focus: "Tập trung" } as Record<string, string>,
+    focusKeys: "Enter: làm video · H: ẩn · ← →: xem tiếp",
     title: "Bảng tin",
     trendingSources: "Danh sách xu hướng",
     check: "Kiểm tra ngay",
@@ -2637,7 +2643,7 @@ const vi: Messages = {
     batchConfirm: "Duyệt tất cả",
   },
   board: {
-    views: { board: "Bảng", grid: "Lưới" } as Record<string, string>,
+    views: { board: "Bảng", grid: "Lưới", list: "Bảng kê", inbox: "Hộp thư" } as Record<string, string>,
     view: "Kiểu xem",
     cols: { queued: "Chờ làm", running: "Đang làm", script: "Duyệt kịch bản", video: "Duyệt video", failed: "Lỗi", done: "Xong" } as Record<string, string>,
     empty: "Trống",
