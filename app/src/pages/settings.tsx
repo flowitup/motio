@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choice, Field } from "@/components/form";
@@ -416,7 +416,8 @@ function useKit(s: Settings, draft: Draft, setDraft: (f: (d: Draft) => Draft) =>
 }
 type Kit = ReturnType<typeof useKit>;
 
-const GRID = "grid items-start gap-4 sm:grid-cols-2";
+/** Two fields per row once the card itself is wide enough (the card is a container: half-width cards on a wide window stay readable). */
+const GRID = "grid items-start gap-4 @md:grid-cols-2";
 
 function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
   const { src, num, switchRow } = kit;
@@ -427,7 +428,7 @@ function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
         <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN") ?? t.settings.refreshHint}>
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>
-        <div className="sm:col-span-2">{switchRow("NEWS_TOPICS", t.settings.newsTopics, t.settings.newsTopicsHint)}</div>
+        <div className="@md:col-span-2">{switchRow("NEWS_TOPICS", t.settings.newsTopics, t.settings.newsTopicsHint)}</div>
       </Section>
       <Section id="appearance" title={t.settings.theme} bodyClassName={GRID}>
         <ThemeField />
@@ -448,8 +449,8 @@ function AiTab({ api, kit }: { api: Api; kit: Kit }) {
   return (
     <>
       <Section id="llm" title={t.settings.llm} aside={<KeyStatus on={saved("ANTHROPIC_API_KEY")} />} bodyClassName={GRID}>
-        <p className="text-sm text-muted-foreground sm:col-span-2">{t.settings.modelHint}</p>
-        <div className="sm:col-span-2">
+        <p className="text-sm text-muted-foreground @md:col-span-2">{t.settings.modelHint}</p>
+        <div className="@md:col-span-2">
           <Field label={t.settings.apiKey} hint={src("ANTHROPIC_API_KEY")}>
             {secret("ANTHROPIC_API_KEY")}
           </Field>
@@ -463,7 +464,7 @@ function AiTab({ api, kit }: { api: Api; kit: Kit }) {
       </Section>
 
       <Section id="voice" title={t.settings.voice} aside={<KeyStatus on={hasElKey || saved("GEMINI_API_KEY")} />} bodyClassName={GRID}>
-        <div className="sm:col-span-2">
+        <div className="@md:col-span-2">
           <Field label={t.settings.ttsProvider} hint={src("TTS_PROVIDER") ?? t.settings.ttsProviderHint}>
             <Choice value={val("TTS_PROVIDER")} onChange={(v) => set("TTS_PROVIDER", v)} options={ttsProviders} className="w-64" />
           </Field>
@@ -502,12 +503,12 @@ function AiTab({ api, kit }: { api: Api; kit: Kit }) {
       </Section>
 
       <Section id="images" title={t.settings.imagesClips} aside={<KeyStatus on={saved("FAL_KEY")} />} bodyClassName={GRID}>
-        <div className="sm:col-span-2">
+        <div className="@md:col-span-2">
           <Field label={t.settings.apiKey} hint={src("FAL_KEY") ?? t.settings.falKeyHint}>
             {secret("FAL_KEY")}
           </Field>
         </div>
-        <div className="sm:col-span-2">
+        <div className="@md:col-span-2">
           <Field label={t.settings.imageStyle} hint={src("IMAGE_STYLE") ?? t.settings.imageStyleHint}>
             {text("IMAGE_STYLE", "photorealistic, natural light, sharp focus, no text, no watermark")}
           </Field>
@@ -545,7 +546,7 @@ function PublishingTab({ api, s, kit, dirty }: { api: Api; s: Settings; kit: Kit
         <Field label={t.settings.apiKey} hint={src("POSTIZ_API_KEY")}>
           {secret("POSTIZ_API_KEY")}
         </Field>
-        <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+        <div className="flex flex-wrap items-center gap-3 @md:col-span-2">
           <Button
             variant="outline"
             size="sm"
@@ -603,7 +604,7 @@ function StorageTab({ api, kit, dirty }: { api: Api; kit: Kit; dirty: boolean })
   return (
     <>
       <Section id="storage" title={t.settings.storage} bodyClassName={GRID}>
-        <div className="sm:col-span-2">{switchRow("DRIVE_ON", t.settings.driveOn, t.settings.driveOnHint)}</div>
+        <div className="@md:col-span-2">{switchRow("DRIVE_ON", t.settings.driveOn, t.settings.driveOnHint)}</div>
         <Field label={t.settings.driveClientId} hint={src("DRIVE_CLIENT_ID") ?? t.settings.driveClientHint}>
           {text("DRIVE_CLIENT_ID")}
         </Field>
@@ -614,7 +615,7 @@ function StorageTab({ api, kit, dirty }: { api: Api; kit: Kit; dirty: boolean })
           {text("DRIVE_FOLDER", "Motio")}
         </Field>
         {switchRow("DRIVE_KEEP_LOCAL", t.settings.driveKeep, t.settings.driveKeepHint)}
-        <div className="sm:col-span-2">
+        <div className="@md:col-span-2">
           <DriveActions api={api} dirty={dirty} />
         </div>
       </Section>
@@ -655,7 +656,7 @@ function AdvancedTab({ kit }: { kit: Kit }) {
             />
           </Field>
         )}
-        <p className="text-xs text-muted-foreground sm:col-span-2">{t.settings.imageProviderHint}</p>
+        <p className="text-xs text-muted-foreground @md:col-span-2">{t.settings.imageProviderHint}</p>
         <Field label={t.settings.clipProvider} hint={src("CLIP_PROVIDER") ?? t.settings.clipProviderHint}>
           <Choice
             value={val("CLIP_PROVIDER") || "fal"}
@@ -698,6 +699,46 @@ function AdvancedTab({ kit }: { kit: Kit }) {
   );
 }
 
+/** The tabs as a vertical rail (wide windows): same tablist, arrow keys move the choice. */
+function SideTabs<T extends string>({ value, onChange, options, label, className }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; label: string; className?: string }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onKey = (e: KeyboardEvent, i: number) => {
+    const n = options.length;
+    const j = { ArrowDown: (i + 1) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+    if (j === undefined) return;
+    e.preventDefault();
+    onChange(options[j].value);
+    refs.current[j]?.focus();
+  };
+  return (
+    <div role="tablist" aria-orientation="vertical" aria-label={label} className={cn("flex-col gap-1", className)}>
+      {options.map((o, i) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKey(e, i)}
+            className={cn(
+              "flex h-10 items-center justify-between gap-2 rounded-md px-3 text-left text-[13px] font-semibold transition-colors",
+              on ? "bg-cyan font-bold text-on-hue" : "text-muted-foreground hover:bg-raised hover:text-foreground",
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A path in the style of the engine's computer (the app's own OS is the best guess for a local engine). */
 const cookieExample = () => (navigator.userAgent.includes("Windows") ? "C:\\Motio\\cookies.txt" : "/Users/me/cookies.txt");
 
@@ -737,70 +778,72 @@ export default function SettingsPage() {
   });
 
   const dirtyTabs = new Set(changed.map(tabOf));
+  const wide = OWN_SAVE.includes(tab);
+  const tabOptions = TABS.map((id) => ({
+    value: id,
+    label: (
+      <>
+        {t.settings.tabs[id]}
+        {dirtyTabs.has(id) && <span role="img" aria-label={t.settings.tabUnsaved} className="size-2 shrink-0 rounded-full bg-amber" />}
+      </>
+    ),
+  }));
 
   return (
     <>
       <TopBar>
         <PageTitle>{t.settings.title}</PageTitle>
       </TopBar>
-      <div className={cn("mx-auto w-full px-6 pt-6", OWN_SAVE.includes(tab) ? "max-w-4xl" : "max-w-3xl")}>
-        <Segmented
-          tabs
-          className="w-full"
-          label={t.settings.sections}
-          value={tab}
-          onChange={setTab}
-          options={TABS.map((id) => ({
-            value: id,
-            label: (
-              <>
-                {t.settings.tabs[id]}
-                {dirtyTabs.has(id) && <span role="img" aria-label={t.settings.tabUnsaved} className="size-2 shrink-0 rounded-full bg-amber" />}
-              </>
-            ),
-          }))}
-        />
-        {/* Channels and Stats explain themselves below */}
-        {!OWN_SAVE.includes(tab) && <p className="mt-3 text-sm text-muted-foreground">{t.settings.tabHints[tab]}</p>}
-        <div className="space-y-5 pt-5 pb-6">
-          {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
-          {api && s && (
-            <div role="tabpanel" className="space-y-5">
-              {tab === "general" && <GeneralTab kit={kit} unsaved={changed.length} />}
-              {tab === "ai" && <AiTab api={api} kit={kit} />}
-              {tab === "publishing" && <PublishingTab api={api} s={s} kit={kit} dirty={dirty} />}
-              {tab === "channels" && <ChannelsPanel />}
-              {tab === "stats" && <StatsPanel />}
-              {tab === "storage" && <StorageTab api={api} kit={kit} dirty={dirty} />}
-              {tab === "app" && <AppTab api={api} />}
-              {tab === "advanced" && <AdvancedTab kit={kit} />}
-            </div>
-          )}
+      {/* Narrow window: tabs on top, one column. Wide window: the tabs become a rail on the left and the cards fill the width in two columns. */}
+      <div className="mx-auto w-full max-w-[88rem] px-6 pt-6 lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <div className="lg:sticky lg:top-6">
+          <Segmented tabs className="w-full lg:hidden" label={t.settings.sections} value={tab} onChange={setTab} options={tabOptions} />
+          <SideTabs className="hidden lg:flex" label={t.settings.sections} value={tab} onChange={setTab} options={tabOptions} />
         </div>
-      </div>
-      <div className={cn("pointer-events-none sticky bottom-24 z-10 flex items-center gap-3 px-6 py-3 [&>*]:pointer-events-auto", OWN_SAVE.includes(tab) && !dirty && "hidden")}>
-        <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !api}>
-          {save.isPending && <Loader2 className="animate-spin" />}
-          {t.settings.save}
-        </Button>
-        {dirty && (
-          <Button variant="ghost" onClick={() => setDraft({})} disabled={save.isPending}>
-            {t.settings.discard}
-          </Button>
-        )}
-        <span role="status" className="flex items-center gap-1 text-[13px] text-muted-foreground">
-          {saved ? (
-            <>
-              <Check className="size-4 text-mint" />
-              {t.settings.saved}
-            </>
-          ) : dirty ? (
-            t.settings.changes(changed.length)
-          ) : (
-            ""
-          )}
-        </span>
-        {save.error && <span role="alert" className="text-sm text-destructive">{save.error.message}</span>}
+        <div className="min-w-0">
+          {/* Channels and Stats explain themselves below */}
+          {!wide && <p className="text-sm text-muted-foreground max-lg:mt-3">{t.settings.tabHints[tab]}</p>}
+          <div className="space-y-5 pt-5 pb-6 lg:pt-4">
+            {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
+            {api && s && (
+              <div role="tabpanel" className={cn("space-y-5", !wide && "xl:block xl:columns-2 xl:gap-5 xl:space-y-0 xl:*:mb-5 xl:*:break-inside-avoid")}>
+                {tab === "general" && <GeneralTab kit={kit} unsaved={changed.length} />}
+                {tab === "ai" && <AiTab api={api} kit={kit} />}
+                {tab === "publishing" && <PublishingTab api={api} s={s} kit={kit} dirty={dirty} />}
+                {tab === "channels" && <ChannelsPanel />}
+                {tab === "stats" && <StatsPanel />}
+                {tab === "storage" && <StorageTab api={api} kit={kit} dirty={dirty} />}
+                {tab === "app" && <AppTab api={api} />}
+                {tab === "advanced" && <AdvancedTab kit={kit} />}
+              </div>
+            )}
+          </div>
+          {/* Inside the content column, so Save sits under the cards and not at the window's left edge; only there while there is something to save */}
+          <div className={cn("sticky bottom-24 z-10 my-3 flex w-fit max-w-full flex-wrap items-center gap-3 rounded-xl border bg-monitor/95 px-3 py-2 shadow-lg backdrop-blur", !dirty && !saved && !save.isPending && !save.error && "hidden")}>
+            <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !api}>
+              {save.isPending && <Loader2 className="animate-spin" />}
+              {t.settings.save}
+            </Button>
+            {dirty && (
+              <Button variant="ghost" onClick={() => setDraft({})} disabled={save.isPending}>
+                {t.settings.discard}
+              </Button>
+            )}
+            <span role="status" className="flex items-center gap-1 text-[13px] text-muted-foreground">
+              {saved ? (
+                <>
+                  <Check className="size-4 text-mint" />
+                  {t.settings.saved}
+                </>
+              ) : dirty ? (
+                t.settings.changes(changed.length)
+              ) : (
+                ""
+              )}
+            </span>
+            {save.error && <span role="alert" className="text-sm text-destructive">{save.error.message}</span>}
+          </div>
+        </div>
       </div>
       {guard}
     </>
