@@ -1,15 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronsLeft, ChevronsRight, Compass, Download, FolderKanban, Loader2, Plus, Settings as SettingsIcon, TriangleAlert, Wrench } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
-import { inSection, type SectionKey } from "@/components/section-tabs";
+import { Loader2, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/ui/button";
 import { useProjectNotifications } from "@/hooks/use-project-notifications";
-import { HUE_SOLID, HUE_TILE, Led, type Hue } from "@/components/studio";
 import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
 import { BUSY_MS } from "@/lib/poll";
-import { useUpdater } from "@/lib/updater";
+import { useNavLayout } from "@/lib/nav-layout";
 import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
 import AccountPage from "@/pages/account";
@@ -24,113 +23,6 @@ import SettingsPage from "@/pages/settings";
 import NewVideoPage from "@/pages/new-video";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
-
-type NavItem = { to: string; label: keyof Messages["nav"]; icon: typeof Compass; hue?: Hue; section?: SectionKey };
-/** The slim icon rail on the left, in groups split by a thin rule: find + make, tools. Settings sits at the bottom and holds Channels and Stats as tabs.
- * A `section` entry holds several pages as tabs (Discover: Feed, News topics, Scan; Tools: Quick jobs, Remove logo). */
-const NAV: NavItem[][] = [
-  [
-    { to: "/clips", label: "discover", icon: Compass, hue: "amber", section: "discover" },
-    { to: "/projects", label: "projects", icon: FolderKanban, hue: "violet" },
-  ],
-  [{ to: "/tools", label: "tools", icon: Wrench, hue: "lime", section: "tools" }],
-];
-
-/** A count in the menu: pink = waiting for you (approvals), coral = failed lately. */
-function NavBadge({ count, label, tone }: { count: number; label: string; tone: "amber" | "coral" }) {
-  return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      className={cn(
-        "dock-badge flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full px-1 font-mono text-[11px] leading-none font-medium tabular-nums",
-        tone === "amber" ? "bg-pink text-on-pink" : "bg-coral text-on-amber",
-      )}
-    >
-      {/* The warning sign tells the failed count from the pink "needs you" count when both show the same number. */}
-      {tone === "coral" && <TriangleAlert className="size-2.5" strokeWidth={3} />}
-      {count}
-    </span>
-  );
-}
-
-const railItem =
-  "dock-item relative flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors";
-
-function RailItem({ to, label, icon: Icon, hue, count, failed, section, wide }: { to: string; label: string; icon: typeof Compass; hue?: Hue; count?: number; failed?: number; section?: SectionKey; wide?: boolean }) {
-  const { pathname } = useLocation();
-  // A section entry is lit on every page of its tabs, not only on its own route.
-  const isActive = section ? inSection(section, pathname) : pathname === to || pathname.startsWith(`${to}/`);
-  return (
-    <Link
-      to={to}
-      title={label}
-      aria-label={label}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(railItem, wide && "h-10 w-full justify-start gap-3 px-2", isActive ? "bg-tint/10 text-foreground" : "text-muted-foreground hover:bg-tint/5 hover:text-foreground")}
-    >
-      {/* Each section keeps its hue: a tinted tile, solid while it is the open page. */}
-      <span className={cn("dock-tile flex size-8 items-center justify-center rounded-md", hue ? (isActive ? HUE_SOLID[hue] : HUE_TILE[hue]) : isActive ? "bg-foreground text-ground" : "")}>
-        <Icon className="size-[18px]" />
-      </span>
-      {wide && <span className="dock-label min-w-0 flex-1 truncate text-left text-[13px] font-medium">{label}</span>}
-      {wide ? (
-        <span className="flex shrink-0 items-center gap-1">
-          {!!count && <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />}
-          {!!failed && <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />}
-        </span>
-      ) : (
-        <>
-          {!!count && (
-            <span className="absolute -top-0.5 -right-0.5">
-              <NavBadge count={count} label={t.studio.needsYouCount(count)} tone="amber" />
-            </span>
-          )}
-          {!!failed && (
-            <span className="absolute -bottom-0.5 -right-0.5">
-              <NavBadge count={failed} label={t.studio.failedCount(failed)} tone="coral" />
-            </span>
-          )}
-        </>
-      )}
-    </Link>
-  );
-}
-
-function EngineBadge({ wide }: { wide?: boolean }) {
-  const { info } = useEngine();
-  const status = { ready: "done", starting: "review", error: "failed" }[info.status] as "done" | "review" | "failed";
-  const label = { ready: t.engine.ready, starting: t.engine.starting, error: t.engine.error }[info.status];
-  return (
-    <NavLink
-      to="/settings"
-      className={cn("dock-engine flex items-center rounded-lg hover:bg-tint/5", wide ? "h-9 w-full gap-3 px-3.5 text-[12px] text-muted-foreground" : "size-11 justify-center")}
-      title={info.error ? `${label}: ${t.native(info.error)}` : `${label} · ${info.url}`}
-      aria-label={label}
-    >
-      <Led status={status} className="size-2.5" />
-      {wide && <span className="min-w-0 flex-1 truncate">{label}</span>}
-    </NavLink>
-  );
-}
-
-/** Có bản mới trên GitHub: nhắc trên dải menu, bấm để vào Cài đặt. */
-function UpdateNotice({ wide }: { wide?: boolean }) {
-  const { result } = useUpdater();
-  if (!result?.version) return null;
-  return (
-    <NavLink
-      to="/settings"
-      title={t.update.available(result.version)}
-      aria-label={t.update.available(result.version)}
-      className={cn(railItem, wide && "h-10 w-full justify-start gap-3 px-3", "text-mint hover:bg-tint/5 hover:text-mint")}
-    >
-      <Download className="size-[18px] shrink-0" />
-      {wide && <span className="min-w-0 flex-1 truncate text-left text-[13px] font-medium">{t.update.available(result.version)}</span>}
-    </NavLink>
-  );
-}
 
 /** Trang cần engine: hiện trạng thái khởi động / lỗi thay vì nội dung. */
 export function EngineGate({ children }: { children: ReactNode }) {
@@ -184,32 +76,9 @@ function useDocumentTitle(needsYou: number) {
   }, [page, needsYou]);
 }
 
-const WIDE_STORE = "motio.menuWide";
-
-/** The left menu: names next to the icons (default) or the slim icon rail. Remembered on this machine. */
-function useWideMenu(): [boolean, () => void] {
-  const [wide, setWide] = useState(() => {
-    try {
-      return localStorage.getItem(WIDE_STORE) !== "0";
-    } catch {
-      return true;
-    }
-  });
-  const toggle = () =>
-    setWide((w) => {
-      try {
-        localStorage.setItem(WIDE_STORE, w ? "0" : "1");
-      } catch {
-        // storage blocked: the choice lasts until the app closes
-      }
-      return !w;
-    });
-  return [wide, toggle];
-}
-
 export default function App() {
   const { info } = useEngine();
-  const [wide, toggleWide] = useWideMenu();
+  const layout = useNavLayout();
   const qc = useQueryClient();
   // Đổi engine (khởi động lại, local ↔ từ xa) hoặc đổi ngôn ngữ (App dựng lại): tải lại dữ liệu.
   useEffect(() => {
@@ -229,7 +98,7 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
 
   return (
-    <div className="app-shell flex h-screen bg-background text-foreground">
+    <div className={cn("app-shell flex h-screen bg-background text-foreground", layout === "top" && "flex-col")} data-nav={layout}>
       {/* A button, not a #link: the hash is the router's. */}
       <button
         type="button"
@@ -238,59 +107,8 @@ export default function App() {
       >
         {t.a11y.skip}
       </button>
-      {/* The left menu: icon + name by default, or a slim icon rail (the chevron at the bottom switches). */}
-      <nav aria-label={t.studio.mainNav} className={cn("dock flex shrink-0 flex-col border-r bg-monitor py-3", wide ? "w-52 items-stretch px-3" : "w-16 items-center")} data-wide={wide ? "true" : undefined}>
-        <NavLink to="/clips" title={t.appName} aria-label={t.appName} className={cn("dock-brand mb-3 flex h-10 items-center", wide ? "gap-2.5 px-1.5" : "w-10 justify-center")}>
-          {/* Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */}
-          <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true" className="shrink-0">
-            <g stroke="var(--amber)">
-              <path d="M11 31v38M27 13v74M43 24v52" />
-            </g>
-            <path d="M59 40v20" stroke="var(--foreground)" />
-            <g stroke="var(--cyan)">
-              <path d="M75 24v52M91 13v74M107 31v38" />
-            </g>
-          </svg>
-          {wide && <span className="dock-wordmark text-[17px] font-semibold tracking-tight">{t.appName}</span>}
-        </NavLink>
-        <NavLink
-          to="/projects/new"
-          title={t.board.newVideo}
-          aria-label={t.board.newVideo}
-          className={cn("dock-new mb-3 flex items-center justify-center rounded-lg bg-pink text-on-pink hover:bg-primary-hover hover:text-on-pink", wide ? "h-10 w-full gap-2 text-[13px] font-semibold" : "size-10 self-center")}
-        >
-          <Plus className="size-5" />
-          {wide && t.board.newVideo}
-        </NavLink>
-        <div className={cn("dock-groups flex min-h-0 w-full flex-1 flex-col overflow-y-auto", !wide && "items-center")}>
-          {NAV.map((group, i) => (
-            <div key={i} className={cn("dock-group flex flex-col gap-1", wide ? "items-stretch" : "items-center", i > 0 ? cn("mt-2 border-t pt-2", !wide && "w-10") : "pt-1")}>
-              {group.map(({ to, label, icon, hue, section }) => (
-                <RailItem key={to} to={to} label={t.nav[label]} icon={icon} hue={hue} section={section} wide={wide} count={to === "/projects" ? counts?.review : undefined}
-                  failed={to === "/projects" ? counts?.failed_recent : undefined}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className={cn("dock-foot flex flex-col gap-1 border-t pt-2", wide ? "items-stretch" : "items-center")}>
-          <UpdateNotice wide={wide} />
-          <RailItem to="/settings" label={t.nav.settings} icon={SettingsIcon} wide={wide} />
-          <EngineBadge wide={wide} />
-          <button
-            type="button"
-            onClick={toggleWide}
-            title={wide ? t.studio.menuCollapse : t.studio.menuExpand}
-            aria-label={wide ? t.studio.menuCollapse : t.studio.menuExpand}
-            aria-pressed={wide}
-            className={cn("dock-toggle flex items-center rounded-lg text-muted-foreground hover:bg-tint/5 hover:text-foreground", wide ? "h-9 w-full gap-3 px-3.5 text-[12px]" : "size-11 justify-center")}
-          >
-            {wide ? <ChevronsLeft className="size-4 shrink-0" /> : <ChevronsRight className="size-4" />}
-            {wide && <span className="min-w-0 flex-1 truncate text-left">{t.studio.menuCollapse}</span>}
-          </button>
-        </div>
-      </nav>
-      <main ref={main} tabIndex={-1} className="app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none">
+      <AppMenu counts={counts} />
+      <main ref={main} tabIndex={-1} className={cn("app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none", layout === "dock" && "pb-24")}>
         <Routes>
           <Route path="/" element={<Navigate to="/clips" replace />} />
           <Route path="/trends" element={<Navigate to="/clips" replace />} /> {/* Trending lists are part of the Feed now */}

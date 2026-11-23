@@ -1180,6 +1180,15 @@ const en = {
     theme: "Appearance",
     themeLabel: "Theme",
     themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop" },
+    menuLayout: "Menu",
+    menus: { sidebar: "Sidebar with names", rail: "Icon rail", top: "Top bar", dock: "Floating dock", split: "Two columns" } as Record<string, string>,
+    menuHints: {
+      sidebar: "Names next to the icons on the left.",
+      rail: "A slim column of icons; names show on hover.",
+      top: "A bar along the top, the page gets the full width.",
+      dock: "A floating bar at the bottom, like a Mac dock.",
+      split: "Icons on the left and, next to them, the pages of the section you are in.",
+    } as Record<string, string>,
     font: "Font",
     fonts: { theme: "The look's own", inter: "Inter", jakarta: "Plus Jakarta Sans", vietnam: "Be Vietnam Pro", lexend: "Lexend", archivo: "Archivo" } as Record<string, string>,
     fontHints: {
@@ -2531,6 +2540,15 @@ const vi: Messages = {
     theme: "Giao diện",
     themeLabel: "Kiểu giao diện",
     themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop" },
+    menuLayout: "Menu",
+    menus: { sidebar: "Thanh bên có tên", rail: "Thanh icon", top: "Thanh trên cùng", dock: "Dock nổi", split: "Hai cột" } as Record<string, string>,
+    menuHints: {
+      sidebar: "Tên mục nằm cạnh icon ở bên trái.",
+      rail: "Cột icon gọn; rê chuột để xem tên.",
+      top: "Thanh dọc theo đỉnh, trang được dùng toàn bộ chiều ngang.",
+      dock: "Thanh nổi ở đáy màn hình, như dock của Mac.",
+      split: "Icon bên trái, cạnh đó là các trang của mục bạn đang mở.",
+    } as Record<string, string>,
     font: "Phông chữ",
     fonts: { theme: "Theo kiểu giao diện", inter: "Inter", jakarta: "Plus Jakarta Sans", vietnam: "Be Vietnam Pro", lexend: "Lexend", archivo: "Archivo" } as Record<string, string>,
     fontHints: {

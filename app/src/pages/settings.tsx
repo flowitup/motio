@@ -21,6 +21,7 @@ import { DEFAULT_FAL_MODEL, FAL_MODELS, FAL_PICTURE_USD } from "@/lib/image-mode
 import { useUpdater } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 import { LANGS, setLang, t, useLang, type Lang } from "@/i18n";
+import { NAV_LAYOUTS, setNavLayout, useNavLayout } from "@/lib/nav-layout";
 import { setTheme, THEMES, useTheme, type Theme, FONTS, setFont, useFont, type Font } from "@/lib/theme";
 
 type Draft = Record<string, string | boolean>;
@@ -53,6 +54,15 @@ function ThemeField() {
   return (
     <Field label={t.settings.themeLabel} hint={t.settings.themeHints[theme]}>
       <Choice value={theme} onChange={(v) => setTheme(v as Theme)} options={THEMES.map((k) => [k, t.settings.themes[k]] as [string, string])} className="w-56" />
+    </Field>
+  );
+}
+
+function MenuField() {
+  const layout = useNavLayout();
+  return (
+    <Field label={t.settings.menuLayout} hint={t.settings.menuHints[layout]}>
+      <Choice value={layout} onChange={(v) => setNavLayout(v as (typeof NAV_LAYOUTS)[number])} options={NAV_LAYOUTS.map((k) => [k, t.settings.menus[k]] as [string, string])} className="w-56" />
     </Field>
   );
 }
@@ -346,7 +356,8 @@ function HealthCard({ api }: { api: Api }) {
 }
 
 /** The tabs of the page, in order. Each one holds what a person looks for together; the technical options sit last. */
-const TABS = ["general", "ai", "publishing", "channels", "storage", "stats", "app", "advanced"] as const;
+export const SETTINGS_TABS = ["general", "ai", "publishing", "channels", "storage", "stats", "app", "advanced"] as const;
+const TABS = SETTINGS_TABS;
 /** Tabs that save by themselves (their own forms), so the page-wide Save bar stays out of their way. */
 const OWN_SAVE: readonly TabId[] = ["channels", "stats"];
 type TabId = (typeof TABS)[number];
@@ -432,6 +443,7 @@ function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
       <Section id="appearance" title={t.settings.theme} bodyClassName={GRID}>
         <ThemeField />
         <FontField />
+        <MenuField />
       </Section>
     </>
   );
