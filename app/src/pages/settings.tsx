@@ -778,7 +778,7 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-      <div className={cn("sticky bottom-0 z-10 flex items-center gap-3 border-t bg-ground px-6 py-3", OWN_SAVE.includes(tab) && !dirty && "hidden")}>
+      <div className={cn("pointer-events-none sticky bottom-24 z-10 flex items-center gap-3 px-6 py-3 [&>*]:pointer-events-auto", OWN_SAVE.includes(tab) && !dirty && "hidden")}>
         <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !api}>
           {save.isPending && <Loader2 className="animate-spin" />}
           {t.settings.save}

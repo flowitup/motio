@@ -1,17 +1,19 @@
 import { useSyncExternalStore } from "react";
 
-/** The app's looks (Settings → Appearance). Each one is a set of tokens in themes.css; "neon" is the original Neon Studio. */
+/** The app's looks (Settings → Appearance). Each one is a set of tokens in themes.css; "neon" is the original Neon Studio, "sunset" the default. */
 export const THEMES = ["neon", "daylight", "paper", "terminal", "aurora", "pop", "frost", "swiss", "cinema", "sunset", "clay"] as const;
 export type Theme = (typeof THEMES)[number];
 const DARK: ReadonlySet<Theme> = new Set(["neon", "terminal", "aurora", "cinema", "sunset"]);
 const STORE = "motio.theme";
+/** Sunset until a person picks another look (owner, 2026-11-23). */
+export const DEFAULT_THEME: Theme = "sunset";
 
 function stored(): Theme {
   try {
     const v = localStorage.getItem(STORE);
-    return (THEMES as readonly string[]).includes(v ?? "") ? (v as Theme) : "neon";
+    return (THEMES as readonly string[]).includes(v ?? "") ? (v as Theme) : DEFAULT_THEME;
   } catch {
-    return "neon";
+    return DEFAULT_THEME;
   }
 }
 

@@ -445,7 +445,7 @@ function ChannelForm({
         </Field>
       </Section>
 
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-ground px-4 py-3">
+      <div className="sticky bottom-24 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-ground px-4 py-3">
         {initial && (
           <Button variant="destructive" onClick={() => setConfirming(true)}>
             <Trash2 />
