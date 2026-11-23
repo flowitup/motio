@@ -1192,9 +1192,9 @@ const en = {
     } as Record<string, string>,
     themeHints: {
       neon: "Dark editing suite, one hue per section. The original look.",
-      daylight: "Light and calm: white panels, indigo actions, a sidebar with names.",
-      paper: "Warm newsroom paper: serif titles, terracotta actions, the menu along the top.",
-      terminal: "Dark green console: everything in mono, square corners, a compact menu.",
+      daylight: "Light and calm: white panels, indigo actions.",
+      paper: "Warm newsroom paper: serif titles, terracotta actions, soft cream panels.",
+      terminal: "Dark green console: everything in mono, square corners.",
       aurora: "Night glass: frosted panels over soft northern-light colours.",
       pop: "Loud and playful: thick ink borders, hard shadows, bright fills.",
     },
@@ -1313,6 +1313,8 @@ const en = {
   },
   studio: {
     mainNav: "Main",
+    menuCollapse: "Collapse menu",
+    menuExpand: "Show menu names",
     needsYouCount: (n: number) => (n === 1 ? "1 project waiting for you" : `${n} projects waiting for you`),
     failedCount: (n: number) => (n === 1 ? "1 project failed lately" : `${n} projects failed lately`),
     // Trending
@@ -2541,9 +2543,9 @@ const vi: Messages = {
     } as Record<string, string>,
     themeHints: {
       neon: "Phòng dựng tối, mỗi mục một màu. Giao diện gốc.",
-      daylight: "Sáng và dịu: khung trắng, nút chàm, thanh bên có tên mục.",
-      paper: "Giấy báo ấm: tiêu đề có chân, nút đất nung, menu nằm ngang phía trên.",
-      terminal: "Bảng điều khiển xanh lục tối: toàn chữ mono, góc vuông, menu gọn.",
+      daylight: "Sáng và dịu: khung trắng, nút chàm.",
+      paper: "Giấy báo ấm: tiêu đề có chân, nút đất nung, khung kem dịu.",
+      terminal: "Bảng điều khiển xanh lục tối: toàn chữ mono, góc vuông.",
       aurora: "Kính đêm: khung mờ trên nền màu cực quang dịu.",
       pop: "Rực và vui: viền mực dày, bóng cứng, mảng màu tươi.",
     },
@@ -2662,6 +2664,8 @@ const vi: Messages = {
   },
   studio: {
     mainNav: "Menu chính",
+    menuCollapse: "Thu gọn menu",
+    menuExpand: "Hiện tên menu",
     needsYouCount: (n: number) => `${n} dự án đang chờ bạn`,
     failedCount: (n: number) => `${n} dự án lỗi gần đây`,
     // Trending
