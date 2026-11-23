@@ -105,17 +105,33 @@ function UpdateNotice() {
   );
 }
 
-/** Logo C: seven rounded bars whose envelope forms an M; amber = original voice, cyan = French dub. */
+/** Logo: a paper plane taking off with a ribbon trail (cyan wing, magenta wing); same drawing as the app icon, without its tile. */
 function Logo() {
   return (
-    <svg width="28" height="22" viewBox="6 8 106 84" fill="none" strokeWidth="10" strokeLinecap="round" aria-hidden="true" className="shrink-0">
-      <g stroke="var(--amber)">
-        <path d="M11 31v38M27 13v74M43 24v52" />
-      </g>
-      <path d="M59 40v20" stroke="var(--foreground)" />
-      <g stroke="var(--cyan)">
-        <path d="M75 24v52M91 13v74M107 31v38" />
-      </g>
+    <svg width="30" height="30" viewBox="405 120 695 610" fill="none" aria-hidden="true" className="shrink-0">
+      <defs>
+        <linearGradient id="lg-wing" x1="570" y1="277" x2="1095" y2="122" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#22f0ff" />
+          <stop offset="1" stopColor="#d5f6ff" />
+        </linearGradient>
+        <linearGradient id="lg-pink" x1="810" y1="360" x2="1040" y2="260" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ffc6ff" />
+          <stop offset=".45" stopColor="#ff3fe0" />
+          <stop offset="1" stopColor="#ff6fd8" />
+        </linearGradient>
+        <linearGradient id="lg-rib" x1="480" y1="710" x2="820" y2="470" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#4f1cff" />
+          <stop offset=".55" stopColor="#b21fff" />
+          <stop offset="1" stopColor="#ff3fc8" />
+        </linearGradient>
+      </defs>
+      <path d="M428 664C540 600 700 562 822 462 772 572 700 642 588 672 535 688 500 704 476 724 455 708 440 688 428 664Z" fill="url(#lg-rib)" />
+      <path d="M405 608C520 545 640 520 745 488L765 486C640 540 520 598 428 664 418 646 410 628 405 608Z" fill="#25d9ff" />
+      <polygon points="570,277 773,310 705,495 710,374" fill="#6b4dff" />
+      <polygon points="570,277 1095,122 773,310" fill="url(#lg-wing)" />
+      <polygon points="773,310 1095,122 805,355 705,495" fill="#4a14d8" />
+      <polygon points="805,355 1095,122 948,475" fill="url(#lg-pink)" />
+      <polygon points="805,355 865,405 705,495" fill="#b02cff" />
     </svg>
   );
 }
