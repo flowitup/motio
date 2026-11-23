@@ -6,7 +6,7 @@ export type Theme = (typeof THEMES)[number];
 const DARK: ReadonlySet<Theme> = new Set(["neon", "terminal", "aurora", "cinema", "sunset"]);
 const STORE = "motio.theme";
 /** Sunset until a person picks another look (owner, 2026-11-23). */
-export const DEFAULT_THEME: Theme = "sunset";
+export const DEFAULT_THEME: Theme = "neon";
 
 function stored(): Theme {
   try {
