@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS channel (
   is_default INTEGER DEFAULT 0,
   created_at REAL, updated_at REAL
 );
+CREATE TABLE IF NOT EXISTS template (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data TEXT DEFAULT '{}',         -- JSON mẫu video của người dùng (motio/templates.py); mẫu dựng sẵn nằm trong code
+  created_at REAL, updated_at REAL
+);
 CREATE TABLE IF NOT EXISTS usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at REAL, kind TEXT,             -- tts (ElevenLabs), clip (fal), llm (Claude API); motio/usage.py
@@ -421,6 +426,44 @@ def get_clip(cid: str) -> dict | None:
 def set_clip_status(cid: str, status: str, project_id: int | None = None) -> None:
     with _lock, conn() as c:
         c.execute("UPDATE clip SET status=?, project_id=COALESCE(?, project_id) WHERE id=?", (status, project_id, cid))
+
+
+# ---------- mẫu video (kiểu phụ đề, tiêu đề, nền, chuyển động + vài mặc định) ----------
+def _template(r) -> dict | None:
+    if r is None:
+        return None
+    try:
+        data = json.loads(r["data"] or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    return {**data, "id": r["id"], "created_at": r["created_at"], "updated_at": r["updated_at"]}
+
+
+def list_templates() -> list[dict]:
+    with conn() as c:
+        return [_template(r) for r in c.execute("SELECT * FROM template ORDER BY id")]
+
+
+def get_template(tid: int) -> dict | None:
+    with conn() as c:
+        return _template(c.execute("SELECT * FROM template WHERE id=?", (tid,)).fetchone())
+
+
+def save_template(tid: int | None, data: dict) -> int:
+    """Tạo (tid None) hoặc thay một mẫu."""
+    now = time.time()
+    blob = json.dumps(data, ensure_ascii=False)
+    with _lock, conn() as c:
+        if tid is None:
+            return c.execute("INSERT INTO template (data, created_at, updated_at) VALUES (?,?,?)",
+                             (blob, now, now)).lastrowid
+        c.execute("UPDATE template SET data=?, updated_at=? WHERE id=?", (blob, now, tid))
+        return tid
+
+
+def delete_template(tid: int) -> None:
+    with _lock, conn() as c:
+        c.execute("DELETE FROM template WHERE id=?", (tid,))
 
 
 # ---------- kênh (hồ sơ đăng) ----------

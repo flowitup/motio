@@ -32,6 +32,7 @@ from . import (
     topic,
     tts,
     usage,
+    video_templates,
 )
 from .i18n import tr, tr_n
 
@@ -677,7 +678,8 @@ def _clip_render_post(pid: int, plan: dict, sources: list[dict], out: Path, step
     def prog(done, total):
         step("Render", 70 + int(26 * done / total), None)
 
-    res = clipper.render_clip(plan, sources[0], opts, out, progress=prog)
+    look = video_templates.look_for(db.get_project(pid))
+    res = clipper.render_clip(plan, sources[0], opts, out, progress=prog, **({"look": look} if look else {}))
     (out / "final_wide.mp4").unlink(missing_ok=True)
     lo, hi = (clipper.MIN_LEN, MAX_SECONDS)
     verdict = qa.check_project(pid, Path(res["video"]), lo, hi)
@@ -713,7 +715,7 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         return
     if is_ai:  # ảnh trước giọng đọc: ảnh đã làm được giữ lại, chỉ làm cảnh còn thiếu hoặc vừa sửa
         sources = creator.pictures(pid, plan, out, step)
-    voice = (ch["voice_id"] or None) if ch else None
+    voice = (proj.get("meta") or {}).get("voice_id") or ((ch["voice_id"] or None) if ch else None)  # template's first
     # 5. Giọng đọc (đủ độ dài); nar có sẵn = dựng lại với giọng đọc cũ. Bản lồng tiếng: câu đặt theo câu gốc, trộn nền.
     if nar is None:
         with usage.context(project_id=pid, channel_id=ch["id"] if ch else None):  # ký tự đọc tính vào dự án này
@@ -759,19 +761,21 @@ def _voice_render_post(pid: int, plan: dict, sources: list[dict], out: Path, ste
         sources = masks.attach(db.get_project(pid), sources, out / "pieces")
     now = db.get_project(pid)  # lật gương / bộ lọc màu người dùng bật
     sources = effects.attach(now, sources)
+    look = video_templates.look_for(now)  # the template's look (None = Motio's own: nothing to pass)
+    with_look = {"look": look} if look else {}
     if is_dub:
         res = render.render(**dub.render_args(proj, plan, sources, nar), narration=nar, out_dir=out, progress=prog,
-                            badge=channels.badge_for(proj), wide=wide)
+                            badge=channels.badge_for(proj), wide=wide, **with_look)
     elif is_ai:
         res = render.render(**creator.render_args(plan, sources, nar, 0.0 if rule["free"] else MIN_SECONDS),
                             narration=nar, out_dir=out,
-                            progress=prog, badge=channels.badge_for(proj), wide=wide)
+                            progress=prog, badge=channels.badge_for(proj), wide=wide, **with_look)
     else:
         # the source's own sound under the French voice: the owner's level (meta.src_volume), or none for a video made
         # from a trending clip (meta.mute_source)
         vol = source_volume(proj)
         res = render.render(plan, sources, nar, out, progress=prog, min_total=MIN_SECONDS,
-                            badge=channels.badge_for(proj), wide=wide,
+                            badge=channels.badge_for(proj), wide=wide, **with_look,
                             **({} if vol is None else {"src_volume": vol}))
     if not res.get("wide"):
         (out / "final_wide.mp4").unlink(missing_ok=True)  # bản 16:9 cũ không còn khớp video mới

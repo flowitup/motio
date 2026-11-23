@@ -6,15 +6,16 @@ Cách này chạy được với mọi bản FFmpeg.
 - Phụ đề karaoke: chuỗi PNG có thời lượng (concat demuxer), overlay một lần ở bước trộn cuối.
 - Bản 16:9 dùng lại đúng các mảnh, giọng đọc và phụ đề của bản 9:16, chỉ đổi bố cục (Layout).
 """
+import dataclasses
 import json
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from . import captions, config, scenes
+from . import captions, config, looks, scenes
 from .asr import has_audio
 from .i18n import tr
 
@@ -73,83 +74,183 @@ def _font(cands: list[str], size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default(size)
 
 
-def _wrap(draw, text: str, font, max_w: int) -> list[str]:
-    words, lines, cur = [w for w in text.split(" ") if w], [], ""  # chỉ ngắt ở dấu cách thường, giữ NBSP
-    for w in words:
-        test = f"{cur} {w}".strip()
+def overlay_png(path: Path, *, title: str, badge: str = "", layout: Layout = VERTICAL,
+                look: dict | None = None) -> Path:
+    """Lớp tĩnh cỡ khung: băng tiêu đề (nhãn đỏ phía trên nếu có `badge`). Công bố giọng AI nằm trong bài đăng.
+    look["title"]: màu, font, độ đậm của băng, hoặc ẩn hẳn (looks.py)."""
+    L, k = layout, layout.k
+    st = looks.clean(look)["title"]
+    img = Image.new("RGBA", (L.w, L.h), (0, 0, 0, 0))
+    if not st["show"]:
+        img.save(path)
+        return path
+    d = ImageDraw.Draw(img)
+    # Băng tiêu đề phía trên (hoặc ở phần dưới khung, theo look)
+    f_badge, f_title = _font(looks.font_candidates(st["font"]), k(34)), _font(looks.font_candidates(st["font"]), k(58))
+    marked = _marked(title, st["upper"])
+    tl = _wrap_marked(d, marked, f_title, L.title_wrap)[:L.title_lines]
+    x0, y0, pad, line = L.title_x, L.title_y, k(30), k(70)
+    if st["pos"] == "lower":
+        y0 = round(L.h * 0.64)
+    top = k(92) if badge else k(30)  # không có nhãn: tiêu đề lên sát mép trên của băng
+    box_h = top + len(tl) * line + k(8)
+    bw = d.textlength(badge, font=f_badge) + k(36) if badge else 0
+    widths = [d.textlength(" ".join(w for w, _ in ln), font=f_title) for ln in tl]
+    if L.fit_box:
+        x1 = x0 + 2 * pad + max([bw, *widths])
+    else:
+        x1 = L.w - x0
+    d.rounded_rectangle((x0, y0, x1, y0 + box_h), radius=k(22), fill=looks.rgb(st["bar"], st["bar_alpha"]))
+    if badge:
+        bx = x0 + pad
+        d.rounded_rectangle((bx, y0 + k(24), bx + bw, y0 + k(76)), radius=k(10), fill=looks.rgb(st["badge"], 1))
+        d.text((bx + k(18), y0 + k(30)), badge, font=f_badge, fill="white")
+    space = d.textlength(" ", font=f_title)
+    for i, (ln, wd) in enumerate(zip(tl, widths, strict=True)):
+        x = (x0 + x1 - wd) / 2 if st["align"] == "center" else x0 + pad
+        for w, hot in ln:
+            fill = st["accent"] if hot and st["accent"] else st["color"]
+            d.text((x, y0 + top + i * line), w, font=f_title, fill=fill)
+            x += d.textlength(w, font=f_title) + space
+    img.save(path)
+    return path
+
+
+def _marked(title: str, upper: bool) -> list[tuple[str, bool]]:
+    """The title's words, each with whether it was written between *stars* (the title's accent colour)."""
+    out, hot = [], False
+    for raw in title.split(" "):
+        if not raw:
+            continue
+        starts, ends = raw.startswith("*"), raw.endswith("*") and len(raw) > 1
+        hot = hot or starts
+        word = raw.strip("*")
+        if word:
+            out.append((word.upper() if upper else word, hot))
+        if ends:
+            hot = False
+    return out
+
+
+def _wrap_marked(draw, words: list[tuple[str, bool]], font, max_w: int) -> list[list[tuple[str, bool]]]:
+    """Like _wrap on words that carry a flag: lines of (word, flag), broken only at plain spaces."""
+    lines, cur = [], []
+    for w, hot in words:
+        test = " ".join(x for x, _ in [*cur, (w, hot)])
         if draw.textlength(test, font=font) <= max_w or not cur:
-            cur = test
+            cur.append((w, hot))
         else:
             lines.append(cur)
-            cur = w
+            cur = [(w, hot)]
     if cur:
         lines.append(cur)
     return lines
 
 
-def overlay_png(path: Path, *, title: str, badge: str = "", layout: Layout = VERTICAL) -> Path:
-    """Lớp tĩnh cỡ khung: băng tiêu đề (nhãn đỏ phía trên nếu có `badge`). Công bố giọng AI nằm trong bài đăng."""
-    L, k = layout, layout.k
-    img = Image.new("RGBA", (L.w, L.h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    # Băng tiêu đề phía trên
-    f_badge, f_title = _font(FONT_BOLD, k(34)), _font(FONT_BOLD, k(58))
-    tl = _wrap(d, title, f_title, L.title_wrap)[:L.title_lines]
-    x0, y0, pad, line = L.title_x, L.title_y, k(30), k(70)
-    top = k(92) if badge else k(30)  # không có nhãn: tiêu đề lên sát mép trên của băng
-    box_h = top + len(tl) * line + k(8)
-    bw = d.textlength(badge, font=f_badge) + k(36) if badge else 0
-    if L.fit_box:
-        x1 = x0 + 2 * pad + max([bw, *(d.textlength(ln, font=f_title) for ln in tl)])
+def look_layout(layout: Layout, look: dict | None) -> Layout:
+    """The layout with the look's caption size and place: size scales the line height and the strip, `pos` moves it."""
+    c = looks.clean(look)["caption"]
+    k = c["size"] / looks.DEFAULT["caption"]["size"]
+    size, line = round(layout.cap_size * k), round(layout.cap_line * k)
+    out = dataclasses.replace(layout, cap_size=size, cap_line=line)
+    if c["pos"] == "lower":
+        top = round(layout.h * 0.66)
+    elif c["pos"] == "middle":
+        top = (layout.h - out.cap_h) // 2
     else:
-        x1 = L.w - x0
-    d.rounded_rectangle((x0, y0, x1, y0 + box_h), radius=k(22), fill=(12, 16, 22, 205))
-    if badge:
-        bx = x0 + pad
-        d.rounded_rectangle((bx, y0 + k(24), bx + bw, y0 + k(76)), radius=k(10), fill=(222, 45, 38, 255))
-        d.text((bx + k(18), y0 + k(30)), badge, font=f_badge, fill="white")
-    for i, ln in enumerate(tl):
-        d.text((x0 + pad, y0 + top + i * line), ln, font=f_title, fill="white")
-    img.save(path)
-    return path
+        top = layout.cap_top
+    return dataclasses.replace(out, cap_top=top)
 
 
-def caption_fits() -> Callable[[str], bool]:
-    """Một dòng phụ đề vừa khi ≤ 42 ký tự và lọt chiều ngang khung với font phụ đề."""
-    f = _font(FONT_BOLD, CAP_SIZE)
+def caption_fits(look: dict | None = None) -> Callable[[str], bool]:
+    """Một dòng phụ đề vừa khi ≤ 42 ký tự và lọt chiều ngang khung với font phụ đề (đúng font, cỡ, chữ hoa của look)."""
+    c = looks.clean(look)["caption"]
+    f = _font(looks.font_candidates(c["font"]), look_layout(VERTICAL, look).cap_size)
     d = ImageDraw.Draw(Image.new("L", (1, 1)))
-    return lambda text: len(text) <= captions.MAX_CHARS and d.textlength(text, font=f) <= CAP_MAX_W
+    return lambda text: (len(text) <= captions.MAX_CHARS
+                         and d.textlength(text.upper() if c["upper"] else text, font=f) <= CAP_MAX_W)
 
 
-def caption_png(path: Path, cue: captions.Cue | None, lit: int, layout: Layout = VERTICAL) -> Path:
-    """Dải phụ đề cỡ bề ngang khung × cap_h: `lit` từ đầu đã đọc (vàng), phần còn lại trắng. cue None = dải trống."""
+def _glow(size: tuple[int, int], spots: list[tuple], radius: int) -> Image.Image:
+    """Neon: the lit words drawn once more in the glow colour, blurred, under the text."""
+    glow = Image.new("RGBA", size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    for xy, text, font, color in spots:
+        gd.text(xy, text, font=font, fill=color, stroke_width=max(radius // 3, 1), stroke_fill=color)
+    return glow.filter(ImageFilter.GaussianBlur(radius))
+
+
+def caption_png(path: Path, cue: captions.Cue | None, lit: int, layout: Layout = VERTICAL,
+                look: dict | None = None) -> Path:
+    """Dải phụ đề cỡ bề ngang khung × cap_h: `lit` từ đầu đã đọc (màu `spoken`), phần còn lại `color`. cue None = dải
+    trống. `layout` đã chỉnh theo look (look_layout); look thêm: hộp sau dòng / từng từ, hộp màu cho từ đang đọc,
+    chữ hoa, từ đang đọc phóng nhẹ (pop), ánh sáng (glow). Look mặc định vẽ đúng như trước khi có template."""
     L = layout
+    c = looks.clean(look)["caption"]
     img = Image.new("RGBA", (L.w, L.cap_h), (0, 0, 0, 0))
     if cue:
         d = ImageDraw.Draw(img)
-        f = _font(FONT_CJK if L.cjk else FONT_BOLD, L.cap_size)
+        f = _font(looks.font_candidates(c["font"], L.cjk), L.cap_size)
+        big = _font(looks.font_candidates(c["font"], L.cjk), round(L.cap_size * (1 + c["pop"]))) if c["pop"] else f
         space = d.textlength(" ", font=f)
+        text_of = (lambda s: s.upper()) if c["upper"] else (lambda s: s)
+        ascent = f.getmetrics()[0]
+        stroke_w = L.k(c["stroke_w"])
+        on, off = looks.rgb(c["spoken"]), looks.rgb(c["color"])
+        pad = round(L.cap_size * 0.18)
+        boxes, words, glow = [], [], []
         n = 0
         for i, ln in enumerate(cue.lines):
-            x = (L.w - d.textlength(" ".join(w.text for w in ln), font=f)) / 2
-            for w in ln:
-                d.text((x, L.k(12) + i * L.cap_line), w.text, font=f, fill=SPOKEN if n < lit else "white",
-                       stroke_width=L.k(6), stroke_fill=(0, 0, 0))
-                x += d.textlength(w.text, font=f) + space
+            y = L.k(12) + i * L.cap_line
+            widths = [d.textlength(text_of(w.text), font=big) for w in ln]  # room for the popped word: no jitter
+            total = sum(widths) + space * (len(ln) - 1)
+            x = (L.w - total) / 2
+            if c["box"] == "line" and ln:
+                boxes.append(((x - pad, y - pad // 2, x + total + pad, y + L.cap_line - pad // 2), c["box_color"],
+                              c["box_alpha"]))
+            for w, wd in zip(ln, widths, strict=True):
+                text, spoken, active = text_of(w.text), n < lit, n == lit - 1
+                if c["box"] == "word":
+                    boxes.append(((x - pad // 2, y - pad // 3, x + wd + pad // 2, y + L.cap_line - pad // 2),
+                                  c["box_color"], c["box_alpha"]))
+                if active and c["active_box"]:
+                    boxes.append(((x - pad // 2, y - pad // 3, x + wd + pad // 2, y + L.cap_line - pad // 2),
+                                  c["active_box"], 1.0))
+                now = looks.rgb(c["active"]) if active and c["active"] else on
+                solo = 0 if active and c["active_box"] else stroke_w  # a word on its own box needs no outline
+                if active and c["pop"]:
+                    words.append(((x + wd / 2, y + ascent), text, big, now, "ms", solo))
+                elif c["pop"]:  # the slot is as wide as the popped word: centre the others in it
+                    words.append(((x + wd / 2, y + ascent), text, f, now if spoken else off, "ms", solo))
+                else:
+                    words.append(((x, y), text, f, now if spoken else off, "la", solo))
+                if spoken and c["glow"]:
+                    glow.append(((x, y), text, f, looks.rgb(c["glow"])))
+                x += wd + space
                 n += 1
+        radius = round(L.cap_size * 0.25)
+        for xy, color, alpha in boxes:
+            d.rounded_rectangle(xy, radius=radius, fill=looks.rgb(color, alpha))
+        if glow:
+            img = Image.alpha_composite(img, _glow(img.size, glow, L.k(14)))
+            d = ImageDraw.Draw(img)
+        for xy, text, font, color, anchor, outline in words:
+            d.text(xy, text, font=font, fill=color, stroke_width=outline, stroke_fill=looks.rgb(c["stroke"]),
+                   anchor=anchor)
     img.save(path)
     return path
 
 
-def write_caption_track(cues: list[captions.Cue], work: Path, layout: Layout = VERTICAL, plain: bool = False) -> Path:
+def write_caption_track(cues: list[captions.Cue], work: Path, layout: Layout = VERTICAL, plain: bool = False,
+                        look: dict | None = None) -> Path:
     """Vẽ mọi khung karaoke và ghi danh sách concat (mỗi PNG kèm thời lượng).
-    plain: phụ đề thường, mỗi cue một khung."""
+    plain: phụ đề thường, mỗi cue một khung. `layout` đã chỉnh theo look (look_layout)."""
     pre = layout.prefix
     frames = captions.plain_frames(cues) if plain else captions.karaoke_frames(cues)
-    blank = caption_png(work / f"{pre}cap_blank.png", None, 0, layout)
+    blank = caption_png(work / f"{pre}cap_blank.png", None, 0, layout, look)
     rows = ["ffconcat version 1.0"]
     for i, (a, b, cue, lit) in enumerate(frames):
-        f = caption_png(work / f"{pre}cap_{i:04d}.png", cue, lit, layout) if cue else blank
+        f = caption_png(work / f"{pre}cap_{i:04d}.png", cue, lit, layout, look) if cue else blank
         rows += [f"file '{f.name}'", f"duration {b - a:.3f}"]
     rows.append(f"file '{blank.name}'")  # concat bỏ qua thời lượng của file cuối
     lst = work / f"{pre}captions.ffconcat"
@@ -299,16 +400,33 @@ def effect_filter(fx: dict | None) -> str:
     return ",".join(parts)
 
 
-def kenburns(motion: str, dur: float, w: int, h: int) -> str:
+def kenburns(motion: str, dur: float, w: int, h: int, zoom: float = KB_ZOOM) -> str:
     """Bộ lọc zoompan: một ảnh tĩnh (đã phóng 2× so với khung ra) trôi chậm trong `dur` giây. Ảnh lớn gấp đôi khung ra
     để bước dịch nhỏ hơn một điểm ảnh, không bị rung."""
     n = max(round(dur * FPS), 1)
     t = f"min(on/{n},1)"
-    z = {"zoom_in": f"1+{KB_ZOOM}*{t}", "zoom_out": f"1+{KB_ZOOM}-{KB_ZOOM}*{t}"}.get(motion, f"1+{KB_ZOOM}")
+    z = {"zoom_in": f"1+{zoom}*{t}", "zoom_out": f"1+{zoom}-{zoom}*{t}"}.get(motion, f"1+{zoom}")
     mid_x, mid_y = "iw/2-iw/zoom/2", "ih/2-ih/zoom/2"
     x = {"pan_left": f"(iw-iw/zoom)*(1-{t})", "pan_right": f"(iw-iw/zoom)*{t}"}.get(motion, mid_x)
     frames = n + round(0.3 * FPS)  # dư một chút: bước sau cắt đúng độ dài
     return f"zoompan=z='{z}':x='{x}':y='{mid_y}':d={frames}:s={w}x{h}:fps={FPS}"
+
+
+def camera(pieces: list[Piece], look: dict | None) -> list[Piece]:
+    """The look's camera move for an AI video's pictures: `auto` keeps what each scene was given; the others replace it
+    (zoom in, zoom out, in and out in turn, left and right in turn, or none: zoom 0 holds the picture still)."""
+    mode = looks.clean(look)["motion"]["mode"]
+    if mode == "auto":
+        return pieces
+    seq = {"zoom_in": ["zoom_in"], "zoom_out": ["zoom_out"], "still": ["zoom_in"], "alternate": ["zoom_in", "zoom_out"],
+           "pan": ["pan_left", "pan_right"]}[mode]
+    out, n = [], 0
+    for p in pieces:
+        if p.motion:
+            p = dataclasses.replace(p, motion=seq[n % len(seq)])
+            n += 1
+        out.append(p)
+    return out
 
 
 def moving_size(src_path: str, layout: Layout) -> tuple[int, int]:
@@ -322,14 +440,25 @@ def moving_size(src_path: str, layout: Layout) -> tuple[int, int]:
     return int(iw * k) // 2 * 2, int(ih * k) // 2 * 2
 
 
+def _backdrop(fr: dict) -> str:
+    """The filter chain of the picture behind the source: blurred and dimmed (as always), or one flat colour."""
+    if fr["color"]:
+        return f"drawbox=x=0:y=0:w=iw:h=ih:color=0x{fr['color'].lstrip('#')}:t=fill"
+    blur = f"gblur=sigma={fr['blur']}," if fr["blur"] else ""
+    return f"{blur}eq=brightness=-{fr['dim']:.2f}:saturation=0.9"
+
+
 def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout = VERTICAL,
-                 volume: float = 0.10) -> None:
+                 volume: float = 0.10, look: dict | None = None) -> None:
     """Một mảnh: nền mờ + hình nguồn + lớp chữ tĩnh. volume: âm lượng tiếng của nguồn (0 = im).
     src["blur"]: các vùng làm mờ trên hình nguồn (phụ đề cũ, watermark), xem blur_filter; src["cover"]: ảnh PNG cỡ
     nguồn có logo của người dùng đặt lên các vùng đó (masks.cover_png); src["keep"]: chỉ giữ vùng [x, y, w, h] của nguồn
     (phóng to để chữ / watermark ngoài vùng ra khỏi khung). Cả ba làm trên hình nguồn, trước nền mờ và khung.
     src["effects"]: lật gương, bộ lọc màu người dùng bật (effects.attach), sau ba thứ trên.
-    p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video."""
+    p.motion: nguồn là một ảnh (video AI), trôi chậm theo kenburns thay vì phát video.
+    look["frame"]: độ mờ / tối của nền sau hình nguồn (hoặc một màu đặc); look["motion"]: độ phóng của kenburns."""
+    fr, mo = (looks.clean(look)[k] for k in ("frame", "motion"))
+    zoom = 0.0 if mo["mode"] == "still" else mo["zoom"]
     fw, fh = layout.w, layout.h
     src_path = src["path"]
     fx = src.get("effects") or {}
@@ -357,12 +486,11 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
     if p.motion:
         ow, oh = moving_size(src_path, layout)
         fg = (f"[b]scale={2 * ow}:{2 * oh}:force_original_aspect_ratio=increase:flags=lanczos,crop={2 * ow}:{2 * oh},"
-              f"{kenburns(p.motion, p.dur, ow, oh)}[fg];")
+              f"{kenburns(p.motion, p.dur, ow, oh, zoom)}[fg];")
     else:
         fg = f"[b]scale={fw}:{fh}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
     fc = (f"{pre},split[a][b];"
-          f"[a]scale={fw}:{fh}:force_original_aspect_ratio=increase,crop={fw}:{fh},gblur=sigma=36,"
-          f"eq=brightness=-0.10:saturation=0.9{bg_tail}[bg];"
+          f"[a]scale={fw}:{fh}:force_original_aspect_ratio=increase,crop={fw}:{fh},{_backdrop(fr)}{bg_tail}[bg];"
           f"{fg}"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v1];[v1][1:v]overlay=0:0:shortest=1,fps={FPS},format=yuv420p,"
           f"setsar=1,tpad=stop_mode=clone:stop_duration={max(3.0, p.dur):.3f}[v];"
@@ -374,15 +502,16 @@ def render_piece(p: Piece, src: dict, overlay: Path, out: Path, layout: Layout =
 
 def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: list[captions.Cue], narration: dict,
              title: str, badge: str, out_dir: Path, work: Path, tick: Callable[[], None], volume: float = 0.10,
-             delay: float = NARRATION_DELAY) -> Path:
+             delay: float = NARRATION_DELAY, look: dict | None = None) -> Path:
     """Dựng một khổ từ các mảnh đã chọn: mảnh clip + lớp chữ, nối lại, trộn giọng đọc và phụ đề."""
     pre = layout.prefix
-    cap_list = write_caption_track(cues, work, layout)
-    overlay = overlay_png(work / f"{pre}ov_000.png", title=title, badge=badge, layout=layout)
+    cap_layout = look_layout(layout, look)
+    cap_list = write_caption_track(cues, work, cap_layout, look=look)
+    overlay = overlay_png(work / f"{pre}ov_000.png", title=title, badge=badge, layout=layout, look=look)
     files = []
     for j, p in enumerate(pieces):
         f = work / f"{pre}p_{j:03d}.mp4"
-        render_piece(p, sources[p.src], overlay, f, layout, volume)
+        render_piece(p, sources[p.src], overlay, f, layout, volume, look)
         files.append(f)
         tick()
     lst = work / f"{pre}list.txt"
@@ -392,7 +521,7 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
     final = out_dir / f"final{'_' + pre.rstrip('_') if pre else ''}.mp4"
     _run([config.ffmpeg(), "-y", "-v", "error", "-i", str(bg), "-i", narration["audio"],
           "-f", "concat", "-safe", "0", "-i", str(cap_list), "-filter_complex",
-          f"[2:v]format=rgba[cap];[0:v][cap]overlay=0:{layout.cap_top}:eof_action=pass,format=yuv420p[v];"
+          f"[2:v]format=rgba[cap];[0:v][cap]overlay=0:{cap_layout.cap_top}:eof_action=pass,format=yuv420p[v];"
           f"[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay={int(delay * 1000)}|{int(delay * 1000)}[nar];"
           "[0:a][nar]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]",
           "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
@@ -403,13 +532,15 @@ def _compose(layout: Layout, pieces: list[Piece], sources: list[dict], cues: lis
 def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, progress=None,
            min_total: float = 0.0, badge: str = "", wide: bool = False, pieces: list[Piece] | None = None,
            total: float | None = None, src_volume: float = SRC_VOLUME, delay: float = NARRATION_DELAY,
-           caption_hold: float | None = None) -> dict:
+           caption_hold: float | None = None, look: dict | None = None) -> dict:
     """plan: {title_fr, lines:[{text, clips}]}; narration: kết quả tts.synthesize. Video dài ít nhất min_total giây.
     badge: nhãn đỏ trên tiêu đề (vd. "ACTU CHINE" cho tin nóng), rỗng = không có.
     wide: dựng thêm bản 16:9 (final_wide.mp4) từ cùng các mảnh, giọng đọc và phụ đề.
     pieces / total: các mảnh và độ dài đã định sẵn (bản lồng tiếng), không thì chọn theo kịch bản.
     src_volume: âm lượng tiếng nguồn dưới giọng đọc; delay: giọng đọc vào trễ bao nhiêu giây;
-    caption_hold: phụ đề tắt sau từ cuối chừng này giây (None = giữ tới phụ đề sau)."""
+    caption_hold: phụ đề tắt sau từ cuối chừng này giây (None = giữ tới phụ đề sau).
+    look: kiểu phụ đề, băng tiêu đề, nền và chuyển động ảnh (looks.py); None = như trước khi có template."""
+    look = None if looks.is_default(look) else looks.clean(look)
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
@@ -424,12 +555,13 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
     # Phụ đề karaoke theo mốc từng từ của giọng đọc
     words = captions.word_times([ln["text"] for ln in plan["lines"]], narration["lines"], narration.get("alignment"))
     spoken = narration["duration"] + TAIL  # câu cuối không ở lại suốt phần đuôi kéo dài
-    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(), shift=delay, hold=caption_hold)
+    cues = captions.build_cues(words, min(spoken, total), fits=caption_fits(look), shift=delay, hold=caption_hold)
     (out_dir / "captions.srt").write_text(captions.to_srt(cues), encoding="utf-8")
     (out_dir / "captions.ass").write_text(captions.to_ass(cues), encoding="utf-8")
 
     if pieces is None:
         pieces = build_timeline(lines, sources, total)
+    pieces = camera(pieces, look)
     title = captions.fr_typography(plan["title_fr"])
     layouts = [VERTICAL, WIDE] if wide else [VERTICAL]
     done, steps = 0, len(pieces) * len(layouts)
@@ -441,7 +573,7 @@ def render(plan: dict, sources: list[dict], narration: dict, out_dir: Path, prog
             progress(done, steps)
 
     final, *rest = [_compose(lay, pieces, sources, cues, narration, title, badge, out_dir, work, tick, src_volume,
-                             delay) for lay in layouts]
+                             delay, look) for lay in layouts]
     thumb = out_dir / "thumb.jpg"
     _run([config.ffmpeg(), "-y", "-v", "error", "-ss", "1.2", "-i", str(final), "-frames:v", "1", "-q:v", "3",
           str(thumb)])

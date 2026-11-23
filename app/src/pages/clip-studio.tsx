@@ -3,6 +3,7 @@ import { ArrowLeft, Film, Loader2, Pause, Play, Plus, Scissors, ScanFace, Trash2
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
+import { TemplateChoice } from "@/components/template-choice";
 import { clock, parseClock } from "@/components/dub-cards";
 import { Choice } from "@/components/form";
 import { PageTitle, Panel, TopBar } from "@/components/studio";
@@ -86,7 +87,7 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
       api.clipperExport({
         link: job.link,
         duration,
-        channel: choice.channel,
+        channel: choice.channel, template: choice.template,
         clips: chosen.map((m) => ({ start: m.start, end: m.end, hook: m.hook, crop: m.crop, captions: m.captions ?? "fr" })),
       }),
     onSuccess: () => {
@@ -347,6 +348,7 @@ function Editor({ api, job }: { api: Api; job: ClipperJob }) {
           )}
         </div>
         <ChannelChoice choice={choice} className="h-10 w-[220px]" />
+        <TemplateChoice api={api} compact value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} className="h-10 w-[200px]" />
         <Button size="lg" onClick={() => make.mutate()} disabled={!ready || make.isPending}>
           {make.isPending ? <Loader2 className="animate-spin" /> : <Film />}
           {t.clipper.make(chosen.length)}

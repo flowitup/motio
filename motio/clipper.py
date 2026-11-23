@@ -476,9 +476,10 @@ def layout() -> render.Layout:
     return dataclasses.replace(base, cap_top=config.H - base.cap_h - CAP_BOTTOM)
 
 
-def render_clip(plan: dict, src: dict, opts: dict, out_dir: Path, progress=None) -> dict:
+def render_clip(plan: dict, src: dict, opts: dict, out_dir: Path, progress=None, look: dict | None = None) -> dict:
     """Dựng clip: cắt [start, end] của nguồn, khung 9:16, tiếng gốc chuẩn hoá, hook ở trên, phụ đề ở dưới. Trả dict như
-    render.render ({video, thumb, wide, duration, pieces, captions})."""
+    render.render ({video, thumb, wide, duration, pieces, captions}). look: only the hook band takes the template's
+    title style (the captions are the source's own words, drawn plain)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     work = out_dir / "pieces"
     work.mkdir(exist_ok=True)
@@ -500,7 +501,7 @@ def render_clip(plan: dict, src: dict, opts: dict, out_dir: Path, progress=None)
     fc, nxt, last = video_filter(crop, info["width"], info["height"]), 1, "v0"
     if hook:
         inputs += ["-loop", "1", "-t", f"{dur + 0.1:.3f}", "-i",
-                   str(render.overlay_png(work / "hook.png", title=cap.fr_typography(hook)))]
+                   str(render.overlay_png(work / "hook.png", title=cap.fr_typography(hook), look=look))]
         fc += f";[{last}][{nxt}:v]overlay=0:0:shortest=1[v1]"
         nxt, last = nxt + 1, "v1"
     if cues:

@@ -19,6 +19,7 @@ import ReviewPage from "@/pages/review";
 import ScanPage from "@/pages/scan";
 import SettingsPage from "@/pages/settings";
 import NewVideoPage from "@/pages/new-video";
+import TemplatesPage from "@/pages/templates";
 import ToolsPage from "@/pages/tools";
 import TrendsPage from "@/pages/trends";
 
@@ -120,6 +121,7 @@ export default function App() {
           <Route path="/projects/:id" element={<EngineGate><ProjectDetailPage /></EngineGate>} />
           <Route path="/channels" element={<Navigate to="/settings?tab=channels" replace />} />
           <Route path="/delogo" element={<EngineGate><DelogoPage /></EngineGate>} />
+          <Route path="/templates" element={<EngineGate><TemplatesPage /></EngineGate>} />
           <Route path="/tools" element={<EngineGate><ToolsPage /></EngineGate>} />
           <Route path="/stats" element={<Navigate to="/settings?tab=stats" replace />} />
           <Route path="/settings" element={<SettingsPage />} />

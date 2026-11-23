@@ -801,4 +801,41 @@ VI = {
         "Bản của {name} trên Drive không khớp với file; đã giữ lại bản trên máy",
     "Google Drive is switched off or not signed in": "Google Drive đang tắt hoặc chưa đăng nhập",
     "Could not move files to Google Drive: {error}": "Không chuyển được file lên Google Drive: {error}",
+    # video templates
+    "The template needs a name": "Mẫu cần có tên",
+    "Template not found": "Không tìm thấy mẫu",
+    "Built-in templates cannot be changed: duplicate it first": "Không sửa được mẫu dựng sẵn: hãy nhân bản nó trước",
+    "Built-in templates cannot be deleted": "Không xoá được mẫu dựng sẵn",
+    "This is not a Motio template (JSON with a name and a look)":
+        "Đây không phải mẫu của Motio (JSON có tên và kiểu hiển thị)",
+    "Template: {name}": "Mẫu: {name}",
+    "Template removed: back to the classic look": "Đã bỏ mẫu: về kiểu cổ điển",
+    "Motio's own look: white captions under the picture, the spoken word in yellow.":
+        "Kiểu gốc của Motio: phụ đề trắng dưới hình, từ đang đọc màu vàng.",
+    "Big capitals in the middle of the frame, the spoken word pops in yellow.":
+        "Chữ in hoa lớn giữa khung, từ đang đọc nảy lên màu vàng.",
+    "The spoken word sits in an orange pill, capitals, middle of the frame.":
+        "Từ đang đọc nằm trong viên thuốc màu cam, chữ in hoa, giữa khung.",
+    "Calm captions on a dark box in the lower third, the spoken word brighter.":
+        "Phụ đề nhẹ nhàng trên nền hộp tối ở phần dưới, từ đang đọc sáng hơn.",
+    "Comic lettering with a thick outline, the spoken word pops in bright yellow.":
+        "Chữ truyện tranh viền dày, từ đang đọc nảy lên màu vàng sáng.",
+    "Serif captions in warm gold, a soft dark frame and a slow push-in on AI pictures.":
+        "Phụ đề có chân màu vàng ấm, khung tối dịu và zoom chậm vào ảnh AI.",
+    "A cyan glow on the words already spoken, a night-blue title band, alternating camera moves.":
+        "Chữ đã đọc phát sáng màu xanh lơ, băng tiêu đề xanh đêm, chuyển động máy xen kẽ.",
+    "White captions on a blue bar like a TV news desk, yellow for the spoken word.":
+        "Phụ đề trắng trên thanh xanh như bản tin truyền hình, từ đang đọc màu vàng.",
+    "A yellow highlighter behind the spoken word, which turns black.":
+        "Vệt bút dạ quang vàng sau từ đang đọc, chữ chuyển sang đen.",
+    "Round lettering with a purple outline, lime green for the spoken word, lively camera moves.":
+        "Chữ tròn viền tím, từ đang đọc màu xanh chanh, chuyển động máy sinh động.",
+    "Tall condensed capitals in the middle, white with the spoken word in red.":
+        "Chữ in hoa cao hẹp ở giữa, màu trắng, từ đang đọc màu đỏ.",
+    "A dark green title card in the lower part, capitals with key words in yellow "
+    "(write them between *stars*), the same on every episode.":
+        "Thẻ tiêu đề xanh lá đậm ở phần dưới, chữ in hoa với từ khoá màu vàng "
+        "(viết chúng giữa dấu *sao*), giống nhau ở mọi tập.",
+    "Quiet captions, a flat dark frame instead of the blurred picture, a slow sideways drift.":
+        "Phụ đề kín đáo, nền tối phẳng thay cho hình mờ, trôi chậm sang bên.",
 }
