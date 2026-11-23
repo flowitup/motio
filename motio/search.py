@@ -207,15 +207,24 @@ def _xigua_on_douyin(url: str, out_dir: Path, max_height: int | None, hooks: lis
     if not m:
         return None
     try:
-        return douyin.download(f"https://www.douyin.com/video/{m[1]}", out_dir, max_height or douyin.DEFAULT_HEIGHT,
+        return douyin.download(f"https://www.douyin.com/video/{m[1]}", out_dir, max_height or config.source_short(),
                                hooks, m[1])
     except (douyin.Unavailable, douyin.Unreachable):
         return None
 
 
+def _format(short: int) -> str:
+    """Định dạng yt-dlp: cạnh ngắn không quá `short`. Video ngang bị chặn theo chiều cao, video dọc theo chiều rộng, nên
+    chặn cả hai ở cạnh dài của khung 16:9 (1080 → 1920): một video dọc 1080×1920 không còn bị cắt xuống 405×720."""
+    cap = round(short * 16 / 9)
+    box = f"[height<={cap}][width<={cap}]"
+    return f"bv*{box}[ext=mp4]+ba[ext=m4a]/bv*{box}+ba/b{box}/b"
+
+
 def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bool = False,
              hooks: list | None = None) -> dict:
-    """Tải 1 video (≤ max_height, mp4; không nói thì 720, riêng Douyin là 1080). Trả metadata + đường dẫn file.
+    """Tải 1 video (cạnh ngắn ≤ max_height, mp4; không nói thì cài đặt SOURCE_QUALITY, mặc định 1080).
+    Trả metadata + đường dẫn file.
     cookies=True: link dán tay (cookie file hoặc trình duyệt); video Bilibili tự tìm được cũng dùng cookie file nếu
     có. Link Douyin: f2 trước (motio/douyin.py), yt-dlp sau.
     hooks: hàm gọi với tiến độ tải của yt-dlp (dict có status, downloaded_bytes, total_bytes…);
@@ -225,7 +234,7 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
     url = platforms.normalize(platforms.expand(url))  # short links, link shapes yt-dlp does not understand
     site = platforms.identify(url)
     if haokan.find_id(url):  # no yt-dlp extractor: the page of the video carries its address
-        return haokan.download(url, out_dir, max_height, hooks)
+        return haokan.download(url, out_dir, max_height or config.source_short(), hooks)
     if site and site.key == "weibo":  # a video of the Trending list carries its own mp4 address; any other link: yt-dlp
         info = weibo_feed.download(url, out_dir, hooks)
         if info:
@@ -246,7 +255,7 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
         try:
             post_id = douyin.find_id(url)  # link rút gọn (câu chia sẻ của app Douyin) theo chuyển hướng một lần, ở đây
             if post_id:
-                info = douyin.download(url, out_dir, max_height or douyin.DEFAULT_HEIGHT, hooks, post_id)
+                info = douyin.download(url, out_dir, max_height or config.source_short(), hooks, post_id)
                 if info:
                     return info
         except douyin.Unreachable as e:
@@ -255,11 +264,11 @@ def download(url: str, out_dir: Path, max_height: int | None = None, cookies: bo
             url = f"https://www.douyin.com/video/{post_id}"
         elif offline:  # link không có mã mà không theo được (mất mạng): yt-dlp không làm gì được với nó, khỏi thử
             raise _cannot_reach_douyin() from offline
-    height = max_height or 720
+    height = max_height or config.source_short()
     out_dir.mkdir(parents=True, exist_ok=True)
     cookie = _cookie_opts() if cookies else _file_cookie_opts() if _is_bilibili(url) else {}
     opts = {**_base(),
-            "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/bv*[height<={height}]+ba/b[height<={height}]/b",
+            "format": _format(height),
             "merge_output_format": "mp4",
             "outtmpl": str(out_dir / "%(extractor_key)s_%(id)s.%(ext)s"),
             "noplaylist": True, "max_filesize": 600 * 1024 * 1024,

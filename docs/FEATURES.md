@@ -104,7 +104,7 @@ finished video's template from its page (rendered again with the same voice). De
 ## Tools
 
 One-off jobs that need no project; each input is an uploaded file or the result of another job, so they chain:
-**Download video** (480 / 720 / 1080p), **Transcribe** (Whisper → `.srt` + text), **Translate subtitles** (Claude →
+**Download video** (480 / 720 / 1080 / 1440p; the default is Settings → General → Source video quality, 1080), **Transcribe** (Whisper → `.srt` + text), **Translate subtitles** (Claude →
 French / English / Vietnamese), **Read text aloud** (ElevenLabs, up to 5,000 characters) and **Burn subtitles**.
 
 **Remove logo** cleans a static logo from a video you pick (a project source or an uploaded file): draw a box or

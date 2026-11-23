@@ -39,7 +39,7 @@ const TOOLS: { kind: ToolKind; icon: LucideIcon }[] = [
   { kind: "burn", icon: Captions },
 ];
 const ICON = Object.fromEntries(TOOLS.map((x) => [x.kind, x.icon])) as Record<ToolKind, LucideIcon>;
-const HEIGHTS = [480, 720, 1080];
+const HEIGHTS = [480, 720, 1080, 1440];
 const MAX_TEXT = 5000;
 /** Kết quả nào dùng tiếp được cho công cụ nào. */
 const NEXT: Record<ToolOutput["kind"], ToolKind[]> = {
@@ -111,7 +111,7 @@ function ToolForm({ api, kind, jobs, preset }: { api: Api; kind: ToolKind; jobs:
   const qc = useQueryClient();
   const [pct, setPct] = useState<number | null>(null);
   const [link, setLink] = useState("");
-  const [height, setHeight] = useState("720");
+  const [height, setHeight] = useState("1080");
   const [file, setFile] = useState<Source>({ job: preset?.file_job ?? "", file: null });
   const [subs, setSubs] = useState<Source>({ job: preset?.subs_job ?? "", file: null });
   const [language, setLanguage] = useState("fr");

@@ -30,7 +30,7 @@ MAX_MEDIA = delogo.MAX_UPLOAD
 MAX_SUBS = 2 * 1024 * 1024
 MAX_ENTRIES = 1500  # số câu phụ đề tối đa khi dịch
 MAX_TEXT = 5000  # ký tự tối đa cho một lần đọc (một lần gọi giọng đọc)
-HEIGHTS = (480, 720, 1080)
+HEIGHTS = (480, 720, 1080, 1440)
 LANGS = {"fr": "French (France)", "en": "English", "vi": "Vietnamese"}
 SIZES = {"small": 0.038, "medium": 0.048, "large": 0.058}  # cỡ chữ phụ đề / cạnh ngắn của khung hình
 BATCH = 40  # số câu phụ đề gửi Claude một lượt
@@ -218,7 +218,7 @@ def _validate(kind: str, params: dict) -> dict:
         links = search.clean_links([params.get("url") or ""])
         if not links:
             raise ValueError(tr("Paste a video link first"))
-        height = int(params.get("height") or 720)
+        height = int(params.get("height") or config.source_short())
         if height not in HEIGHTS:
             raise ValueError(tr("Quality must be one of {choices}", choices=", ".join(str(h) for h in HEIGHTS)))
         p.update(url=links[0], height=height)

@@ -353,7 +353,7 @@ type TabId = (typeof TABS)[number];
 
 /** Which tab a setting lives on (to mark a tab that holds unsaved changes). */
 function tabOf(key: string): TabId {
-  if (/^(REFRESH_EVERY_MIN|NEWS_TOPICS)$/.test(key)) return "general";
+  if (/^(REFRESH_EVERY_MIN|NEWS_TOPICS|SOURCE_QUALITY)$/.test(key)) return "general";
   if (/^(LLM_|ANTHROPIC_|ELEVENLABS_|MONTHLY_BUDGET_USD|AI_CLIP_USD_PER_SEC|FAL_KEY|IMAGE_STYLE)/.test(key)) return "ai";
   if (/^(POSTIZ_|SLACK_)/.test(key)) return "publishing";
   if (/^DRIVE_/.test(key)) return "storage";
@@ -420,11 +420,19 @@ type Kit = ReturnType<typeof useKit>;
 const GRID = "grid items-start gap-4 @md:grid-cols-2";
 
 function GeneralTab({ kit, unsaved }: { kit: Kit; unsaved: number }) {
-  const { src, num, switchRow } = kit;
+  const { val, set, src, num, switchRow } = kit;
   return (
     <>
       <Section id="general" title={t.settings.general} bodyClassName={GRID}>
         <LanguageField unsaved={unsaved} />
+        <Field label={t.settings.sourceQuality} hint={src("SOURCE_QUALITY") ?? t.settings.sourceQualityHint}>
+          <Choice
+            value={val("SOURCE_QUALITY") || "1080"}
+            onChange={(v) => set("SOURCE_QUALITY", v)}
+            options={(["720", "1080", "1440"] as const).map((q): [string, string] => [q, `${q}p`])}
+            className="w-40"
+          />
+        </Field>
         <Field label={t.settings.refreshEvery} hint={src("REFRESH_EVERY_MIN") ?? t.settings.refreshHint}>
           {num("REFRESH_EVERY_MIN", "0", "1")}
         </Field>

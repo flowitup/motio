@@ -1188,6 +1188,9 @@ const en = {
     newsTopics: "News topics (NewsNow hot lists)",
     newsTopicsHint: "Off: Trending shows only videos by category. On: Motio also fetches and scores China's hot news, and a “News topics” page appears.",
     refreshEvery: "Auto refresh trending and followed sources every (min, 0 = off)",
+    sourceQuality: "Source video quality",
+    sourceQualityHint:
+      "How sharp the source videos are when Motio downloads them (the short side: 1080 = 1920×1080, or 1080×1920 for a vertical video). The finished video is always 1080×1920, so 720 looks soft; 1440 makes bigger files and sites often don't have it. Applies to the next download.",
     newsnowUrl: "NewsNow",
     newsnowHint: "Empty = the public instance newsnow.busiyi.world. The server engine uses a self-hosted one.",
     cookies: "Browser cookies for pasted links",
@@ -2658,6 +2661,9 @@ const vi: Messages = {
     newsTopics: "Tin hot (danh sách hot của NewsNow)",
     newsTopicsHint: "Tắt: Xu hướng chỉ hiện video theo chuyên mục. Bật: Motio còn lấy và chấm điểm tin hot Trung Quốc, và có thêm trang “Tin hot”.",
     refreshEvery: "Tự cập nhật tin hot và nguồn theo dõi mỗi (phút, 0 = tắt)",
+    sourceQuality: "Chất lượng video nguồn",
+    sourceQualityHint:
+      "Độ nét của video nguồn khi Motio tải về (theo cạnh ngắn: 1080 = 1920×1080, hoặc 1080×1920 với video dọc). Video xuất ra luôn là 1080×1920 nên 720 sẽ bị mềm; 1440 tạo file nặng hơn và nhiều trang không có bản này. Áp dụng cho lần tải sau.",
     newsnowUrl: "NewsNow",
     newsnowHint: "Bỏ trống = bản công khai newsnow.busiyi.world. Engine trên server dùng bản tự host.",
     cookies: "Cookie trình duyệt cho link dán tay",

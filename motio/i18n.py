@@ -581,6 +581,7 @@ VI = {
     "IMAGE_PROVIDER must be one of {choices}": "IMAGE_PROVIDER phải là một trong: {choices}",
     "FAL_IMAGE_MODEL must be one of {choices}": "FAL_IMAGE_MODEL phải là một trong: {choices}",
     "CLIP_PROVIDER must be one of {choices}": "CLIP_PROVIDER phải là một trong: {choices}",
+    "SOURCE_QUALITY must be one of {choices}": "SOURCE_QUALITY phải là một trong: {choices}",
     "Add your fal key in Settings → Image provider (or choose the Placeholder provider to try the flow)":
         "Hãy nhập khoá fal trong Cài đặt → Nhà cung cấp ảnh (hoặc chọn Ảnh giữ chỗ để thử luồng này)",
     "The Modal provider needs the `modal` Python package and a Modal login: it runs from the dev engine or the server, "
