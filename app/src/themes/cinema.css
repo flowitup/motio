@@ -64,7 +64,7 @@
 [data-theme="cinema"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { background: #0E0B08; border-color: var(--hairline-strong); }
 
 /* Dock: a dark glass strip with a gold line under the open page. */
-[data-theme="cinema"] .dock { border-radius: 10px; background: rgb(14 11 8 / 0.92); border-color: var(--hairline-strong); box-shadow: 0 20px 50px -10px #000, 0 0 0 1px #000; }
+[data-theme="cinema"] .dock { border-radius: 10px; background: linear-gradient(180deg, #2A2119, #1C1610); border: 1px solid rgb(229 180 84 / 0.6); box-shadow: 0 0 0 1px #000, 0 0 30px -6px rgb(229 180 84 / 0.35), 0 22px 44px -8px #000, inset 0 1px 0 rgb(255 226 160 / 0.18); }
 [data-theme="cinema"] .dock-item { border-radius: 6px; }
 [data-theme="cinema"] .dock-item[aria-current="page"] { background: rgb(229 180 84 / 0.1); }
 [data-theme="cinema"] .dock-item[aria-current="page"]::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 0; height: 2px; background: #E5B454; box-shadow: 0 0 10px #E5B454; }

@@ -71,9 +71,9 @@
 [data-theme="sunset"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { background: rgb(15 7 32 / 0.7); border-color: rgb(255 120 215 / 0.3); }
 
 /* Dock: a glowing capsule, the open page lit from underneath. */
-[data-theme="sunset"] .dock { border-radius: 22px; border-color: rgb(255 120 215 / 0.45); background: rgb(23 11 51 / 0.86); box-shadow: 0 0 40px -6px rgb(214 31 143 / 0.55), 0 20px 40px -10px #000; }
+[data-theme="sunset"] .dock { border-radius: 22px; border: 1.5px solid rgb(255 150 225 / 0.85); background: linear-gradient(180deg, rgb(88 44 168 / 0.97), rgb(58 28 120 / 0.97)); box-shadow: 0 0 0 4px rgb(214 31 143 / 0.14), 0 0 46px -4px rgb(240 70 160 / 0.8), 0 22px 40px -8px #000, inset 0 1px 0 rgb(255 255 255 / 0.22); }
 [data-theme="sunset"] .dock-item { border-radius: 16px; }
-[data-theme="sunset"] .dock-item[aria-current="page"] { background: rgb(214 31 143 / 0.16); box-shadow: inset 0 -2px 0 #FF9B54, 0 0 20px -6px #D61F8F; }
+[data-theme="sunset"] .dock-item[aria-current="page"] { background: rgb(255 255 255 / 0.16); box-shadow: inset 0 -2px 0 #FF9B54, 0 0 20px -6px #D61F8F; }
 [data-theme="sunset"] .dock-tile { border-radius: 12px; }
 [data-theme="sunset"] .dock-new { border-radius: 16px; background-image: linear-gradient(135deg, #D61F8F, #B83AE0); box-shadow: 0 0 24px -2px #D61F8F; }
-[data-theme="sunset"] .dock-sep { background: rgb(255 120 215 / 0.25); }
+[data-theme="sunset"] .dock-sep { background: rgb(255 150 225 / 0.4); }
