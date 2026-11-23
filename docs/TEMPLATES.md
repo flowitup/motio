@@ -31,7 +31,7 @@ theirs is copied, and nothing is downloaded from them at run time.
 | Bold impact, Gaming pop, Tall caps | public caption guides (big outlined capitals, the spoken word in a bright colour) |
 | Orange pill, Clean box, Comic hype | [pycaps](https://github.com/francozanardi/pycaps) (MIT): word focus, minimalist, hype presets |
 | Cinematic gold, Neon glow, News desk, Highlighter, Documentary | Captioneer presets (MIT): cinematic-gold, glow, news-ticker, highlighter, documentary |
-| Series card | the fixed card layout of a public Vietnamese TikTok series (@tuantudo86): a big serif title band in the lower part on dark green, key words in yellow, captions in the middle of the frame; layout idea only |
+| Series card | the fixed card layout of a public Vietnamese TikTok series (@tuantudo86): heavy white capitals in the upper third with the spoken word in yellow and a thick black outline, a dark green title card in the lower part with key words in yellow; layout idea only (looked at on the profile and two videos, 23/11) |
 
 Add a new one only when its licence is MIT, Apache-2.0, CC0 or similar, with its credit here, or take just the idea.
 

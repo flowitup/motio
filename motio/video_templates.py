@@ -89,11 +89,12 @@ def _builtin() -> list[dict]:
                                 "pos": "middle"}, title={"font": "bebas", "bar_alpha": 0.6})},
         {"slug": "series_card", "name": "Series card", "credit": "Layout of a public Vietnamese TikTok series "
                                                                   "(@tuantudo86): idea only",
-         "note": tr("A dark green title card in the lower part, capitals with key words in yellow "
-                    "(write them between *stars*), the same on every episode."),
-         "look": _look(caption={"font": "poppins_bold", "size": 52, "spoken": "#FFFFFF", "stroke_w": 7,
-                                "pos": "middle"},
-                       title={"font": "dmserif", "bar": "#1F3B2A", "bar_alpha": 0.94, "pos": "lower",
+         "note": tr("Heavy white capitals in the upper third with the spoken word in yellow and a thick black "
+                    "outline; a dark green title card in the lower part, key words in yellow (write them between "
+                    "*stars*), the same on every episode."),
+         "look": _look(caption={"font": "poppins", "size": 58, "spoken": "#FFFFFF", "active": "#FFD60A",
+                                "stroke_w": 8, "upper": True, "pos": "upper"},
+                       title={"font": "poppins", "bar": "#1F3B2A", "bar_alpha": 0.94, "pos": "lower",
                               "align": "center", "upper": True, "accent": "#FFD60A"}, frame={"dim": 0.0})},
         {"slug": "documentary", "name": "Documentary", "credit": "Captioneer (MIT) documentary: idea only",
          "note": tr("Quiet captions, a flat dark frame instead of the blurred picture, a slow sideways drift."),

@@ -145,7 +145,7 @@ export type Look = {
   caption: {
     font: string; size: number; color: string; spoken: string; active: string; stroke: string; stroke_w: number;
     box: "none" | "line" | "word"; box_color: string; box_alpha: number; active_box: string; upper: boolean; pop: number;
-    glow: string; pos: "below" | "lower" | "middle";
+    glow: string; pos: "below" | "lower" | "middle" | "upper";
   };
   title: {
     show: boolean; font: string; color: string; bar: string; bar_alpha: number; badge: string; pos: "top" | "lower";

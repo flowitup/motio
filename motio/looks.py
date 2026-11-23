@@ -27,7 +27,7 @@ FONTS = {
     "dmserif": ("DM Serif Display", "DMSerifDisplay-Regular.ttf"),
 }
 BOXES = ("none", "line", "word")  # a box behind each caption line, or behind each word
-POSITIONS = ("below", "lower", "middle")  # under the source picture (as before), lower third, centre of the frame
+POSITIONS = ("below", "lower", "middle", "upper")  # under the picture (as before), lower third, centre, upper third
 TITLE_POSITIONS = ("top", "lower")  # the title band at the top (as before) or in the lower part of the frame
 MOTION_MODES = ("auto", "zoom_in", "zoom_out", "alternate", "pan", "still")
 SIZE_MIN, SIZE_MAX = 36, 100  # caption size at 9:16 (the 16:9 copy scales with it)

@@ -157,6 +157,8 @@ def look_layout(layout: Layout, look: dict | None) -> Layout:
         top = round(layout.h * 0.66)
     elif c["pos"] == "middle":
         top = (layout.h - out.cap_h) // 2
+    elif c["pos"] == "upper":
+        top = round(layout.h * 0.13)
     else:
         top = layout.cap_top
     return dataclasses.replace(out, cap_top=top)

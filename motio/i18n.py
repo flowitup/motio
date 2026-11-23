@@ -832,10 +832,11 @@ VI = {
         "Chữ tròn viền tím, từ đang đọc màu xanh chanh, chuyển động máy sinh động.",
     "Tall condensed capitals in the middle, white with the spoken word in red.":
         "Chữ in hoa cao hẹp ở giữa, màu trắng, từ đang đọc màu đỏ.",
-    "A dark green title card in the lower part, capitals with key words in yellow "
-    "(write them between *stars*), the same on every episode.":
-        "Thẻ tiêu đề xanh lá đậm ở phần dưới, chữ in hoa với từ khoá màu vàng "
-        "(viết chúng giữa dấu *sao*), giống nhau ở mọi tập.",
+    "Heavy white capitals in the upper third with the spoken word in yellow and a thick black "
+    "outline; a dark green title card in the lower part, key words in yellow (write them between "
+    "*stars*), the same on every episode.":
+        "Chữ in hoa trắng đậm ở phần trên khung, từ đang đọc màu vàng, viền đen dày; thẻ tiêu đề xanh lá "
+        "đậm ở phần dưới, từ khoá màu vàng (viết chúng giữa dấu *sao*), giống nhau ở mọi tập.",
     "Quiet captions, a flat dark frame instead of the blurred picture, a slow sideways drift.":
         "Phụ đề kín đáo, nền tối phẳng thay cho hình mờ, trôi chậm sang bên.",
 }
