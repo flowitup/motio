@@ -6,6 +6,7 @@ import { DeleteProjectDialog } from "@/components/delete-project";
 import { Choice } from "@/components/form";
 import { SetupCard } from "@/components/setup-notices";
 import { PipelineBoard } from "@/components/pipeline-board";
+import { ProjectInbox, ProjectTable } from "@/components/project-views";
 import { FilterChip, Led, PageTitle, STATUS_HUE, Segmented, StatusSticker, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,13 @@ type Filter = "all" | ProjectStatus;
 const FILTERS: Filter[] = ["all", "review", "running", "queued", "failed", "done"];
 const PAGE = 50; // projects per page; "Load more" asks for the next page
 const ANY = ""; // the "all channels" / "all kinds" choice
-type View = "board" | "grid";
+type View = "board" | "grid" | "list" | "inbox";
+const VIEWS: View[] = ["board", "grid", "list", "inbox"];
 const VIEW_STORE = "motio.projectsView";
 function savedView(): View {
   try {
-    return localStorage.getItem(VIEW_STORE) === "grid" ? "grid" : "board";
+    const v = localStorage.getItem(VIEW_STORE);
+    return VIEWS.includes(v as View) ? (v as View) : "board";
   } catch {
     return "board";
   }
@@ -179,7 +182,7 @@ export default function ProjectsPage() {
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => (last.length === PAGE ? last[last.length - 1].id : undefined),
     refetchInterval: working ? BUSY_MS : false,
-    enabled: view === "grid",
+    enabled: view !== "board",
   });
   // Something started, finished or was approved elsewhere: the counts changed, so the list is stale.
   const signature = counts.data ? [counts.data.queued, counts.data.running, counts.data.review, counts.data.done, counts.data.failed].join() : "";
@@ -204,7 +207,7 @@ export default function ProjectsPage() {
           label={t.board.view}
           value={view}
           onChange={setView}
-          options={(["board", "grid"] as View[]).map((v) => ({ value: v, label: t.board.views[v] }))}
+          options={VIEWS.map((v) => ({ value: v, label: t.board.views[v] }))}
           className="ml-4 h-9"
         />
         {/* New video is the "+" at the top of the rail; the queue of what waits for you stays here. */}
@@ -261,9 +264,11 @@ export default function ProjectsPage() {
         {error && <p className="mb-4 text-[13px] text-coral">{error.message}</p>}
         {data && !shown.length && !narrowed && filter === "all" && <p className="text-muted-foreground">{t.projects.empty}</p>}
         {data && !shown.length && (narrowed || filter !== "all") && <p className="text-muted-foreground">{t.studio.filterEmpty}</p>}
-        <ul className="grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-6 gap-y-8 empty:hidden">
+        {view === "list" && !!shown.length && <ProjectTable api={api} rows={shown} channelName={channelName} onDelete={setDeleting} />}
+        {view === "inbox" && !!shown.length && <ProjectInbox api={api} rows={shown} channelName={channelName} onDelete={setDeleting} />}
+        <ul className={cn("grid w-full grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-6 gap-y-8 empty:hidden", (view === "list" || view === "inbox") && "hidden")}>
           {isLoading && Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-lg" />)}
-          {shown.map((p) => (
+          {view === "grid" && shown.map((p) => (
             <ProjectCard
               key={p.id}
               api={api}

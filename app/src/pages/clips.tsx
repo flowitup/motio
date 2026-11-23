@@ -3,11 +3,12 @@ import { ChevronDown, Eye, EyeOff, Loader2, Plus, RefreshCw, Trash2 } from "luci
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { ClipCard } from "@/components/clip-card";
+import { ClipFocus, ClipTile } from "@/components/clip-views";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Choice, Field } from "@/components/form";
 import { Badge } from "@/components/ui/badge";
 import { SectionTabs } from "@/components/section-tabs";
-import { PageTitle, TopBar } from "@/components/studio";
+import { PageTitle, Segmented, TopBar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -186,8 +187,29 @@ function BulkBar({ api, tab, list }: { api: Api; tab: ClipStatus; list: Clip[] }
   );
 }
 
+type Layout = "list" | "grid" | "focus";
+const LAYOUTS: Layout[] = ["list", "grid", "focus"];
+const LAYOUT_STORE = "motio.clipsLayout";
+function savedLayout(): Layout {
+  try {
+    const v = localStorage.getItem(LAYOUT_STORE);
+    return LAYOUTS.includes(v as Layout) ? (v as Layout) : "list";
+  } catch {
+    return "list";
+  }
+}
+
 export default function ClipsPage() {
   const api = useApi()!;
+  const [layout, setLayoutState] = useState<Layout>(savedLayout);
+  const setLayout = (v: Layout) => {
+    setLayoutState(v);
+    try {
+      localStorage.setItem(LAYOUT_STORE, v);
+    } catch {
+      // storage blocked: the choice lasts until the page closes
+    }
+  };
   const qc = useQueryClient();
   const [tab, setTab] = useState<ClipStatus>("new");
   const [watchId, setWatchId] = useState<string>(ALL);
@@ -291,7 +313,7 @@ export default function ClipsPage() {
           )}
         </Card>
 
-        <div className="flex gap-1 border-b">
+        <div className="flex items-end gap-1 border-b">
           {TABS.map((s) => (
             <button
               key={s}
@@ -306,15 +328,24 @@ export default function ClipsPage() {
               {t.clips.tabs[s]}
             </button>
           ))}
+          <Segmented
+            label={t.clips.layout}
+            value={layout}
+            onChange={setLayout}
+            options={LAYOUTS.map((v) => ({ value: v, label: t.clips.layouts[v] }))}
+            className="mb-1 ml-auto h-8"
+          />
         </div>
 
         {clips.error && <p className="text-sm text-destructive">{clips.error.message}</p>}
         {tab !== "used" && !!clips.data?.length && <BulkBar key={tab} api={api} tab={tab} list={clips.data} />}
-        <div className="space-y-3">
+        <div className={cn(layout === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4" : "space-y-3")}>
           {clips.isLoading && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
           {clips.data?.length === 0 && <p className="py-12 text-center text-muted-foreground">{t.clips.empty[tab]}</p>}
-          {clips.data?.map((c) => <ClipCard key={c.id} api={api} clip={c} />)}
+          {layout === "list" && clips.data?.map((c) => <ClipCard key={c.id} api={api} clip={c} />)}
+          {layout === "grid" && clips.data?.map((c) => <ClipTile key={c.id} api={api} clip={c} />)}
         </div>
+        {layout === "focus" && !!clips.data?.length && <ClipFocus key={`${tab}-${watchId}`} api={api} list={clips.data} />}
       </div>
     </>
   );

@@ -1,0 +1,96 @@
+/* Look · Frost. Tokens first, then the shapes this look changes (dock, canvas, panels, buttons); see ../themes.css. */
+:root[data-theme="frost"] {
+    color-scheme: light;
+    --ui-font: 'Plus Jakarta Sans Variable';
+    --display-font: 'Plus Jakarta Sans Variable';
+    --code-font: 'IBM Plex Mono';
+    --ground: #EDEFFA;
+    --panel: #FFFFFF;
+    --strip: #F5F6FD;
+    --raised: #FFFFFF;
+    --lift: #EBEDF9;
+    --pressed: #DDE0F3;
+    --monitor: #FFFFFF;
+    --hairline: rgb(60 60 140 / 0.12);
+    --hairline-strong: rgb(60 60 140 / 0.24);
+    --field: #7C83AB;
+    --tint: #1E1B4B;
+    --on-hue: #FFFFFF;
+    --pink: #5B4BE8;
+    --primary-hover: #4B3BD8;
+    --primary-pressed: #3D2EC0;
+    --on-pink: #FFFFFF;
+    --amber: #B45309;
+    --on-amber: #FFFFFF;
+    --cyan: #0E7490;
+    --cyan-hover: #155E75;
+    --mint: #047857;
+    --coral: #DC2626;
+    --lime: #4D7C0F;
+    --violet: #8B2FC9;
+    --orange: #C2410C;
+    --blue: #2563EB;
+    --foreground: #1E1B4B;
+    --card-foreground: #1E1B4B;
+    --popover-foreground: #1E1B4B;
+    --secondary-foreground: #1E1B4B;
+    --accent-foreground: #1E1B4B;
+    --sidebar-foreground: #1E1B4B;
+    --sidebar-accent-foreground: #1E1B4B;
+    --muted-foreground: #555A8C;
+    --radius: 1rem;
+}
+
+[data-theme="frost"] * { scrollbar-color: rgb(60 60 140 / 0.28) transparent; }
+[data-theme="frost"] ::selection { background: rgb(91 75 232 / 0.22); }
+[data-theme="frost"] input[type="checkbox"], [data-theme="frost"] input[type="radio"] { accent-color: var(--pink); }
+
+/* The sky: lavender, peach and mint clouds that never scroll. The page is a frosted sheet floating over it. */
+[data-theme="frost"] .app-shell {
+    background:
+        radial-gradient(700px 520px at 0% 0%, rgb(167 139 250 / 0.45), transparent 66%),
+        radial-gradient(760px 560px at 100% 8%, rgb(253 186 160 / 0.5), transparent 64%),
+        radial-gradient(900px 520px at 55% 115%, rgb(125 211 200 / 0.45), transparent 66%),
+        #EDEFFA;
+    padding: 10px 10px 0;
+}
+[data-theme="frost"] .app-main {
+    border: 1px solid rgb(255 255 255 / 0.8);
+    border-radius: 28px 28px 0 0;
+    background: rgb(255 255 255 / 0.5);
+    box-shadow: 0 30px 60px -30px rgb(60 60 140 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.9);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    backdrop-filter: blur(22px) saturate(1.4);
+}
+[data-theme="frost"] .page-topbar, [data-theme="frost"] .app-main .sticky.bg-ground { background: rgb(255 255 255 / 0.72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+/* Glass cards: white veil, soft lilac shadow, round corners. */
+[data-theme="frost"] [data-slot="section"], [data-theme="frost"] [data-slot="card"] {
+    border-radius: 22px;
+    border-color: rgb(255 255 255 / 0.9);
+    background: rgb(255 255 255 / 0.7);
+    box-shadow: 0 14px 34px -22px rgb(60 60 140 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+[data-theme="frost"] [data-slot="panel"] { background: rgb(255 255 255 / 0.45); }
+[data-theme="frost"] [data-slot="poster"] { border-radius: 14px; box-shadow: 0 8px 18px -10px rgb(60 60 140 / 0.5); }
+
+[data-theme="frost"] [data-slot="button"] { border-radius: 999px; }
+[data-theme="frost"] [data-slot="button"].bg-primary { background-image: linear-gradient(135deg, #5B4BE8, #7C5CF0); box-shadow: 0 10px 20px -10px rgb(91 75 232 / 0.8); }
+[data-theme="frost"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { background: rgb(255 255 255 / 0.8); border-radius: 14px; }
+
+/* Dock: a frosted pill with a little lift, the open page a white bubble. */
+[data-theme="frost"] .dock {
+    border-radius: 28px;
+    border: 1px solid rgb(255 255 255 / 0.9);
+    background: rgb(255 255 255 / 0.62);
+    box-shadow: 0 24px 50px -18px rgb(60 60 140 / 0.5), inset 0 1px 0 #fff;
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    backdrop-filter: blur(24px) saturate(1.5);
+    padding: 8px 10px;
+    bottom: 14px;
+}
+[data-theme="frost"] .dock-item { border-radius: 20px; }
+[data-theme="frost"] .dock-item[aria-current="page"] { background: #fff; box-shadow: 0 8px 18px -10px rgb(60 60 140 / 0.55); }
+[data-theme="frost"] .dock-tile { border-radius: 14px; }
+[data-theme="frost"] .dock-new { border-radius: 20px; background-image: linear-gradient(135deg, #5B4BE8, #8B5CF6); box-shadow: 0 10px 20px -8px rgb(91 75 232 / 0.8); }
+[data-theme="frost"] .dock-sep { background: rgb(60 60 140 / 0.14); }
