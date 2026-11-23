@@ -1,0 +1,79 @@
+/* Look · Swiss. Tokens first, then the shapes this look changes (dock, canvas, panels, buttons); see ../themes.css. */
+:root[data-theme="swiss"] {
+    color-scheme: light;
+    --ui-font: 'Inter Variable';
+    --display-font: 'Inter Variable';
+    --code-font: 'JetBrains Mono';
+    --ground: #F4F4F2;
+    --panel: #FFFFFF;
+    --strip: #ECECE8;
+    --raised: #FFFFFF;
+    --lift: #E8E8E3;
+    --pressed: #D8D8D2;
+    --monitor: #FFFFFF;
+    --hairline: rgb(10 10 10 / 0.16);
+    --hairline-strong: rgb(10 10 10 / 0.85);
+    --field: #6B6B64;
+    --tint: #0A0A0A;
+    --on-hue: #FFFFFF;
+    --pink: #0A0A0A;
+    --primary-hover: #2B2B28;
+    --primary-pressed: #000000;
+    --on-pink: #FFFFFF;
+    --amber: #9A5B00;
+    --on-amber: #FFFFFF;
+    --cyan: #0057B8;
+    --cyan-hover: #00408A;
+    --mint: #0A7A3B;
+    --coral: #D40000;
+    --lime: #5A7A00;
+    --violet: #5B2BB8;
+    --orange: #B8460A;
+    --blue: #0057B8;
+    --foreground: #0A0A0A;
+    --card-foreground: #0A0A0A;
+    --popover-foreground: #0A0A0A;
+    --secondary-foreground: #0A0A0A;
+    --accent-foreground: #0A0A0A;
+    --sidebar-foreground: #0A0A0A;
+    --sidebar-accent-foreground: #0A0A0A;
+    --muted-foreground: #55554F;
+    --radius: 0rem;
+}
+
+[data-theme="swiss"] * { scrollbar-color: rgb(10 10 10 / 0.4) transparent; }
+[data-theme="swiss"] ::selection { background: #0A0A0A; color: #fff; }
+[data-theme="swiss"] input[type="checkbox"], [data-theme="swiss"] input[type="radio"] { accent-color: #0A0A0A; }
+[data-theme="swiss"] .rounded-full { border-radius: 0; }
+[data-theme="swiss"] .font-mono, [data-theme="swiss"] [data-slot="chip"] { letter-spacing: 0.04em; }
+
+/* A flat sheet with a strict grid: black rules, no shadows, no rounding anywhere. */
+[data-theme="swiss"] .app-main { background: var(--ground); }
+[data-theme="swiss"] .page-topbar { border-bottom: 2px solid #0A0A0A; background: var(--ground); }
+[data-theme="swiss"] .page-topbar > .page-title { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; text-transform: uppercase; }
+[data-theme="swiss"] [data-slot="section"], [data-theme="swiss"] [data-slot="card"] { border: 1px solid #0A0A0A; box-shadow: none; background: #fff; }
+[data-theme="swiss"] [data-slot="section"] > h2 > button { background: #0A0A0A; color: #fff; }
+[data-theme="swiss"] [data-slot="section"] > h2 > button * { color: #fff; }
+[data-theme="swiss"] [data-slot="panel"] { border-bottom: 1px solid #0A0A0A; }
+[data-theme="swiss"] [data-slot="panel-header"] { border-bottom: 1px solid #0A0A0A; text-transform: uppercase; }
+[data-theme="swiss"] [data-slot="poster"] { border-radius: 0; outline: 1px solid #0A0A0A; }
+[data-theme="swiss"] [data-slot="button"] { border-radius: 0; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+[data-theme="swiss"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { border: 1px solid #0A0A0A; background: #fff; border-radius: 0; }
+
+/* Dock: not a pill but a full-width black bar fixed to the bottom edge; the open page is a white tab. */
+[data-theme="swiss"] .dock {
+    left: 0; right: 0; bottom: 0; translate: none; max-width: none; width: 100%;
+    justify-content: center;
+    border: 0; border-top: 2px solid #0A0A0A; border-radius: 0;
+    background: #0A0A0A; box-shadow: none; padding: 0 12px; gap: 0;
+}
+[data-theme="swiss"] .dock-item { height: 56px; width: 6.5rem; border-radius: 0; color: #CFCFC8; flex-direction: row; gap: 8px; }
+[data-theme="swiss"] .dock-item:hover { background: #1C1C1A; color: #fff; }
+[data-theme="swiss"] .dock-item[aria-current="page"] { background: #F4F4F2; color: #0A0A0A; }
+[data-theme="swiss"] .dock-tile { border-radius: 0; width: 26px; height: 26px; }
+[data-theme="swiss"] .dock-label { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; font-weight: 700; }
+[data-theme="swiss"] .dock-new { border-radius: 0; background: #D40000; color: #fff; width: 56px; height: 56px; }
+[data-theme="swiss"] .dock-new:hover { background: #B80000; color: #fff; }
+[data-theme="swiss"] .dock-sep { background: #3A3A37; height: 56px; margin: 0 8px; }
+[data-theme="swiss"] .dock-engine { color: #fff; }
+[data-theme="swiss"] .app-main { padding-bottom: 80px; }

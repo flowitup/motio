@@ -1,0 +1,79 @@
+/* Look · Sunset. Tokens first, then the shapes this look changes (dock, canvas, panels, buttons); see ../themes.css. */
+:root[data-theme="sunset"] {
+    color-scheme: dark;
+    --ui-font: 'Lexend Variable';
+    --display-font: 'Lexend Variable';
+    --code-font: 'Space Mono';
+    --ground: #140A2A;
+    --panel: #1E1040;
+    --strip: #26164F;
+    --raised: #2D1B5E;
+    --lift: #382370;
+    --pressed: #46308A;
+    --monitor: #0F0720;
+    --hairline: rgb(255 140 220 / 0.18);
+    --hairline-strong: rgb(255 140 220 / 0.38);
+    --field: #9078D0;
+    --tint: #FFE3F6;
+    --on-hue: #1A0830;
+    --pink: #D61F8F;
+    --primary-hover: #E83BA3;
+    --primary-pressed: #B8157A;
+    --on-pink: #FFFFFF;
+    --amber: #FFC857;
+    --on-amber: #2A1600;
+    --cyan: #35E0F2;
+    --cyan-hover: #8EF0FA;
+    --mint: #4DF0B4;
+    --coral: #FF5A4E;
+    --lime: #C6F24E;
+    --violet: #A78BFA;
+    --orange: #FF9B54;
+    --blue: #6EA8FF;
+    --foreground: #FBEAFF;
+    --card-foreground: #FBEAFF;
+    --popover-foreground: #FBEAFF;
+    --secondary-foreground: #FBEAFF;
+    --accent-foreground: #FBEAFF;
+    --sidebar-foreground: #FBEAFF;
+    --sidebar-accent-foreground: #FBEAFF;
+    --muted-foreground: #BBA6E6;
+    --radius: 0.75rem;
+}
+
+[data-theme="sunset"] * { scrollbar-color: rgb(255 140 220 / 0.32) transparent; }
+[data-theme="sunset"] ::selection { background: rgb(214 31 143 / 0.45); }
+[data-theme="sunset"] .page-title, [data-theme="sunset"] .font-heading { font-weight: 700; letter-spacing: -0.01em; }
+[data-theme="sunset"] .page-title { text-shadow: 0 0 22px rgb(240 70 160 / 0.55); }
+
+/* Neon sky: a violet-to-magenta horizon with a low sun and a faint perspective grid under the page. */
+[data-theme="sunset"] .app-shell {
+    background:
+        radial-gradient(520px 320px at 50% 100%, rgb(255 140 70 / 0.38), transparent 70%),
+        radial-gradient(900px 600px at 85% -10%, rgb(214 31 143 / 0.35), transparent 65%),
+        radial-gradient(800px 560px at 0% 20%, rgb(80 60 220 / 0.4), transparent 65%),
+        linear-gradient(180deg, #170B33, #120828);
+}
+[data-theme="sunset"] .app-main { background: transparent; }
+[data-theme="sunset"] .page-topbar, [data-theme="sunset"] .app-main .sticky.bg-ground { background: rgb(23 11 51 / 0.82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+
+/* Panels glow: a dim violet card with a neon pink keyline and a halo. */
+[data-theme="sunset"] [data-slot="section"], [data-theme="sunset"] [data-slot="card"] {
+    border-color: rgb(255 120 215 / 0.35);
+    background: rgb(36 18 78 / 0.78);
+    box-shadow: 0 0 0 1px rgb(255 120 215 / 0.08), 0 18px 40px -22px rgb(214 31 143 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.07);
+    border-radius: 18px;
+}
+[data-theme="sunset"] [data-slot="panel"] { background: rgb(30 16 64 / 0.7); }
+[data-theme="sunset"] [data-slot="poster"] { border-radius: 12px; box-shadow: 0 0 0 1px rgb(255 120 215 / 0.4), 0 0 18px -4px rgb(214 31 143 / 0.7); }
+[data-theme="sunset"] [data-slot="button"] { border-radius: 12px; }
+[data-theme="sunset"] [data-slot="button"].bg-primary { background-image: linear-gradient(135deg, #D61F8F, #B83AE0); box-shadow: 0 0 24px -4px rgb(214 31 143 / 0.8); }
+[data-theme="sunset"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { background: rgb(15 7 32 / 0.7); border-color: rgb(255 120 215 / 0.3); }
+
+/* Dock: a glowing capsule, the open page lit from underneath. */
+[data-theme="sunset"] .dock { border-radius: 22px; border-color: rgb(255 120 215 / 0.45); background: rgb(23 11 51 / 0.86); box-shadow: 0 0 40px -6px rgb(214 31 143 / 0.55), 0 20px 40px -10px #000; }
+[data-theme="sunset"] .dock-item { border-radius: 16px; }
+[data-theme="sunset"] .dock-item[aria-current="page"] { background: rgb(214 31 143 / 0.16); box-shadow: inset 0 -2px 0 #FF9B54, 0 0 20px -6px #D61F8F; }
+[data-theme="sunset"] .dock-tile { border-radius: 12px; }
+[data-theme="sunset"] .dock-new { border-radius: 16px; background-image: linear-gradient(135deg, #D61F8F, #B83AE0); box-shadow: 0 0 24px -2px #D61F8F; }
+[data-theme="sunset"] .dock-sep { background: rgb(255 120 215 / 0.25); }

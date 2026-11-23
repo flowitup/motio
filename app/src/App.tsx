@@ -8,8 +8,6 @@ import { useProjectNotifications } from "@/hooks/use-project-notifications";
 import { useApi } from "@/lib/api";
 import { useEngine } from "@/lib/engine";
 import { BUSY_MS } from "@/lib/poll";
-import { useNavLayout } from "@/lib/nav-layout";
-import { cn } from "@/lib/utils";
 import { t, useLang, type Messages } from "@/i18n";
 import AccountPage from "@/pages/account";
 import ClipStudioPage from "@/pages/clip-studio";
@@ -78,7 +76,6 @@ function useDocumentTitle(needsYou: number) {
 
 export default function App() {
   const { info } = useEngine();
-  const layout = useNavLayout();
   const qc = useQueryClient();
   // Đổi engine (khởi động lại, local ↔ từ xa) hoặc đổi ngôn ngữ (App dựng lại): tải lại dữ liệu.
   useEffect(() => {
@@ -98,7 +95,7 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
 
   return (
-    <div className={cn("app-shell flex h-screen bg-background text-foreground", layout === "top" && "flex-col")} data-nav={layout}>
+    <div className="app-shell flex h-screen bg-background text-foreground">
       {/* A button, not a #link: the hash is the router's. */}
       <button
         type="button"
@@ -108,7 +105,7 @@ export default function App() {
         {t.a11y.skip}
       </button>
       <AppMenu counts={counts} />
-      <main ref={main} tabIndex={-1} className={cn("app-main min-h-0 min-w-0 flex-1 overflow-y-auto outline-none", layout === "dock" && "pb-24")}>
+      <main ref={main} tabIndex={-1} className="app-main min-h-0 min-w-0 flex-1 overflow-y-auto pb-24 outline-none">
         <Routes>
           <Route path="/" element={<Navigate to="/clips" replace />} />
           <Route path="/trends" element={<Navigate to="/clips" replace />} /> {/* Trending lists are part of the Feed now */}

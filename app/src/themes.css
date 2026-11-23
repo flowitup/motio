@@ -25,6 +25,11 @@
 @import "./themes/terminal.css";
 @import "./themes/aurora.css";
 @import "./themes/pop.css";
+@import "./themes/frost.css";
+@import "./themes/swiss.css";
+@import "./themes/cinema.css";
+@import "./themes/sunset.css";
+@import "./themes/clay.css";
 
 /* Font pairings (Settings → Appearance → Font): text + numbers over any look. Two attributes on <html> beat a look's
    one, so the choice wins over the look's own fonts. */

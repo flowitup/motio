@@ -1179,16 +1179,7 @@ const en = {
     languageHint: "Also used for the engine's steps, log and error messages. Videos and posts stay in French.",
     theme: "Appearance",
     themeLabel: "Theme",
-    themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop" },
-    menuLayout: "Menu",
-    menus: { sidebar: "Sidebar with names", rail: "Icon rail", top: "Top bar", dock: "Floating dock", split: "Two columns" } as Record<string, string>,
-    menuHints: {
-      sidebar: "Names next to the icons on the left.",
-      rail: "A slim column of icons; names show on hover.",
-      top: "A bar along the top, the page gets the full width.",
-      dock: "A floating bar at the bottom, like a Mac dock.",
-      split: "Icons on the left and, next to them, the pages of the section you are in.",
-    } as Record<string, string>,
+    themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop", frost: "Frost", swiss: "Swiss", cinema: "Cinema", sunset: "Sunset", clay: "Clay" },
     font: "Font",
     fonts: { theme: "The look's own", inter: "Inter", jakarta: "Plus Jakarta Sans", vietnam: "Be Vietnam Pro", lexend: "Lexend", archivo: "Archivo" } as Record<string, string>,
     fontHints: {
@@ -1206,6 +1197,11 @@ const en = {
       terminal: "Dark green console: everything in mono, square corners.",
       aurora: "Night glass: frosted panels over soft northern-light colours.",
       pop: "Loud and playful: thick ink borders, hard shadows, bright fills.",
+      frost: "Light frosted glass over a soft pastel sky, big round corners.",
+      swiss: "Black on white, hairline grid, square corners, mono labels, a flat dock bar.",
+      cinema: "Warm black screening room: serif titles, gold accents, wide framed pictures.",
+      sunset: "Night-city neon: violet sky, hot pink glow, soft glowing panels.",
+      clay: "Soft clay: mint-grey pastels, chunky pill buttons and gentle shadows.",
     },
   },
   update: {
@@ -1322,8 +1318,6 @@ const en = {
   },
   studio: {
     mainNav: "Main",
-    menuCollapse: "Collapse menu",
-    menuExpand: "Show menu names",
     needsYouCount: (n: number) => (n === 1 ? "1 project waiting for you" : `${n} projects waiting for you`),
     failedCount: (n: number) => (n === 1 ? "1 project failed lately" : `${n} projects failed lately`),
     // Trending
@@ -2539,16 +2533,7 @@ const vi: Messages = {
     languageHint: "Dùng cho cả bước, nhật ký và lỗi của engine. Video và bài đăng vẫn bằng tiếng Pháp.",
     theme: "Giao diện",
     themeLabel: "Kiểu giao diện",
-    themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop" },
-    menuLayout: "Menu",
-    menus: { sidebar: "Thanh bên có tên", rail: "Thanh icon", top: "Thanh trên cùng", dock: "Dock nổi", split: "Hai cột" } as Record<string, string>,
-    menuHints: {
-      sidebar: "Tên mục nằm cạnh icon ở bên trái.",
-      rail: "Cột icon gọn; rê chuột để xem tên.",
-      top: "Thanh dọc theo đỉnh, trang được dùng toàn bộ chiều ngang.",
-      dock: "Thanh nổi ở đáy màn hình, như dock của Mac.",
-      split: "Icon bên trái, cạnh đó là các trang của mục bạn đang mở.",
-    } as Record<string, string>,
+    themes: { neon: "Neon Studio", daylight: "Daylight", paper: "Paper", terminal: "Terminal", aurora: "Aurora", pop: "Pop", frost: "Frost", swiss: "Swiss", cinema: "Cinema", sunset: "Sunset", clay: "Clay" },
     font: "Phông chữ",
     fonts: { theme: "Theo kiểu giao diện", inter: "Inter", jakarta: "Plus Jakarta Sans", vietnam: "Be Vietnam Pro", lexend: "Lexend", archivo: "Archivo" } as Record<string, string>,
     fontHints: {
@@ -2566,6 +2551,11 @@ const vi: Messages = {
       terminal: "Bảng điều khiển xanh lục tối: toàn chữ mono, góc vuông.",
       aurora: "Kính đêm: khung mờ trên nền màu cực quang dịu.",
       pop: "Rực và vui: viền mực dày, bóng cứng, mảng màu tươi.",
+      frost: "Kính mờ sáng trên nền pastel dịu, góc bo lớn.",
+      swiss: "Đen trên trắng, lưới đường kẻ mảnh, góc vuông, nhãn mono, dock dạng thanh phẳng.",
+      cinema: "Phòng chiếu đen ấm: tiêu đề có chân, điểm nhấn vàng, ảnh khung rộng.",
+      sunset: "Neon phố đêm: trời tím, ánh hồng rực, khung phát sáng nhẹ.",
+      clay: "Đất sét mềm: pastel xanh xám, nút tròn dày và bóng nhẹ.",
     },
   },
   update: {
@@ -2682,8 +2672,6 @@ const vi: Messages = {
   },
   studio: {
     mainNav: "Menu chính",
-    menuCollapse: "Thu gọn menu",
-    menuExpand: "Hiện tên menu",
     needsYouCount: (n: number) => `${n} dự án đang chờ bạn`,
     failedCount: (n: number) => `${n} dự án lỗi gần đây`,
     // Trending

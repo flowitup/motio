@@ -1,0 +1,72 @@
+/* Look · Clay. Tokens first, then the shapes this look changes (dock, canvas, panels, buttons); see ../themes.css. */
+:root[data-theme="clay"] {
+    color-scheme: light;
+    --ui-font: 'Lexend Variable';
+    --display-font: 'Lexend Variable';
+    --code-font: 'JetBrains Mono';
+    --ground: #E9F1EF;
+    --panel: #F7FBFA;
+    --strip: #F0F6F4;
+    --raised: #FFFFFF;
+    --lift: #DDE8E5;
+    --pressed: #CFDDD9;
+    --monitor: #F7FBFA;
+    --hairline: rgb(30 70 60 / 0.10);
+    --hairline-strong: rgb(30 70 60 / 0.22);
+    --field: #6B8780;
+    --tint: #123A33;
+    --on-hue: #FFFFFF;
+    --pink: #C2410C;
+    --primary-hover: #A8370A;
+    --primary-pressed: #8F2F08;
+    --on-pink: #FFFFFF;
+    --amber: #A16207;
+    --on-amber: #FFFFFF;
+    --cyan: #0E7490;
+    --cyan-hover: #155E75;
+    --mint: #0F7B5F;
+    --coral: #BE123C;
+    --lime: #4D7C0F;
+    --violet: #7C3AED;
+    --orange: #DB2777;
+    --blue: #2563EB;
+    --foreground: #123A33;
+    --card-foreground: #123A33;
+    --popover-foreground: #123A33;
+    --secondary-foreground: #123A33;
+    --accent-foreground: #123A33;
+    --sidebar-foreground: #123A33;
+    --sidebar-accent-foreground: #123A33;
+    --muted-foreground: #456A62;
+    --radius: 1.5rem;
+}
+
+[data-theme="clay"] * { scrollbar-color: rgb(30 70 60 / 0.3) transparent; }
+[data-theme="clay"] ::selection { background: rgb(194 65 12 / 0.22); }
+[data-theme="clay"] input[type="checkbox"], [data-theme="clay"] input[type="radio"] { accent-color: var(--pink); }
+[data-theme="clay"] .page-title, [data-theme="clay"] .font-heading { font-weight: 700; letter-spacing: -0.01em; }
+[data-theme="clay"] .rounded-full { border-radius: 999px; }
+
+/* Soft clay: everything is a pillow, lit from the top left (light edge) and shaded bottom right (soft shadow). */
+[data-theme="clay"] .app-main { background: var(--ground); }
+[data-theme="clay"] .page-topbar { background: var(--ground); border-bottom: 0; }
+[data-theme="clay"] [data-slot="section"], [data-theme="clay"] [data-slot="card"] {
+    border: 0;
+    border-radius: 28px;
+    background: var(--panel);
+    box-shadow: 10px 12px 26px -12px rgb(30 70 60 / 0.28), -8px -8px 20px rgb(255 255 255 / 0.9);
+}
+[data-theme="clay"] [data-slot="panel"] { background: transparent; border-color: transparent; }
+[data-theme="clay"] [data-slot="poster"] { border-radius: 18px; box-shadow: 6px 8px 14px -6px rgb(30 70 60 / 0.35); }
+[data-theme="clay"] [data-slot="button"] { border-radius: 999px; font-weight: 600; box-shadow: 4px 5px 10px -4px rgb(30 70 60 / 0.3), -3px -3px 8px rgb(255 255 255 / 0.85); border-color: transparent; }
+[data-theme="clay"] [data-slot="button"]:active:not(:disabled) { box-shadow: inset 3px 4px 8px rgb(30 70 60 / 0.25); }
+[data-theme="clay"] [data-slot="button"].bg-primary { box-shadow: 5px 7px 14px -5px rgb(194 65 12 / 0.7), -3px -3px 8px rgb(255 255 255 / 0.8); }
+[data-theme="clay"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]) { border-color: transparent; border-radius: 20px; background: #EBF3F1; box-shadow: inset 4px 5px 10px rgb(30 70 60 / 0.16), inset -3px -3px 8px rgb(255 255 255 / 0.9); }
+
+/* Dock: a fat cushion with chunky buttons; the open page is pressed in. */
+[data-theme="clay"] .dock { border: 0; border-radius: 36px; background: var(--panel); padding: 10px 14px; box-shadow: 14px 18px 34px -14px rgb(30 70 60 / 0.4), -10px -10px 24px rgb(255 255 255 / 0.95); backdrop-filter: none; }
+[data-theme="clay"] .dock-item { border-radius: 26px; }
+[data-theme="clay"] .dock-item[aria-current="page"] { background: #E3EDEA; box-shadow: inset 4px 5px 10px rgb(30 70 60 / 0.2), inset -3px -3px 8px rgb(255 255 255 / 0.9); }
+[data-theme="clay"] .dock-tile { border-radius: 18px; box-shadow: 3px 4px 8px -3px rgb(30 70 60 / 0.35); }
+[data-theme="clay"] .dock-new { border-radius: 24px; box-shadow: 5px 7px 14px -5px rgb(194 65 12 / 0.7), -3px -3px 8px rgb(255 255 255 / 0.9); }
+[data-theme="clay"] .dock-sep { background: rgb(30 70 60 / 0.12); }
