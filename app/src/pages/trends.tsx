@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice } from "@/components/channel-choice";
+import { TemplateChoice } from "@/components/template-choice";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ExternalA } from "@/components/external-link";
 import { BudgetNotice, SetupCard } from "@/components/setup-notices";
@@ -146,7 +147,7 @@ export default function TrendsPage() {
   });
   const produce = useMutation({
     mutationFn: ({ id, links }: { id: string; links?: string[] }) =>
-      api.produce(id, { ...(links?.length ? { links, links_only: linksOnly } : {}), channel: choice.channel }),
+      api.produce(id, { ...(links?.length ? { links, links_only: linksOnly } : {}), channel: choice.channel, template: choice.template }),
     onSuccess: ({ project_id }) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["trends"] });
@@ -231,6 +232,7 @@ export default function TrendsPage() {
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-3">
               <ChannelChoice choice={choice} label={t.trends.forChannel} className="w-44" />
+              <TemplateChoice api={api} compact value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} className="h-11 w-44" />
               <Button variant="secondary" onClick={() => refresh.mutate()} disabled={refreshing || refresh.isPending}>
                 {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 {refreshing ? t.trends.refreshing : t.trends.refresh}

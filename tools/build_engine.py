@@ -6,6 +6,7 @@ uv run --group build python tools/build_engine.py
 uv run python tools/build_engine.py --check <thư mục motio-engine>
 → chỉ kiểm tra (macOS): mlx.metallib nằm cạnh mọi libmlx.dylib; dùng cho bản .app Tauri đã dựng
 """
+import os
 import platform
 import shutil
 import subprocess
@@ -81,6 +82,7 @@ def main() -> None:
             "--collect-submodules", "uvicorn", "--collect-all", "yt_dlp_ejs",
             "--collect-all", "f2",  # f2 reads its yaml config and locale files from disk
             "--collect-data", "cv2",  # OpenCV's Haar xml, the face tracker's fallback when the YuNet model cannot be downloaded
+            "--add-data", f"{ROOT / 'motio' / 'assets'}{os.pathsep}motio/assets",  # the bundled template fonts (looks.FONT_DIR)
             "--exclude-module", "tkinter", "--exclude-module", "motio.web"]
     if platform.system() == "Darwin":
         # torch chỉ dùng trong mlx_whisper.torch_whisper (chuyển đổi model), không cần khi bóc lời

@@ -22,6 +22,7 @@ export const SECTIONS: Record<SectionKey, { home: string; tabs: Tab[] }> = {
     tabs: [
       { to: "/tools", label: "quickJobs" },
       { to: "/delogo", label: "delogo" },
+      { to: "/templates", label: "templates" },
     ],
   },
 };

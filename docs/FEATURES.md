@@ -93,6 +93,14 @@ title or script used in the last 30 days.
   Logos) or an **Area to keep (zoom)**, up to 6 boxes. Applied at render; nothing is detected for you.
 - **Mirror / colour filter** per source (one setting for a whole AI video), and **Original sound** level.
 
+## Templates
+
+A template keeps how a video looks: caption font, colours, outline, box, the spoken word, where the captions sit, the
+title band, the background and the camera moves, and optionally a voice, a length and the source sound level. 13
+starter templates are built in; make your own in **Tools → Templates** (live preview), import / export JSON, or
+**Save as template** on a finished video. Pick one on a new video, or set a channel's **Default template**; change a
+finished video's template from its page (rendered again with the same voice). Details and sources: `docs/TEMPLATES.md`.
+
 ## Tools
 
 One-off jobs that need no project; each input is an uploaded file or the result of another job, so they chain:

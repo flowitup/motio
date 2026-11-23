@@ -60,6 +60,7 @@ from . import (
     trending,
     tts,
     usage,
+    video_templates,
     watch,
     weibo_feed,
 )
@@ -76,6 +77,7 @@ class ProduceIn(BaseModel):
     links: list[str] = []  # link video dán tay (Douyin, X, …), luôn được dùng
     links_only: bool = False  # chỉ dùng các link này, không tự tìm
     channel: int | None = None  # hồ sơ kênh: None = kênh mặc định (nếu có), 0 = không dùng kênh
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class TopicIn(BaseModel):
@@ -84,6 +86,7 @@ class TopicIn(BaseModel):
     links_only: bool = False
     duration: int = 80  # 70 | 80 | 90 giây
     channel: int | None = None  # như ProduceIn
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class AiIn(BaseModel):
@@ -94,6 +97,7 @@ class AiIn(BaseModel):
     review_shots: bool = False  # dừng sau khi làm ảnh để duyệt / làm lại từng ảnh trước khi đọc giọng và dựng
     cast: str = ""  # nhân vật riêng của video này, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu), thêm vào cast kênh
     same_face: bool = True  # làm ảnh cảnh từ ảnh chân dung tham chiếu của từng nhân vật (cùng mặt)
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class DubIn(BaseModel):
@@ -102,6 +106,7 @@ class DubIn(BaseModel):
     end: float | None = None
     whole: bool = False  # lồng cả video: bỏ qua start / end, không giới hạn 62–90 s
     channel: int | None = None  # như ProduceIn
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class ClipAnalyzeIn(BaseModel):
@@ -109,6 +114,7 @@ class ClipAnalyzeIn(BaseModel):
     count: int = clipper.DEFAULT_CLIPS  # số khoảnh khắc Claude đề xuất
     auto: bool = False  # Claude tự chọn: tạo luôn dự án cho mọi khoảnh khắc đề xuất
     channel: int | None = None  # như ProduceIn (chỉ khi auto)
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class ClipExportIn(BaseModel):
@@ -116,6 +122,7 @@ class ClipExportIn(BaseModel):
     clips: list  # [{start, end, hook, crop: {fit, x: [[giây, tâm 0..1]]}, captions}], xem clipper.clean_clip
     duration: float | None = None  # độ dài nguồn (để kiểm tra mốc cuối)
     channel: int | None = None
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class ClipTrackIn(BaseModel):
@@ -151,6 +158,7 @@ class ClipDubIn(BaseModel):
     whole: bool = False  # lồng cả video (xem DubIn)
     start: float | None = None  # đoạn lồng tiếng (xem DubIn)
     end: float | None = None
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class DubPatch(BaseModel):
@@ -195,6 +203,7 @@ class ClipProduceIn(BaseModel):
     channel: int | None = None  # như ProduceIn
     mute_voice: bool = True  # tắt hẳn tiếng gốc của nguồn (giọng tiếng Trung) dưới giọng đọc Pháp
     topic: str | None = None  # chủ đề chủ đã sửa; None = tiêu đề của video, "" = chỉ dùng link
+    template: str | None = None  # mẫu video (video_templates.py): None = mẫu mặc định của kênh, "none" = không dùng mẫu
 
 
 class ScriptIn(BaseModel):
@@ -225,8 +234,34 @@ class DelogoRunIn(BaseModel):
     end: float | None = None
 
 
+class TemplateIn(BaseModel):
+    name: str
+    note: str = ""
+    look: dict = {}  # see motio/looks.py; missing or wrong values fall back to the classic look
+    voice_id: str = ""  # empty = the channel's / Settings' voice
+    duration: int | None = None  # 70 | 80 | 90, None = leave the length to the form
+    src_volume: float | None = None  # level of the source's own sound, None = leave it
+
+
+class LookPreviewIn(BaseModel):
+    look: dict = {}
+
+
+class TemplateImportIn(BaseModel):
+    json_text: str
+
+
+class TemplateSaveIn(BaseModel):
+    name: str
+
+
+class ProjectTemplateIn(BaseModel):
+    key: str | None = None  # None = back to the classic look
+
+
 class ChannelIn(BaseModel):
     name: str
+    template: str = ""  # mẫu video mặc định của kênh (key, xem video_templates.py); rỗng = kiểu cổ điển
     badge: str = ""  # nhãn đỏ trên tiêu đề video, rỗng = không nhãn
     style: str = ""  # ghi chú giọng văn thêm vào prompt kịch bản
     glossary: str = ""  # bảng thuật ngữ (tên riêng, từ chuyên môn) cho kịch bản và bản dịch lồng tiếng
@@ -304,6 +339,7 @@ def _project_out(p: dict, full: bool = False) -> dict:
         out["source_sound"] = pipeline.source_sound(p)
         out["masks"] = masks.view(p)
         out["effects"] = effects.view(p)
+        out["template"] = video_templates.view(p)
         out["usage"] = usage.for_project(p["id"])
     return out
 
@@ -541,7 +577,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         ch = _channel_for(body.channel if body else None)
         _preflight()
         pid = db.create_project(tid, t["title_fr"] or t["title_zh"])
-        channels.attach(pid, ch, news=True)
+        channels.attach(pid, ch, news=True, template=body.template if body else None)
         if links:
             db.update_project(pid, log=tr("Pasted source links: {n}", n=len(links)),
                               meta={"links": links, "links_only": bool(body.links_only)})
@@ -669,7 +705,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             pid = watch.produce(cid, body.duration, body.links_only, body.mute_voice, body.topic)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        channels.attach(pid, ch)
+        channels.attach(pid, ch, template=body.template)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -683,7 +719,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             pid = dub.from_clip(cid, whole=bool(body and body.whole), start=body and body.start, end=body and body.end)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        channels.attach(pid, ch)
+        channels.attach(pid, ch, template=body.template if body else None)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -719,7 +755,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             pid = topic.create(body.topic, body.links, body.links_only, body.duration)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        channels.attach(pid, ch)
+        channels.attach(pid, ch, template=body.template)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -735,7 +771,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             pid = creator.create(body.topic, body.duration, body.clips, body.review_shots, body.cast, body.same_face)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        channels.attach(pid, ch)
+        channels.attach(pid, ch, template=body.template)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -748,7 +784,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             pid = dub.create(body.link, body.start, body.end, whole=body.whole)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        channels.attach(pid, ch)
+        channels.attach(pid, ch, template=body.template)
         jobs.submit(_run_job, pipeline.produce, pid)
         return {"project_id": pid}
 
@@ -773,11 +809,12 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         if not (config.env("ANTHROPIC_API_KEY") or "").strip():
             raise HTTPException(409, tr("No Anthropic API key: add ANTHROPIC_API_KEY in Settings"))
 
-    def _export_clips(link: str, clips: list[dict], ch: dict | None, duration: float | None = None):
+    def _export_clips(link: str, clips: list[dict], ch: dict | None, duration: float | None = None,
+                      template: str | None = None):
         """Một dự án cho mỗi clip, xếp hàng làm lần lượt (mỗi lúc một video)."""
         ids = clipper.export(link, clips, duration)
         for pid in ids:
-            channels.attach(pid, ch)
+            channels.attach(pid, ch, template=template)
             jobs.submit(_run_job, pipeline.produce, pid)
         return ids
 
@@ -787,7 +824,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         không thì app đọc kết quả (GET /api/clipper/{id}) để người dùng tự chọn trong Clip Studio."""
         ch = _channel_for(body.channel)
         _need_claude()
-        then = (lambda link, found: _export_clips(link, found, ch)) if body.auto else None
+        then = (lambda link, found: _export_clips(link, found, ch, template=body.template)) if body.auto else None
         try:
             return clipper.start(body.link, body.count, then)
         except ValueError as e:
@@ -816,7 +853,7 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
         ch = _channel_for(body.channel)
         _need_claude()
         try:
-            return {"project_ids": _export_clips(body.link, body.clips, ch, body.duration)}
+            return {"project_ids": _export_clips(body.link, body.clips, ch, body.duration, body.template)}
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
@@ -1141,6 +1178,65 @@ def create_app(token: str, headless: bool = False) -> FastAPI:
             raise HTTPException(404, tr("Channel not found"))
         db.delete_channel(cid)
         return {"deleted": cid}
+
+    # ---------- mẫu video ----------
+    def _tpl(call, *args):
+        try:
+            return call(*args)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/templates", dependencies=[Depends(auth)])
+    def list_templates():
+        """Built-in and the owner's templates, each with its look and the /media path of its preview picture."""
+        return video_templates.listing()
+
+    @app.post("/api/templates", status_code=201, dependencies=[Depends(auth)])
+    def create_template(body: TemplateIn):
+        return _tpl(video_templates.create, body.model_dump())
+
+    @app.post("/api/templates/import", status_code=201, dependencies=[Depends(auth)])
+    def import_template(body: TemplateImportIn):
+        return _tpl(video_templates.import_json, body.json_text)
+
+    @app.post("/api/templates/preview", dependencies=[Depends(auth)])
+    def preview_look(body: LookPreviewIn):
+        """A look drawn on the sample frame (the editor's live preview); nothing is saved."""
+        return {"preview": video_templates.preview(body.look)}
+
+    @app.put("/api/templates/{key}", dependencies=[Depends(auth)])
+    def update_template(key: str, body: TemplateIn):
+        return _tpl(video_templates.update, key, body.model_dump())
+
+    @app.delete("/api/templates/{key}", dependencies=[Depends(auth)])
+    def delete_template(key: str):
+        _tpl(video_templates.delete, key)
+        return {"deleted": key}
+
+    @app.get("/api/templates/{key}/export", dependencies=[Depends(auth)])
+    def export_template(key: str):
+        return _tpl(video_templates.export, key)
+
+    @app.put("/api/projects/{pid}/template", dependencies=[Depends(auth)])
+    def put_project_template(pid: int, body: ProjectTemplateIn):
+        """Put a template (or, with `key` null, the classic look) on a project. When the voice is already made, the
+        video is rendered again with it (no new voice); `queued` says whether that was started."""
+        p = _get(pid)
+        if p["status"] in ("queued", "running"):
+            raise HTTPException(409, tr("Project is running"))
+        if body.key:
+            _tpl(video_templates.apply, pid, body.key)
+        else:
+            video_templates.clear(pid)
+        return {"project": _project_out(_get(pid), full=True), "queued": _rerender_kept_voice(pid)}
+
+    @app.post("/api/projects/{pid}/template/save", status_code=201, dependencies=[Depends(auth)])
+    def save_project_template(pid: int, body: TemplateSaveIn):
+        """Keep the way this project looks (look, voice, source sound) as a template of the owner's."""
+        _get(pid)
+        return _tpl(video_templates.from_project, pid, body.name)
 
     # ---------- đăng bài qua Postiz ----------
     def _need_postiz() -> None:

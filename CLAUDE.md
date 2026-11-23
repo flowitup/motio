@@ -18,6 +18,12 @@ as authoritative for scope and milestones.
   - `douyin.py` public Douyin videos without a login through the `f2` package (it does Douyin's request signing; Motio only
     calls it): `search.download` tries it first for Douyin links and falls back to yt-dlp when f2 cannot
   - `llm.py` Claude API (Anthropic SDK; main + fast model, each call's cost goes to `usage`) · `tts.py` ElevenLabs or Gemini TTS (`TTS_PROVIDER`, `docs/GEMINI_TTS.md`; macOS `say` fallback for dev only)
+  - `looks.py` + `video_templates.py` + `assets/fonts/` video templates (owner, 2026-11-23): a look (caption / title band / frame /
+    camera, `meta.look`, `DEFAULT` = what Motio drew before, byte-identical) read by `render.py`; templates are named looks
+    (13 built-in `b:<slug>`, the owner's in the `template` table `u:<id>`, JSON import / export, real-renderer previews),
+    picked on a new video, as a channel default (`template`), or on the project page (re-render keeps the voice); fonts are
+    OFL only (bundled, `tools/build_engine.py --add-data`); ideas from other projects only, never their code or assets;
+    sources and licences in `docs/TEMPLATES.md`
   - `render.py` 9:16 composition (+ 16:9 copy, same cut) · `pipeline.py` project steps (`produce`, `resume`, `rerender`); the
     source video's own sound under the French voice is the owner's level `meta.src_volume` (0–1, project page card "Original
     sound", `PUT /api/projects/{id}/source-volume` renders again with the saved voice), else 0 for a trending clip

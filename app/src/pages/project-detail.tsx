@@ -32,6 +32,7 @@ import { ScriptCard, type ScriptGate } from "@/components/script-card";
 import { ShotsCard } from "@/components/shots-card";
 import { SourceEffectsCard } from "@/components/source-effects-card";
 import { SourceMasksCard } from "@/components/source-masks-card";
+import { ProjectTemplateCard } from "@/components/project-template-card";
 import { SourceSoundCard } from "@/components/source-sound-card";
 import { Kicker, Led, PageTitle, Panel, Segmented } from "@/components/studio";
 import { TimelineStrip, lineAt, useNarration, type Mark } from "@/components/timeline";
@@ -710,6 +711,7 @@ export default function ProjectDetailPage() {
                 <DubBlurCard key={`${p.dub.blur}`} api={api} p={p} active={active} onQueued={() => refetch()} />
               </>
             )}
+            {p.template && <ProjectTemplateCard key={p.template.template?.key ?? "none"} api={api} p={p} active={active} onQueued={() => refetch()} />}
             {p.source_sound && <SourceSoundCard key={`${p.source_sound.volume}`} api={api} p={p} active={active} onQueued={() => refetch()} />}
             {p.masks && !p.clip && (
               <SourceMasksCard key={(p.meta.sources ?? []).map((s) => s.url).join("|")} api={api} p={p} active={active} onQueued={() => refetch()} />

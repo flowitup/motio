@@ -131,12 +131,43 @@ export type ProjectMeta = {
   elapsed?: number;
   postiz?: PublishRecord[];
   channel?: number; // hồ sơ kênh (Kênh), không có = chạy như trước
+  template?: { key: string; name: string } | null; // video template put on this video
+  look?: Look | null; // the look the video is rendered with
   qa?: QaResult; // kiểm tra chất lượng lần dựng gần nhất
   review?: Review | null; // đang chờ duyệt gì (status = "review")
   send_error?: string | null; // lần tự gửi Postiz gần nhất bị lỗi
   approved_at?: number;
   auto?: boolean; // tự làm vì tin đạt điểm của kênh
 };
+
+/** How a video is dressed (engine: motio/looks.py): caption style, title band, the frame behind the source, camera moves. */
+export type Look = {
+  caption: {
+    font: string; size: number; color: string; spoken: string; active: string; stroke: string; stroke_w: number;
+    box: "none" | "line" | "word"; box_color: string; box_alpha: number; active_box: string; upper: boolean; pop: number;
+    glow: string; pos: "below" | "lower" | "middle" | "upper";
+  };
+  title: {
+    show: boolean; font: string; color: string; bar: string; bar_alpha: number; badge: string; pos: "top" | "lower";
+    align: "left" | "center"; upper: boolean; accent: string;
+  };
+  frame: { blur: number; dim: number; color: string };
+  motion: { mode: "auto" | "zoom_in" | "zoom_out" | "alternate" | "pan" | "still"; zoom: number };
+};
+/** A video template: a named look plus optional voice / length / source-sound defaults. key = "b:<slug>" (built in) or "u:<id>". */
+export type VideoTemplate = {
+  key: string;
+  name: string;
+  note: string;
+  credit: string;
+  builtin: boolean;
+  look: Look;
+  voice_id: string;
+  duration: number | null;
+  src_volume: number | null;
+  preview: string; // /media path of a picture of the look
+};
+export type TemplateInput = Pick<VideoTemplate, "name" | "note" | "look" | "voice_id" | "duration" | "src_volume">;
 
 export type Review = "script" | "shots" | "video";
 export type SendMode = PublishMode;
@@ -164,6 +195,7 @@ export type ChannelInput = {
   series: string; // video AI: tiền đề + luật của loạt phim; mỗi tập mới viết tiếp các tập trước của kênh
   cast: string; // video AI: nhân vật cố định, mỗi dòng "Tên: ngoại hình" (tiếng Anh, hư cấu)
   ai_note?: boolean; // bài đăng có dòng "Voix off générée par IA." (engine cũ không có = bật); cờ AI của nền tảng luôn bật
+  template?: string; // default video template of the channel (key); empty = the classic look
   default: boolean;
 };
 export type Channel = ChannelInput & { id: number; created_at: number; updated_at: number };
@@ -352,6 +384,7 @@ export type ProjectDetail = Project & {
   masks: SourceMask[] | null; // khung làm mờ theo từng nguồn (thứ tự meta.sources); null = video không có nguồn (video AI)
   effects: ProjectEffects | null; // hiệu ứng theo từng nguồn; null = chưa có nguồn
   source_sound: SourceSound | null; // tiếng gốc của video nguồn dưới giọng đọc; null = video này không có (lồng tiếng, video AI)
+  template?: { template: { key: string; name: string } | null; classic: boolean }; // the video's template (old engines: none)
   usage: { tts_chars: number; usd: number; clip_usd: number; llm_usd?: number; picture_usd?: number }; // ElevenLabs: ký tự đã đọc cho dự án này (cộng dồn mọi lần đọc) và tiền ước lượng
 };
 
@@ -628,7 +661,7 @@ export function makeApi(url: string, token: string) {
       call<Trend[]>("GET", `/api/trends?hours=24${source ? `&source=${encodeURIComponent(source)}` : ""}`),
     refresh: () => call<{ started: boolean }>("POST", "/api/trends/refresh"),
     /** channel: id hồ sơ kênh, 0 = không dùng kênh, bỏ trống = kênh mặc định. */
-    produce: (id: string, opts?: { links?: string[]; links_only?: boolean; channel?: number }) =>
+    produce: (id: string, opts?: { links?: string[]; links_only?: boolean; channel?: number; template?: string }) =>
       call<{ project_id: number }>("POST", `/api/trends/${encodeURIComponent(id)}/produce`, opts),
     /** Video giải thích từ chủ đề tự do và / hoặc link video (Douyin, Bilibili, Facebook, YouTube…). */
     createTopic: (body: {
@@ -637,17 +670,18 @@ export function makeApi(url: string, token: string) {
       links_only: boolean;
       duration: number;
       channel?: number;
+      template?: string; // video template key; none = no template; empty = the channel's default
     }) =>
       call<{ project_id: number }>("POST", "/api/projects", body),
     /** Lồng tiếng Pháp một video; start / end (giây) bỏ trống = Motio tự chọn đoạn; whole = cả video, mọi độ dài. */
-    createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; channel?: number }) =>
+    createDub: (body: { link: string; start?: number; end?: number; whole?: boolean; channel?: number; template?: string }) =>
       call<{ project_id: number }>("POST", "/api/dubs", body),
     /** Clip: phân tích video dài ở nền (auto: Claude tự tạo luôn dự án cho từng khoảnh khắc). Đọc kết quả bằng clipperJob(). */
-    clipperAnalyze: (body: { link: string; count?: number; auto?: boolean; channel?: number }) =>
+    clipperAnalyze: (body: { link: string; count?: number; auto?: boolean; channel?: number; template?: string }) =>
       call<ClipperJob>("POST", "/api/clipper/analyze", body),
     clipperJob: (id: string) => call<ClipperJob>("GET", `/api/clipper/${encodeURIComponent(id)}`),
     /** Mỗi clip đã chọn thành một dự án (xếp hàng làm lần lượt). */
-    clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; duration?: number | null; channel?: number }) =>
+    clipperExport: (body: { link: string; clips: Partial<ClipMoment>[]; duration?: number | null; channel?: number; template?: string }) =>
       call<{ project_ids: number[] }>("POST", "/api/clipper/export", body),
     /** Khung crop bám mặt cho một đoạn của video đã phân tích (Clip Studio); found = false: không thấy mặt, khung giữa hình. */
     clipperTrack: (jobId: string, body: { start: number; end: number }) =>
@@ -663,6 +697,7 @@ export function makeApi(url: string, token: string) {
       topic: string;
       duration: number;
       channel?: number;
+      template?: string; // video template key; none = no template; empty = the channel's default
       clips?: number;
       review_shots?: boolean;
       cast?: string;
@@ -683,7 +718,7 @@ export function makeApi(url: string, token: string) {
     redoFailedShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/redo-failed`),
     continueShots: (id: number) => call<{ project_id: number }>("POST", `/api/projects/${id}/shots/continue`),
     /** Lồng tiếng một video mới. */
-    dubClip: (id: string, body: { channel?: number; whole?: boolean; start?: number; end?: number }) =>
+    dubClip: (id: string, body: { channel?: number; template?: string; whole?: boolean; start?: number; end?: number }) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/dub`, body),
     /** Đổi đoạn lồng tiếng / khung làm mờ (blur: null = tắt). rerun: bước nên chạy lại bằng retry(). */
     /** Đặt âm lượng tiếng gốc (0..1); nếu đã có giọng đọc thì dựng lại video ngay, không đọc lại. */
@@ -732,7 +767,7 @@ export function makeApi(url: string, token: string) {
     /** Video giải thích từ một video mới; links_only = chỉ dùng video này, không tìm thêm YouTube / Bilibili. */
     produceClip: (
       id: string,
-      body: { duration: number; links_only: boolean; channel?: number; mute_voice?: boolean; topic?: string },
+      body: { duration: number; links_only: boolean; channel?: number; template?: string; mute_voice?: boolean; topic?: string },
     ) =>
       call<{ project_id: number }>("POST", `/api/clips/${encodeURIComponent(id)}/produce`, body),
     projects: () => call<Project[]>("GET", "/api/projects"),
@@ -759,6 +794,19 @@ export function makeApi(url: string, token: string) {
     /** Duyệt dự án đang chờ: kịch bản → đọc giọng và dựng; video → gửi Postiz theo kênh (send=false: không gửi). */
     approve: (id: number, send = true) =>
       call<{ project_id: number; review: Review }>("POST", `/api/projects/${id}/approve`, { send }),
+    templates: () => call<VideoTemplate[]>("GET", "/api/templates"),
+    createTemplate: (body: TemplateInput) => call<VideoTemplate>("POST", "/api/templates", body),
+    updateTemplate: (key: string, body: TemplateInput) => call<VideoTemplate>("PUT", `/api/templates/${key}`, body),
+    deleteTemplate: (key: string) => call<{ deleted: string }>("DELETE", `/api/templates/${key}`),
+    /** The template as a plain object to share (importTemplate takes it back as text). */
+    exportTemplate: (key: string) => call<Record<string, unknown>>("GET", `/api/templates/${key}/export`),
+    importTemplate: (json_text: string) => call<VideoTemplate>("POST", "/api/templates/import", { json_text }),
+    /** A look drawn on the sample frame, without saving anything: the /media path of the picture. */
+    previewLook: (look: Look) => call<{ preview: string }>("POST", "/api/templates/preview", { look }),
+    /** Put a template (key null = the classic look) on a video; if its voice is made the video is rendered again. */
+    setProjectTemplate: (id: number, key: string | null) =>
+      call<{ project: ProjectDetail; queued: boolean }>("PUT", `/api/projects/${id}/template`, { key }),
+    saveProjectTemplate: (id: number, name: string) => call<VideoTemplate>("POST", `/api/projects/${id}/template/save`, { name }),
     channels: () => call<Channel[]>("GET", "/api/channels"),
     createChannel: (body: ChannelInput) => call<Channel>("POST", "/api/channels", body),
     updateChannel: (id: number, body: ChannelInput) => call<Channel>("PUT", `/api/channels/${id}`, body),

@@ -611,3 +611,68 @@ def test_failed_project_in_the_list_carries_its_error(client):
     rows = {p["id"]: p for p in client.get("/api/projects", headers=H).json()}
     assert rows[pid]["error"] == "Could not download the video: HTTP 412"
     assert "error" not in rows[ok]
+
+
+# ---------- video templates ----------
+def test_templates_api_crud_import_export(client):
+    for row in db.list_templates():  # the database is shared by the whole run
+        db.delete_template(row["id"])
+    got = client.get("/api/templates", headers=H).json()
+    assert got[0]["key"] == "b:classic" and all(t["preview"] for t in got) and all(t["builtin"] for t in got)
+    made = client.post("/api/templates", headers=H, json={"name": "Mine", "look": {"caption": {"font": "anton"}}})
+    assert made.status_code == 201 and made.json()["key"].startswith("u:")
+    key = made.json()["key"]
+    assert client.post("/api/templates", headers=H, json={"name": ""}).status_code == 400
+    up = client.put(f"/api/templates/{key}", headers=H, json={"name": "Mine 2", "duration": 90})
+    assert up.status_code == 200 and up.json()["name"] == "Mine 2" and up.json()["duration"] == 90
+    assert client.put("/api/templates/b:impact", headers=H, json={"name": "x"}).status_code == 400
+    assert client.put("/api/templates/u:999", headers=H, json={"name": "x"}).status_code == 404
+    exported = client.get(f"/api/templates/{key}/export", headers=H).json()
+    assert exported["motio_template"] == 1 and exported["name"] == "Mine 2"
+    imp = client.post("/api/templates/import", headers=H, json={"json_text": json.dumps(exported)})
+    assert imp.status_code == 201 and imp.json()["key"] != key
+    assert client.post("/api/templates/import", headers=H, json={"json_text": "nope"}).status_code == 400
+    assert client.delete(f"/api/templates/{key}", headers=H).status_code == 200
+    assert client.delete(f"/api/templates/{key}", headers=H).status_code == 404
+    assert client.delete("/api/templates/b:impact", headers=H).status_code == 400
+    assert client.get("/api/templates").status_code in (401, 403)
+
+
+def test_new_video_takes_the_picked_template_or_the_channels(client):
+    ch = client.post("/api/channels", headers=H, json={"name": "Chine", "default": True, "gate_script": False,
+                                                        "gate_video": False, "template": "b:tall"}).json()
+    assert ch["template"] == "b:tall"
+    pid = client.post("/api/trends/douyin:1/produce", headers=H).json()["project_id"]
+    assert _wait_done(client, pid)["meta"]["template"]["key"] == "b:tall"
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"template": "b:neon"}).json()["project_id"]
+    meta = _wait_done(client, pid)["meta"]
+    assert meta["template"]["key"] == "b:neon" and meta["look"]["caption"]["glow"] == "#00C8FF"
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"template": "none"}).json()["project_id"]
+    assert "look" not in _wait_done(client, pid)["meta"]
+    body = {"topic": "gấu trúc", "template": "b:comic"}
+    pid = client.post("/api/projects", headers=H, json=body).json()["project_id"]
+    assert _wait_done(client, pid)["meta"]["template"]["key"] == "b:comic"
+
+
+def test_project_template_apply_save_and_clear(client):
+    pid = client.post("/api/trends/douyin:1/produce", headers=H, json={"channel": 0}).json()["project_id"]
+    done = _wait_done(client, pid)
+    assert done["template"] == {"template": None, "classic": True}
+    r = client.put(f"/api/projects/{pid}/template", headers=H, json={"key": "b:impact"})
+    assert r.status_code == 200 and r.json()["project"]["template"]["template"]["key"] == "b:impact"
+    assert client.put(f"/api/projects/{pid}/template", headers=H, json={"key": "b:nope"}).status_code == 404
+    saved = client.post(f"/api/projects/{pid}/template/save", headers=H, json={"name": "From video"})
+    assert saved.status_code == 201 and saved.json()["look"]["caption"]["font"] == "anton"
+    assert client.post("/api/projects/9999/template/save", headers=H, json={"name": "x"}).status_code == 404
+    r = client.put(f"/api/projects/{pid}/template", headers=H, json={"key": None})
+    assert r.json()["project"]["template"]["classic"] is True
+
+
+def test_look_preview_draws_without_saving(client):
+    before = len(client.get("/api/templates", headers=H).json())
+    r = client.post("/api/templates/preview", headers=H, json={"look": {"caption": {"font": "bebas", "upper": True}}})
+    assert r.status_code == 200 and r.json()["preview"].startswith("cache/templates/")
+    assert (config.DATA / r.json()["preview"]).exists()
+    assert client.post("/api/templates/preview", headers=H, json={"look": {}}).json()["preview"] == \
+        client.get("/api/templates", headers=H).json()[0]["preview"]  # the classic look: same picture
+    assert len(client.get("/api/templates", headers=H).json()) == before  # nothing was saved

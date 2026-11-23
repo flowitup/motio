@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Scissors, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
+import { CircleCheck, Clock, Film, Languages, Link2, ListChecks, Loader2, Palette, Scissors, Search, Sparkles, Tv, UsersRound, Video } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { AddVideoFile } from "@/components/add-video-file";
 import { ChannelChoice, useChannelChoice, type ChannelChoiceState } from "@/components/channel-choice";
+import { TemplateChoice } from "@/components/template-choice";
 import { clock, parseClock } from "@/components/dub-cards";
 import { BudgetNotice, SetupCard } from "@/components/setup-notices";
 import { PageTitle, PanelHeader, Segmented, TopBar } from "@/components/studio";
@@ -225,7 +226,7 @@ function DubConsole({ api, clip }: { api: Api; clip?: Clip }) {
         ...(!whole && start != null ? { start } : {}),
         ...(!whole && end != null ? { end } : {}),
         ...(whole ? { whole } : {}),
-        channel: choice.channel,
+        channel: choice.channel, template: choice.template,
       };
       return clip ? api.dubClip(clip.id, body) : api.createDub({ link: link.trim(), ...body });
     },
@@ -336,6 +337,9 @@ function DubConsole({ api, clip }: { api: Api; clip?: Clip }) {
           <ChannelRow choice={choice} />
         </Section>
       )}
+      <Section icon={Palette} label={t.templates.picker.label}>
+        <TemplateChoice api={api} value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} />
+      </Section>
     </Console>
   );
 }
@@ -371,7 +375,7 @@ function TopicConsole({ api, clip }: { api: Api; clip?: Clip }) {
           topic: topics.join(" "),
           duration: Number(duration),
           links_only: linksOnly,
-          channel: choice.channel,
+          channel: choice.channel, template: choice.template,
           mute_voice: mute,
         });
         return { first: r.project_id, done: 1, total: 1, error: undefined, rest: [] as string[] };
@@ -382,7 +386,7 @@ function TopicConsole({ api, clip }: { api: Api; clip?: Clip }) {
       let first = 0;
       for (const tp of list) {
         try {
-          const r = await api.createTopic({ topic: tp, links, links_only: linksOnly, duration: Number(duration), channel: choice.channel });
+          const r = await api.createTopic({ topic: tp, links, links_only: linksOnly, duration: Number(duration), channel: choice.channel, template: choice.template });
           if (!done) first = r.project_id;
           done++;
         } catch (e) {
@@ -497,6 +501,9 @@ function TopicConsole({ api, clip }: { api: Api; clip?: Clip }) {
           <ChannelRow choice={choice} />
         </Section>
       )}
+      <Section icon={Palette} label={t.templates.picker.label}>
+        <TemplateChoice api={api} value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} />
+      </Section>
     </Console>
   );
 }
@@ -533,7 +540,7 @@ function AiConsole({ api }: { api: Api }) {
       api.createAi({
         topic: topic.trim(),
         duration: seconds,
-        channel: choice.channel,
+        channel: choice.channel, template: choice.template,
         review_shots: reviewShots,
         cast: cast.trim(),
         same_face: sameFace,
@@ -652,6 +659,9 @@ function AiConsole({ api }: { api: Api }) {
           <ChannelRow choice={choice} />
         </Section>
       )}
+      <Section icon={Palette} label={t.templates.picker.label}>
+        <TemplateChoice api={api} value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} />
+      </Section>
     </Console>
   );
 }
@@ -666,7 +676,7 @@ function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
   const n = Number(count);
   const badCount = !Number.isInteger(n) || n < 1 || n > 12;
   const auto = useMutation({
-    mutationFn: () => api.clipperAnalyze({ link: link.trim(), count: n, auto: true, channel: choice.channel }),
+    mutationFn: () => api.clipperAnalyze({ link: link.trim(), count: n, auto: true, channel: choice.channel, template: choice.template }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate("/projects");
@@ -726,6 +736,9 @@ function ClipConsole({ api, clip }: { api: Api; clip?: Clip }) {
           <ChannelRow choice={choice} />
         </Section>
       )}
+      <Section icon={Palette} label={t.templates.picker.label}>
+        <TemplateChoice api={api} value={choice.templateValue} onChange={choice.setTemplate} channelTemplate={choice.channelTemplate} />
+      </Section>
     </Console>
   );
 }

@@ -9,7 +9,7 @@ Dự án trỏ tới hồ sơ bằng `meta.channel`; không có hồ sơ thì ch
 import datetime as dt
 import re
 
-from . import aiclips, db, series, topic
+from . import aiclips, db, series, topic, video_templates
 from .i18n import tr
 
 NEWS_BADGE = "ACTU CHINE"  # nhãn mặc định của video tin nóng khi dự án không có hồ sơ kênh
@@ -26,7 +26,7 @@ _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 DEFAULTS = {"name": "", "badge": "", "style": "", "glossary": "", "voice_id": "", "dub_voices": [], "duration": 80,
             "hashtags": [], "gate_script": True, "gate_video": True, "postiz": [], "send_mode": "draft",
             "send_times": [], "wide_postiz": [], "auto_score": 0, "auto_daily": 2, "auto_clips": "", "ai_clips": 0,
-            "series": "", "cast": "", "ai_note": True}
+            "series": "", "cast": "", "ai_note": True, "template": ""}
 
 
 def _tags(raw: list[str]) -> list[str]:
@@ -60,6 +60,7 @@ def clean(data: dict) -> dict:
     d["hashtags"] = _tags(d["hashtags"])[:MAX_TAGS]
     d["gate_script"], d["gate_video"] = bool(d["gate_script"]), bool(d["gate_video"])
     d["ai_note"] = bool(d["ai_note"])
+    d["template"] = str(d["template"] or "").strip()[:20]
     d["postiz"] = list(dict.fromkeys(str(i) for i in d["postiz"] if str(i).strip()))
     if d["send_mode"] not in SEND_MODES:
         raise ValueError(tr("Send mode must be one of {choices}", choices=", ".join(SEND_MODES)))
@@ -125,14 +126,15 @@ def pick(channel: int | None) -> dict | None:
     return full(ch)
 
 
-def attach(pid: int, ch: dict | None, news: bool = False) -> None:
-    """Gắn hồ sơ vào dự án vừa tạo. Video tin nóng lấy độ dài mặc định của kênh (chế độ chủ đề tự chọn độ dài)."""
-    if not ch:
-        return
-    meta = {"channel": ch["id"]}
-    if news:
-        meta["duration"] = ch["duration"]
-    db.update_project(pid, log=tr("Channel: {name}", name=ch["name"]), meta=meta)
+def attach(pid: int, ch: dict | None, news: bool = False, template: str | None = None) -> None:
+    """Gắn hồ sơ và mẫu video vào dự án vừa tạo. Video tin nóng lấy độ dài mặc định của kênh (chế độ chủ đề tự chọn độ
+    dài). Mẫu: cái người dùng chọn cho video này, không thì mẫu mặc định của kênh (video_templates.attach)."""
+    if ch:
+        meta = {"channel": ch["id"]}
+        if news:
+            meta["duration"] = ch["duration"]
+        db.update_project(pid, log=tr("Channel: {name}", name=ch["name"]), meta=meta)
+    video_templates.attach(pid, template, ch, news)
 
 
 def for_project(proj: dict) -> dict | None:

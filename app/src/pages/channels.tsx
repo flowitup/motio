@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { TemplateChoice } from "@/components/template-choice";
 import { VoicePicker } from "@/components/voice-picker";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { ApiError, hasVoiceProvider, useApi, type Api, type Channel, type ChannelInput, type SendMode } from "@/lib/api";
@@ -40,6 +41,7 @@ const BLANK: ChannelInput = {
   series: "",
   cast: "",
   ai_note: true,
+  template: "",
   default: false,
 };
 const AUTO_SCORE = 85; // điểm gợi ý khi bật tự làm
@@ -282,6 +284,9 @@ function ChannelForm({
             />
           </Field>
         </div>
+        <Field label={t.templates.channel.label} hint={t.templates.channel.hint}>
+          <TemplateChoice api={api} value={d.template ?? ""} onChange={(v) => set("template", v)} channelDefault />
+        </Field>
         <Field label={t.channels.dubVoices} hint={t.channels.dubVoicesHint}>
           <div className="grid gap-2 sm:grid-cols-3">
             {Array.from({ length: Math.min(d.dub_voices.length + 1, 3) }, (_, i) => (
