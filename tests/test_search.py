@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from yt_dlp.utils import DownloadError
 
-from motio import bilibili_dl, douyin, haokan, kuaishou, platforms, search, settings
+from motio import bilibili_dl, config, douyin, haokan, kuaishou, platforms, search, settings
 
 JAR = ("# Netscape HTTP Cookie File\n"
        ".bilibili.com\tTRUE\t/\tTRUE\t2000000000\tSESSDATA\tsecret\n")
@@ -286,10 +286,22 @@ def test_clean_links_refuses_two_links_on_one_line_instead_of_dropping_one():
             search.clean_links([text])
 
 
-def test_without_a_height_other_sites_stay_at_720(tmp_path):
+def test_without_a_height_the_source_quality_setting_decides(tmp_path, monkeypatch):
+    """Default 1080 on the short side (the frame is 1080×1920): a vertical 1080×1920 video is not cut to 720."""
     search.download("https://www.youtube.com/watch?v=abc", tmp_path)
-    search.download("https://www.youtube.com/watch?v=abc", tmp_path, 1080)
-    assert "height<=720" in FakeYDL.opts[0]["format"] and "height<=1080" in FakeYDL.opts[1]["format"]
+    search.download("https://www.youtube.com/watch?v=abc", tmp_path, 720)
+    monkeypatch.setattr(config, "env", lambda k, d="": "1440" if k == "SOURCE_QUALITY" else d)
+    search.download("https://www.youtube.com/watch?v=abc", tmp_path)
+    fmts = [o["format"] for o in FakeYDL.opts]
+    assert "[height<=1920][width<=1920]" in fmts[0]
+    assert "[height<=1280][width<=1280]" in fmts[1]
+    assert "[height<=2560][width<=2560]" in fmts[2]
+
+
+def test_source_short_falls_back_to_1080(monkeypatch):
+    for raw, want in (("", 1080), ("abc", 1080), ("999", 1080), ("720", 720), ("1440", 1440)):
+        monkeypatch.setattr(config, "env", lambda k, d="", raw=raw: raw if k == "SOURCE_QUALITY" else d)
+        assert config.source_short() == want
 
 
 # ---------- Chinese sites besides Bilibili and Douyin (platforms.py, haokan.py) ----------

@@ -13,7 +13,7 @@ KEYS = ("LLM_MODEL", "LLM_MODEL_FAST", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"
         "POSTIZ_URL", "POSTIZ_API_KEY", "YTDLP_COOKIES_FROM_BROWSER", "YTDLP_COOKIES_FILE",
         "UI_LANG",
         "ELEVENLABS_USD_PER_1K_CHARS", "MONTHLY_BUDGET_USD", "SLACK_WEBHOOK_URL", "IMAGE_PROVIDER", "FAL_KEY",
-        "FAL_IMAGE_MODEL", "IMAGE_STYLE", "NEWS_TOPICS",
+        "FAL_IMAGE_MODEL", "IMAGE_STYLE", "NEWS_TOPICS", "SOURCE_QUALITY",
         "AI_CLIP_USD_PER_SEC", "CLIP_PROVIDER", "HEYGEN_API_KEY",
         "DRIVE_ON", "DRIVE_CLIENT_ID", "DRIVE_CLIENT_SECRET", "DRIVE_REFRESH_TOKEN", "DRIVE_FOLDER", "DRIVE_KEEP_LOCAL")
 SECRETS = ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "GEMINI_API_KEY", "POSTIZ_API_KEY", "SLACK_WEBHOOK_URL",
@@ -87,6 +87,7 @@ def _normalize(v) -> str | None:
 def update(changes: dict) -> dict[str, dict]:
     """Ghi các khoá mới. Giá trị đã che (bắt đầu bằng ••••) bị bỏ qua; None xoá ghi đè (quay về .env)."""
     from .aiclips import PROVIDERS as CLIP_PROVIDERS
+    from .config import SOURCE_QUALITIES
     from .i18n import LANGS, tr  # i18n, notify và images đọc settings: nhập muộn cho khỏi vòng lặp import
     from .images import FAL_MODELS, PROVIDERS
     from .notify import valid
@@ -112,6 +113,9 @@ def update(changes: dict) -> dict[str, dict]:
     hook = _normalize(changes.get("SLACK_WEBHOOK_URL"))
     if hook and not hook.startswith(MASK) and not valid(hook):
         raise ValueError(tr("SLACK_WEBHOOK_URL must be a https://hooks.slack.com/… link"))
+    if changes.get("SOURCE_QUALITY") not in (None, "", *(str(q) for q in SOURCE_QUALITIES)):
+        choices = ", ".join(str(q) for q in SOURCE_QUALITIES)
+        raise ValueError(tr("SOURCE_QUALITY must be one of {choices}", choices=choices))
     if changes.get("REFRESH_EVERY_MIN") not in (None, ""):
         try:
             if int(changes["REFRESH_EVERY_MIN"]) < 0:

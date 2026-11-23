@@ -180,6 +180,19 @@ def _int(key: str) -> int:
         return 0
 
 
+SOURCE_QUALITIES = (720, 1080, 1440)  # cạnh ngắn (px) của video nguồn khi tải; khung ra 1080×1920 nên 720 bị phóng to
+DEFAULT_SOURCE_QUALITY = 1080
+
+
+def source_short() -> int:
+    """Cỡ video nguồn muốn tải theo cạnh ngắn: 1080 = 1920×1080 (ngang) hay 1080×1920 (dọc). Cài đặt SOURCE_QUALITY."""
+    try:
+        v = int(env("SOURCE_QUALITY", "0") or 0)
+    except ValueError:
+        v = 0
+    return v if v in SOURCE_QUALITIES else DEFAULT_SOURCE_QUALITY
+
+
 def refresh_every_min() -> int:
     """Tự cập nhật tin mỗi N phút; 0 = tắt (bấm tay)."""
     return _int("REFRESH_EVERY_MIN")
